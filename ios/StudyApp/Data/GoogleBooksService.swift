@@ -61,7 +61,12 @@ final class GoogleBooksService: BookSearchRepository {
             guard let volumeInfo = item["volumeInfo"] as? [String: Any] else {
                 return nil
             }
-            return try? parseBookInfo(volumeInfo)
+            do {
+                return try parseBookInfo(volumeInfo)
+            } catch {
+                print("[StudyApp] Skipping book entry during title search: \(error.localizedDescription)")
+                return nil
+            }
         }
     }
 

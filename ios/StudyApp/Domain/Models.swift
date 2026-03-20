@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 enum SubjectIcon: String, CaseIterable, Codable, Identifiable, Hashable {
     case book = "BOOK"
@@ -118,13 +117,6 @@ enum ThemeMode: String, CaseIterable, Codable, Identifiable, Hashable {
         }
     }
 
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .light: return .light
-        case .dark: return .dark
-        case .system: return nil
-        }
-    }
 }
 
 enum ColorTheme: String, CaseIterable, Codable, Identifiable, Hashable {
@@ -988,7 +980,10 @@ extension Date {
     }
 
     var epochDay: Int64 {
-        Int64(startOfDay.timeIntervalSince1970 / 86_400)
+        let calendar = Calendar.current
+        guard let epochStart = calendar.date(from: DateComponents(year: 1970, month: 1, day: 1)) else { return 0 }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: epochStart), to: calendar.startOfDay(for: self)).day ?? 0
+        return Int64(days)
     }
 
     var startOfDay: Date {
@@ -1000,7 +995,13 @@ extension Date {
     }
 
     init(epochDay: Int64) {
-        self = Date(timeIntervalSince1970: TimeInterval(epochDay) * 86_400)
+        let calendar = Calendar.current
+        guard let epochStart = calendar.date(from: DateComponents(year: 1970, month: 1, day: 1)) else {
+            self = Date(timeIntervalSince1970: TimeInterval(epochDay) * 86_400)
+            return
+        }
+        self = calendar.date(byAdding: .day, value: Int(epochDay), to: calendar.startOfDay(for: epochStart))
+            ?? Date(timeIntervalSince1970: TimeInterval(epochDay) * 86_400)
     }
 }
 

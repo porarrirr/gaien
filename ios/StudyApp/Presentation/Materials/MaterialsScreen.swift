@@ -463,7 +463,11 @@ private struct ScannerRepresentable: UIViewControllerRepresentable {
             isHighlightingEnabled: true
         )
         controller.delegate = context.coordinator
-        try? controller.startScanning()
+        do {
+            try controller.startScanning()
+        } catch {
+            print("[StudyApp] Failed to start barcode scanner: \(error.localizedDescription)")
+        }
         return controller
     }
 

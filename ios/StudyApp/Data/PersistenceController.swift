@@ -21,6 +21,8 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         let description = NSPersistentStoreDescription(url: storeURL)
         description.shouldMigrateStoreAutomatically = true
         description.shouldInferMappingModelAutomatically = true
+        description.setOption(FileProtectionType.completeUntilFirstUserAuthentication as NSObject,
+                              forKey: NSPersistentStoreFileProtectionKey)
         container.persistentStoreDescriptions = [description]
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
@@ -52,10 +54,14 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         preferencesRepository.savePreferences(snapshot.preferences)
 
         let migratedURL = legacyURL.deletingPathExtension().appendingPathExtension("json.migrated")
-        if fileManager.fileExists(atPath: migratedURL.path) {
-            try? fileManager.removeItem(at: migratedURL)
+        do {
+            if fileManager.fileExists(atPath: migratedURL.path) {
+                try fileManager.removeItem(at: migratedURL)
+            }
+            try fileManager.moveItem(at: legacyURL, to: migratedURL)
+        } catch {
+            print("[StudyApp] Failed to move legacy file after migration: \(error.localizedDescription)")
         }
-        try? fileManager.moveItem(at: legacyURL, to: migratedURL)
     }
 
     func getAllSubjects() async throws -> [Subject] {
@@ -107,8 +113,18 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         try await ensureLoaded()
         let now = Date().epochMilliseconds
         let relatedMaterials = try fetch(entity: "MaterialRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
-        let materialIds = Set(relatedMaterials.compactMap { $0.value(forKey: "id") as? Int64 })
-        let sessions = try fetch(entity: "StudySessionRecord")
+        let materialIds = relatedMaterials.compactMap { $0.value(forKey: "id") as? Int64 }
+
+        let sessionPredicate: NSPredicate
+        if materialIds.isEmpty {
+            sessionPredicate = NSPredicate(format: "subjectId == %lld", subject.id)
+        } else {
+            sessionPredicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
+                NSPredicate(format: "subjectId == %lld", subject.id),
+                NSPredicate(format: "materialId IN %@", materialIds.map { NSNumber(value: $0) })
+            ])
+        }
+        let sessions = try fetch(entity: "StudySessionRecord", predicate: sessionPredicate)
         let planItems = try fetch(entity: "PlanItemRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
 
         for material in relatedMaterials {
@@ -116,12 +132,8 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
             material.setValue(now, forKey: "updatedAt")
         }
         for session in sessions {
-            let subjectId = session.value(forKey: "subjectId") as? Int64
-            let materialId = session.value(forKey: "materialId") as? Int64
-            if subjectId == subject.id || (materialId.map(materialIds.contains) ?? false) {
-                session.setValue(now, forKey: "deletedAt")
-                session.setValue(now, forKey: "updatedAt")
-            }
+            session.setValue(now, forKey: "deletedAt")
+            session.setValue(now, forKey: "updatedAt")
         }
         for item in planItems {
             item.setValue(now, forKey: "deletedAt")

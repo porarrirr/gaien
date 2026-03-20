@@ -271,6 +271,12 @@ private struct TimerScreen: View {
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
         }
+        .onChange(of: viewModel.selectedSubjectId) { _ in
+            if let materialId = viewModel.selectedMaterialId,
+               !viewModel.materialsForSelectedSubject().contains(where: { $0.id == materialId }) {
+                viewModel.selectedMaterialId = nil
+            }
+        }
     }
 }
 
@@ -400,6 +406,7 @@ private struct GoalsScreen: View {
     @StateObject private var viewModel: GoalsViewModel
     @State private var dailyMinutes = ""
     @State private var weeklyMinutes = ""
+    @State private var hasLoadedInitialValues = false
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: GoalsViewModel(app: app))
@@ -430,8 +437,11 @@ private struct GoalsScreen: View {
         .navigationTitle("目標")
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
-            dailyMinutes = "\(viewModel.dailyGoal?.targetMinutes ?? 0)"
-            weeklyMinutes = "\(viewModel.weeklyGoal?.targetMinutes ?? 0)"
+            if !hasLoadedInitialValues {
+                dailyMinutes = "\(viewModel.dailyGoal?.targetMinutes ?? 0)"
+                weeklyMinutes = "\(viewModel.weeklyGoal?.targetMinutes ?? 0)"
+                hasLoadedInitialValues = true
+            }
         }
     }
 }
