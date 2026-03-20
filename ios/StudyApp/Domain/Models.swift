@@ -471,10 +471,11 @@ struct AppBackup: Codable {
         let sessions = sessions.map(\.model)
         let goals = goals.map(\.model)
         let exams = exams.map(\.model)
-        let plans = plans.map(\.plan.model)
-        let planItems = plans.flatMap { $0.items.map(\.model) }
+        let backupPlans = plans
+        let plans = backupPlans.map(\.plan.model)
+        let planItems = backupPlans.flatMap { $0.items.map(\.model) }
 
-        let maxIdentifier = (
+        let allIdentifiers =
             subjects.map(\.id) +
             materials.map(\.id) +
             sessions.map(\.id) +
@@ -482,7 +483,7 @@ struct AppBackup: Codable {
             exams.map(\.id) +
             plans.map(\.id) +
             planItems.map(\.id)
-        ).max() ?? current.lastIdentifier
+        let maxIdentifier = allIdentifiers.max() ?? current.lastIdentifier
 
         return AppSnapshot(
             lastIdentifier: maxIdentifier,
