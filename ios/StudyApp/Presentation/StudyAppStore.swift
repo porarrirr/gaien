@@ -17,11 +17,11 @@ final class StudyAppStore: ObservableObject {
     init(
         persistence: PersistenceController = .shared,
         googleBooksService: GoogleBooksService = GoogleBooksService(),
-        reminderScheduler: ReminderScheduler = ReminderScheduler()
+        reminderScheduler: ReminderScheduler? = nil
     ) {
         self.persistence = persistence
         self.googleBooksService = googleBooksService
-        self.reminderScheduler = reminderScheduler
+        self.reminderScheduler = reminderScheduler ?? ReminderScheduler()
 
         Task {
             await load()

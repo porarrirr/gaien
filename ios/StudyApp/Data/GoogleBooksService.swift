@@ -43,7 +43,7 @@ final class GoogleBooksService {
         else {
             throw BookApiError.bookNotFound
         }
-        return parseBookInfo(volumeInfo)
+        return try parseBookInfo(volumeInfo)
     }
 
     func searchByTitle(_ title: String) async throws -> [BookInfo] {

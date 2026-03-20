@@ -565,7 +565,8 @@ private struct MaterialsScreen: View {
                 ) {
                     if let material = editingMaterial {
                         store.updateMaterial(draft.makeMaterial(id: material.id, currentPage: material.currentPage))
-                    } else if let material = draft.makeMaterial() {
+                    } else {
+                        let material = draft.makeMaterial()
                         store.addMaterial(
                             name: material.name,
                             subjectId: material.subjectId,
