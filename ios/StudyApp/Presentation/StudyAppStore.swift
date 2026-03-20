@@ -1,4 +1,7 @@
 import Combine
+import FirebaseAuth
+import FirebaseCore
+import FirebaseFirestore
 import Foundation
 
 @MainActor
@@ -761,148 +764,42 @@ final class SettingsViewModel: ScreenViewModel {
     }
 }
 
-actor FirebaseRESTClient {
-    private let session: URLSession
-    private let apiKey: String
-    private let projectId: String
-
-    init(
-        session: URLSession = .shared,
-        apiKey: String = ProcessInfo.processInfo.environment["FIREBASE_API_KEY"] ?? "",
-        projectId: String = ProcessInfo.processInfo.environment["FIREBASE_PROJECT_ID"] ?? ""
-    ) {
-        self.session = session
-        self.apiKey = apiKey
-        self.projectId = projectId
-    }
-
-    func isConfigured() -> Bool {
-        !apiKey.isEmpty && !projectId.isEmpty
-    }
-
-    func signIn(email: String, password: String) async throws -> AuthSession {
-        try await authenticate(path: "accounts:signInWithPassword", email: email, password: password)
-    }
-
-    func signUp(email: String, password: String) async throws -> AuthSession {
-        try await authenticate(path: "accounts:signUp", email: email, password: password)
-    }
-
-    func loadSnapshot(session authSession: AuthSession) async throws -> String? {
-        try ensureConfigured()
-        let url = URL(string: "https://firestore.googleapis.com/v1/projects/\(projectId)/databases/(default)/documents/users/\(authSession.localId)/sync/default")!
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(authSession.idToken)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw ValidationError(message: "同期レスポンスが不正です") }
-        if http.statusCode == 404 { return nil }
-        guard (200..<300).contains(http.statusCode) else { throw ValidationError(message: parseError(data)) }
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let fields = json?["fields"] as? [String: Any]
-        let payload = fields?["payload"] as? [String: Any]
-        return payload?["stringValue"] as? String
-    }
-
-    func saveSnapshot(session authSession: AuthSession, payload: String, updatedAt: Int64) async throws {
-        try ensureConfigured()
-        let url = URL(string: "https://firestore.googleapis.com/v1/projects/\(projectId)/databases/(default)/documents/users/\(authSession.localId)/sync/default")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(authSession.idToken)", forHTTPHeaderField: "Authorization")
-        let body: [String: Any] = [
-            "fields": [
-                "payload": ["stringValue": payload],
-                "updatedAt": ["integerValue": String(updatedAt)]
-            ]
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw ValidationError(message: parseError(data))
-        }
-    }
-
-    private func authenticate(path: String, email: String, password: String) async throws -> AuthSession {
-        try ensureConfigured()
-        let url = URL(string: "https://identitytoolkit.googleapis.com/v1/\(path)?key=\(apiKey)")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(
-            withJSONObject: [
-                "email": email,
-                "password": password,
-                "returnSecureToken": true
-            ]
-        )
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw ValidationError(message: parseError(data))
-        }
-        let auth = try JSONDecoder().decode(FirebaseAuthResponse.self, from: data)
-        return AuthSession(localId: auth.localId, email: auth.email, idToken: auth.idToken, refreshToken: auth.refreshToken)
-    }
-
-    private func ensureConfigured() throws {
-        guard isConfigured() else {
-            throw ValidationError(message: "FIREBASE_API_KEY と FIREBASE_PROJECT_ID を設定してください")
-        }
-    }
-
-    private func parseError(_ data: Data) -> String {
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let error = json["error"] as? [String: Any],
-           let message = error["message"] as? String {
-            return message
-        }
-        return "Firebase request failed"
-    }
-}
-
 @MainActor
 final class FirebaseAuthRepository: ObservableObject, AuthRepository {
     @Published private(set) var session: AuthSession?
+    private let auth: Auth
+    private var stateDidChangeHandle: AuthStateDidChangeListenerHandle?
 
-    private let defaults: UserDefaults
-    private let client: FirebaseRESTClient
-    private let key = "studyapp.sync.session"
-
-    init(defaults: UserDefaults = .standard, client: FirebaseRESTClient = FirebaseRESTClient()) {
-        self.defaults = defaults
-        self.client = client
-        if let data = defaults.data(forKey: key), let session = try? JSONDecoder().decode(AuthSession.self, from: data) {
-            self.session = session
-        } else {
-            self.session = nil
+    init(auth: Auth = Auth.auth()) {
+        self.auth = auth
+        self.session = auth.currentUser.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
+        self.stateDidChangeHandle = auth.addStateDidChangeListener { [weak self] _, user in
+            self?.session = user.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
         }
     }
 
     func signIn(email: String, password: String) async throws {
-        let session = try await client.signIn(email: email, password: password)
-        try save(session)
+        let result = try await auth.signIn(withEmail: email, password: password)
+        let token = try await result.user.getIDToken()
+        session = AuthSession(localId: result.user.uid, email: result.user.email ?? email, idToken: token, refreshToken: "")
     }
 
     func signUp(email: String, password: String) async throws {
-        let session = try await client.signUp(email: email, password: password)
-        try save(session)
+        let result = try await auth.createUser(withEmail: email, password: password)
+        let token = try await result.user.getIDToken()
+        session = AuthSession(localId: result.user.uid, email: result.user.email ?? email, idToken: token, refreshToken: "")
     }
 
     func signOut() async {
-        defaults.removeObject(forKey: key)
+        try? auth.signOut()
         session = nil
-    }
-
-    private func save(_ session: AuthSession) throws {
-        defaults.set(try JSONEncoder().encode(session), forKey: key)
-        self.session = session
     }
 }
 
 @MainActor
 final class FirebaseSyncRepository: SyncRepository {
-    private let client: FirebaseRESTClient
     private let authRepository: FirebaseAuthRepository
+    private let firestore: Firestore
     private let persistence: PersistenceController
     private let preferencesRepository: UserDefaultsPreferencesRepository
     private let lastSyncKey = "studyapp.sync.lastSyncAt"
@@ -910,13 +807,13 @@ final class FirebaseSyncRepository: SyncRepository {
     private(set) var status = SyncStatus()
 
     init(
-        client: FirebaseRESTClient = FirebaseRESTClient(),
         authRepository: FirebaseAuthRepository,
+        firestore: Firestore = Firestore.firestore(),
         persistence: PersistenceController,
         preferencesRepository: UserDefaultsPreferencesRepository
     ) {
-        self.client = client
         self.authRepository = authRepository
+        self.firestore = firestore
         self.persistence = persistence
         self.preferencesRepository = preferencesRepository
         self.status = SyncStatus(
@@ -935,7 +832,7 @@ final class FirebaseSyncRepository: SyncRepository {
         let useCase = ExportImportDataUseCase(repository: persistence)
         let local = try await persistence.exportData()
         let merged: AppData
-        if let remotePayload = try await client.loadSnapshot(session: session) {
+        if let remotePayload = try await loadSnapshot(userId: session.localId) {
             let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
             merged = merge(local: local, remote: remote)
         } else {
@@ -944,7 +841,7 @@ final class FirebaseSyncRepository: SyncRepository {
         let synced = markSynced(merged, at: Date().epochMilliseconds)
         let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
         _ = try await useCase.importJSON(payload, currentPreferences: preferencesRepository.loadPreferences())
-        try await client.saveSnapshot(session: session, payload: payload, updatedAt: synced.exportDate)
+        try await saveSnapshot(userId: session.localId, payload: payload, updatedAt: synced.exportDate)
         UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
         status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
     }
@@ -957,9 +854,31 @@ final class FirebaseSyncRepository: SyncRepository {
         defer { status.isSyncing = false }
         let local = markSynced(try await persistence.exportData(), at: Date().epochMilliseconds)
         let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
-        try await client.saveSnapshot(session: session, payload: payload, updatedAt: local.exportDate)
+        try await saveSnapshot(userId: session.localId, payload: payload, updatedAt: local.exportDate)
         UserDefaults.standard.set(local.exportDate, forKey: lastSyncKey)
         status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: local.exportDate)
+    }
+
+    private func loadSnapshot(userId: String) async throws -> String? {
+        let snapshot = try await firestore
+            .collection("users")
+            .document(userId)
+            .collection("sync")
+            .document("default")
+            .getDocument()
+        return snapshot.data()?["payload"] as? String
+    }
+
+    private func saveSnapshot(userId: String, payload: String, updatedAt: Int64) async throws {
+        try await firestore
+            .collection("users")
+            .document(userId)
+            .collection("sync")
+            .document("default")
+            .setData([
+                "payload": payload,
+                "updatedAt": updatedAt
+            ])
     }
 
     private func merge(local: AppData, remote: AppData) -> AppData {
@@ -1024,11 +943,4 @@ final class FirebaseSyncRepository: SyncRepository {
             exportDate: timestamp
         )
     }
-}
-
-private struct FirebaseAuthResponse: Codable {
-    var localId: String
-    var email: String
-    var idToken: String
-    var refreshToken: String
 }

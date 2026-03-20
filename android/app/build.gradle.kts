@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -16,12 +17,6 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-        val firebaseApiKey = System.getenv("FIREBASE_API_KEY") ?: ""
-        val firebaseProjectId = System.getenv("FIREBASE_PROJECT_ID") ?: ""
-
-        buildConfigField("String", "FIREBASE_API_KEY", "\"$firebaseApiKey\"")
-        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -53,7 +48,6 @@ android {
         debug {
             isDebuggable = true
             isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
         }
         release {
             isMinifyEnabled = true
@@ -115,7 +109,11 @@ dependencies {
     implementation("com.kizitonwose.calendar:compose:2.4.1")
     
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+    implementation(platform("com.google.firebase:firebase-bom:33.6.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
     
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     
@@ -128,6 +126,7 @@ dependencies {
     
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("com.google.guava:guava:33.3.1-android")
     
     implementation("org.json:json:20231013")
     

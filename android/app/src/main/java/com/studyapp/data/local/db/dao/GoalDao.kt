@@ -19,6 +19,9 @@ interface GoalDao {
     @Query("SELECT * FROM goals WHERE deletedAt IS NULL ORDER BY type ASC")
     fun getAllGoals(): Flow<List<GoalEntity>>
 
+    @Query("SELECT * FROM goals ORDER BY type ASC")
+    suspend fun getAllGoalsForSync(): List<GoalEntity>
+
     @Query("SELECT * FROM goals WHERE id = :id")
     suspend fun getGoalById(id: Long): GoalEntity?
 

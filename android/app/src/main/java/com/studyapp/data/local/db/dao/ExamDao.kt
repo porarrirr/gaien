@@ -9,6 +9,9 @@ interface ExamDao {
     @Query("SELECT * FROM exams WHERE deletedAt IS NULL ORDER BY date ASC")
     fun getAllExams(): Flow<List<ExamEntity>>
 
+    @Query("SELECT * FROM exams ORDER BY date ASC")
+    suspend fun getAllExamsForSync(): List<ExamEntity>
+
     @Query("SELECT * FROM exams WHERE date >= :currentTime AND deletedAt IS NULL ORDER BY date ASC")
     fun getUpcomingExams(currentTime: Long): Flow<List<ExamEntity>>
 

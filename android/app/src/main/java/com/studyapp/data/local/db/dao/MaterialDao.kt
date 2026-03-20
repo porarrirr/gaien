@@ -14,6 +14,9 @@ interface MaterialDao {
     @Query("SELECT * FROM materials WHERE deletedAt IS NULL ORDER BY updatedAt DESC")
     fun getAllMaterials(): Flow<List<MaterialEntity>>
 
+    @Query("SELECT * FROM materials ORDER BY updatedAt DESC")
+    suspend fun getAllMaterialsForSync(): List<MaterialEntity>
+
     @Transaction
     @Query("SELECT * FROM materials WHERE subjectId = :subjectId AND deletedAt IS NULL ORDER BY name ASC")
     fun getMaterialsBySubjectWithDetails(subjectId: Long): Flow<List<MaterialWithSubject>>

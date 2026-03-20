@@ -105,26 +105,31 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     func deleteSubject(_ subject: Subject) async throws {
         try await ensureLoaded()
+        let now = Date().epochMilliseconds
         let relatedMaterials = try fetch(entity: "MaterialRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
         let materialIds = Set(relatedMaterials.compactMap { $0.value(forKey: "id") as? Int64 })
         let sessions = try fetch(entity: "StudySessionRecord")
         let planItems = try fetch(entity: "PlanItemRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
 
         for material in relatedMaterials {
-            container.viewContext.delete(material)
+            material.setValue(now, forKey: "deletedAt")
+            material.setValue(now, forKey: "updatedAt")
         }
         for session in sessions {
             let subjectId = session.value(forKey: "subjectId") as? Int64
             let materialId = session.value(forKey: "materialId") as? Int64
             if subjectId == subject.id || (materialId.map(materialIds.contains) ?? false) {
-                container.viewContext.delete(session)
+                session.setValue(now, forKey: "deletedAt")
+                session.setValue(now, forKey: "updatedAt")
             }
         }
         for item in planItems {
-            container.viewContext.delete(item)
+            item.setValue(now, forKey: "deletedAt")
+            item.setValue(now, forKey: "updatedAt")
         }
         if let record = try fetchOne(entity: "SubjectRecord", id: subject.id) {
-            container.viewContext.delete(record)
+            record.setValue(now, forKey: "deletedAt")
+            record.setValue(now, forKey: "updatedAt")
         }
         try saveContext()
     }
@@ -191,12 +196,15 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     func deleteMaterial(_ material: Material) async throws {
         try await ensureLoaded()
+        let now = Date().epochMilliseconds
         if let record = try fetchOne(entity: "MaterialRecord", id: material.id) {
-            container.viewContext.delete(record)
+            record.setValue(now, forKey: "deletedAt")
+            record.setValue(now, forKey: "updatedAt")
         }
         let sessions = try fetch(entity: "StudySessionRecord", predicate: NSPredicate(format: "materialId == %lld", material.id))
         for session in sessions {
-            container.viewContext.delete(session)
+            session.setValue(now, forKey: "deletedAt")
+            session.setValue(now, forKey: "updatedAt")
         }
         try saveContext()
     }
@@ -237,7 +245,9 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
     func deleteSession(_ session: StudySession) async throws {
         try await ensureLoaded()
         if let record = try fetchOne(entity: "StudySessionRecord", id: session.id) {
-            container.viewContext.delete(record)
+            let now = Date().epochMilliseconds
+            record.setValue(now, forKey: "deletedAt")
+            record.setValue(now, forKey: "updatedAt")
             try saveContext()
             try await recalculatePlanActualMinutes()
         }
@@ -289,7 +299,9 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
     func deleteGoal(_ goal: Goal) async throws {
         try await ensureLoaded()
         if let record = try fetchOne(entity: "GoalRecord", id: goal.id) {
-            container.viewContext.delete(record)
+            let now = Date().epochMilliseconds
+            record.setValue(now, forKey: "deletedAt")
+            record.setValue(now, forKey: "updatedAt")
             try saveContext()
         }
     }
@@ -342,7 +354,9 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
     func deleteExam(_ exam: Exam) async throws {
         try await ensureLoaded()
         if let record = try fetchOne(entity: "ExamRecord", id: exam.id) {
-            container.viewContext.delete(record)
+            let now = Date().epochMilliseconds
+            record.setValue(now, forKey: "deletedAt")
+            record.setValue(now, forKey: "updatedAt")
             try saveContext()
         }
     }
@@ -451,7 +465,9 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
     func deletePlanItem(_ item: PlanItem) async throws {
         try await ensureLoaded()
         if let record = try fetchOne(entity: "PlanItemRecord", id: item.id) {
-            container.viewContext.delete(record)
+            let now = Date().epochMilliseconds
+            record.setValue(now, forKey: "deletedAt")
+            record.setValue(now, forKey: "updatedAt")
             try saveContext()
             try await recalculatePlanActualMinutes()
         }
@@ -459,28 +475,36 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     func deletePlan(_ plan: StudyPlan) async throws {
         try await ensureLoaded()
+        let now = Date().epochMilliseconds
         if let record = try fetchOne(entity: "StudyPlanRecord", id: plan.id) {
-            container.viewContext.delete(record)
+            record.setValue(now, forKey: "deletedAt")
+            record.setValue(now, forKey: "updatedAt")
+            record.setValue(false, forKey: "isActive")
         }
         let items = try fetch(entity: "PlanItemRecord", predicate: NSPredicate(format: "planId == %lld", plan.id))
         for item in items {
-            container.viewContext.delete(item)
+            item.setValue(now, forKey: "deletedAt")
+            item.setValue(now, forKey: "updatedAt")
         }
         try saveContext()
     }
 
     func exportData() async throws -> AppData {
         try await ensureLoaded()
-        let subjects = try await getAllSubjects()
-        let materials = try await getAllMaterials()
-        let sessions = try await getAllSessions()
-        let goals = try await getAllGoals()
-        let exams = try await getAllExams()
-        let plans = try await getAllPlans()
+        let subjects = try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(Self.subject)
+        let materials = try fetch(entity: "MaterialRecord", sort: [NSSortDescriptor(key: "id", ascending: false)]).map(Self.material)
+        let sessions = try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(Self.session)
+        let goals = try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(Self.goal)
+        let exams = try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(Self.exam)
+        let plans = try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(Self.plan)
 
         var planData = [PlanData]()
         for plan in plans {
-            let items = try await getPlanItems(planId: plan.id)
+            let items = try fetch(
+                entity: "PlanItemRecord",
+                predicate: NSPredicate(format: "planId == %lld", plan.id),
+                sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true), NSSortDescriptor(key: "targetMinutes", ascending: false)]
+            ).map(Self.planItem)
             planData.append(PlanData(plan: plan, items: items))
         }
 

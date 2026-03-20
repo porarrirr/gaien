@@ -25,6 +25,9 @@ interface StudySessionDao {
     @Query("SELECT * FROM study_sessions WHERE deletedAt IS NULL ORDER BY startTime DESC")
     fun getAllSessions(): Flow<List<StudySessionEntity>>
 
+    @Query("SELECT * FROM study_sessions ORDER BY startTime DESC")
+    suspend fun getAllSessionsForSync(): List<StudySessionEntity>
+
     @Transaction
     @Query("SELECT * FROM study_sessions WHERE date = :date AND deletedAt IS NULL ORDER BY startTime DESC")
     fun getSessionsByDateWithDetails(date: Long): Flow<List<StudySessionWithDetails>>

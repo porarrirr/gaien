@@ -11,17 +11,21 @@ import com.studyapp.domain.usecase.AppData
 import com.studyapp.domain.usecase.ExportImportDataUseCase
 import com.studyapp.domain.usecase.PlanData
 import com.studyapp.domain.util.Result
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 
 @Singleton
 class FirebaseSyncRepository @Inject constructor(
     private val authRepository: AuthRepository,
-    private val firebaseRestClient: FirebaseRestClient,
+    private val firebaseAuth: FirebaseAuth,
+    private val firebaseFirestore: FirebaseFirestore,
     private val syncPreferences: SyncPreferences,
     private val exportImportDataUseCase: ExportImportDataUseCase
 ) : SyncRepository {
@@ -39,7 +43,7 @@ class FirebaseSyncRepository @Inject constructor(
         setSyncing(true)
         try {
             val local = exportLocalData()
-            val remoteJson = firebaseRestClient.loadSnapshot(session)
+            val remoteJson = loadSnapshot(session.localId)
             val merged = if (remoteJson == null) local else merge(local, AppData.fromJson(JSONObject(remoteJson)))
             val payload = markSynced(merged, System.currentTimeMillis()).toJson().toString()
             when (val result = exportImportDataUseCase.importFromJson(payload)) {
@@ -47,7 +51,7 @@ class FirebaseSyncRepository @Inject constructor(
                 is Result.Success -> Unit
             }
             val now = System.currentTimeMillis()
-            firebaseRestClient.saveSnapshot(session, payload, now)
+            saveSnapshot(session.localId, payload, now)
             syncPreferences.setLastSyncAt(now)
             _status.value = SyncStatus(true, session.email, false, now, null)
         } catch (t: Throwable) {
@@ -62,7 +66,7 @@ class FirebaseSyncRepository @Inject constructor(
         try {
             val now = System.currentTimeMillis()
             val payload = markSynced(exportLocalData(), now).toJson().toString()
-            firebaseRestClient.saveSnapshot(session, payload, now)
+            saveSnapshot(session.localId, payload, now)
             syncPreferences.setLastSyncAt(now)
             _status.value = SyncStatus(true, session.email, false, now, null)
         } catch (t: Throwable) {
@@ -76,6 +80,32 @@ class FirebaseSyncRepository @Inject constructor(
             is Result.Error -> throw result.exception
             is Result.Success -> AppData.fromJson(JSONObject(result.data))
         }
+    }
+
+    private suspend fun loadSnapshot(userId: String): String? {
+        val snapshot = firebaseFirestore
+            .collection("users")
+            .document(userId)
+            .collection("sync")
+            .document("default")
+            .get()
+            .await()
+        return snapshot.getString("payload")
+    }
+
+    private suspend fun saveSnapshot(userId: String, payload: String, updatedAt: Long) {
+        firebaseFirestore
+            .collection("users")
+            .document(userId)
+            .collection("sync")
+            .document("default")
+            .set(
+                mapOf(
+                    "payload" to payload,
+                    "updatedAt" to updatedAt
+                )
+            )
+            .await()
     }
 
     private fun merge(local: AppData, remote: AppData): AppData {
@@ -149,6 +179,7 @@ class FirebaseSyncRepository @Inject constructor(
     }
 
     private fun requireSession(): AuthSession {
+        check(firebaseAuth.currentUser != null) { "Sign in is required before syncing." }
         val session = authRepository.session.value ?: error("Sign in is required before syncing.")
         _status.value = _status.value.copy(isAuthenticated = true, email = session.email)
         return session

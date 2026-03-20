@@ -14,6 +14,9 @@ interface PlanDao {
     
     @Query("SELECT * FROM study_plans WHERE deletedAt IS NULL ORDER BY createdAt DESC")
     fun getAllPlans(): Flow<List<PlanEntity>>
+
+    @Query("SELECT * FROM study_plans ORDER BY createdAt DESC")
+    suspend fun getAllPlansForSync(): List<PlanEntity>
     
     @Query("SELECT * FROM study_plans WHERE id = :planId")
     suspend fun getPlanById(planId: Long): PlanEntity?
@@ -32,6 +35,9 @@ interface PlanDao {
     
     @Query("SELECT * FROM plan_items WHERE planId = :planId AND deletedAt IS NULL")
     fun getPlanItems(planId: Long): Flow<List<PlanItemEntity>>
+
+    @Query("SELECT * FROM plan_items WHERE planId = :planId")
+    suspend fun getPlanItemsForSync(planId: Long): List<PlanItemEntity>
     
     @Query("SELECT * FROM plan_items WHERE planId = :planId AND dayOfWeek = :dayOfWeek AND deletedAt IS NULL")
     fun getPlanItemsByDay(planId: Long, dayOfWeek: Int): Flow<List<PlanItemEntity>>

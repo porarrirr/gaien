@@ -16,8 +16,14 @@ import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.util.Result
 import com.studyapp.data.local.db.StudyDatabase
+import com.studyapp.data.local.db.entity.ExamEntity
+import com.studyapp.data.local.db.entity.GoalEntity
+import com.studyapp.data.local.db.entity.MaterialEntity
+import com.studyapp.data.local.db.entity.PlanEntity
+import com.studyapp.data.local.db.entity.PlanItemEntity
+import com.studyapp.data.local.db.entity.StudySessionEntity
+import com.studyapp.data.local.db.entity.SubjectEntity
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -314,32 +320,12 @@ class ExportImportDataUseCase @Inject constructor(
 ) {
     suspend fun exportToJson(): Result<String> {
         Log.d(TAG, "Starting data export")
-        
-        val subjects = subjectRepository.getAllSubjects().first().getOrNull() ?: emptyList()
-        val materials = materialRepository.getAllMaterials().first().getOrNull() ?: emptyList()
-        val sessions = studySessionRepository.getAllSessions().first().getOrNull() ?: emptyList()
-        val goals = goalRepository.getAllGoals().first().getOrNull() ?: emptyList()
-        val exams = examRepository.getAllExams().first().getOrNull() ?: emptyList()
-        val plans = planRepository.getAllPlans().first().getOrNull() ?: emptyList()
-        
-        val planDataList = plans.map { plan ->
-            val items = planRepository.getPlanItems(plan.id).first().getOrNull() ?: emptyList()
-            PlanData(plan, items)
-        }
-        
-        val appData = AppData(
-            subjects = subjects,
-            materials = materials,
-            sessions = sessions,
-            goals = goals,
-            exams = exams,
-            plans = planDataList,
-            exportDate = System.currentTimeMillis()
-        )
+
+        val appData = snapshotAppData()
         
         return try {
             val jsonString = appData.toJson().toString(2)
-            Log.i(TAG, "Data export completed: subjects=${subjects.size}, materials=${materials.size}, sessions=${sessions.size}, goals=${goals.size}, exams=${exams.size}, plans=${plans.size}")
+            Log.i(TAG, "Data export completed: subjects=${appData.subjects.size}, materials=${appData.materials.size}, sessions=${appData.sessions.size}, goals=${appData.goals.size}, exams=${appData.exams.size}, plans=${appData.plans.size}")
             Result.Success(jsonString)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to export data", e)
@@ -440,27 +426,7 @@ class ExportImportDataUseCase @Inject constructor(
     }
     
     private suspend fun createBackup(): AppData {
-        val subjects = subjectRepository.getAllSubjects().first().getOrNull() ?: emptyList()
-        val materials = materialRepository.getAllMaterials().first().getOrNull() ?: emptyList()
-        val sessions = studySessionRepository.getAllSessions().first().getOrNull() ?: emptyList()
-        val goals = goalRepository.getAllGoals().first().getOrNull() ?: emptyList()
-        val exams = examRepository.getAllExams().first().getOrNull() ?: emptyList()
-        val plans = planRepository.getAllPlans().first().getOrNull() ?: emptyList()
-        
-        val planDataList = plans.map { plan ->
-            val items = planRepository.getPlanItems(plan.id).first().getOrNull() ?: emptyList()
-            PlanData(plan, items)
-        }
-        
-        return AppData(
-            subjects = subjects,
-            materials = materials,
-            sessions = sessions,
-            goals = goals,
-            exams = exams,
-            plans = planDataList,
-            exportDate = System.currentTimeMillis()
-        )
+        return snapshotAppData()
     }
     
     private suspend fun restoreFromBackup(backup: AppData) {
@@ -516,8 +482,140 @@ class ExportImportDataUseCase @Inject constructor(
             Result.Error(e, "データの削除に失敗しました")
         }
     }
+
+    private suspend fun snapshotAppData(): AppData {
+        val subjectDao = studyDatabase.subjectDao()
+        val materialDao = studyDatabase.materialDao()
+        val studySessionDao = studyDatabase.studySessionDao()
+        val goalDao = studyDatabase.goalDao()
+        val examDao = studyDatabase.examDao()
+        val planDao = studyDatabase.planDao()
+
+        val subjects = subjectDao.getAllSubjectsForSync().map { it.toDomain() }
+        val materials = materialDao.getAllMaterialsForSync().map { it.toDomain() }
+        val sessions = studySessionDao.getAllSessionsForSync().map { it.toDomain() }
+        val goals = goalDao.getAllGoalsForSync().map { it.toDomain() }
+        val exams = examDao.getAllExamsForSync().map { it.toDomain() }
+        val plans = planDao.getAllPlansForSync().map { plan ->
+            PlanData(
+                plan = plan.toDomain(),
+                items = planDao.getPlanItemsForSync(plan.id).map { it.toDomain() }
+            )
+        }
+
+        return AppData(
+            subjects = subjects,
+            materials = materials,
+            sessions = sessions,
+            goals = goals,
+            exams = exams,
+            plans = plans,
+            exportDate = System.currentTimeMillis()
+        )
+    }
     
     companion object {
         private const val TAG = "ExportImportDataUseCase"
     }
 }
+
+private fun SubjectEntity.toDomain() = Subject(
+    id = id,
+    syncId = syncId.ifEmpty { "subject-$id" },
+    name = name,
+    color = color,
+    icon = icon?.let { com.studyapp.domain.model.SubjectIcon.fromName(it) },
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    lastSyncedAt = lastSyncedAt
+)
+
+private fun MaterialEntity.toDomain() = Material(
+    id = id,
+    syncId = syncId.ifEmpty { "material-$id" },
+    name = name,
+    subjectId = subjectId,
+    subjectSyncId = subjectSyncId,
+    totalPages = totalPages,
+    currentPage = currentPage,
+    color = color,
+    note = note,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    lastSyncedAt = lastSyncedAt
+)
+
+private fun StudySessionEntity.toDomain() = StudySession(
+    id = id,
+    syncId = syncId.ifEmpty { "session-$id" },
+    materialId = materialId,
+    materialSyncId = materialSyncId,
+    materialName = "",
+    subjectId = subjectId,
+    subjectSyncId = subjectSyncId,
+    subjectName = "",
+    startTime = startTime,
+    endTime = endTime,
+    note = note,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    lastSyncedAt = lastSyncedAt
+)
+
+private fun GoalEntity.toDomain() = Goal(
+    id = id,
+    syncId = syncId.ifEmpty { "goal-$id" },
+    type = type,
+    targetMinutes = targetMinutes,
+    weekStartDay = java.time.DayOfWeek.of(weekStartDay),
+    isActive = isActive,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    lastSyncedAt = lastSyncedAt
+)
+
+private fun ExamEntity.toDomain() = Exam(
+    id = id,
+    syncId = syncId.ifEmpty { "exam-$id" },
+    name = name,
+    date = java.time.Instant.ofEpochMilli(date).atZone(java.time.ZoneId.systemDefault()).toLocalDate(),
+    note = note,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    lastSyncedAt = lastSyncedAt
+)
+
+private fun PlanEntity.toDomain() = StudyPlan(
+    id = id,
+    syncId = syncId.ifEmpty { "plan-$id" },
+    name = name,
+    startDate = startDate,
+    endDate = endDate,
+    isActive = isActive,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    lastSyncedAt = lastSyncedAt
+)
+
+private fun PlanItemEntity.toDomain() = PlanItem(
+    id = id,
+    syncId = syncId.ifEmpty { "plan-item-$id" },
+    planId = planId,
+    planSyncId = planSyncId,
+    subjectId = subjectId,
+    subjectSyncId = subjectSyncId,
+    dayOfWeek = java.time.DayOfWeek.of(dayOfWeek),
+    targetMinutes = targetMinutes,
+    actualMinutes = actualMinutes,
+    timeSlot = timeSlot,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    lastSyncedAt = lastSyncedAt
+)

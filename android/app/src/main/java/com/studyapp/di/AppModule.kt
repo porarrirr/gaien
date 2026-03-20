@@ -17,6 +17,8 @@ import com.studyapp.sync.AuthRepository
 import com.studyapp.sync.FirebaseAuthRepository
 import com.studyapp.sync.FirebaseSyncRepository
 import com.studyapp.sync.SyncRepository
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -41,6 +43,14 @@ object AppModule {
     fun provideTimerStateStore(@ApplicationContext context: Context): TimerStateStore {
         return TimerStateStore(context)
     }
+
+    @Provides
+    @Singleton
+    fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
+
+    @Provides
+    @Singleton
+    fun provideFirebaseFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
 }
 
 @Module
