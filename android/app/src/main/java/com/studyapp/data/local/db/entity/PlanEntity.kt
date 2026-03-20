@@ -12,11 +12,15 @@ import androidx.room.PrimaryKey
 data class PlanEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val syncId: String = "",
     val name: String,
     val startDate: Long,
     val endDate: Long,
     val isActive: Boolean = true,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 )
 
 @Entity(
@@ -40,12 +44,19 @@ data class PlanEntity(
 data class PlanItemEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val syncId: String = "",
     val planId: Long,
+    val planSyncId: String? = null,
     val subjectId: Long,
+    val subjectSyncId: String? = null,
     val dayOfWeek: Int,
     val targetMinutes: Int,
     val actualMinutes: Int = 0,
-    val timeSlot: String? = null
+    val timeSlot: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 )
 
 data class WeeklyPlanSummary(

@@ -11,9 +11,12 @@ import androidx.room.PrimaryKey
 data class ExamEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val syncId: String = "",
     val name: String,
     val date: Long,
     val note: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 )

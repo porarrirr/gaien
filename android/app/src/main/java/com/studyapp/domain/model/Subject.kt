@@ -1,5 +1,7 @@
 package com.studyapp.domain.model
 
+import java.util.UUID
+
 enum class SubjectIcon {
     BOOK,
     CALCULATOR,
@@ -26,7 +28,12 @@ enum class SubjectIcon {
 
 data class Subject(
     val id: Long = 0,
+    val syncId: String = UUID.randomUUID().toString(),
     val name: String,
     val color: Int,
-    val icon: SubjectIcon? = null
+    val icon: SubjectIcon? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 )

@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,6 +120,25 @@ fun SettingsScreen(
             )
             
             Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+            SyncSection(
+                syncAuthenticated = uiState.syncAuthenticated,
+                syncAccountEmail = uiState.syncAccountEmail,
+                syncEmail = uiState.syncEmail,
+                syncPassword = uiState.syncPassword,
+                syncInProgress = uiState.syncInProgress,
+                lastSyncAt = uiState.lastSyncAt,
+                syncError = uiState.syncError,
+                onSyncEmailChange = viewModel::setSyncEmail,
+                onSyncPasswordChange = viewModel::setSyncPassword,
+                onSignIn = viewModel::signInToSync,
+                onCreateAccount = viewModel::createSyncAccount,
+                onSignOut = viewModel::signOutOfSync,
+                onSyncNow = viewModel::syncNow,
+                onImportLocal = viewModel::importLocalDataToCloud
+            )
+
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
             
             DataSection(
                 totalSessions = uiState.totalSessions,
@@ -164,6 +184,121 @@ fun SettingsScreen(
                 showDeleteDataDialog = false
             }
         )
+    }
+}
+
+@Composable
+private fun SyncSection(
+    syncAuthenticated: Boolean,
+    syncAccountEmail: String?,
+    syncEmail: String,
+    syncPassword: String,
+    syncInProgress: Boolean,
+    lastSyncAt: Long?,
+    syncError: String?,
+    onSyncEmailChange: (String) -> Unit,
+    onSyncPasswordChange: (String) -> Unit,
+    onSignIn: () -> Unit,
+    onCreateAccount: () -> Unit,
+    onSignOut: () -> Unit,
+    onSyncNow: () -> Unit,
+    onImportLocal: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "クラウド同期",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (syncAuthenticated) {
+                    Text("接続中: ${syncAccountEmail ?: "-"}")
+                    Text("最終同期: ${lastSyncAt?.let { Date(it).toString() } ?: "未同期"}")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onSyncNow,
+                            enabled = !syncInProgress,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (syncInProgress) "同期中..." else "今すぐ同期")
+                        }
+                        OutlinedButton(
+                            onClick = onImportLocal,
+                            enabled = !syncInProgress,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("ローカルをアップロード")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = onSignOut,
+                        enabled = !syncInProgress,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("サインアウト")
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = syncEmail,
+                        onValueChange = onSyncEmailChange,
+                        label = { Text("メールアドレス") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = syncPassword,
+                        onValueChange = onSyncPasswordChange,
+                        label = { Text("パスワード") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onSignIn,
+                            modifier = Modifier.weight(1f),
+                            enabled = !syncInProgress && syncEmail.isNotBlank() && syncPassword.isNotBlank()
+                        ) {
+                            Text("サインイン")
+                        }
+                        OutlinedButton(
+                            onClick = onCreateAccount,
+                            modifier = Modifier.weight(1f),
+                            enabled = !syncInProgress && syncEmail.isNotBlank() && syncPassword.isNotBlank()
+                        ) {
+                            Text("アカウント作成")
+                        }
+                    }
+                }
+
+                syncError?.takeIf { it.isNotBlank() }?.let { error ->
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
     }
 }
 

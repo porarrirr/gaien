@@ -56,21 +56,32 @@ class PlanRepositoryImpl @Inject constructor(
     override suspend fun createPlan(plan: StudyPlan, items: List<PlanItem>): Result<Long> {
         return try {
             val entity = PlanEntity(
+                syncId = plan.syncId,
                 name = plan.name,
                 startDate = plan.startDate,
                 endDate = plan.endDate,
                 isActive = plan.isActive,
-                createdAt = plan.createdAt
+                createdAt = plan.createdAt,
+                updatedAt = plan.updatedAt,
+                deletedAt = plan.deletedAt,
+                lastSyncedAt = plan.lastSyncedAt
             )
 
             val itemEntities = items.map { item ->
                 PlanItemEntity(
+                    syncId = item.syncId,
                     planId = 0,
+                    planSyncId = item.planSyncId ?: plan.syncId,
                     subjectId = item.subjectId,
+                    subjectSyncId = item.subjectSyncId,
                     dayOfWeek = item.dayOfWeek.value,
                     targetMinutes = item.targetMinutes,
                     actualMinutes = item.actualMinutes,
-                    timeSlot = item.timeSlot
+                    timeSlot = item.timeSlot,
+                    createdAt = item.createdAt,
+                    updatedAt = item.updatedAt,
+                    deletedAt = item.deletedAt,
+                    lastSyncedAt = item.lastSyncedAt
                 )
             }
 
@@ -87,11 +98,15 @@ class PlanRepositoryImpl @Inject constructor(
             planDao.updatePlan(
                 PlanEntity(
                     id = plan.id,
+                    syncId = plan.syncId,
                     name = plan.name,
                     startDate = plan.startDate,
                     endDate = plan.endDate,
                     isActive = plan.isActive,
-                    createdAt = plan.createdAt
+                    createdAt = plan.createdAt,
+                    updatedAt = clock.currentTimeMillis(),
+                    deletedAt = plan.deletedAt,
+                    lastSyncedAt = plan.lastSyncedAt
                 )
             )
             Result.Success(Unit)
@@ -103,14 +118,19 @@ class PlanRepositoryImpl @Inject constructor(
 
     override suspend fun deletePlan(plan: StudyPlan): Result<Unit> {
         return try {
-            planDao.deletePlan(
+            val now = clock.currentTimeMillis()
+            planDao.updatePlan(
                 PlanEntity(
                     id = plan.id,
+                    syncId = plan.syncId,
                     name = plan.name,
                     startDate = plan.startDate,
                     endDate = plan.endDate,
-                    isActive = plan.isActive,
-                    createdAt = plan.createdAt
+                    isActive = false,
+                    createdAt = plan.createdAt,
+                    updatedAt = now,
+                    deletedAt = now,
+                    lastSyncedAt = plan.lastSyncedAt
                 )
             )
             Result.Success(Unit)
@@ -124,12 +144,19 @@ class PlanRepositoryImpl @Inject constructor(
         return try {
             val id = planDao.insertPlanItem(
                 PlanItemEntity(
+                    syncId = item.syncId,
                     planId = item.planId,
+                    planSyncId = item.planSyncId,
                     subjectId = item.subjectId,
+                    subjectSyncId = item.subjectSyncId,
                     dayOfWeek = item.dayOfWeek.value,
                     targetMinutes = item.targetMinutes,
                     actualMinutes = item.actualMinutes,
-                    timeSlot = item.timeSlot
+                    timeSlot = item.timeSlot,
+                    createdAt = item.createdAt,
+                    updatedAt = item.updatedAt,
+                    deletedAt = item.deletedAt,
+                    lastSyncedAt = item.lastSyncedAt
                 )
             )
             Result.Success(id)
@@ -144,12 +171,19 @@ class PlanRepositoryImpl @Inject constructor(
             planDao.updatePlanItem(
                 PlanItemEntity(
                     id = item.id,
+                    syncId = item.syncId,
                     planId = item.planId,
+                    planSyncId = item.planSyncId,
                     subjectId = item.subjectId,
+                    subjectSyncId = item.subjectSyncId,
                     dayOfWeek = item.dayOfWeek.value,
                     targetMinutes = item.targetMinutes,
                     actualMinutes = item.actualMinutes,
-                    timeSlot = item.timeSlot
+                    timeSlot = item.timeSlot,
+                    createdAt = item.createdAt,
+                    updatedAt = clock.currentTimeMillis(),
+                    deletedAt = item.deletedAt,
+                    lastSyncedAt = item.lastSyncedAt
                 )
             )
             Result.Success(Unit)
@@ -161,15 +195,23 @@ class PlanRepositoryImpl @Inject constructor(
 
     override suspend fun deletePlanItem(item: PlanItem): Result<Unit> {
         return try {
-            planDao.deletePlanItem(
+            val now = clock.currentTimeMillis()
+            planDao.updatePlanItem(
                 PlanItemEntity(
                     id = item.id,
+                    syncId = item.syncId,
                     planId = item.planId,
+                    planSyncId = item.planSyncId,
                     subjectId = item.subjectId,
+                    subjectSyncId = item.subjectSyncId,
                     dayOfWeek = item.dayOfWeek.value,
                     targetMinutes = item.targetMinutes,
                     actualMinutes = item.actualMinutes,
-                    timeSlot = item.timeSlot
+                    timeSlot = item.timeSlot,
+                    createdAt = item.createdAt,
+                    updatedAt = now,
+                    deletedAt = now,
+                    lastSyncedAt = item.lastSyncedAt
                 )
             )
             Result.Success(Unit)
@@ -237,20 +279,31 @@ class PlanRepositoryImpl @Inject constructor(
 
     private fun PlanEntity.toDomain() = StudyPlan(
         id = id,
+        syncId = syncId,
         name = name,
         startDate = startDate,
         endDate = endDate,
         isActive = isActive,
-        createdAt = createdAt
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt,
+        lastSyncedAt = lastSyncedAt
     )
 
     private fun PlanItemEntity.toDomain() = PlanItem(
         id = id,
+        syncId = syncId,
         planId = planId,
+        planSyncId = planSyncId,
         subjectId = subjectId,
+        subjectSyncId = subjectSyncId,
         dayOfWeek = DayOfWeek.of(dayOfWeek),
         targetMinutes = targetMinutes,
         actualMinutes = actualMinutes,
-        timeSlot = timeSlot
+        timeSlot = timeSlot,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt,
+        lastSyncedAt = lastSyncedAt
     )
 }

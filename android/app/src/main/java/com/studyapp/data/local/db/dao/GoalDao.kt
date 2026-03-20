@@ -7,16 +7,16 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface GoalDao {
-    @Query("SELECT * FROM goals WHERE isActive = 1 ORDER BY type ASC")
+    @Query("SELECT * FROM goals WHERE isActive = 1 AND deletedAt IS NULL ORDER BY type ASC")
     fun getActiveGoals(): Flow<List<GoalEntity>>
 
-    @Query("SELECT * FROM goals WHERE type = :type AND isActive = 1 LIMIT 1")
+    @Query("SELECT * FROM goals WHERE type = :type AND isActive = 1 AND deletedAt IS NULL LIMIT 1")
     fun getActiveGoalByType(type: GoalType): Flow<GoalEntity?>
 
     @Query("SELECT COUNT(*) FROM goals WHERE type = :type AND isActive = 1")
     suspend fun countActiveGoalsByType(type: GoalType): Int
 
-    @Query("SELECT * FROM goals ORDER BY type ASC")
+    @Query("SELECT * FROM goals WHERE deletedAt IS NULL ORDER BY type ASC")
     fun getAllGoals(): Flow<List<GoalEntity>>
 
     @Query("SELECT * FROM goals WHERE id = :id")

@@ -13,6 +13,10 @@ import com.studyapp.domain.repository.*
 import com.studyapp.domain.usecase.*
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.SystemClock
+import com.studyapp.sync.AuthRepository
+import com.studyapp.sync.FirebaseAuthRepository
+import com.studyapp.sync.FirebaseSyncRepository
+import com.studyapp.sync.SyncRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -143,6 +147,14 @@ interface RepositoryModule {
     @Binds
     @Singleton
     fun bindTimerServiceManager(impl: TimerServiceManagerImpl): TimerServiceManager
+
+    @Binds
+    @Singleton
+    fun bindAuthRepository(impl: FirebaseAuthRepository): AuthRepository
+
+    @Binds
+    @Singleton
+    fun bindSyncRepository(impl: FirebaseSyncRepository): SyncRepository
 }
 
 @Module

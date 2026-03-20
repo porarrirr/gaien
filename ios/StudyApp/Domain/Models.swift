@@ -168,23 +168,30 @@ enum ExportFormat: String, CaseIterable, Identifiable {
 
 struct Subject: Identifiable, Codable, Hashable {
     var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
     var name: String
     var color: Int
     var icon: SubjectIcon?
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
 }
 
 struct Material: Identifiable, Codable, Hashable {
     var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
     var name: String
     var subjectId: Int64
+    var subjectSyncId: String?
     var totalPages: Int = 0
     var currentPage: Int = 0
     var color: Int?
     var note: String?
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
 
     var progress: Double {
         guard totalPages > 0 else { return 0 }
@@ -198,14 +205,20 @@ struct Material: Identifiable, Codable, Hashable {
 
 struct StudySession: Identifiable, Codable, Hashable {
     var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
     var materialId: Int64?
+    var materialSyncId: String?
     var materialName: String = ""
     var subjectId: Int64
+    var subjectSyncId: String?
     var subjectName: String = ""
     var startTime: Int64
     var endTime: Int64
     var note: String?
     var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
 
     var duration: Int64 {
         max(endTime - startTime, 0)
@@ -253,12 +266,15 @@ struct StudySession: Identifiable, Codable, Hashable {
 
 struct Goal: Identifiable, Codable, Hashable {
     var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
     var type: GoalType
     var targetMinutes: Int
     var weekStartDay: StudyWeekday = .monday
     var isActive: Bool = true
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
 
     var targetFormatted: String {
         Goal.format(minutes: targetMinutes)
@@ -279,11 +295,14 @@ struct Goal: Identifiable, Codable, Hashable {
 
 struct Exam: Identifiable, Codable, Hashable {
     var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
     var name: String
     var date: Int64
     var note: String?
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
 
     var dateValue: Date {
         Date(epochDay: date)
@@ -303,11 +322,15 @@ struct Exam: Identifiable, Codable, Hashable {
 
 struct StudyPlan: Identifiable, Codable, Hashable {
     var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
     var name: String
     var startDate: Int64
     var endDate: Int64
     var isActive: Bool
     var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
 
     var startDateValue: Date {
         Date(epochMilliseconds: startDate)
@@ -320,14 +343,19 @@ struct StudyPlan: Identifiable, Codable, Hashable {
 
 struct PlanItem: Identifiable, Codable, Hashable {
     var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
     var planId: Int64
+    var planSyncId: String?
     var subjectId: Int64
+    var subjectSyncId: String?
     var dayOfWeek: StudyWeekday
     var targetMinutes: Int
     var actualMinutes: Int = 0
     var timeSlot: String?
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
 }
 
 struct MaterialWithSubject: Hashable {
@@ -423,6 +451,21 @@ struct AppPreferences: Codable, Equatable {
     var selectedColorTheme: ColorTheme = .green
     var selectedThemeMode: ThemeMode = .system
     var activeTimer: TimerSnapshot?
+}
+
+struct AuthSession: Codable, Equatable {
+    var localId: String
+    var email: String
+    var idToken: String
+    var refreshToken: String
+}
+
+struct SyncStatus: Equatable {
+    var isAuthenticated = false
+    var email: String?
+    var isSyncing = false
+    var lastSyncAt: Int64?
+    var errorMessage: String?
 }
 
 struct HomeData: Hashable {
@@ -536,6 +579,19 @@ protocol AppDataRepository {
     func importJSON(_ json: String, currentPreferences: AppPreferences) async throws -> AppPreferences
     func deleteAllData() async throws
     func migrateLegacySnapshotIfNeeded(preferencesRepository: AppPreferencesRepository) async throws
+}
+
+protocol AuthRepository {
+    var session: AuthSession? { get }
+    func signIn(email: String, password: String) async throws
+    func signUp(email: String, password: String) async throws
+    func signOut() async
+}
+
+protocol SyncRepository {
+    var status: SyncStatus { get }
+    func syncNow() async throws
+    func importLocalDataToCloud() async throws
 }
 
 struct Clock {

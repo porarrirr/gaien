@@ -4,12 +4,18 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 data class Exam(
     val id: Long = 0,
+    val syncId: String = UUID.randomUUID().toString(),
     val name: String,
     val date: LocalDate,
-    val note: String? = null
+    val note: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 ) {
     fun getDaysRemaining(currentDate: LocalDate): Long {
         return ChronoUnit.DAYS.between(currentDate, date)

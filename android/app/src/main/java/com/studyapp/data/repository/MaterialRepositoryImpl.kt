@@ -55,7 +55,7 @@ class MaterialRepositoryImpl @Inject constructor(
 
     override suspend fun updateMaterial(material: Material): Result<Unit> {
         return try {
-            materialDao.updateMaterial(material.toEntity())
+            materialDao.updateMaterial(material.copy(updatedAt = System.currentTimeMillis()).toEntity())
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update material: ${material.id}", e)
@@ -65,7 +65,8 @@ class MaterialRepositoryImpl @Inject constructor(
 
     override suspend fun deleteMaterial(material: Material): Result<Unit> {
         return try {
-            materialDao.deleteMaterial(material.toEntity())
+            val now = System.currentTimeMillis()
+            materialDao.updateMaterial(material.copy(deletedAt = now, updatedAt = now).toEntity())
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete material: ${material.id}", e)
@@ -86,36 +87,54 @@ class MaterialRepositoryImpl @Inject constructor(
     private fun MaterialWithSubject.toDomain(): Material {
         return Material(
             id = material.id,
+            syncId = material.syncId,
             name = material.name,
             subjectId = material.subjectId,
+            subjectSyncId = material.subjectSyncId,
             totalPages = material.totalPages,
             currentPage = material.currentPage,
             color = material.color,
-            note = material.note
+            note = material.note,
+            createdAt = material.createdAt,
+            updatedAt = material.updatedAt,
+            deletedAt = material.deletedAt,
+            lastSyncedAt = material.lastSyncedAt
         )
     }
 
     private fun MaterialEntity.toDomainSimple(): Material {
         return Material(
             id = id,
+            syncId = syncId,
             name = name,
             subjectId = subjectId,
+            subjectSyncId = subjectSyncId,
             totalPages = totalPages,
             currentPage = currentPage,
             color = color,
-            note = note
+            note = note,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 
     private fun Material.toEntity(): MaterialEntity {
         return MaterialEntity(
             id = id,
+            syncId = syncId,
             name = name,
             subjectId = subjectId,
+            subjectSyncId = subjectSyncId,
             totalPages = totalPages,
             currentPage = currentPage,
             color = color,
-            note = note
+            note = note,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 }

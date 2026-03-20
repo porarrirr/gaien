@@ -60,7 +60,7 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     func getAllSubjects() async throws -> [Subject] {
         try await ensureLoaded()
-        return try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(Self.subject)
+        return try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(Self.subject).filter { $0.deletedAt == nil }
     }
 
     func getSubjectById(_ id: Int64) async throws -> Subject? {
@@ -74,11 +74,14 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "SubjectRecord", into: container.viewContext)
         record.setValue(id, forKey: "id")
+        record.setValue(subject.syncId, forKey: "syncId")
         record.setValue(subject.name, forKey: "name")
         record.setValue(Int64(subject.color), forKey: "color")
         record.setValue(subject.icon?.rawValue, forKey: "icon")
         record.setValue(subject.createdAt == 0 ? now : subject.createdAt, forKey: "createdAt")
         record.setValue(subject.updatedAt == 0 ? now : subject.updatedAt, forKey: "updatedAt")
+        record.setValue(subject.deletedAt, forKey: "deletedAt")
+        record.setValue(subject.lastSyncedAt, forKey: "lastSyncedAt")
         try saveContext()
         return id
     }
@@ -89,6 +92,8 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         record.setValue(subject.name, forKey: "name")
         record.setValue(Int64(subject.color), forKey: "color")
         record.setValue(subject.icon?.rawValue, forKey: "icon")
+        record.setValue(subject.deletedAt, forKey: "deletedAt")
+        record.setValue(subject.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
 
         let sessions = try fetch(entity: "StudySessionRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
@@ -126,7 +131,7 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     func getAllMaterials() async throws -> [Material] {
         try await ensureLoaded()
-        return try fetch(entity: "MaterialRecord", sort: [NSSortDescriptor(key: "id", ascending: false)]).map(Self.material)
+        return try fetch(entity: "MaterialRecord", sort: [NSSortDescriptor(key: "id", ascending: false)]).map(Self.material).filter { $0.deletedAt == nil }
     }
 
     func getMaterialsBySubjectId(_ subjectId: Int64) async throws -> [Material] {
@@ -135,7 +140,7 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
             entity: "MaterialRecord",
             predicate: NSPredicate(format: "subjectId == %lld", subjectId),
             sort: [NSSortDescriptor(key: "id", ascending: false)]
-        ).map(Self.material)
+        ).map(Self.material).filter { $0.deletedAt == nil }
     }
 
     func insertMaterial(_ material: Material) async throws -> Int64 {
@@ -144,14 +149,18 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "MaterialRecord", into: container.viewContext)
         record.setValue(id, forKey: "id")
+        record.setValue(material.syncId, forKey: "syncId")
         record.setValue(material.name, forKey: "name")
         record.setValue(material.subjectId, forKey: "subjectId")
+        record.setValue(material.subjectSyncId, forKey: "subjectSyncId")
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(material.color.map(Int64.init), forKey: "color")
         record.setValue(material.note, forKey: "note")
         record.setValue(material.createdAt == 0 ? now : material.createdAt, forKey: "createdAt")
         record.setValue(material.updatedAt == 0 ? now : material.updatedAt, forKey: "updatedAt")
+        record.setValue(material.deletedAt, forKey: "deletedAt")
+        record.setValue(material.lastSyncedAt, forKey: "lastSyncedAt")
         try saveContext()
         return id
     }
@@ -161,10 +170,13 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         guard let record = try fetchOne(entity: "MaterialRecord", id: material.id) else { return }
         record.setValue(material.name, forKey: "name")
         record.setValue(material.subjectId, forKey: "subjectId")
+        record.setValue(material.subjectSyncId, forKey: "subjectSyncId")
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(material.color.map(Int64.init), forKey: "color")
         record.setValue(material.note, forKey: "note")
+        record.setValue(material.deletedAt, forKey: "deletedAt")
+        record.setValue(material.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
 
         let subjectName = try await getSubjectById(material.subjectId)?.name ?? ""
@@ -191,7 +203,7 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     func getAllSessions() async throws -> [StudySession] {
         try await ensureLoaded()
-        return try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(Self.session)
+        return try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(Self.session).filter { $0.deletedAt == nil }
     }
 
     func getSessionsBetweenDates(start: Int64, end: Int64) async throws -> [StudySession] {
@@ -200,7 +212,7 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
             entity: "StudySessionRecord",
             predicate: NSPredicate(format: "startTime >= %lld AND startTime < %lld", start, end),
             sort: [NSSortDescriptor(key: "startTime", ascending: false)]
-        ).map(Self.session)
+        ).map(Self.session).filter { $0.deletedAt == nil }
     }
 
     func insertSession(_ session: StudySession) async throws -> Int64 {
@@ -233,13 +245,13 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     func getAllGoals() async throws -> [Goal] {
         try await ensureLoaded()
-        return try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(Self.goal)
+        return try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(Self.goal).filter { $0.deletedAt == nil }
     }
 
     func getActiveGoalByType(_ type: GoalType) async throws -> Goal? {
         try await ensureLoaded()
         let predicate = NSPredicate(format: "type == %@ AND isActive == YES", type.rawValue)
-        return try fetch(entity: "GoalRecord", predicate: predicate, sort: [NSSortDescriptor(key: "updatedAt", ascending: false)]).first.map(Self.goal)
+        return try fetch(entity: "GoalRecord", predicate: predicate, sort: [NSSortDescriptor(key: "updatedAt", ascending: false)]).map(Self.goal).first(where: { $0.deletedAt == nil })
     }
 
     func insertGoal(_ goal: Goal) async throws -> Int64 {
@@ -248,12 +260,15 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: container.viewContext)
         record.setValue(id, forKey: "id")
+        record.setValue(goal.syncId, forKey: "syncId")
         record.setValue(goal.type.rawValue, forKey: "type")
         record.setValue(Int64(goal.targetMinutes), forKey: "targetMinutes")
         record.setValue(goal.weekStartDay.rawValue, forKey: "weekStartDay")
         record.setValue(goal.isActive, forKey: "isActive")
         record.setValue(goal.createdAt == 0 ? now : goal.createdAt, forKey: "createdAt")
         record.setValue(goal.updatedAt == 0 ? now : goal.updatedAt, forKey: "updatedAt")
+        record.setValue(goal.deletedAt, forKey: "deletedAt")
+        record.setValue(goal.lastSyncedAt, forKey: "lastSyncedAt")
         try saveContext()
         return id
     }
@@ -265,6 +280,8 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         record.setValue(Int64(goal.targetMinutes), forKey: "targetMinutes")
         record.setValue(goal.weekStartDay.rawValue, forKey: "weekStartDay")
         record.setValue(goal.isActive, forKey: "isActive")
+        record.setValue(goal.deletedAt, forKey: "deletedAt")
+        record.setValue(goal.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
         try saveContext()
     }
@@ -279,7 +296,7 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     func getAllExams() async throws -> [Exam] {
         try await ensureLoaded()
-        return try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(Self.exam)
+        return try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(Self.exam).filter { $0.deletedAt == nil }
     }
 
     func getUpcomingExams(now: Date) async throws -> [Exam] {
@@ -289,7 +306,7 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
             entity: "ExamRecord",
             predicate: NSPredicate(format: "date >= %lld", currentDay),
             sort: [NSSortDescriptor(key: "date", ascending: true)]
-        ).map(Self.exam)
+        ).map(Self.exam).filter { $0.deletedAt == nil }
     }
 
     func insertExam(_ exam: Exam) async throws -> Int64 {
@@ -298,11 +315,14 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "ExamRecord", into: container.viewContext)
         record.setValue(id, forKey: "id")
+        record.setValue(exam.syncId, forKey: "syncId")
         record.setValue(exam.name, forKey: "name")
         record.setValue(exam.date, forKey: "date")
         record.setValue(exam.note, forKey: "note")
         record.setValue(exam.createdAt == 0 ? now : exam.createdAt, forKey: "createdAt")
         record.setValue(exam.updatedAt == 0 ? now : exam.updatedAt, forKey: "updatedAt")
+        record.setValue(exam.deletedAt, forKey: "deletedAt")
+        record.setValue(exam.lastSyncedAt, forKey: "lastSyncedAt")
         try saveContext()
         return id
     }
@@ -313,6 +333,8 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         record.setValue(exam.name, forKey: "name")
         record.setValue(exam.date, forKey: "date")
         record.setValue(exam.note, forKey: "note")
+        record.setValue(exam.deletedAt, forKey: "deletedAt")
+        record.setValue(exam.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
         try saveContext()
     }
@@ -327,7 +349,7 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     func getAllPlans() async throws -> [StudyPlan] {
         try await ensureLoaded()
-        return try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(Self.plan)
+        return try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(Self.plan).filter { $0.deletedAt == nil }
     }
 
     func getPlanItems(planId: Int64) async throws -> [PlanItem] {
@@ -336,7 +358,7 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
             entity: "PlanItemRecord",
             predicate: NSPredicate(format: "planId == %lld", planId),
             sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true), NSSortDescriptor(key: "targetMinutes", ascending: false)]
-        ).map(Self.planItem)
+        ).map(Self.planItem).filter { $0.deletedAt == nil }
     }
 
     func createPlan(_ plan: StudyPlan, items: [PlanItem]) async throws -> Int64 {
@@ -350,11 +372,15 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         var nextLocalId = planId + 1
         let record = NSEntityDescription.insertNewObject(forEntityName: "StudyPlanRecord", into: container.viewContext)
         record.setValue(planId, forKey: "id")
+        record.setValue(plan.syncId, forKey: "syncId")
         record.setValue(plan.name, forKey: "name")
         record.setValue(plan.startDate, forKey: "startDate")
         record.setValue(plan.endDate, forKey: "endDate")
         record.setValue(plan.isActive, forKey: "isActive")
         record.setValue(plan.createdAt == 0 ? Date().epochMilliseconds : plan.createdAt, forKey: "createdAt")
+        record.setValue(plan.updatedAt == 0 ? Date().epochMilliseconds : plan.updatedAt, forKey: "updatedAt")
+        record.setValue(plan.deletedAt, forKey: "deletedAt")
+        record.setValue(plan.lastSyncedAt, forKey: "lastSyncedAt")
 
         for item in items {
             let itemRecord = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: container.viewContext)
@@ -363,14 +389,19 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
                 nextLocalId += 1
             }
             itemRecord.setValue(itemId, forKey: "id")
+            itemRecord.setValue(item.syncId, forKey: "syncId")
             itemRecord.setValue(planId, forKey: "planId")
+            itemRecord.setValue(item.planSyncId ?? plan.syncId, forKey: "planSyncId")
             itemRecord.setValue(item.subjectId, forKey: "subjectId")
+            itemRecord.setValue(item.subjectSyncId, forKey: "subjectSyncId")
             itemRecord.setValue(item.dayOfWeek.rawValue, forKey: "dayOfWeek")
             itemRecord.setValue(Int64(item.targetMinutes), forKey: "targetMinutes")
             itemRecord.setValue(Int64(item.actualMinutes), forKey: "actualMinutes")
             itemRecord.setValue(item.timeSlot, forKey: "timeSlot")
-            itemRecord.setValue(Date().epochMilliseconds, forKey: "createdAt")
-            itemRecord.setValue(Date().epochMilliseconds, forKey: "updatedAt")
+            itemRecord.setValue(item.createdAt == 0 ? Date().epochMilliseconds : item.createdAt, forKey: "createdAt")
+            itemRecord.setValue(item.updatedAt == 0 ? Date().epochMilliseconds : item.updatedAt, forKey: "updatedAt")
+            itemRecord.setValue(item.deletedAt, forKey: "deletedAt")
+            itemRecord.setValue(item.lastSyncedAt, forKey: "lastSyncedAt")
         }
 
         try saveContext()
@@ -383,14 +414,19 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         let itemId = try nextIdentifier(ifNeeded: item.id)
         let record = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: container.viewContext)
         record.setValue(itemId, forKey: "id")
+        record.setValue(item.syncId, forKey: "syncId")
         record.setValue(item.planId, forKey: "planId")
+        record.setValue(item.planSyncId, forKey: "planSyncId")
         record.setValue(item.subjectId, forKey: "subjectId")
+        record.setValue(item.subjectSyncId, forKey: "subjectSyncId")
         record.setValue(item.dayOfWeek.rawValue, forKey: "dayOfWeek")
         record.setValue(Int64(item.targetMinutes), forKey: "targetMinutes")
         record.setValue(Int64(item.actualMinutes), forKey: "actualMinutes")
         record.setValue(item.timeSlot, forKey: "timeSlot")
         record.setValue(item.createdAt == 0 ? Date().epochMilliseconds : item.createdAt, forKey: "createdAt")
         record.setValue(item.updatedAt == 0 ? Date().epochMilliseconds : item.updatedAt, forKey: "updatedAt")
+        record.setValue(item.deletedAt, forKey: "deletedAt")
+        record.setValue(item.lastSyncedAt, forKey: "lastSyncedAt")
         try saveContext()
         try await recalculatePlanActualMinutes()
         return itemId
@@ -400,10 +436,13 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         try await ensureLoaded()
         guard let record = try fetchOne(entity: "PlanItemRecord", id: item.id) else { return }
         record.setValue(item.subjectId, forKey: "subjectId")
+        record.setValue(item.subjectSyncId, forKey: "subjectSyncId")
         record.setValue(item.dayOfWeek.rawValue, forKey: "dayOfWeek")
         record.setValue(Int64(item.targetMinutes), forKey: "targetMinutes")
         record.setValue(Int64(item.actualMinutes), forKey: "actualMinutes")
         record.setValue(item.timeSlot, forKey: "timeSlot")
+        record.setValue(item.deletedAt, forKey: "deletedAt")
+        record.setValue(item.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
         try saveContext()
         try await recalculatePlanActualMinutes()
@@ -633,9 +672,12 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
 
     private func apply(_ session: StudySession, to record: NSManagedObject) {
         record.setValue(session.id, forKey: "id")
+        record.setValue(session.syncId, forKey: "syncId")
         record.setValue(session.materialId, forKey: "materialId")
+        record.setValue(session.materialSyncId, forKey: "materialSyncId")
         record.setValue(session.materialName, forKey: "materialName")
         record.setValue(session.subjectId, forKey: "subjectId")
+        record.setValue(session.subjectSyncId, forKey: "subjectSyncId")
         record.setValue(session.subjectName, forKey: "subjectName")
         record.setValue(session.startTime, forKey: "startTime")
         record.setValue(session.endTime, forKey: "endTime")
@@ -643,6 +685,9 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         record.setValue(session.date, forKey: "date")
         record.setValue(session.note, forKey: "note")
         record.setValue(session.createdAt, forKey: "createdAt")
+        record.setValue(session.updatedAt, forKey: "updatedAt")
+        record.setValue(session.deletedAt, forKey: "deletedAt")
+        record.setValue(session.lastSyncedAt, forKey: "lastSyncedAt")
     }
 
     private func ensureLoaded() async throws {
@@ -713,87 +758,115 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
     private static func subject(_ record: NSManagedObject) -> Subject {
         Subject(
             id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
             name: record.value(forKey: "name") as? String ?? "",
             color: Int(record.value(forKey: "color") as? Int64 ?? 0),
             icon: (record.value(forKey: "icon") as? String).flatMap(SubjectIcon.init(rawValue:)),
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
         )
     }
 
     private static func material(_ record: NSManagedObject) -> Material {
         Material(
             id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
             name: record.value(forKey: "name") as? String ?? "",
             subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
+            subjectSyncId: record.value(forKey: "subjectSyncId") as? String,
             totalPages: Int(record.value(forKey: "totalPages") as? Int64 ?? 0),
             currentPage: Int(record.value(forKey: "currentPage") as? Int64 ?? 0),
             color: (record.value(forKey: "color") as? Int64).map(Int.init),
             note: record.value(forKey: "note") as? String,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
         )
     }
 
     private static func session(_ record: NSManagedObject) -> StudySession {
         StudySession(
             id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
             materialId: record.value(forKey: "materialId") as? Int64,
+            materialSyncId: record.value(forKey: "materialSyncId") as? String,
             materialName: record.value(forKey: "materialName") as? String ?? "",
             subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
+            subjectSyncId: record.value(forKey: "subjectSyncId") as? String,
             subjectName: record.value(forKey: "subjectName") as? String ?? "",
             startTime: record.value(forKey: "startTime") as? Int64 ?? 0,
             endTime: record.value(forKey: "endTime") as? Int64 ?? 0,
             note: record.value(forKey: "note") as? String,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0
+            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
         )
     }
 
     private static func goal(_ record: NSManagedObject) -> Goal {
         Goal(
             id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
             type: GoalType(rawValue: record.value(forKey: "type") as? String ?? GoalType.daily.rawValue) ?? .daily,
             targetMinutes: Int(record.value(forKey: "targetMinutes") as? Int64 ?? 0),
             weekStartDay: StudyWeekday(rawValue: record.value(forKey: "weekStartDay") as? String ?? StudyWeekday.monday.rawValue) ?? .monday,
             isActive: record.value(forKey: "isActive") as? Bool ?? false,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
         )
     }
 
     private static func exam(_ record: NSManagedObject) -> Exam {
         Exam(
             id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
             name: record.value(forKey: "name") as? String ?? "",
             date: record.value(forKey: "date") as? Int64 ?? 0,
             note: record.value(forKey: "note") as? String,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
         )
     }
 
     private static func plan(_ record: NSManagedObject) -> StudyPlan {
         StudyPlan(
             id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
             name: record.value(forKey: "name") as? String ?? "",
             startDate: record.value(forKey: "startDate") as? Int64 ?? 0,
             endDate: record.value(forKey: "endDate") as? Int64 ?? 0,
             isActive: record.value(forKey: "isActive") as? Bool ?? false,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0
+            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
         )
     }
 
     private static func planItem(_ record: NSManagedObject) -> PlanItem {
         PlanItem(
             id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
             planId: record.value(forKey: "planId") as? Int64 ?? 0,
+            planSyncId: record.value(forKey: "planSyncId") as? String,
             subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
+            subjectSyncId: record.value(forKey: "subjectSyncId") as? String,
             dayOfWeek: StudyWeekday(rawValue: record.value(forKey: "dayOfWeek") as? String ?? StudyWeekday.monday.rawValue) ?? .monday,
             targetMinutes: Int(record.value(forKey: "targetMinutes") as? Int64 ?? 0),
             actualMinutes: Int(record.value(forKey: "actualMinutes") as? Int64 ?? 0),
             timeSlot: record.value(forKey: "timeSlot") as? String,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
         )
     }
 
@@ -804,89 +877,117 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
                 name: "SubjectRecord",
                 attributes: [
                     attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
                     attribute(name: "name", type: .stringAttributeType),
                     attribute(name: "color", type: .integer64AttributeType),
                     attribute(name: "icon", type: .stringAttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),
-                    attribute(name: "updatedAt", type: .integer64AttributeType)
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
                 ]
             ),
             entity(
                 name: "MaterialRecord",
                 attributes: [
                     attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
                     attribute(name: "name", type: .stringAttributeType),
                     attribute(name: "subjectId", type: .integer64AttributeType),
+                    attribute(name: "subjectSyncId", type: .stringAttributeType, optional: true),
                     attribute(name: "totalPages", type: .integer64AttributeType),
                     attribute(name: "currentPage", type: .integer64AttributeType),
                     attribute(name: "color", type: .integer64AttributeType, optional: true),
                     attribute(name: "note", type: .stringAttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),
-                    attribute(name: "updatedAt", type: .integer64AttributeType)
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
                 ]
             ),
             entity(
                 name: "StudySessionRecord",
                 attributes: [
                     attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
                     attribute(name: "materialId", type: .integer64AttributeType, optional: true),
+                    attribute(name: "materialSyncId", type: .stringAttributeType, optional: true),
                     attribute(name: "materialName", type: .stringAttributeType, optional: true),
                     attribute(name: "subjectId", type: .integer64AttributeType),
+                    attribute(name: "subjectSyncId", type: .stringAttributeType, optional: true),
                     attribute(name: "subjectName", type: .stringAttributeType),
                     attribute(name: "startTime", type: .integer64AttributeType),
                     attribute(name: "endTime", type: .integer64AttributeType),
                     attribute(name: "duration", type: .integer64AttributeType),
                     attribute(name: "date", type: .integer64AttributeType),
                     attribute(name: "note", type: .stringAttributeType, optional: true),
-                    attribute(name: "createdAt", type: .integer64AttributeType)
+                    attribute(name: "createdAt", type: .integer64AttributeType),
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
                 ]
             ),
             entity(
                 name: "GoalRecord",
                 attributes: [
                     attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
                     attribute(name: "type", type: .stringAttributeType),
                     attribute(name: "targetMinutes", type: .integer64AttributeType),
                     attribute(name: "weekStartDay", type: .stringAttributeType),
                     attribute(name: "isActive", type: .booleanAttributeType),
                     attribute(name: "createdAt", type: .integer64AttributeType),
-                    attribute(name: "updatedAt", type: .integer64AttributeType)
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
                 ]
             ),
             entity(
                 name: "ExamRecord",
                 attributes: [
                     attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
                     attribute(name: "name", type: .stringAttributeType),
                     attribute(name: "date", type: .integer64AttributeType),
                     attribute(name: "note", type: .stringAttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),
-                    attribute(name: "updatedAt", type: .integer64AttributeType)
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
                 ]
             ),
             entity(
                 name: "StudyPlanRecord",
                 attributes: [
                     attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
                     attribute(name: "name", type: .stringAttributeType),
                     attribute(name: "startDate", type: .integer64AttributeType),
                     attribute(name: "endDate", type: .integer64AttributeType),
                     attribute(name: "isActive", type: .booleanAttributeType),
-                    attribute(name: "createdAt", type: .integer64AttributeType)
+                    attribute(name: "createdAt", type: .integer64AttributeType),
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
                 ]
             ),
             entity(
                 name: "PlanItemRecord",
                 attributes: [
                     attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
                     attribute(name: "planId", type: .integer64AttributeType),
+                    attribute(name: "planSyncId", type: .stringAttributeType, optional: true),
                     attribute(name: "subjectId", type: .integer64AttributeType),
+                    attribute(name: "subjectSyncId", type: .stringAttributeType, optional: true),
                     attribute(name: "dayOfWeek", type: .stringAttributeType),
                     attribute(name: "targetMinutes", type: .integer64AttributeType),
                     attribute(name: "actualMinutes", type: .integer64AttributeType),
                     attribute(name: "timeSlot", type: .stringAttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),
-                    attribute(name: "updatedAt", type: .integer64AttributeType)
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
                 ]
             )
         ]

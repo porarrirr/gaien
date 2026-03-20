@@ -1,6 +1,7 @@
 package com.studyapp.domain.model
 
 import java.time.DayOfWeek
+import java.util.UUID
 
 enum class GoalType {
     DAILY,
@@ -9,10 +10,15 @@ enum class GoalType {
 
 data class Goal(
     val id: Long = 0,
+    val syncId: String = UUID.randomUUID().toString(),
     val type: GoalType,
     val targetMinutes: Int,
     val weekStartDay: DayOfWeek = DayOfWeek.MONDAY,
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 ) {
     val targetHours: Float
         get() = targetMinutes / 60f

@@ -16,6 +16,11 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        val firebaseApiKey = System.getenv("FIREBASE_API_KEY") ?: ""
+        val firebaseProjectId = System.getenv("FIREBASE_PROJECT_ID") ?: ""
+
+        buildConfigField("String", "FIREBASE_API_KEY", "\"$firebaseApiKey\"")
+        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

@@ -64,7 +64,7 @@ class GoalRepositoryImpl @Inject constructor(
 
     override suspend fun updateGoal(goal: Goal): Result<Unit> {
         return try {
-            goalDao.updateGoal(goal.toEntity())
+            goalDao.updateGoal(goal.copy(updatedAt = clock.currentTimeMillis()).toEntity())
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update goal: ${goal.id}", e)
@@ -74,7 +74,8 @@ class GoalRepositoryImpl @Inject constructor(
 
     override suspend fun deleteGoal(goal: Goal): Result<Unit> {
         return try {
-            goalDao.deleteGoal(goal.toEntity())
+            val now = clock.currentTimeMillis()
+            goalDao.updateGoal(goal.copy(isActive = false, deletedAt = now, updatedAt = now).toEntity())
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete goal: ${goal.id}", e)
@@ -85,20 +86,30 @@ class GoalRepositoryImpl @Inject constructor(
     private fun GoalEntity.toDomain(): Goal {
         return Goal(
             id = id,
+            syncId = syncId,
             type = type,
             targetMinutes = targetMinutes,
             weekStartDay = DayOfWeek.of(weekStartDay),
-            isActive = isActive
+            isActive = isActive,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 
     private fun Goal.toEntity(): GoalEntity {
         return GoalEntity(
             id = id,
+            syncId = syncId,
             type = type,
             targetMinutes = targetMinutes,
             weekStartDay = weekStartDay.value,
-            isActive = isActive
+            isActive = isActive,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 }

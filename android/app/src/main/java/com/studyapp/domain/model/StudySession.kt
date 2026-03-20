@@ -3,16 +3,24 @@ package com.studyapp.domain.model
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.UUID
 
 data class StudySession(
     val id: Long = 0,
+    val syncId: String = UUID.randomUUID().toString(),
     val materialId: Long?,
+    val materialSyncId: String? = null,
     val materialName: String = "",
     val subjectId: Long,
+    val subjectSyncId: String? = null,
     val subjectName: String = "",
     val startTime: Long,
     val endTime: Long,
-    val note: String? = null
+    val note: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 ) {
     val duration: Long
         get() = endTime - startTime

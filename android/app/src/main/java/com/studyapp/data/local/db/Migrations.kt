@@ -50,4 +50,49 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        listOf(
+            "subjects",
+            "materials",
+            "study_sessions",
+            "goals",
+            "exams",
+            "study_plans",
+            "plan_items"
+        ).forEach { table ->
+            db.execSQL("ALTER TABLE $table ADD COLUMN syncId TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE $table ADD COLUMN deletedAt INTEGER")
+            db.execSQL("ALTER TABLE $table ADD COLUMN lastSyncedAt INTEGER")
+        }
+
+        db.execSQL("ALTER TABLE materials ADD COLUMN subjectSyncId TEXT")
+        db.execSQL("ALTER TABLE study_sessions ADD COLUMN materialSyncId TEXT")
+        db.execSQL("ALTER TABLE study_sessions ADD COLUMN subjectSyncId TEXT")
+        db.execSQL("ALTER TABLE study_sessions ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE study_plans ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE plan_items ADD COLUMN planSyncId TEXT")
+        db.execSQL("ALTER TABLE plan_items ADD COLUMN subjectSyncId TEXT")
+        db.execSQL("ALTER TABLE plan_items ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE plan_items ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+
+        val now = System.currentTimeMillis()
+        db.execSQL("UPDATE subjects SET syncId = 'subject-' || id, lastSyncedAt = NULL WHERE syncId = ''")
+        db.execSQL("UPDATE materials SET syncId = 'material-' || id, subjectSyncId = 'subject-' || subjectId WHERE syncId = ''")
+        db.execSQL("UPDATE study_sessions SET syncId = 'session-' || id, materialSyncId = CASE WHEN materialId IS NULL THEN NULL ELSE 'material-' || materialId END, subjectSyncId = 'subject-' || subjectId, updatedAt = createdAt WHERE syncId = ''")
+        db.execSQL("UPDATE goals SET syncId = 'goal-' || id WHERE syncId = ''")
+        db.execSQL("UPDATE exams SET syncId = 'exam-' || id WHERE syncId = ''")
+        db.execSQL("UPDATE study_plans SET syncId = 'plan-' || id, updatedAt = createdAt WHERE syncId = ''")
+        db.execSQL("UPDATE plan_items SET syncId = 'plan-item-' || id, planSyncId = 'plan-' || planId, subjectSyncId = 'subject-' || subjectId, createdAt = $now, updatedAt = $now WHERE syncId = ''")
+
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_subjects_syncId ON subjects(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_materials_syncId ON materials(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_study_sessions_syncId ON study_sessions(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_goals_syncId ON goals(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_exams_syncId ON exams(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_study_plans_syncId ON study_plans(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_plan_items_syncId ON plan_items(syncId)")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)

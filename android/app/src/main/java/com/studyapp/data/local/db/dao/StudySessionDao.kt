@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface StudySessionDao {
     @Transaction
-    @Query("SELECT * FROM study_sessions ORDER BY startTime DESC")
+    @Query("SELECT * FROM study_sessions WHERE deletedAt IS NULL ORDER BY startTime DESC")
     fun getAllSessionsWithDetails(): Flow<List<StudySessionWithDetails>>
 
     @Query("""
@@ -17,36 +17,37 @@ interface StudySessionDao {
         FROM study_sessions s
         INNER JOIN subjects sub ON s.subjectId = sub.id
         LEFT JOIN materials m ON s.materialId = m.id
+        WHERE s.deletedAt IS NULL
         ORDER BY s.startTime DESC
     """)
     fun getAllSessionsWithNames(): Flow<List<StudySessionWithNames>>
 
-    @Query("SELECT * FROM study_sessions ORDER BY startTime DESC")
+    @Query("SELECT * FROM study_sessions WHERE deletedAt IS NULL ORDER BY startTime DESC")
     fun getAllSessions(): Flow<List<StudySessionEntity>>
 
     @Transaction
-    @Query("SELECT * FROM study_sessions WHERE date = :date ORDER BY startTime DESC")
+    @Query("SELECT * FROM study_sessions WHERE date = :date AND deletedAt IS NULL ORDER BY startTime DESC")
     fun getSessionsByDateWithDetails(date: Long): Flow<List<StudySessionWithDetails>>
 
-    @Query("SELECT * FROM study_sessions WHERE date = :date ORDER BY startTime DESC")
+    @Query("SELECT * FROM study_sessions WHERE date = :date AND deletedAt IS NULL ORDER BY startTime DESC")
     fun getSessionsByDate(date: Long): Flow<List<StudySessionEntity>>
 
-    @Query("SELECT * FROM study_sessions WHERE date >= :startDate AND date < :endDate ORDER BY startTime DESC")
+    @Query("SELECT * FROM study_sessions WHERE date >= :startDate AND date < :endDate AND deletedAt IS NULL ORDER BY startTime DESC")
     fun getSessionsBetweenDates(startDate: Long, endDate: Long): Flow<List<StudySessionEntity>>
 
-    @Query("SELECT * FROM study_sessions WHERE subjectId = :subjectId ORDER BY startTime DESC")
+    @Query("SELECT * FROM study_sessions WHERE subjectId = :subjectId AND deletedAt IS NULL ORDER BY startTime DESC")
     fun getSessionsBySubject(subjectId: Long): Flow<List<StudySessionEntity>>
 
-    @Query("SELECT * FROM study_sessions WHERE materialId = :materialId ORDER BY startTime DESC")
+    @Query("SELECT * FROM study_sessions WHERE materialId = :materialId AND deletedAt IS NULL ORDER BY startTime DESC")
     fun getSessionsByMaterial(materialId: Long): Flow<List<StudySessionEntity>>
 
-    @Query("SELECT SUM(duration) FROM study_sessions WHERE date = :date")
+    @Query("SELECT SUM(duration) FROM study_sessions WHERE date = :date AND deletedAt IS NULL")
     suspend fun getTotalDurationByDate(date: Long): Long?
 
-    @Query("SELECT SUM(duration) FROM study_sessions WHERE date >= :startDate AND date < :endDate")
+    @Query("SELECT SUM(duration) FROM study_sessions WHERE date >= :startDate AND date < :endDate AND deletedAt IS NULL")
     suspend fun getTotalDurationBetweenDates(startDate: Long, endDate: Long): Long?
 
-    @Query("SELECT SUM(duration) FROM study_sessions WHERE subjectId = :subjectId AND date >= :startDate AND date < :endDate")
+    @Query("SELECT SUM(duration) FROM study_sessions WHERE subjectId = :subjectId AND date >= :startDate AND date < :endDate AND deletedAt IS NULL")
     suspend fun getTotalDurationBySubjectBetweenDates(subjectId: Long, startDate: Long, endDate: Long): Long?
 
     @Query("SELECT * FROM study_sessions WHERE id = :id")

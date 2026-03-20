@@ -10,6 +10,8 @@ import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.usecase.ExportImportDataUseCase
 import com.studyapp.domain.util.Result
 import com.studyapp.services.ReminderWorker
+import com.studyapp.sync.AuthRepository
+import com.studyapp.sync.SyncRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
@@ -19,6 +21,7 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
@@ -33,7 +36,14 @@ data class SettingsUiState(
     val totalSessions: Int = 0,
     val totalStudyTime: Long = 0L,
     val selectedColorTheme: ColorTheme = ColorTheme.GREEN,
-    val selectedThemeMode: ThemeMode = ThemeMode.SYSTEM
+    val selectedThemeMode: ThemeMode = ThemeMode.SYSTEM,
+    val syncEmail: String = "",
+    val syncPassword: String = "",
+    val syncAuthenticated: Boolean = false,
+    val syncAccountEmail: String? = null,
+    val syncInProgress: Boolean = false,
+    val lastSyncAt: Long? = null,
+    val syncError: String? = null
 )
 
 @HiltViewModel
@@ -42,6 +52,8 @@ class SettingsViewModel @Inject constructor(
     private val themePreferences: ThemePreferences,
     private val reminderPreferences: ReminderPreferences,
     private val exportImportDataUseCase: ExportImportDataUseCase,
+    private val authRepository: AuthRepository,
+    private val syncRepository: SyncRepository,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
     
@@ -52,6 +64,7 @@ class SettingsViewModel @Inject constructor(
         loadStatistics()
         loadThemePreferences()
         loadReminderPreferences()
+        observeSyncState()
     }
     
     private fun loadThemePreferences() {
@@ -99,6 +112,32 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    private fun observeSyncState() {
+        viewModelScope.launch {
+            authRepository.session.collect { session ->
+                _uiState.update {
+                    it.copy(
+                        syncAuthenticated = session != null,
+                        syncAccountEmail = session?.email
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            syncRepository.status.collect { status ->
+                _uiState.update {
+                    it.copy(
+                        syncAuthenticated = status.isAuthenticated,
+                        syncAccountEmail = status.email,
+                        syncInProgress = status.isSyncing,
+                        lastSyncAt = status.lastSyncAt,
+                        syncError = status.errorMessage
+                    )
+                }
+            }
+        }
+    }
     
     fun setReminderEnabled(enabled: Boolean) {
         viewModelScope.launch {
@@ -138,6 +177,61 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             themePreferences.setThemeMode(mode)
             _uiState.update { it.copy(selectedThemeMode = mode) }
+        }
+    }
+
+    fun setSyncEmail(value: String) {
+        _uiState.update { it.copy(syncEmail = value) }
+    }
+
+    fun setSyncPassword(value: String) {
+        _uiState.update { it.copy(syncPassword = value) }
+    }
+
+    fun signInToSync() {
+        viewModelScope.launch {
+            runCatching {
+                authRepository.signIn(_uiState.value.syncEmail.trim(), _uiState.value.syncPassword)
+            }.onFailure {
+                _uiState.update { state -> state.copy(syncError = it.message) }
+            }
+        }
+    }
+
+    fun createSyncAccount() {
+        viewModelScope.launch {
+            runCatching {
+                authRepository.signUp(_uiState.value.syncEmail.trim(), _uiState.value.syncPassword)
+            }.onFailure {
+                _uiState.update { state -> state.copy(syncError = it.message) }
+            }
+        }
+    }
+
+    fun signOutOfSync() {
+        viewModelScope.launch {
+            authRepository.signOut()
+        }
+    }
+
+    fun syncNow() {
+        viewModelScope.launch {
+            runCatching {
+                syncRepository.syncNow()
+                loadStatistics()
+            }.onFailure {
+                _uiState.update { state -> state.copy(syncError = it.message) }
+            }
+        }
+    }
+
+    fun importLocalDataToCloud() {
+        viewModelScope.launch {
+            runCatching {
+                syncRepository.importLocalDataToCloud()
+            }.onFailure {
+                _uiState.update { state -> state.copy(syncError = it.message) }
+            }
         }
     }
     

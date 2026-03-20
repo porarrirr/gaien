@@ -59,7 +59,7 @@ class ExamRepositoryImpl @Inject constructor(
 
     override suspend fun updateExam(exam: Exam): Result<Unit> {
         return try {
-            examDao.updateExam(exam.toEntity())
+            examDao.updateExam(exam.copy(updatedAt = clock.currentTimeMillis()).toEntity())
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update exam: ${exam.id}", e)
@@ -69,7 +69,8 @@ class ExamRepositoryImpl @Inject constructor(
 
     override suspend fun deleteExam(exam: Exam): Result<Unit> {
         return try {
-            examDao.deleteExam(exam.toEntity())
+            val now = clock.currentTimeMillis()
+            examDao.updateExam(exam.copy(deletedAt = now, updatedAt = now).toEntity())
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete exam: ${exam.id}", e)
@@ -80,18 +81,28 @@ class ExamRepositoryImpl @Inject constructor(
     private fun ExamEntity.toDomain(): Exam {
         return Exam(
             id = id,
+            syncId = syncId,
             name = name,
             date = Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).toLocalDate(),
-            note = note
+            note = note,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 
     private fun Exam.toEntity(): ExamEntity {
         return ExamEntity(
             id = id,
+            syncId = syncId,
             name = name,
             date = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-            note = note
+            note = note,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 }

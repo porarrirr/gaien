@@ -64,6 +64,52 @@ struct SettingsScreen: View {
                 }
             }
 
+            Section("クラウド同期") {
+                if viewModel.app.syncStatus.isAuthenticated {
+                    HStack {
+                        Text("接続中")
+                        Spacer()
+                        Text(viewModel.app.syncStatus.email ?? "-")
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("最終同期")
+                        Spacer()
+                        Text(viewModel.app.syncStatus.lastSyncAt.map { Date(epochMilliseconds: $0).formatted(date: .abbreviated, time: .shortened) } ?? "未同期")
+                            .foregroundStyle(.secondary)
+                    }
+                    Button(viewModel.app.syncStatus.isSyncing ? "同期中..." : "今すぐ同期") {
+                        viewModel.syncNow()
+                    }
+                    .disabled(viewModel.app.syncStatus.isSyncing)
+                    Button("ローカルデータをアップロード") {
+                        viewModel.importLocalDataToCloud()
+                    }
+                    .disabled(viewModel.app.syncStatus.isSyncing)
+                    Button("サインアウト", role: .destructive) {
+                        viewModel.signOutOfSync()
+                    }
+                } else {
+                    TextField("メールアドレス", text: $viewModel.syncEmail)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.emailAddress)
+                    SecureField("パスワード", text: $viewModel.syncPassword)
+                    Button("サインイン") {
+                        viewModel.signInToSync()
+                    }
+                    .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
+                    Button("アカウント作成") {
+                        viewModel.createSyncAccount()
+                    }
+                    .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
+                }
+                if let error = viewModel.app.syncStatus.errorMessage {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
+
             Section("バックアップ") {
                 Button("エクスポート") {
                     isShowingExportOptions = true

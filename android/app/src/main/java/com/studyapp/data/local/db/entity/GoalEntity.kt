@@ -14,10 +14,13 @@ import com.studyapp.domain.model.GoalType
 data class GoalEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val syncId: String = "",
     val type: GoalType,
     val targetMinutes: Int,
     val weekStartDay: Int = 1,
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 )

@@ -7,24 +7,36 @@ final class StudyAppContainer: ObservableObject {
     @Published private(set) var isLoaded = false
     @Published var errorMessage: String?
     @Published private(set) var dataVersion = 0
+    @Published private(set) var syncStatus = SyncStatus()
 
     let persistence: PersistenceController
     let preferencesRepository: UserDefaultsPreferencesRepository
     let googleBooksService: GoogleBooksService
     let reminderScheduler: ReminderScheduler
     let clock = Clock()
+    let authRepository: FirebaseAuthRepository
+    let syncRepository: FirebaseSyncRepository
 
     init(
         persistence: PersistenceController = .shared,
         preferencesRepository: UserDefaultsPreferencesRepository = UserDefaultsPreferencesRepository(),
         googleBooksService: GoogleBooksService = GoogleBooksService(),
-        reminderScheduler: ReminderScheduler = ReminderScheduler()
+        reminderScheduler: ReminderScheduler = ReminderScheduler(),
+        authRepository: FirebaseAuthRepository = FirebaseAuthRepository(),
+        syncRepository: FirebaseSyncRepository? = nil
     ) {
         self.persistence = persistence
         self.preferencesRepository = preferencesRepository
         self.googleBooksService = googleBooksService
         self.reminderScheduler = reminderScheduler
+        self.authRepository = authRepository
+        self.syncRepository = syncRepository ?? FirebaseSyncRepository(
+            authRepository: authRepository,
+            persistence: persistence,
+            preferencesRepository: preferencesRepository
+        )
         self.preferences = preferencesRepository.loadPreferences()
+        self.syncStatus = self.syncRepository.status
 
         Task {
             await load()
@@ -35,6 +47,7 @@ final class StudyAppContainer: ObservableObject {
         do {
             try await persistence.migrateLegacySnapshotIfNeeded(preferencesRepository: preferencesRepository)
             preferences = preferencesRepository.loadPreferences()
+            syncStatus = syncRepository.status
             isLoaded = true
             bumpDataVersion()
         } catch {
@@ -110,6 +123,11 @@ final class StudyAppContainer: ObservableObject {
 
     func clearError() {
         errorMessage = nil
+    }
+
+    func refreshSyncStatus() {
+        syncStatus = syncRepository.status
+        objectWillChange.send()
     }
 
     func present(_ error: Error) {
@@ -663,11 +681,14 @@ final class ReportsViewModel: ScreenViewModel {
 final class SettingsViewModel: ScreenViewModel {
     @Published private(set) var exportURL: URL?
     @Published private(set) var summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
+    @Published var syncEmail = ""
+    @Published var syncPassword = ""
 
     func load() async {
         do {
             let useCase = GetSettingsSummaryUseCase(sessionRepository: app.persistence)
             summary = try await useCase.execute()
+            app.refreshSyncStatus()
         } catch {
             app.present(error)
         }
@@ -701,4 +722,313 @@ final class SettingsViewModel: ScreenViewModel {
             self.app.bumpDataVersion()
         }
     }
+
+    func signInToSync() {
+        perform {
+            try await self.app.authRepository.signIn(email: self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines), password: self.syncPassword)
+            self.app.refreshSyncStatus()
+        }
+    }
+
+    func createSyncAccount() {
+        perform {
+            try await self.app.authRepository.signUp(email: self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines), password: self.syncPassword)
+            self.app.refreshSyncStatus()
+        }
+    }
+
+    func signOutOfSync() {
+        Task {
+            await app.authRepository.signOut()
+            app.refreshSyncStatus()
+        }
+    }
+
+    func syncNow() {
+        perform {
+            try await self.app.syncRepository.syncNow()
+            self.app.refreshSyncStatus()
+            self.summary = try await GetSettingsSummaryUseCase(sessionRepository: self.app.persistence).execute()
+            self.app.bumpDataVersion()
+        }
+    }
+
+    func importLocalDataToCloud() {
+        perform {
+            try await self.app.syncRepository.importLocalDataToCloud()
+            self.app.refreshSyncStatus()
+        }
+    }
+}
+
+actor FirebaseRESTClient {
+    private let session: URLSession
+    private let apiKey: String
+    private let projectId: String
+
+    init(
+        session: URLSession = .shared,
+        apiKey: String = ProcessInfo.processInfo.environment["FIREBASE_API_KEY"] ?? "",
+        projectId: String = ProcessInfo.processInfo.environment["FIREBASE_PROJECT_ID"] ?? ""
+    ) {
+        self.session = session
+        self.apiKey = apiKey
+        self.projectId = projectId
+    }
+
+    func isConfigured() -> Bool {
+        !apiKey.isEmpty && !projectId.isEmpty
+    }
+
+    func signIn(email: String, password: String) async throws -> AuthSession {
+        try await authenticate(path: "accounts:signInWithPassword", email: email, password: password)
+    }
+
+    func signUp(email: String, password: String) async throws -> AuthSession {
+        try await authenticate(path: "accounts:signUp", email: email, password: password)
+    }
+
+    func loadSnapshot(session authSession: AuthSession) async throws -> String? {
+        try ensureConfigured()
+        let url = URL(string: "https://firestore.googleapis.com/v1/projects/\(projectId)/databases/(default)/documents/users/\(authSession.localId)/sync/default")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(authSession.idToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw ValidationError(message: "同期レスポンスが不正です") }
+        if http.statusCode == 404 { return nil }
+        guard (200..<300).contains(http.statusCode) else { throw ValidationError(message: parseError(data)) }
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let fields = json?["fields"] as? [String: Any]
+        let payload = fields?["payload"] as? [String: Any]
+        return payload?["stringValue"] as? String
+    }
+
+    func saveSnapshot(session authSession: AuthSession, payload: String, updatedAt: Int64) async throws {
+        try ensureConfigured()
+        let url = URL(string: "https://firestore.googleapis.com/v1/projects/\(projectId)/databases/(default)/documents/users/\(authSession.localId)/sync/default")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(authSession.idToken)", forHTTPHeaderField: "Authorization")
+        let body: [String: Any] = [
+            "fields": [
+                "payload": ["stringValue": payload],
+                "updatedAt": ["integerValue": String(updatedAt)]
+            ]
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw ValidationError(message: parseError(data))
+        }
+    }
+
+    private func authenticate(path: String, email: String, password: String) async throws -> AuthSession {
+        try ensureConfigured()
+        let url = URL(string: "https://identitytoolkit.googleapis.com/v1/\(path)?key=\(apiKey)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: [
+                "email": email,
+                "password": password,
+                "returnSecureToken": true
+            ]
+        )
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw ValidationError(message: parseError(data))
+        }
+        let auth = try JSONDecoder().decode(FirebaseAuthResponse.self, from: data)
+        return AuthSession(localId: auth.localId, email: auth.email, idToken: auth.idToken, refreshToken: auth.refreshToken)
+    }
+
+    private func ensureConfigured() throws {
+        guard isConfigured() else {
+            throw ValidationError(message: "FIREBASE_API_KEY と FIREBASE_PROJECT_ID を設定してください")
+        }
+    }
+
+    private func parseError(_ data: Data) -> String {
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let error = json["error"] as? [String: Any],
+           let message = error["message"] as? String {
+            return message
+        }
+        return "Firebase request failed"
+    }
+}
+
+@MainActor
+final class FirebaseAuthRepository: ObservableObject, AuthRepository {
+    @Published private(set) var session: AuthSession?
+
+    private let defaults: UserDefaults
+    private let client: FirebaseRESTClient
+    private let key = "studyapp.sync.session"
+
+    init(defaults: UserDefaults = .standard, client: FirebaseRESTClient = FirebaseRESTClient()) {
+        self.defaults = defaults
+        self.client = client
+        if let data = defaults.data(forKey: key), let session = try? JSONDecoder().decode(AuthSession.self, from: data) {
+            self.session = session
+        } else {
+            self.session = nil
+        }
+    }
+
+    func signIn(email: String, password: String) async throws {
+        let session = try await client.signIn(email: email, password: password)
+        try save(session)
+    }
+
+    func signUp(email: String, password: String) async throws {
+        let session = try await client.signUp(email: email, password: password)
+        try save(session)
+    }
+
+    func signOut() async {
+        defaults.removeObject(forKey: key)
+        session = nil
+    }
+
+    private func save(_ session: AuthSession) throws {
+        defaults.set(try JSONEncoder().encode(session), forKey: key)
+        self.session = session
+    }
+}
+
+@MainActor
+final class FirebaseSyncRepository: SyncRepository {
+    private let client: FirebaseRESTClient
+    private let authRepository: FirebaseAuthRepository
+    private let persistence: PersistenceController
+    private let preferencesRepository: UserDefaultsPreferencesRepository
+    private let lastSyncKey = "studyapp.sync.lastSyncAt"
+
+    private(set) var status = SyncStatus()
+
+    init(
+        client: FirebaseRESTClient = FirebaseRESTClient(),
+        authRepository: FirebaseAuthRepository,
+        persistence: PersistenceController,
+        preferencesRepository: UserDefaultsPreferencesRepository
+    ) {
+        self.client = client
+        self.authRepository = authRepository
+        self.persistence = persistence
+        self.preferencesRepository = preferencesRepository
+        self.status = SyncStatus(
+            isAuthenticated: authRepository.session != nil,
+            email: authRepository.session?.email,
+            lastSyncAt: UserDefaults.standard.object(forKey: lastSyncKey) as? Int64
+        )
+    }
+
+    func syncNow() async throws {
+        guard let session = authRepository.session else {
+            throw ValidationError(message: "同期するにはサインインが必要です")
+        }
+        status.isSyncing = true
+        defer { status.isSyncing = false }
+        let useCase = ExportImportDataUseCase(repository: persistence)
+        let local = try await persistence.exportData()
+        let merged: AppData
+        if let remotePayload = try await client.loadSnapshot(session: session) {
+            let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
+            merged = merge(local: local, remote: remote)
+        } else {
+            merged = local
+        }
+        let synced = markSynced(merged, at: Date().epochMilliseconds)
+        let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
+        _ = try await useCase.importJSON(payload, currentPreferences: preferencesRepository.loadPreferences())
+        try await client.saveSnapshot(session: session, payload: payload, updatedAt: synced.exportDate)
+        UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
+        status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
+    }
+
+    func importLocalDataToCloud() async throws {
+        guard let session = authRepository.session else {
+            throw ValidationError(message: "同期するにはサインインが必要です")
+        }
+        status.isSyncing = true
+        defer { status.isSyncing = false }
+        let local = markSynced(try await persistence.exportData(), at: Date().epochMilliseconds)
+        let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
+        try await client.saveSnapshot(session: session, payload: payload, updatedAt: local.exportDate)
+        UserDefaults.standard.set(local.exportDate, forKey: lastSyncKey)
+        status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: local.exportDate)
+    }
+
+    private func merge(local: AppData, remote: AppData) -> AppData {
+        AppData(
+            subjects: merge(local.subjects, remote.subjects, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            materials: merge(local.materials, remote.materials, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            sessions: merge(local.sessions, remote.sessions, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            goals: merge(local.goals, remote.goals, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            exams: merge(local.exams, remote.exams, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            plans: mergePlans(local.plans, remote.plans),
+            exportDate: max(local.exportDate, remote.exportDate)
+        )
+    }
+
+    private func mergePlans(_ local: [PlanData], _ remote: [PlanData]) -> [PlanData] {
+        let plans = merge(local.map(\.plan), remote.map(\.plan), key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt)
+        let items = merge(local.flatMap(\.items), remote.flatMap(\.items), key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt)
+        let grouped = Dictionary(grouping: items, by: \.planSyncId)
+        return plans.map { plan in
+            PlanData(plan: plan, items: grouped[plan.syncId] ?? [])
+        }
+    }
+
+    private func merge<T>(_ lhs: [T], _ rhs: [T], key: KeyPath<T, String>, updatedAt: KeyPath<T, Int64>, deletedAt: KeyPath<T, Int64?>) -> [T] {
+        var result: [String: T] = [:]
+        for item in lhs + rhs {
+            let id = item[keyPath: key]
+            guard let existing = result[id] else {
+                result[id] = item
+                continue
+            }
+            let existingDelete = existing[keyPath: deletedAt] ?? .min
+            let candidateDelete = item[keyPath: deletedAt] ?? .min
+            if candidateDelete > existing[keyPath: updatedAt] && candidateDelete >= existingDelete {
+                result[id] = item
+            } else if existingDelete > item[keyPath: updatedAt] && existingDelete >= candidateDelete {
+                result[id] = existing
+            } else if item[keyPath: updatedAt] >= existing[keyPath: updatedAt] {
+                result[id] = item
+            }
+        }
+        return Array(result.values)
+    }
+
+    private func markSynced(_ appData: AppData, at timestamp: Int64) -> AppData {
+        AppData(
+            subjects: appData.subjects.map { var value = $0; value.lastSyncedAt = timestamp; return value },
+            materials: appData.materials.map { var value = $0; value.lastSyncedAt = timestamp; return value },
+            sessions: appData.sessions.map { var value = $0; value.lastSyncedAt = timestamp; return value },
+            goals: appData.goals.map { var value = $0; value.lastSyncedAt = timestamp; return value },
+            exams: appData.exams.map { var value = $0; value.lastSyncedAt = timestamp; return value },
+            plans: appData.plans.map {
+                var plan = $0.plan
+                plan.lastSyncedAt = timestamp
+                let items = $0.items.map { item -> PlanItem in
+                    var value = item
+                    value.lastSyncedAt = timestamp
+                    return value
+                }
+                return PlanData(plan: plan, items: items)
+            },
+            exportDate: timestamp
+        )
+    }
+}
+
+private struct FirebaseAuthResponse: Codable {
+    var localId: String
+    var email: String
+    var idToken: String
+    var refreshToken: String
 }

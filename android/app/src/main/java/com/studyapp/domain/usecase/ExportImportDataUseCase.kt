@@ -96,127 +96,212 @@ data class PlanData(
 
 private fun Subject.toJson() = JSONObject().apply {
     put("id", id)
+    put("syncId", syncId)
     put("name", name)
     put("color", color)
     put("icon", icon?.name)
+    put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+    put("deletedAt", deletedAt)
+    put("lastSyncedAt", lastSyncedAt)
 }
 
 private fun JSONObject.toSubject() = Subject(
     id = optLong("id"),
+    syncId = optString("syncId").ifEmpty { "subject-${optLong("id")}" },
     name = optString("name"),
     color = optInt("color"),
-    icon = optString("icon").let { if (it.isNullOrEmpty()) null else com.studyapp.domain.model.SubjectIcon.fromName(it) }
+    icon = optString("icon").let { if (it.isNullOrEmpty()) null else com.studyapp.domain.model.SubjectIcon.fromName(it) },
+    createdAt = optLong("createdAt", System.currentTimeMillis()),
+    updatedAt = optLong("updatedAt", optLong("createdAt", System.currentTimeMillis())),
+    deletedAt = optNullableLong("deletedAt"),
+    lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
 private fun Material.toJson() = JSONObject().apply {
     put("id", id)
+    put("syncId", syncId)
     put("name", name)
     put("subjectId", subjectId)
+    put("subjectSyncId", subjectSyncId)
     put("totalPages", totalPages)
     put("currentPage", currentPage)
     put("color", color)
     put("note", note)
+    put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+    put("deletedAt", deletedAt)
+    put("lastSyncedAt", lastSyncedAt)
 }
 
 private fun JSONObject.toMaterial() = Material(
     id = optLong("id"),
+    syncId = optString("syncId").ifEmpty { "material-${optLong("id")}" },
     name = optString("name"),
     subjectId = optLong("subjectId"),
+    subjectSyncId = optString("subjectSyncId").takeIf { it.isNotEmpty() },
     totalPages = optInt("totalPages"),
     currentPage = optInt("currentPage"),
     color = if (has("color")) getInt("color") else null,
-    note = optString("note").takeIf { it.isNotEmpty() }
+    note = optString("note").takeIf { it.isNotEmpty() },
+    createdAt = optLong("createdAt", System.currentTimeMillis()),
+    updatedAt = optLong("updatedAt", optLong("createdAt", System.currentTimeMillis())),
+    deletedAt = optNullableLong("deletedAt"),
+    lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
 private fun StudySession.toJson() = JSONObject().apply {
     put("id", id)
+    put("syncId", syncId)
     put("materialId", materialId)
+    put("materialSyncId", materialSyncId)
     put("materialName", materialName)
     put("subjectId", subjectId)
+    put("subjectSyncId", subjectSyncId)
     put("subjectName", subjectName)
     put("startTime", startTime)
     put("endTime", endTime)
     put("note", note)
+    put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+    put("deletedAt", deletedAt)
+    put("lastSyncedAt", lastSyncedAt)
 }
 
 private fun JSONObject.toStudySession() = StudySession(
     id = optLong("id"),
+    syncId = optString("syncId").ifEmpty { "session-${optLong("id")}" },
     materialId = if (has("materialId")) getLong("materialId") else null,
+    materialSyncId = optString("materialSyncId").takeIf { it.isNotEmpty() },
     materialName = optString("materialName"),
     subjectId = optLong("subjectId"),
+    subjectSyncId = optString("subjectSyncId").takeIf { it.isNotEmpty() },
     subjectName = optString("subjectName"),
     startTime = optLong("startTime"),
     endTime = optLong("endTime"),
-    note = optString("note").takeIf { it.isNotEmpty() }
+    note = optString("note").takeIf { it.isNotEmpty() },
+    createdAt = optLong("createdAt", System.currentTimeMillis()),
+    updatedAt = optLong("updatedAt", optLong("createdAt", System.currentTimeMillis())),
+    deletedAt = optNullableLong("deletedAt"),
+    lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
 private fun Goal.toJson() = JSONObject().apply {
     put("id", id)
+    put("syncId", syncId)
     put("type", type.name)
     put("targetMinutes", targetMinutes)
     put("weekStartDay", weekStartDay.name)
     put("isActive", isActive)
+    put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+    put("deletedAt", deletedAt)
+    put("lastSyncedAt", lastSyncedAt)
 }
 
 private fun JSONObject.toGoal() = Goal(
     id = optLong("id"),
+    syncId = optString("syncId").ifEmpty { "goal-${optLong("id")}" },
     type = com.studyapp.domain.model.GoalType.valueOf(optString("type", "DAILY")),
     targetMinutes = optInt("targetMinutes"),
     weekStartDay = java.time.DayOfWeek.valueOf(optString("weekStartDay", "MONDAY")),
-    isActive = optBoolean("isActive", true)
+    isActive = optBoolean("isActive", true),
+    createdAt = optLong("createdAt", System.currentTimeMillis()),
+    updatedAt = optLong("updatedAt", optLong("createdAt", System.currentTimeMillis())),
+    deletedAt = optNullableLong("deletedAt"),
+    lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
 private fun Exam.toJson() = JSONObject().apply {
     put("id", id)
+    put("syncId", syncId)
     put("name", name)
     put("date", date.toEpochDay())
     put("note", note)
+    put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+    put("deletedAt", deletedAt)
+    put("lastSyncedAt", lastSyncedAt)
 }
 
 private fun JSONObject.toExam() = Exam(
     id = optLong("id"),
+    syncId = optString("syncId").ifEmpty { "exam-${optLong("id")}" },
     name = optString("name"),
     date = java.time.LocalDate.ofEpochDay(optLong("date")),
-    note = optString("note").takeIf { it.isNotEmpty() }
+    note = optString("note").takeIf { it.isNotEmpty() },
+    createdAt = optLong("createdAt", System.currentTimeMillis()),
+    updatedAt = optLong("updatedAt", optLong("createdAt", System.currentTimeMillis())),
+    deletedAt = optNullableLong("deletedAt"),
+    lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
 private fun StudyPlan.toJson() = JSONObject().apply {
     put("id", id)
+    put("syncId", syncId)
     put("name", name)
     put("startDate", startDate)
     put("endDate", endDate)
     put("isActive", isActive)
     put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+    put("deletedAt", deletedAt)
+    put("lastSyncedAt", lastSyncedAt)
 }
 
 private fun JSONObject.toStudyPlan() = StudyPlan(
     id = optLong("id"),
+    syncId = optString("syncId").ifEmpty { "plan-${optLong("id")}" },
     name = optString("name"),
     startDate = optLong("startDate"),
     endDate = optLong("endDate"),
     isActive = optBoolean("isActive", true),
-    createdAt = optLong("createdAt", System.currentTimeMillis())
+    createdAt = optLong("createdAt", System.currentTimeMillis()),
+    updatedAt = optLong("updatedAt", optLong("createdAt", System.currentTimeMillis())),
+    deletedAt = optNullableLong("deletedAt"),
+    lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
 private fun PlanItem.toJson() = JSONObject().apply {
     put("id", id)
+    put("syncId", syncId)
     put("planId", planId)
+    put("planSyncId", planSyncId)
     put("subjectId", subjectId)
+    put("subjectSyncId", subjectSyncId)
     put("dayOfWeek", dayOfWeek.name)
     put("targetMinutes", targetMinutes)
     put("actualMinutes", actualMinutes)
     put("timeSlot", timeSlot)
+    put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+    put("deletedAt", deletedAt)
+    put("lastSyncedAt", lastSyncedAt)
 }
 
 private fun JSONObject.toPlanItem() = PlanItem(
     id = optLong("id"),
+    syncId = optString("syncId").ifEmpty { "plan-item-${optLong("id")}" },
     planId = optLong("planId"),
+    planSyncId = optString("planSyncId").takeIf { it.isNotEmpty() },
     subjectId = optLong("subjectId"),
+    subjectSyncId = optString("subjectSyncId").takeIf { it.isNotEmpty() },
     dayOfWeek = java.time.DayOfWeek.valueOf(optString("dayOfWeek", "MONDAY")),
     targetMinutes = optInt("targetMinutes"),
     actualMinutes = optInt("actualMinutes"),
-    timeSlot = optString("timeSlot").takeIf { it.isNotEmpty() }
+    timeSlot = optString("timeSlot").takeIf { it.isNotEmpty() },
+    createdAt = optLong("createdAt", System.currentTimeMillis()),
+    updatedAt = optLong("updatedAt", optLong("createdAt", System.currentTimeMillis())),
+    deletedAt = optNullableLong("deletedAt"),
+    lastSyncedAt = optNullableLong("lastSyncedAt")
 )
+
+private fun JSONObject.optNullableLong(key: String): Long? {
+    if (!has(key) || isNull(key)) {
+        return null
+    }
+    return optLong(key)
+}
 
 class ExportImportDataUseCase @Inject constructor(
     private val subjectRepository: SubjectRepository,

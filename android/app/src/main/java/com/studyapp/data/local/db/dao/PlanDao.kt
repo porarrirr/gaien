@@ -9,10 +9,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PlanDao {
     
-    @Query("SELECT * FROM study_plans WHERE isActive = 1 ORDER BY createdAt DESC LIMIT 1")
+    @Query("SELECT * FROM study_plans WHERE isActive = 1 AND deletedAt IS NULL ORDER BY createdAt DESC LIMIT 1")
     fun getActivePlan(): Flow<PlanEntity?>
     
-    @Query("SELECT * FROM study_plans ORDER BY createdAt DESC")
+    @Query("SELECT * FROM study_plans WHERE deletedAt IS NULL ORDER BY createdAt DESC")
     fun getAllPlans(): Flow<List<PlanEntity>>
     
     @Query("SELECT * FROM study_plans WHERE id = :planId")
@@ -27,13 +27,13 @@ interface PlanDao {
     @Delete
     suspend fun deletePlan(plan: PlanEntity)
     
-    @Query("UPDATE study_plans SET isActive = 0")
+    @Query("UPDATE study_plans SET isActive = 0 WHERE deletedAt IS NULL")
     suspend fun deactivateAllPlans()
     
-    @Query("SELECT * FROM plan_items WHERE planId = :planId")
+    @Query("SELECT * FROM plan_items WHERE planId = :planId AND deletedAt IS NULL")
     fun getPlanItems(planId: Long): Flow<List<PlanItemEntity>>
     
-    @Query("SELECT * FROM plan_items WHERE planId = :planId AND dayOfWeek = :dayOfWeek")
+    @Query("SELECT * FROM plan_items WHERE planId = :planId AND dayOfWeek = :dayOfWeek AND deletedAt IS NULL")
     fun getPlanItemsByDay(planId: Long, dayOfWeek: Int): Flow<List<PlanItemEntity>>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -62,20 +62,20 @@ interface PlanDao {
     
     @Query("""
         SELECT SUM(targetMinutes) FROM plan_items 
-        WHERE planId = :planId
+        WHERE planId = :planId AND deletedAt IS NULL
     """)
     fun getTotalTargetMinutes(planId: Long): Flow<Int?>
     
     @Query("""
         SELECT SUM(actualMinutes) FROM plan_items 
-        WHERE planId = :planId
+        WHERE planId = :planId AND deletedAt IS NULL
     """)
     fun getTotalActualMinutes(planId: Long): Flow<Int?>
 
     @Query("""
         SELECT dayOfWeek, SUM(targetMinutes) as totalTargetMinutes, SUM(actualMinutes) as totalActualMinutes
         FROM plan_items
-        WHERE planId = :planId
+        WHERE planId = :planId AND deletedAt IS NULL
         GROUP BY dayOfWeek
         ORDER BY dayOfWeek ASC
     """)

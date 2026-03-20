@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SubjectDao {
-    @Query("SELECT * FROM subjects ORDER BY name ASC")
+    @Query("SELECT * FROM subjects WHERE deletedAt IS NULL ORDER BY name ASC")
     fun getAllSubjects(): Flow<List<SubjectEntity>>
 
     @Query("SELECT * FROM subjects WHERE id = :id")

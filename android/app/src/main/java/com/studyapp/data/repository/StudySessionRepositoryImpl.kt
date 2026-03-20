@@ -110,7 +110,7 @@ class StudySessionRepositoryImpl @Inject constructor(
 
     override suspend fun updateSession(session: StudySession): Result<Unit> {
         return try {
-            studySessionDao.updateSession(session.toEntity())
+            studySessionDao.updateSession(session.copy(updatedAt = System.currentTimeMillis()).toEntity())
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update session: ${session.id}", e)
@@ -120,7 +120,8 @@ class StudySessionRepositoryImpl @Inject constructor(
 
     override suspend fun deleteSession(session: StudySession): Result<Unit> {
         return try {
-            studySessionDao.deleteSession(session.toEntity())
+            val now = System.currentTimeMillis()
+            studySessionDao.updateSession(session.copy(deletedAt = now, updatedAt = now).toEntity())
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete session: ${session.id}", e)
@@ -131,26 +132,40 @@ class StudySessionRepositoryImpl @Inject constructor(
     private fun StudySessionWithDetails.toDomain(): StudySession {
         return StudySession(
             id = session.id,
+            syncId = session.syncId,
             materialId = session.materialId,
+            materialSyncId = session.materialSyncId,
             materialName = material?.name ?: "",
             subjectId = session.subjectId,
+            subjectSyncId = session.subjectSyncId,
             subjectName = subject?.name ?: "",
             startTime = session.startTime,
             endTime = session.endTime,
-            note = session.note
+            note = session.note,
+            createdAt = session.createdAt,
+            updatedAt = session.updatedAt,
+            deletedAt = session.deletedAt,
+            lastSyncedAt = session.lastSyncedAt
         )
     }
 
     private fun StudySessionEntity.toDomainSimple(): StudySession {
         return StudySession(
             id = id,
+            syncId = syncId,
             materialId = materialId,
+            materialSyncId = materialSyncId,
             materialName = "",
             subjectId = subjectId,
+            subjectSyncId = subjectSyncId,
             subjectName = "",
             startTime = startTime,
             endTime = endTime,
-            note = note
+            note = note,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 
@@ -158,13 +173,20 @@ class StudySessionRepositoryImpl @Inject constructor(
         val localDateMillis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         return StudySessionEntity(
             id = id,
+            syncId = syncId,
             materialId = materialId,
+            materialSyncId = materialSyncId,
             subjectId = subjectId,
+            subjectSyncId = subjectSyncId,
             startTime = startTime,
             endTime = endTime,
             duration = duration,
             date = localDateMillis,
-            note = note
+            note = note,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 }

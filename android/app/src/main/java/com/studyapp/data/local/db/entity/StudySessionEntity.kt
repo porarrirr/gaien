@@ -28,14 +28,20 @@ import androidx.room.Relation
 data class StudySessionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val syncId: String = "",
     val materialId: Long?,
+    val materialSyncId: String? = null,
     val subjectId: Long,
+    val subjectSyncId: String? = null,
     val startTime: Long,
     val endTime: Long,
     val duration: Long,
     val date: Long,
     val note: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 )
 
 data class StudySessionWithDetails(

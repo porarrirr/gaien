@@ -59,7 +59,8 @@ class SubjectRepositoryImpl @Inject constructor(
 
     override suspend fun deleteSubject(subject: Subject): Result<Unit> {
         return try {
-            subjectDao.deleteSubject(subject.toEntity())
+            val now = System.currentTimeMillis()
+            subjectDao.updateSubject(subject.copy(deletedAt = now, updatedAt = now).toEntity())
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete subject: ${subject.id}", e)
@@ -70,18 +71,28 @@ class SubjectRepositoryImpl @Inject constructor(
     private fun SubjectEntity.toDomain(): Subject {
         return Subject(
             id = id,
+            syncId = syncId,
             name = name,
             color = color,
-            icon = icon?.let { SubjectIcon.fromName(it) }
+            icon = icon?.let { SubjectIcon.fromName(it) },
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 
     private fun Subject.toEntity(): SubjectEntity {
         return SubjectEntity(
             id = id,
+            syncId = syncId,
             name = name,
             color = color,
-            icon = icon?.name
+            icon = icon?.name,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
         )
     }
 }

@@ -22,14 +22,18 @@ import androidx.room.Relation
 data class MaterialEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val syncId: String = "",
     val name: String,
     val subjectId: Long,
+    val subjectSyncId: String? = null,
     val totalPages: Int = 0,
     val currentPage: Int = 0,
     val color: Int? = null,
     val note: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null
 ) {
     val progress: Float
         get() = if (totalPages > 0) currentPage.toFloat() / totalPages.toFloat() else 0f
