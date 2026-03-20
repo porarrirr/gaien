@@ -1,0 +1,39 @@
+package com.studyapp.domain.model
+
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+
+data class StudySession(
+    val id: Long = 0,
+    val materialId: Long?,
+    val materialName: String = "",
+    val subjectId: Long,
+    val subjectName: String = "",
+    val startTime: Long,
+    val endTime: Long,
+    val note: String? = null
+) {
+    val duration: Long
+        get() = endTime - startTime
+    
+    val date: LocalDate
+        get() = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate()
+    
+    val durationMinutes: Long
+        get() = duration / 60000
+    
+    val durationHours: Float
+        get() = duration / 3600000f
+    
+    val durationFormatted: String
+        get() {
+            val hours = duration / 3600000
+            val minutes = (duration % 3600000) / 60000
+            val seconds = (duration % 60000) / 1000
+            return when {
+                hours > 0 -> String.format("%d:%02d:%02d", hours, minutes, seconds)
+                else -> String.format("%02d:%02d", minutes, seconds)
+            }
+        }
+}

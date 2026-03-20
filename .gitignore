@@ -1,0 +1,11 @@
+.idea/
+.gradle/
+local.properties
+
+**/build/
+**/.DS_Store
+
+ios/DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcuserdatad/
+*.xcuserstate

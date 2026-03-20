@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#FF4CAF50</color>
+    
+    <color name="primary">#FF4CAF50</color>
+    <color name="primary_dark">#FF388E3C</color>
+    <color name="secondary">#FF2196F3</color>
+    <color name="secondary_dark">#FF1976D2</color>
+    <color name="accent">#FFFF9800</color>
+    
+    <color name="background">#FFFAFAFA</color>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="error">#FFF44336</color>
+    
+    <color name="on_primary">#FFFFFFFF</color>
+    <color name="on_secondary">#FFFFFFFF</color>
+    <color name="on_background">#FF1C1B1F</color>
+    <color name="on_surface">#FF1C1B1F</color>
+    <color name="on_error">#FFFFFFFF</color>
+    
+    <color name="text_primary">#DE000000</color>
+    <color name="text_secondary">#99000000</color>
+    <color name="text_disabled">#61000000</color>
+    
+    <color name="divider">#1F000000</color>
+    
+    <color name="subject_math">#FF4CAF50</color>
+    <color name="subject_japanese">#FF2196F3</color>
+    <color name="subject_english">#FFFF9800</color>
+    <color name="subject_science">#FF9C27B0</color>
+    <color name="subject_social">#FF795548</color>
+    <color name="subject_other">#FF607D8B</color>
+    
+    <color name="widget_background">#FFFFFFFF</color>
+    <color name="widget_primary">#FF4CAF50</color>
+    <color name="widget_text_primary">#DE000000</color>
+    <color name="widget_text_secondary">#99000000</color>
+    <color name="widget_text_tertiary">#61000000</color>
+    <color name="widget_progress_background">#1F000000</color>
+    
+    <color name="widget_background_dark">#FF1C1B1F</color>
+    <color name="widget_primary_dark">#FF81C784</color>
+    <color name="widget_text_primary_dark">#FFFFFFFF</color>
+    <color name="widget_text_secondary_dark">#B3FFFFFF</color>
+    <color name="widget_text_tertiary_dark">#80FFFFFF</color>
+    <color name="widget_progress_background_dark">#33FFFFFF</color>
+</resources>

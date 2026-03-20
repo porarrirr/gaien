@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">学習記録</string>
+    
+    <!-- Navigation -->
+    <string name="nav_home">ホーム</string>
+    <string name="nav_timer">タイマー</string>
+    <string name="nav_materials">教材</string>
+    <string name="nav_calendar">カレンダー</string>
+    <string name="nav_reports">レポート</string>
+    <string name="nav_goals">目標</string>
+    <string name="nav_exams">試験</string>
+    <string name="nav_plans">計画</string>
+    <string name="nav_settings">設定</string>
+    
+    <!-- Home -->
+    <string name="home_title">今日の学習</string>
+    <string name="home_today_study">今日の学習</string>
+    <string name="home_weekly_goal">週間目標</string>
+    <string name="home_weekly_progress">週間進捗</string>
+    <string name="home_achievement_rate">達成率</string>
+    <string name="home_upcoming_exams">予定の試験</string>
+    <string name="home_minutes">分</string>
+    <string name="home_hours">時間</string>
+    <string name="home_no_study">まだ学習記録がありません</string>
+    <string name="home_no_study_today">今日の学習記録がありません</string>
+    <string name="home_no_exams">予定の試験がありません</string>
+    <string name="home_days_remaining">あと%d日</string>
+    <string name="home_today">今日</string>
+    <string name="home_this_week">今週</string>
+    
+    <!-- Timer -->
+    <string name="timer_title">学習タイマー</string>
+    <string name="timer_start">開始</string>
+    <string name="timer_pause">一時停止</string>
+    <string name="timer_stop">終了</string>
+    <string name="timer_resume">再開</string>
+    <string name="timer_manual_input">手動入力</string>
+    <string name="timer_manual_entry">手動入力</string>
+    <string name="timer_select_material">教材を選択</string>
+    <string name="timer_no_material_selected">教材未選択</string>
+    <string name="timer_recent_materials">最近使用した教材</string>
+    <string name="timer_countdown">カウントダウン</string>
+    <string name="timer_stopwatch">ストップウォッチ</string>
+    <string name="timer_running">学習タイマー実行中</string>
+    <string name="timer_notification_channel">学習タイマー</string>
+    <string name="timer_notification_description">学習タイマーの通知を表示</string>
+    <string name="timer_notification_title">学習中</string>
+    <string name="timer_notification_paused">一時停止中</string>
+    <string name="timer_duration">学習時間（分）</string>
+    <string name="timer_save">保存</string>
+    <string name="timer_cancel">キャンセル</string>
+    <string name="timer_select_subject">科目を選択</string>
+    <string name="timer_select_material_optional">教材（任意）</string>
+    <string name="pause">一時停止</string>
+    
+    <!-- Materials -->
+    <string name="materials_title">教材管理</string>
+    <string name="materials_add">教材を追加</string>
+    <string name="materials_edit">編集</string>
+    <string name="materials_delete">削除</string>
+    <string name="materials_name">教材名</string>
+    <string name="materials_subject">科目</string>
+    <string name="materials_progress">進捗</string>
+    <string name="materials_total_pages">全ページ数</string>
+    <string name="materials_current_page">現在のページ</string>
+    <string name="materials_scan_barcode">バーコードをスキャン</string>
+    <string name="materials_search">検索</string>
+    <string name="materials_no_materials">教材が登録されていません</string>
+    <string name="materials_delete_confirm">この教材を削除しますか？</string>
+    <string name="materials_page">%1$d / %2$d ページ</string>
+    <string name="materials_completed">完了</string>
+    <string name="materials_isbn">ISBN</string>
+    <string name="materials_author">著者</string>
+    <string name="materials_publisher">出版社</string>
+    <string name="materials_search_by_isbn">ISBNで検索</string>
+    <string name="materials_search_by_title">タイトルで検索</string>
+    <string name="materials_not_found">書籍が見つかりませんでした</string>
+    
+    <!-- Subjects -->
+    <string name="subjects_title">科目</string>
+    <string name="subjects_add">科目を追加</string>
+    <string name="subjects_edit">科目を編集</string>
+    <string name="subjects_name">科目名</string>
+    <string name="subjects_color">色</string>
+    <string name="subjects_no_subjects">科目が登録されていません</string>
+    <string name="subjects_delete_confirm">この科目を削除しますか？関連する教材も削除されます。</string>
+    <string name="subjects_study_time">学習時間</string>
+    <string name="subject_math">数学</string>
+    <string name="subject_japanese">国語</string>
+    <string name="subject_english">英語</string>
+    <string name="subject_science">理科</string>
+    <string name="subject_social">社会</string>
+    <string name="subject_other">その他</string>
+    
+    <!-- Calendar -->
+    <string name="calendar_title">カレンダー</string>
+    <string name="calendar_study_time">学習時間</string>
+    <string name="calendar_no_sessions">この日の学習記録はありません</string>
+    <string name="calendar_total_time">合計: %s</string>
+    <string name="calendar_previous_month">前月</string>
+    <string name="calendar_next_month">翌月</string>
+    <string name="calendar_year_month">%1$d年 %2$s</string>
+    <string name="calendar_minutes">分</string>
+    
+    <!-- History -->
+    <string name="history_title">学習履歴</string>
+    <string name="history_filter">科目で絞り込み</string>
+    <string name="history_all">すべて</string>
+    <string name="history_edit">セッションを編集</string>
+    <string name="history_delete">セッションを削除</string>
+    <string name="history_delete_confirm">この学習記録を削除しますか？</string>
+    <string name="history_no_sessions">学習履歴がありません</string>
+    <string name="history_timer_prompt">タイマーで学習を記録しましょう</string>
+    <string name="history_study_minutes">学習時間（分）</string>
+    <string name="history_memo">メモ</string>
+    <string name="history_unknown_subject">不明な科目</string>
+    <string name="history_delete_title">削除確認</string>
+    <string name="history_filter_title">フィルタ</string>
+    
+    <!-- Reports -->
+    <string name="reports_title">レポート</string>
+    <string name="reports_tab_overview">概要</string>
+    <string name="reports_tab_daily">日別</string>
+    <string name="reports_tab_weekly">週別</string>
+    <string name="reports_tab_monthly">月別</string>
+    <string name="reports_tab_subject">科目別</string>
+    <string name="reports_daily">日別</string>
+    <string name="reports_weekly">週別</string>
+    <string name="reports_monthly">月別</string>
+    <string name="reports_by_subject">科目別</string>
+    <string name="reports_total_time">合計時間</string>
+    <string name="reports_average">平均</string>
+    <string name="reports_total_study">総学習時間</string>
+    <string name="reports_streak">現在の連続記録</string>
+    <string name="reports_best_streak">最長連続記録</string>
+    <string name="reports_no_data">データがありません</string>
+    <string name="reports_hours">時間</string>
+    <string name="reports_summary">学習サマリー</string>
+    <string name="reports_daily_average">1日平均</string>
+    <string name="reports_consecutive_study">連続学習</string>
+    <string name="reports_today">今日</string>
+    <string name="reports_this_week">今週</string>
+    <string name="reports_this_month">今月</string>
+    <string name="reports_past_7_days">過去7日間の学習</string>
+    <string name="reports_subject_breakdown">科目別学習時間</string>
+    <string name="reports_daily_study_time">日別学習時間</string>
+    <string name="reports_study_trend">学習時間推移</string>
+    <string name="reports_detailed_data">詳細データ</string>
+    <string name="reports_past_7_days_label">過去7日間</string>
+    <string name="reports_weekly_study_time">週間学習時間</string>
+    <string name="reports_past_4_weeks">過去4週間</string>
+    <string name="reports_weekly_trend">週間推移</string>
+    <string name="reports_weekly_summary">週間サマリー</string>
+    <string name="reports_monthly_study_time">月間学習時間</string>
+    <string name="reports_past_6_months">過去6ヶ月</string>
+    <string name="reports_monthly_trend">月間推移</string>
+    <string name="reports_total_study_time">総学習時間</string>
+    <string name="reports_monthly_average">月平均</string>
+    <string name="reports_subject_ratio">科目別学習比率</string>
+    <string name="reports_subject_ranking">科目ランキング</string>
+    <string name="reports_no_records">学習記録がありません</string>
+    
+    <!-- Goals -->
+    <string name="goals_title">目標設定</string>
+    <string name="goals_daily">1日の目標</string>
+    <string name="goals_weekly">週間目標</string>
+    <string name="goals_minutes">分</string>
+    <string name="goals_hours">時間</string>
+    <string name="goals_target">目標（分）</string>
+    <string name="goals_current">現在の進捗</string>
+    <string name="goals_edit">目標を編集</string>
+    <string name="goals_no_goal">目標が設定されていません</string>
+    <string name="goals_set_goal">目標を設定</string>
+    <string name="goals_achieved">達成！</string>
+    <string name="goals_set_daily_goal">1日の目標を設定</string>
+    <string name="goals_set_weekly_goal">週間目標を設定</string>
+    <string name="goals_achievement_rate">達成率 %1$d%%</string>
+    <string name="goals_target_label">目標:</string>
+    
+    <!-- Exams -->
+    <string name="exams_title">テスト・試験</string>
+    <string name="exams_add">テストを追加</string>
+    <string name="exams_edit">試験を編集</string>
+    <string name="exams_name">テスト名</string>
+    <string name="exams_date">日付</string>
+    <string name="exams_note">メモ（任意）</string>
+    <string name="exams_countdown">あと%d日</string>
+    <string name="exams_no_exams">予定の試験がありません</string>
+    <string name="exams_delete_confirm">この試験を削除しますか？</string>
+    <string name="exams_days_remaining">あと%d日</string>
+    <string name="exams_today">今日</string>
+    <string name="exams_past">過去</string>
+    
+    <!-- Plans -->
+    <string name="plans_title">学習計画</string>
+    <string name="plans_add">計画を作成</string>
+    <string name="plans_name">計画名</string>
+    <string name="plans_start_date">開始日</string>
+    <string name="plans_end_date">終了日</string>
+    <string name="plans_no_plans">計画が作成されていません</string>
+    <string name="plans_active">有効</string>
+    <string name="plans_inactive">無効</string>
+    <string name="plans_activate">有効にする</string>
+    <string name="plans_deactivate">無効にする</string>
+    <string name="plans_delete_confirm">この計画を削除しますか？</string>
+    <string name="plans_completion_rate">完了率</string>
+    <string name="plans_monday">月曜日</string>
+    <string name="plans_tuesday">火曜日</string>
+    <string name="plans_wednesday">水曜日</string>
+    <string name="plans_thursday">木曜日</string>
+    <string name="plans_friday">金曜日</string>
+    <string name="plans_saturday">土曜日</string>
+    <string name="plans_sunday">日曜日</string>
+    
+    <!-- Settings -->
+    <string name="settings_title">設定</string>
+    <string name="settings_theme">テーマ</string>
+    <string name="settings_theme_light">ライト</string>
+    <string name="settings_theme_dark">ダーク</string>
+    <string name="settings_theme_system">システム設定に従う</string>
+    <string name="settings_notifications">通知</string>
+    <string name="settings_reminder">学習リマインダー</string>
+    <string name="settings_reminder_time">リマインダー時刻</string>
+    <string name="settings_data">データ</string>
+    <string name="settings_export">データをエクスポート</string>
+    <string name="settings_import">データをインポート</string>
+    <string name="settings_delete_all">すべてのデータを削除</string>
+    <string name="settings_delete_all_confirm">すべてのデータを削除しますか？この操作は元に戻せません。</string>
+    <string name="settings_about">このアプリについて</string>
+    <string name="settings_version">バージョン</string>
+    
+    <!-- Onboarding -->
+    <string name="onboarding_welcome">学習アプリへようこそ</string>
+    <string name="onboarding_intro">学習時間を記録し、目標を設定して、より多くを達成しましょう。</string>
+    <string name="onboarding_features">機能</string>
+    <string name="onboarding_feature_timer">学習タイマー</string>
+    <string name="onboarding_feature_timer_desc">学習セッションを正確に記録</string>
+    <string name="onboarding_feature_materials">教材管理</string>
+    <string name="onboarding_feature_materials_desc">学習教材を整理</string>
+    <string name="onboarding_feature_goals">目標とレポート</string>
+    <string name="onboarding_feature_goals_desc">目標を設定し進捗を追跡</string>
+    <string name="onboarding_get_started">始める</string>
+    <string name="onboarding_skip">スキップ</string>
+    <string name="onboarding_next">次へ</string>
+    
+    <!-- Common -->
+    <string name="save">保存</string>
+    <string name="cancel">キャンセル</string>
+    <string name="delete">削除</string>
+    <string name="edit">編集</string>
+    <string name="add">追加</string>
+    <string name="confirm">確認</string>
+    <string name="yes">はい</string>
+    <string name="no">いいえ</string>
+    <string name="error">エラー</string>
+    <string name="success">成功</string>
+    <string name="common_save">保存</string>
+    <string name="common_cancel">キャンセル</string>
+    <string name="common_delete">削除</string>
+    <string name="common_edit">編集</string>
+    <string name="common_add">追加</string>
+    <string name="common_close">閉じる</string>
+    <string name="common_ok">OK</string>
+    <string name="common_yes">はい</string>
+    <string name="common_no">いいえ</string>
+    <string name="common_loading">読み込み中...</string>
+    <string name="common_error">エラーが発生しました</string>
+    <string name="common_success">成功しました</string>
+    <string name="common_confirm">確認</string>
+    <string name="common_required">必須</string>
+    <string name="common_optional">任意</string>
+    
+    <!-- Errors -->
+    <string name="error_network">ネットワークエラー。接続を確認してください。</string>
+    <string name="error_unknown">予期しないエラーが発生しました。</string>
+    <string name="error_invalid_input">有効な値を入力してください。</string>
+    <string name="error_required_field">この項目は必須です。</string>
+    
+    <!-- Scanner -->
+    <string name="scanner_title">バーコードスキャン</string>
+    <string name="scanner_permission_required">カメラの許可が必要です</string>
+    <string name="scanner_scanning">カメラをバーコードに向けてください</string>
+    <string name="scanner_no_barcode">バーコードが検出されませんでした</string>
+    
+    <!-- Widget -->
+    <string name="widget_description">今日の学習時間と週間目標を表示</string>
+    <string name="widget_today_study">今日の学習</string>
+    <string name="widget_weekly_goal">週間目標</string>
+    <string name="widget_minutes">分</string>
+    <string name="loading">読み込み中...</string>
+    
+    <!-- Home Screen -->
+    <string name="home_screen_title">学習記録</string>
+    <string name="home_weekly_goal_title">週間目標</string>
+    <string name="home_no_goal_set">目標を設定してください</string>
+    <string name="home_upcoming_exams_title">予定のテスト</string>
+    <string name="home_days_left">あと%d日</string>
+    <string name="home_quick_timer">タイマー開始</string>
+    <string name="home_quick_material">教材追加</string>
+    <string name="home_quick_goals">目標設定</string>
+    <string name="home_quick_exams">テスト管理</string>
+    <string name="home_quick_plan">学習計画</string>
+    <string name="home_nav_history">履歴</string>
+    <string name="home_nav_settings">設定</string>
+    <string name="home_session_minutes">%1$s: %2$d分</string>
+    <string name="home_achievement_percent">達成率 %1$d%%</string>
+    <string name="home_progress_minutes">%1$d分 / %2$d分</string>
+    
+    <!-- Timer Screen -->
+    <string name="timer_screen_title">タイマー</string>
+    <string name="timer_dropdown">選択</string>
+    <string name="timer_studying">学習中...</string>
+    <string name="timer_recent_materials_title">最近の教材</string>
+    <string name="timer_manual_input_title">手動入力</string>
+    
+    <!-- Materials Screen -->
+    <string name="materials_screen_title">教材管理</string>
+    <string name="materials_empty_title">教材がありません</string>
+    <string name="materials_empty_message">＋ボタンで追加してください</string>
+    <string name="materials_delete_title">削除確認</string>
+    <string name="materials_delete_message">「%s」を削除しますか？</string>
+    <string name="materials_page_progress">%1$d / %2$dページ</string>
+    <string name="materials_percent">%1$d%%</string>
+    <string name="materials_nav_subjects">科目</string>
+    
+    <!-- Subjects Screen -->
+    <string name="subjects_screen_title">科目管理</string>
+    <string name="subjects_empty_title">科目がありません</string>
+    <string name="subjects_empty_message">＋ボタンで追加してください</string>
+    <string name="subjects_delete_title">削除確認</string>
+    <string name="subjects_delete_message">「%s」を削除しますか？\nこの科目の教材と学習記録も削除されます。</string>
+    <string name="subjects_add_title">科目追加</string>
+    <string name="subjects_edit_title">科目編集</string>
+    <string name="subjects_select_color">色を選択</string>
+    <string name="subjects_study_time_hours">学習時間: %1$d時間%2$d分</string>
+    <string name="subjects_study_time_minutes">学習時間: %1$d分</string>
+</resources>
