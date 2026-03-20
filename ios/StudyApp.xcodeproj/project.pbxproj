@@ -16,6 +16,10 @@
 		A10000000000000000000007 /* StudyAppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* StudyAppStore.swift */; };
 		A10000000000000000000008 /* StudyAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StudyAppViews.swift */; };
 		A10000000000000000000009 /* SubjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* SubjectsView.swift */; };
+		A10000000000000000000010 /* MaterialsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MaterialsScreen.swift */; };
+		A10000000000000000000011 /* HistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HistoryScreen.swift */; };
+		A10000000000000000000012 /* PlanScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* PlanScreen.swift */; };
+		A10000000000000000000013 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SettingsScreen.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +33,10 @@
 		B10000000000000000000008 /* StudyAppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppStore.swift; sourceTree = "<group>"; };
 		B10000000000000000000009 /* StudyAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppViews.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* SubjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsView.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* MaterialsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000012 /* HistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* PlanScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000014 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +102,10 @@
 				B10000000000000000000007 /* Theme.swift */,
 				B10000000000000000000008 /* StudyAppStore.swift */,
 				B10000000000000000000009 /* StudyAppViews.swift */,
+				D10000000000000000000010 /* Materials */,
+				D10000000000000000000011 /* History */,
+				D10000000000000000000012 /* Plans */,
+				D10000000000000000000013 /* Settings */,
 				D10000000000000000000009 /* Subjects */,
 			);
 			path = Presentation;
@@ -105,6 +117,38 @@
 				B10000000000000000000010 /* SubjectsView.swift */,
 			);
 			path = Subjects;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000010 /* Materials */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000011 /* MaterialsScreen.swift */,
+			);
+			path = Materials;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000011 /* History */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000012 /* HistoryScreen.swift */,
+			);
+			path = History;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000012 /* Plans */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000013 /* PlanScreen.swift */,
+			);
+			path = Plans;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000013 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000014 /* SettingsScreen.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		D10000000000000000000007 /* Services */ = {
@@ -199,6 +243,10 @@
 				A10000000000000000000007 /* StudyAppStore.swift in Sources */,
 				A10000000000000000000008 /* StudyAppViews.swift in Sources */,
 				A10000000000000000000009 /* SubjectsView.swift in Sources */,
+				A10000000000000000000010 /* MaterialsScreen.swift in Sources */,
+				A10000000000000000000011 /* HistoryScreen.swift in Sources */,
+				A10000000000000000000012 /* PlanScreen.swift in Sources */,
+				A10000000000000000000013 /* SettingsScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

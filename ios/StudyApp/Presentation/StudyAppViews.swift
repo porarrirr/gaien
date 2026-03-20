@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct RootView: View {
     @StateObject private var app = StudyAppContainer()
@@ -208,7 +207,6 @@ private struct HomeScreen: View {
 
 private struct TimerScreen: View {
     @StateObject private var viewModel: TimerViewModel
-    @State private var isPresentingManualEntry = false
     @State private var manualMinutes = ""
     @State private var manualNote = ""
 
@@ -258,7 +256,12 @@ private struct TimerScreen: View {
                 TextField("メモ", text: $manualNote, axis: .vertical)
                 Button("保存") {
                     guard let subjectId = viewModel.selectedSubjectId else { return }
-                    viewModel.saveManualSession(subjectId: subjectId, materialId: viewModel.selectedMaterialId, durationMinutes: Int(manualMinutes) ?? 0, note: manualNote)
+                    viewModel.saveManualSession(
+                        subjectId: subjectId,
+                        materialId: viewModel.selectedMaterialId,
+                        durationMinutes: Int(manualMinutes) ?? 0,
+                        note: manualNote
+                    )
                     manualMinutes = ""
                     manualNote = ""
                 }
@@ -267,83 +270,6 @@ private struct TimerScreen: View {
         .navigationTitle("タイマー")
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
-        }
-    }
-}
-
-private struct MaterialsScreen: View {
-    @StateObject private var viewModel: MaterialsViewModel
-    @State private var draft = MaterialDraft()
-
-    init(app: StudyAppContainer) {
-        _viewModel = StateObject(wrappedValue: MaterialsViewModel(app: app))
-    }
-
-    var body: some View {
-        List {
-            Section("教材を追加") {
-                TextField("教材名", text: $draft.name)
-                Picker("科目", selection: $draft.subjectId) {
-                    ForEach(viewModel.subjects) { subject in
-                        Text(subject.name).tag(subject.id)
-                    }
-                }
-                TextField("総ページ数", text: $draft.totalPages).keyboardType(.numberPad)
-                TextField("メモ", text: $draft.note, axis: .vertical)
-                Button("追加") {
-                    viewModel.saveMaterial(name: draft.name, subjectId: draft.subjectId, totalPages: Int(draft.totalPages) ?? 0, note: draft.note)
-                    draft = MaterialDraft(subjectId: viewModel.subjects.first?.id ?? 0)
-                }
-            }
-
-            Section("ISBN検索") {
-                TextField("ISBN", text: $draft.isbn)
-                Button("検索") {
-                    viewModel.searchBook(isbn: draft.isbn)
-                }
-                if let book = viewModel.bookSearchResult {
-                    VStack(alignment: .leading) {
-                        Text(book.title).font(.headline)
-                        Text(book.authors.joined(separator: ", ")).foregroundStyle(.secondary)
-                        Button("教材として追加") {
-                            viewModel.saveMaterial(
-                                name: book.title,
-                                subjectId: draft.subjectId,
-                                totalPages: book.pageCount ?? 0,
-                                note: [book.publisher, book.publishedDate].compactMap { $0 }.joined(separator: " / ")
-                            )
-                            viewModel.clearSearchResult()
-                        }
-                    }
-                }
-            }
-
-            Section("教材一覧") {
-                ForEach(viewModel.materials) { material in
-                    VStack(alignment: .leading) {
-                        Text(material.name)
-                        ProgressView(value: material.progress)
-                        Text("\(material.currentPage)/\(material.totalPages)ページ").foregroundStyle(.secondary)
-                    }
-                    .swipeActions {
-                        Button(role: .destructive) {
-                            viewModel.deleteMaterial(material)
-                        } label: {
-                            Label("削除", systemImage: "trash")
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle("教材")
-        .task(id: viewModel.app.dataVersion) {
-            if draft.subjectId == 0 {
-                draft.subjectId = viewModel.app.preferences.activeTimer?.subjectId ?? 0
-            }
-            await viewModel.load()
-            if draft.subjectId == 0 {
-                draft.subjectId = viewModel.subjects.first?.id ?? 0
-            }
         }
     }
 }
@@ -470,35 +396,6 @@ private struct ExamsScreen: View {
     }
 }
 
-private struct HistoryScreen: View {
-    @StateObject private var viewModel: HistoryViewModel
-
-    init(app: StudyAppContainer) {
-        _viewModel = StateObject(wrappedValue: HistoryViewModel(app: app))
-    }
-
-    var body: some View {
-        List {
-            ForEach(viewModel.sessions) { session in
-                VStack(alignment: .leading) {
-                    Text(session.subjectName).font(.headline)
-                    Text("\(session.durationJapaneseText) ・ \(session.startDate.formatted(date: .abbreviated, time: .shortened))")
-                        .foregroundStyle(.secondary)
-                }
-                .swipeActions {
-                    Button(role: .destructive) {
-                        viewModel.deleteSession(session)
-                    } label: {
-                        Label("削除", systemImage: "trash")
-                    }
-                }
-            }
-        }
-        .navigationTitle("履歴")
-        .task(id: viewModel.app.dataVersion) { await viewModel.load() }
-    }
-}
-
 private struct GoalsScreen: View {
     @StateObject private var viewModel: GoalsViewModel
     @State private var dailyMinutes = ""
@@ -536,118 +433,6 @@ private struct GoalsScreen: View {
             dailyMinutes = "\(viewModel.dailyGoal?.targetMinutes ?? 0)"
             weeklyMinutes = "\(viewModel.weeklyGoal?.targetMinutes ?? 0)"
         }
-    }
-}
-
-private struct PlanScreen: View {
-    @StateObject private var viewModel: PlanViewModel
-    @State private var name = ""
-    @State private var startDate = Date()
-    @State private var endDate = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
-
-    init(app: StudyAppContainer) {
-        _viewModel = StateObject(wrappedValue: PlanViewModel(app: app))
-    }
-
-    var body: some View {
-        List {
-            Section("計画を作成") {
-                TextField("プラン名", text: $name)
-                DatePicker("開始日", selection: $startDate, displayedComponents: .date)
-                DatePicker("終了日", selection: $endDate, displayedComponents: .date)
-                Button("今ある科目で作成") {
-                    let items = viewModel.subjects.map {
-                        PlanItem(planId: 0, subjectId: $0.id, dayOfWeek: .monday, targetMinutes: 60, actualMinutes: 0, timeSlot: nil)
-                    }
-                    viewModel.createPlan(name: name, startDate: startDate, endDate: endDate, items: items)
-                }
-            }
-
-            if let activePlan = viewModel.activePlan {
-                Section("アクティブプラン") {
-                    Text(activePlan.name).font(.headline)
-                    Text("\(activePlan.startDateValue.formatted(date: .abbreviated, time: .omitted)) - \(activePlan.endDateValue.formatted(date: .abbreviated, time: .omitted))")
-                    ForEach(viewModel.planItems) { item in
-                        Text("\(item.dayOfWeek.japaneseTitle) / \(item.targetMinutes)分")
-                    }
-                    Button("削除", role: .destructive) {
-                        viewModel.deleteActivePlan()
-                    }
-                }
-            }
-        }
-        .navigationTitle("計画")
-        .task(id: viewModel.app.dataVersion) { await viewModel.load() }
-    }
-}
-
-private struct SettingsScreen: View {
-    @StateObject private var viewModel: SettingsViewModel
-    @State private var isImporting = false
-
-    init(app: StudyAppContainer) {
-        _viewModel = StateObject(wrappedValue: SettingsViewModel(app: app))
-    }
-
-    var body: some View {
-        Form {
-            Section("外観") {
-                Picker("テーマ", selection: Binding(get: { viewModel.app.preferences.selectedThemeMode }, set: { viewModel.app.setThemeMode($0) })) {
-                    ForEach(ThemeMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                Picker("カラー", selection: Binding(get: { viewModel.app.preferences.selectedColorTheme }, set: { viewModel.app.setColorTheme($0) })) {
-                    ForEach(ColorTheme.allCases) { theme in
-                        Text(theme.title).tag(theme)
-                    }
-                }
-            }
-
-            Section("通知") {
-                Toggle("毎日のリマインダー", isOn: Binding(get: { viewModel.app.preferences.reminderEnabled }, set: { enabled in
-                    Task { await viewModel.app.setReminderEnabled(enabled) }
-                }))
-                Stepper("\(viewModel.app.preferences.reminderHour):\(String(format: "%02d", viewModel.app.preferences.reminderMinute))", value: Binding(get: { viewModel.app.preferences.reminderHour }, set: { hour in
-                    Task { await viewModel.app.setReminderTime(hour: hour, minute: viewModel.app.preferences.reminderMinute) }
-                }), in: 0...23)
-            }
-
-            Section("バックアップ") {
-                Button("JSONを書き出し") { viewModel.export(format: .json) }
-                Button("CSVを書き出し") { viewModel.export(format: .csv) }
-                Button("JSONを読み込む") { isImporting = true }
-                if let url = viewModel.exportURL {
-                    ShareLink(item: url) {
-                        Label("共有", systemImage: "square.and.arrow.up")
-                    }
-                }
-            }
-
-            Section("危険な操作") {
-                Button("全データ削除", role: .destructive) {
-                    viewModel.deleteAllData()
-                }
-            }
-        }
-        .navigationTitle("設定")
-        .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
-            if case .success(let url) = result {
-                viewModel.importBackup(from: url)
-            }
-        }
-    }
-}
-
-private struct MaterialDraft {
-    var name = ""
-    var subjectId: Int64 = 0
-    var totalPages = ""
-    var note = ""
-    var isbn = ""
-
-    init(subjectId: Int64 = 0) {
-        self.subjectId = subjectId
     }
 }
 

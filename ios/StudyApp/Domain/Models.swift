@@ -450,6 +450,11 @@ struct ReportsData: Hashable {
     var bestStreak: Int
 }
 
+struct SettingsSummary: Hashable {
+    var totalSessions: Int
+    var totalStudyMinutes: Int
+}
+
 struct PlanData: Codable, Hashable {
     var plan: StudyPlan
     var items: [PlanItem]
@@ -509,6 +514,7 @@ protocol PlanRepository {
     func getAllPlans() async throws -> [StudyPlan]
     func getPlanItems(planId: Int64) async throws -> [PlanItem]
     func createPlan(_ plan: StudyPlan, items: [PlanItem]) async throws -> Int64
+    func insertPlanItem(_ item: PlanItem) async throws -> Int64
     func updatePlanItem(_ item: PlanItem) async throws
     func deletePlanItem(_ item: PlanItem) async throws
     func deletePlan(_ plan: StudyPlan) async throws
@@ -897,6 +903,18 @@ struct ExportImportDataUseCase {
 
     func importJSON(_ json: String, currentPreferences: AppPreferences) async throws -> AppPreferences {
         try await repository.importJSON(json, currentPreferences: currentPreferences)
+    }
+}
+
+struct GetSettingsSummaryUseCase {
+    let sessionRepository: StudySessionRepository
+
+    func execute() async throws -> SettingsSummary {
+        let sessions = try await sessionRepository.getAllSessions()
+        return SettingsSummary(
+            totalSessions: sessions.count,
+            totalStudyMinutes: sessions.reduce(0) { $0 + $1.durationMinutes }
+        )
     }
 }
 

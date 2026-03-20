@@ -378,6 +378,24 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
         return planId
     }
 
+    func insertPlanItem(_ item: PlanItem) async throws -> Int64 {
+        try await ensureLoaded()
+        let itemId = try nextIdentifier(ifNeeded: item.id)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: container.viewContext)
+        record.setValue(itemId, forKey: "id")
+        record.setValue(item.planId, forKey: "planId")
+        record.setValue(item.subjectId, forKey: "subjectId")
+        record.setValue(item.dayOfWeek.rawValue, forKey: "dayOfWeek")
+        record.setValue(Int64(item.targetMinutes), forKey: "targetMinutes")
+        record.setValue(Int64(item.actualMinutes), forKey: "actualMinutes")
+        record.setValue(item.timeSlot, forKey: "timeSlot")
+        record.setValue(item.createdAt == 0 ? Date().epochMilliseconds : item.createdAt, forKey: "createdAt")
+        record.setValue(item.updatedAt == 0 ? Date().epochMilliseconds : item.updatedAt, forKey: "updatedAt")
+        try saveContext()
+        try await recalculatePlanActualMinutes()
+        return itemId
+    }
+
     func updatePlanItem(_ item: PlanItem) async throws {
         try await ensureLoaded()
         guard let record = try fetchOne(entity: "PlanItemRecord", id: item.id) else { return }

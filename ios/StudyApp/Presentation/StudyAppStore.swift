@@ -206,6 +206,7 @@ final class MaterialsViewModel: ScreenViewModel {
     @Published private(set) var subjects: [Subject] = []
     @Published private(set) var materials: [Material] = []
     @Published var bookSearchResult: BookInfo?
+    @Published var isShowingBookResult = false
 
     func load() async {
         do {
@@ -226,11 +227,13 @@ final class MaterialsViewModel: ScreenViewModel {
         perform {
             let useCase = ManageMaterialsUseCase(materialRepository: self.app.persistence, subjectRepository: self.app.persistence, bookSearchRepository: self.app.googleBooksService)
             self.bookSearchResult = try await useCase.searchBook(isbn: isbn)
+            self.isShowingBookResult = self.bookSearchResult != nil
         }
     }
 
     func clearSearchResult() {
         bookSearchResult = nil
+        isShowingBookResult = false
     }
 
     func saveMaterial(id: Int64? = nil, name: String, subjectId: Int64, totalPages: Int, currentPage: Int = 0, note: String?) {
@@ -409,13 +412,27 @@ final class TimerViewModel: ScreenViewModel {
 @MainActor
 final class HistoryViewModel: ScreenViewModel {
     @Published private(set) var sessions: [StudySession] = []
+    @Published private(set) var subjects: [Subject] = []
+    @Published var filterSubjectId: Int64?
+
+    var filteredSessions: [StudySession] {
+        guard let filterSubjectId else { return sessions }
+        return sessions.filter { $0.subjectId == filterSubjectId }
+    }
 
     func load() async {
         do {
-            sessions = try await app.persistence.getAllSessions()
+            async let sessionsTask = app.persistence.getAllSessions()
+            async let subjectsTask = app.persistence.getAllSubjects()
+            sessions = try await sessionsTask
+            subjects = try await subjectsTask
         } catch {
             app.present(error)
         }
+    }
+
+    func setFilter(_ subjectId: Int64?) {
+        filterSubjectId = subjectId
     }
 
     func updateSession(_ session: StudySession, durationMinutes: Int, note: String?) {
@@ -506,6 +523,30 @@ final class PlanViewModel: ScreenViewModel {
     @Published private(set) var activePlan: StudyPlan?
     @Published private(set) var planItems: [PlanItem] = []
     @Published private(set) var subjects: [Subject] = []
+    @Published var selectedDay: StudyWeekday?
+
+    var weeklySchedule: [StudyWeekday: [PlanItemWithSubject]] {
+        let subjectMap = Dictionary(uniqueKeysWithValues: subjects.map { ($0.id, $0) })
+        return Dictionary(uniqueKeysWithValues: StudyWeekday.allCases.map { day in
+            let dayItems = planItems
+                .filter { $0.dayOfWeek == day }
+                .compactMap { item -> PlanItemWithSubject? in
+                    guard let subject = subjectMap[item.subjectId] else { return nil }
+                    return PlanItemWithSubject(item: item, subject: subject)
+                }
+            return (day, dayItems)
+        })
+    }
+
+    var totalTargetMinutes: Int {
+        planItems.reduce(0) { $0 + $1.targetMinutes }
+    }
+
+    var completionRate: Double {
+        guard totalTargetMinutes > 0 else { return 0 }
+        let totalActual = planItems.reduce(0) { $0 + $1.actualMinutes }
+        return min(Double(totalActual) / Double(totalTargetMinutes), 1)
+    }
 
     func load() async {
         do {
@@ -517,8 +558,12 @@ final class PlanViewModel: ScreenViewModel {
             subjects = try await subjectsTask
             if let activePlan {
                 planItems = try await app.persistence.getPlanItems(planId: activePlan.id)
+                if selectedDay == nil {
+                    selectedDay = StudyWeekday.allCases.first(where: { !(weeklySchedule[$0] ?? []).isEmpty }) ?? .monday
+                }
             } else {
                 planItems = []
+                selectedDay = nil
             }
         } catch {
             app.present(error)
@@ -537,10 +582,19 @@ final class PlanViewModel: ScreenViewModel {
     func savePlanItem(_ item: PlanItem) {
         perform {
             guard item.targetMinutes > 0 else { throw ValidationError(message: "目標時間は0より大きくしてください") }
-            if item.id == 0, let activePlan = self.activePlan {
-                _ = try await self.app.persistence.createPlan(
-                    StudyPlan(id: activePlan.id, name: activePlan.name, startDate: activePlan.startDate, endDate: activePlan.endDate, isActive: activePlan.isActive, createdAt: activePlan.createdAt),
-                    items: self.planItems + [item]
+            if item.id == 0 {
+                guard let activePlan = self.activePlan else {
+                    throw ValidationError(message: "アクティブなプランがありません")
+                }
+                _ = try await self.app.persistence.insertPlanItem(
+                    PlanItem(
+                        planId: activePlan.id,
+                        subjectId: item.subjectId,
+                        dayOfWeek: item.dayOfWeek,
+                        targetMinutes: item.targetMinutes,
+                        actualMinutes: item.actualMinutes,
+                        timeSlot: item.timeSlot
+                    )
                 )
             } else {
                 try await self.app.persistence.updatePlanItem(item)
@@ -608,6 +662,16 @@ final class ReportsViewModel: ScreenViewModel {
 @MainActor
 final class SettingsViewModel: ScreenViewModel {
     @Published private(set) var exportURL: URL?
+    @Published private(set) var summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
+
+    func load() async {
+        do {
+            let useCase = GetSettingsSummaryUseCase(sessionRepository: app.persistence)
+            summary = try await useCase.execute()
+        } catch {
+            app.present(error)
+        }
+    }
 
     func export(format: ExportFormat) {
         perform {
@@ -633,6 +697,7 @@ final class SettingsViewModel: ScreenViewModel {
         perform {
             try await self.app.persistence.deleteAllData()
             self.app.updateActiveTimer(nil)
+            self.summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
             self.app.bumpDataVersion()
         }
     }
