@@ -19,7 +19,7 @@ enum BookApiError: LocalizedError {
     }
 }
 
-final class GoogleBooksService {
+final class GoogleBooksService: BookSearchRepository {
     private let session: URLSession
     private let apiKey: String?
 

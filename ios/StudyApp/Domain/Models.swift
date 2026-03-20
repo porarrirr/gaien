@@ -35,24 +35,6 @@ enum SubjectIcon: String, CaseIterable, Codable, Identifiable, Hashable {
         case .other: return "square.grid.2x2.fill"
         }
     }
-
-    var title: String {
-        switch self {
-        case .book: return "読書"
-        case .calculator: return "数学"
-        case .flask: return "理科"
-        case .globe: return "地理"
-        case .palette: return "美術"
-        case .music: return "音楽"
-        case .code: return "プログラミング"
-        case .atom: return "化学"
-        case .dna: return "生物"
-        case .brain: return "思考"
-        case .language: return "語学"
-        case .history: return "歴史"
-        case .other: return "その他"
-        }
-    }
 }
 
 enum GoalType: String, CaseIterable, Codable, Identifiable, Hashable {
@@ -96,6 +78,18 @@ enum StudyWeekday: String, CaseIterable, Codable, Identifiable, Hashable {
         japaneseShortTitle + "曜日"
     }
 
+    var calendarWeekday: Int {
+        switch self {
+        case .sunday: return 1
+        case .monday: return 2
+        case .tuesday: return 3
+        case .wednesday: return 4
+        case .thursday: return 5
+        case .friday: return 6
+        case .saturday: return 7
+        }
+    }
+
     static func from(calendarWeekday: Int) -> StudyWeekday {
         switch calendarWeekday {
         case 1: return .sunday
@@ -136,10 +130,7 @@ enum ThemeMode: String, CaseIterable, Codable, Identifiable, Hashable {
 enum ColorTheme: String, CaseIterable, Codable, Identifiable, Hashable {
     case green
     case blue
-    case purple
     case orange
-    case red
-    case teal
 
     var id: String { rawValue }
 
@@ -147,10 +138,7 @@ enum ColorTheme: String, CaseIterable, Codable, Identifiable, Hashable {
         switch self {
         case .green: return "グリーン"
         case .blue: return "ブルー"
-        case .purple: return "パープル"
         case .orange: return "オレンジ"
-        case .red: return "レッド"
-        case .teal: return "ティール"
         }
     }
 
@@ -158,10 +146,7 @@ enum ColorTheme: String, CaseIterable, Codable, Identifiable, Hashable {
         switch self {
         case .green: return 0x4CAF50
         case .blue: return 0x2196F3
-        case .purple: return 0x9C27B0
         case .orange: return 0xFF9800
-        case .red: return 0xF44336
-        case .teal: return 0x009688
         }
     }
 
@@ -169,10 +154,7 @@ enum ColorTheme: String, CaseIterable, Codable, Identifiable, Hashable {
         switch self {
         case .green: return 0x2196F3
         case .blue: return 0x4CAF50
-        case .purple: return 0xFF9800
         case .orange: return 0x2196F3
-        case .red: return 0xFF9800
-        case .teal: return 0x4CAF50
         }
     }
 }
@@ -182,27 +164,27 @@ enum ExportFormat: String, CaseIterable, Identifiable {
     case csv
 
     var id: String { rawValue }
-
-    var title: String {
-        rawValue.uppercased()
-    }
 }
 
 struct Subject: Identifiable, Codable, Hashable {
-    var id: Int64
+    var id: Int64 = 0
     var name: String
     var color: Int
     var icon: SubjectIcon?
+    var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
 }
 
 struct Material: Identifiable, Codable, Hashable {
-    var id: Int64
+    var id: Int64 = 0
     var name: String
     var subjectId: Int64
-    var totalPages: Int
-    var currentPage: Int
+    var totalPages: Int = 0
+    var currentPage: Int = 0
     var color: Int?
     var note: String?
+    var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
 
     var progress: Double {
         guard totalPages > 0 else { return 0 }
@@ -210,36 +192,41 @@ struct Material: Identifiable, Codable, Hashable {
     }
 
     var progressPercent: Int {
-        Int((progress * 100).rounded())
+        Int(progress * 100)
     }
 }
 
 struct StudySession: Identifiable, Codable, Hashable {
-    var id: Int64
+    var id: Int64 = 0
     var materialId: Int64?
-    var materialName: String
+    var materialName: String = ""
     var subjectId: Int64
-    var subjectName: String
-    var startTime: Date
-    var endTime: Date
+    var subjectName: String = ""
+    var startTime: Int64
+    var endTime: Int64
     var note: String?
+    var createdAt: Int64 = Date().epochMilliseconds
 
-    var duration: TimeInterval {
-        max(endTime.timeIntervalSince(startTime), 0)
+    var duration: Int64 {
+        max(endTime - startTime, 0)
+    }
+
+    var date: Int64 {
+        Date(epochMilliseconds: startTime).epochDay
     }
 
     var durationMinutes: Int {
-        Int(duration / 60)
+        Int(duration / 60_000)
     }
 
     var durationHours: Double {
-        duration / 3600
+        Double(duration) / 3_600_000
     }
 
     var durationFormatted: String {
-        let totalSeconds = Int(duration.rounded())
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
+        let totalSeconds = Int(duration / 1_000)
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
         let seconds = totalSeconds % 60
         if hours > 0 {
             return String(format: "%d:%02d:%02d", hours, minutes, seconds)
@@ -248,32 +235,30 @@ struct StudySession: Identifiable, Codable, Hashable {
     }
 
     var durationJapaneseText: String {
-        let hours = durationMinutes / 60
-        let minutes = durationMinutes % 60
-        if hours > 0 && minutes > 0 {
-            return "\(hours)時間\(minutes)分"
-        }
-        if hours > 0 {
-            return "\(hours)時間"
-        }
-        return "\(minutes)分"
+        Goal.format(minutes: durationMinutes)
+    }
+
+    var startDate: Date {
+        Date(epochMilliseconds: startTime)
+    }
+
+    var endDate: Date {
+        Date(epochMilliseconds: endTime)
     }
 
     var dayOfWeek: StudyWeekday {
-        StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: startTime))
+        StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: startDate))
     }
 }
 
 struct Goal: Identifiable, Codable, Hashable {
-    var id: Int64
+    var id: Int64 = 0
     var type: GoalType
     var targetMinutes: Int
-    var weekStartDay: StudyWeekday
-    var isActive: Bool
-
-    var targetHours: Double {
-        Double(targetMinutes) / 60.0
-    }
+    var weekStartDay: StudyWeekday = .monday
+    var isActive: Bool = true
+    var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
 
     var targetFormatted: String {
         Goal.format(minutes: targetMinutes)
@@ -293,44 +278,61 @@ struct Goal: Identifiable, Codable, Hashable {
 }
 
 struct Exam: Identifiable, Codable, Hashable {
-    var id: Int64
+    var id: Int64 = 0
     var name: String
-    var date: Date
+    var date: Int64
     var note: String?
+    var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
+
+    var dateValue: Date {
+        Date(epochDay: date)
+    }
 
     func daysRemaining(from referenceDate: Date = Date()) -> Int {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: referenceDate)
-        let end = calendar.startOfDay(for: date)
+        let end = calendar.startOfDay(for: dateValue)
         return calendar.dateComponents([.day], from: start, to: end).day ?? 0
     }
 
     func isPast(from referenceDate: Date = Date()) -> Bool {
         daysRemaining(from: referenceDate) < 0
     }
-
-    func isToday(from referenceDate: Date = Date()) -> Bool {
-        daysRemaining(from: referenceDate) == 0
-    }
 }
 
 struct StudyPlan: Identifiable, Codable, Hashable {
-    var id: Int64
+    var id: Int64 = 0
     var name: String
-    var startDate: Date
-    var endDate: Date
+    var startDate: Int64
+    var endDate: Int64
     var isActive: Bool
-    var createdAt: Date
+    var createdAt: Int64 = Date().epochMilliseconds
+
+    var startDateValue: Date {
+        Date(epochMilliseconds: startDate)
+    }
+
+    var endDateValue: Date {
+        Date(epochMilliseconds: endDate)
+    }
 }
 
 struct PlanItem: Identifiable, Codable, Hashable {
-    var id: Int64
+    var id: Int64 = 0
     var planId: Int64
     var subjectId: Int64
     var dayOfWeek: StudyWeekday
     var targetMinutes: Int
-    var actualMinutes: Int
+    var actualMinutes: Int = 0
     var timeSlot: String?
+    var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
+}
+
+struct MaterialWithSubject: Hashable {
+    var material: Material
+    var subjectName: String
 }
 
 struct PlanItemWithSubject: Identifiable, Hashable {
@@ -351,32 +353,32 @@ struct DailyPlanSummary: Hashable {
 }
 
 struct WeeklyPlanSummary: Hashable {
-    var weekStart: Date
-    var weekEnd: Date
+    var weekStart: Int64
+    var weekEnd: Int64
     var totalTargetMinutes: Int
     var totalActualMinutes: Int
     var dailyBreakdown: [StudyWeekday: DailyPlanSummary]
 }
 
 struct DailyStudyData: Identifiable, Hashable {
-    var id: Date { date }
-    var date: Date
+    var id: Int64 { date }
+    var date: Int64
     var dateLabel: String
     var minutes: Int
     var hours: Double
 }
 
 struct WeeklyStudyData: Identifiable, Hashable {
-    var id: Date { weekStart }
-    var weekStart: Date
+    var id: Int64 { weekStart }
+    var weekStart: Int64
     var weekLabel: String
     var hours: Int
     var minutes: Int
 }
 
 struct MonthlyStudyData: Identifiable, Hashable {
-    var id: Date { monthStart }
-    var monthStart: Date
+    var id: Int64 { monthStart }
+    var monthStart: Int64
     var monthLabel: String
     var totalHours: Int
 }
@@ -401,27 +403,19 @@ struct BookInfo: Codable, Hashable {
 struct TimerSnapshot: Codable, Equatable {
     var subjectId: Int64
     var materialId: Int64?
-    var startedAt: Date?
-    var accumulatedSeconds: TimeInterval
+    var startedAt: Int64?
+    var accumulatedMilliseconds: Int64
     var isRunning: Bool
 
-    func elapsedTime(at now: Date = Date()) -> TimeInterval {
+    func elapsedTime(at now: Date = Date()) -> Int64 {
         if isRunning, let startedAt {
-            return accumulatedSeconds + now.timeIntervalSince(startedAt)
+            return accumulatedMilliseconds + max(now.epochMilliseconds - startedAt, 0)
         }
-        return accumulatedSeconds
+        return accumulatedMilliseconds
     }
 }
 
-struct AppSnapshot: Codable, Equatable {
-    var lastIdentifier: Int64 = 0
-    var subjects: [Subject] = []
-    var materials: [Material] = []
-    var sessions: [StudySession] = []
-    var goals: [Goal] = []
-    var exams: [Exam] = []
-    var plans: [StudyPlan] = []
-    var planItems: [PlanItem] = []
+struct AppPreferences: Codable, Equatable {
     var onboardingCompleted = false
     var reminderEnabled = false
     var reminderHour = 19
@@ -429,286 +423,516 @@ struct AppSnapshot: Codable, Equatable {
     var selectedColorTheme: ColorTheme = .green
     var selectedThemeMode: ThemeMode = .system
     var activeTimer: TimerSnapshot?
-
-    static let empty = AppSnapshot()
 }
 
-struct BackupPlanData: Codable {
-    var plan: BackupStudyPlan
-    var items: [BackupPlanItem]
+struct HomeData: Hashable {
+    var todayStudyMinutes: Int
+    var todaySessions: [TodaySession]
+    var weeklyGoal: Goal?
+    var weeklyStudyMinutes: Int
+    var upcomingExams: [Exam]
 }
 
-struct AppBackup: Codable {
-    var subjects: [BackupSubject]
-    var materials: [BackupMaterial]
-    var sessions: [BackupStudySession]
-    var goals: [BackupGoal]
-    var exams: [BackupExam]
-    var plans: [BackupPlanData]
-    var exportDate: Int64
-
-    static func make(from snapshot: AppSnapshot) -> AppBackup {
-        let planItemsByPlan = Dictionary(grouping: snapshot.planItems, by: \.planId)
-        return AppBackup(
-            subjects: snapshot.subjects.map(BackupSubject.init),
-            materials: snapshot.materials.map(BackupMaterial.init),
-            sessions: snapshot.sessions.map(BackupStudySession.init),
-            goals: snapshot.goals.map(BackupGoal.init),
-            exams: snapshot.exams.map(BackupExam.init),
-            plans: snapshot.plans.map { plan in
-                BackupPlanData(
-                    plan: BackupStudyPlan(plan),
-                    items: (planItemsByPlan[plan.id] ?? []).map(BackupPlanItem.init)
-                )
-            },
-            exportDate: Date().epochMilliseconds
-        )
-    }
-
-    func asSnapshot(preserving current: AppSnapshot) -> AppSnapshot {
-        let subjects = subjects.map(\.model)
-        let materials = materials.map(\.model)
-        let sessions = sessions.map(\.model)
-        let goals = goals.map(\.model)
-        let exams = exams.map(\.model)
-        let backupPlans = plans
-        let plans = backupPlans.map(\.plan.model)
-        let planItems = backupPlans.flatMap { $0.items.map(\.model) }
-
-        let allIdentifiers =
-            subjects.map(\.id) +
-            materials.map(\.id) +
-            sessions.map(\.id) +
-            goals.map(\.id) +
-            exams.map(\.id) +
-            plans.map(\.id) +
-            planItems.map(\.id)
-        let maxIdentifier = allIdentifiers.max() ?? current.lastIdentifier
-
-        return AppSnapshot(
-            lastIdentifier: maxIdentifier,
-            subjects: subjects,
-            materials: materials,
-            sessions: sessions,
-            goals: goals,
-            exams: exams,
-            plans: plans,
-            planItems: planItems,
-            onboardingCompleted: current.onboardingCompleted,
-            reminderEnabled: current.reminderEnabled,
-            reminderHour: current.reminderHour,
-            reminderMinute: current.reminderMinute,
-            selectedColorTheme: current.selectedColorTheme,
-            selectedThemeMode: current.selectedThemeMode,
-            activeTimer: nil
-        )
-    }
-}
-
-struct BackupSubject: Codable {
+struct TodaySession: Identifiable, Hashable {
     var id: Int64
-    var name: String
-    var color: Int
-    var icon: String?
-
-    init(_ model: Subject) {
-        id = model.id
-        name = model.name
-        color = model.color
-        icon = model.icon?.rawValue
-    }
-
-    var model: Subject {
-        Subject(id: id, name: name, color: color, icon: icon.flatMap(SubjectIcon.init(rawValue:)))
-    }
-}
-
-struct BackupMaterial: Codable {
-    var id: Int64
-    var name: String
-    var subjectId: Int64
-    var totalPages: Int
-    var currentPage: Int
-    var color: Int?
-    var note: String?
-
-    init(_ model: Material) {
-        id = model.id
-        name = model.name
-        subjectId = model.subjectId
-        totalPages = model.totalPages
-        currentPage = model.currentPage
-        color = model.color
-        note = model.note
-    }
-
-    var model: Material {
-        Material(
-            id: id,
-            name: name,
-            subjectId: subjectId,
-            totalPages: totalPages,
-            currentPage: currentPage,
-            color: color,
-            note: note
-        )
-    }
-}
-
-struct BackupStudySession: Codable {
-    var id: Int64
-    var materialId: Int64?
-    var materialName: String
-    var subjectId: Int64
     var subjectName: String
+    var materialName: String
+    var duration: Int64
     var startTime: Int64
-    var endTime: Int64
-    var note: String?
+}
 
-    init(_ model: StudySession) {
-        id = model.id
-        materialId = model.materialId
-        materialName = model.materialName
-        subjectId = model.subjectId
-        subjectName = model.subjectName
-        startTime = model.startTime.epochMilliseconds
-        endTime = model.endTime.epochMilliseconds
-        note = model.note
+struct ReportsData: Hashable {
+    var daily: [DailyStudyData]
+    var weekly: [WeeklyStudyData]
+    var monthly: [MonthlyStudyData]
+    var bySubject: [SubjectStudyData]
+    var streakDays: Int
+    var bestStreak: Int
+}
+
+struct PlanData: Codable, Hashable {
+    var plan: StudyPlan
+    var items: [PlanItem]
+}
+
+struct AppData: Codable, Hashable {
+    var subjects: [Subject]
+    var materials: [Material]
+    var sessions: [StudySession]
+    var goals: [Goal]
+    var exams: [Exam]
+    var plans: [PlanData]
+    var exportDate: Int64
+}
+
+protocol SubjectRepository {
+    func getAllSubjects() async throws -> [Subject]
+    func getSubjectById(_ id: Int64) async throws -> Subject?
+    func insertSubject(_ subject: Subject) async throws -> Int64
+    func updateSubject(_ subject: Subject) async throws
+    func deleteSubject(_ subject: Subject) async throws
+}
+
+protocol MaterialRepository {
+    func getAllMaterials() async throws -> [Material]
+    func getMaterialsBySubjectId(_ subjectId: Int64) async throws -> [Material]
+    func insertMaterial(_ material: Material) async throws -> Int64
+    func updateMaterial(_ material: Material) async throws
+    func deleteMaterial(_ material: Material) async throws
+}
+
+protocol StudySessionRepository {
+    func getAllSessions() async throws -> [StudySession]
+    func getSessionsBetweenDates(start: Int64, end: Int64) async throws -> [StudySession]
+    func insertSession(_ session: StudySession) async throws -> Int64
+    func updateSession(_ session: StudySession) async throws
+    func deleteSession(_ session: StudySession) async throws
+}
+
+protocol GoalRepository {
+    func getAllGoals() async throws -> [Goal]
+    func getActiveGoalByType(_ type: GoalType) async throws -> Goal?
+    func insertGoal(_ goal: Goal) async throws -> Int64
+    func updateGoal(_ goal: Goal) async throws
+    func deleteGoal(_ goal: Goal) async throws
+}
+
+protocol ExamRepository {
+    func getAllExams() async throws -> [Exam]
+    func getUpcomingExams(now: Date) async throws -> [Exam]
+    func insertExam(_ exam: Exam) async throws -> Int64
+    func updateExam(_ exam: Exam) async throws
+    func deleteExam(_ exam: Exam) async throws
+}
+
+protocol PlanRepository {
+    func getAllPlans() async throws -> [StudyPlan]
+    func getPlanItems(planId: Int64) async throws -> [PlanItem]
+    func createPlan(_ plan: StudyPlan, items: [PlanItem]) async throws -> Int64
+    func updatePlanItem(_ item: PlanItem) async throws
+    func deletePlanItem(_ item: PlanItem) async throws
+    func deletePlan(_ plan: StudyPlan) async throws
+}
+
+protocol AppPreferencesRepository {
+    func loadPreferences() -> AppPreferences
+    func savePreferences(_ preferences: AppPreferences)
+}
+
+protocol BookSearchRepository {
+    func searchByIsbn(_ isbn: String) async throws -> BookInfo
+}
+
+protocol AppDataRepository {
+    func exportData() async throws -> AppData
+    func exportJSON() async throws -> String
+    func exportCSV() async throws -> String
+    func importJSON(_ json: String, currentPreferences: AppPreferences) async throws -> AppPreferences
+    func deleteAllData() async throws
+    func migrateLegacySnapshotIfNeeded(preferencesRepository: AppPreferencesRepository) async throws
+}
+
+struct Clock {
+    func now() -> Date {
+        Date()
     }
 
-    var model: StudySession {
-        StudySession(
-            id: id,
-            materialId: materialId,
-            materialName: materialName,
-            subjectId: subjectId,
-            subjectName: subjectName,
-            startTime: Date(epochMilliseconds: startTime),
-            endTime: Date(epochMilliseconds: endTime),
-            note: note
+    func startOfToday(reference: Date = Date()) -> Int64 {
+        Calendar.current.startOfDay(for: reference).epochMilliseconds
+    }
+
+    func startOfWeek(reference: Date = Date()) -> Int64 {
+        let interval = Calendar.current.dateInterval(of: .weekOfYear, for: reference)
+        return (interval?.start ?? Calendar.current.startOfDay(for: reference)).epochMilliseconds
+    }
+}
+
+struct GetHomeDataUseCase {
+    let studySessionRepository: StudySessionRepository
+    let goalRepository: GoalRepository
+    let examRepository: ExamRepository
+    let clock: Clock
+
+    func execute() async throws -> HomeData {
+        let todayStart = clock.startOfToday()
+        let weekStart = clock.startOfWeek()
+        let dayMs: Int64 = 86_400_000
+        let weekMs = dayMs * 7
+
+        async let todaySessionsTask = studySessionRepository.getSessionsBetweenDates(start: todayStart, end: todayStart + dayMs)
+        async let weeklyGoalTask = goalRepository.getActiveGoalByType(.weekly)
+        async let weeklySessionsTask = studySessionRepository.getSessionsBetweenDates(start: weekStart, end: weekStart + weekMs)
+        async let upcomingExamsTask = examRepository.getUpcomingExams(now: clock.now())
+
+        let todaySessions = try await todaySessionsTask
+        let weeklyGoal = try await weeklyGoalTask
+        let weeklySessions = try await weeklySessionsTask
+        let upcomingExams = try await upcomingExamsTask
+
+        return HomeData(
+            todayStudyMinutes: todaySessions.reduce(0) { $0 + $1.durationMinutes },
+            todaySessions: todaySessions
+                .sorted { $0.startTime > $1.startTime }
+                .map {
+                    TodaySession(
+                        id: $0.id,
+                        subjectName: $0.subjectName,
+                        materialName: $0.materialName,
+                        duration: $0.duration,
+                        startTime: $0.startTime
+                    )
+                },
+            weeklyGoal: weeklyGoal,
+            weeklyStudyMinutes: weeklySessions.reduce(0) { $0 + $1.durationMinutes },
+            upcomingExams: upcomingExams.sorted { $0.date < $1.date }
         )
     }
 }
 
-struct BackupGoal: Codable {
-    var id: Int64
-    var type: String
-    var targetMinutes: Int
-    var weekStartDay: String
-    var isActive: Bool
+struct GetRecentMaterialsUseCase {
+    let materialRepository: MaterialRepository
+    let studySessionRepository: StudySessionRepository
+    let subjectRepository: SubjectRepository
 
-    init(_ model: Goal) {
-        id = model.id
-        type = model.type.rawValue
-        targetMinutes = model.targetMinutes
-        weekStartDay = model.weekStartDay.rawValue
-        isActive = model.isActive
+    func execute(limit: Int = 5) async throws -> [(Material, Subject)] {
+        async let materialsTask = materialRepository.getAllMaterials()
+        async let sessionsTask = studySessionRepository.getAllSessions()
+        async let subjectsTask = subjectRepository.getAllSubjects()
+
+        let materials = try await materialsTask
+        let sessions = try await sessionsTask
+        let subjects = try await subjectsTask
+
+        let subjectMap = Dictionary(uniqueKeysWithValues: subjects.map { ($0.id, $0) })
+        let materialMap = Dictionary(uniqueKeysWithValues: materials.map { ($0.id, $0) })
+        let sortedSessions = sessions.sorted { $0.startTime > $1.startTime }
+        var orderedIds = [Int64]()
+        for materialId in sortedSessions.compactMap(\.materialId) where !orderedIds.contains(materialId) {
+            orderedIds.append(materialId)
+            if orderedIds.count == limit {
+                break
+            }
+        }
+        return orderedIds.compactMap { materialId in
+            guard let material = materialMap[materialId], let subject = subjectMap[material.subjectId] else { return nil }
+            return (material, subject)
+        }
     }
+}
 
-    var model: Goal {
-        Goal(
-            id: id,
-            type: GoalType(rawValue: type) ?? .daily,
-            targetMinutes: targetMinutes,
-            weekStartDay: StudyWeekday(rawValue: weekStartDay) ?? .monday,
-            isActive: isActive
+struct GetUpcomingExamsUseCase {
+    let examRepository: ExamRepository
+    let clock: Clock
+
+    func execute(limit: Int? = nil) async throws -> [Exam] {
+        let exams = try await examRepository.getUpcomingExams(now: clock.now())
+        if let limit {
+            return Array(exams.prefix(limit))
+        }
+        return exams
+    }
+}
+
+struct ManageGoalsUseCase {
+    let repository: GoalRepository
+
+    func updateGoal(type: GoalType, targetMinutes: Int, weekStartDay: StudyWeekday = .monday) async throws {
+        let goals = try await repository.getAllGoals()
+        for goal in goals where goal.type == type && goal.isActive {
+            var inactive = goal
+            inactive.isActive = false
+            inactive.updatedAt = Date().epochMilliseconds
+            try await repository.updateGoal(inactive)
+        }
+
+        if let current = goals.first(where: { $0.type == type && $0.isActive }) {
+            var updated = current
+            updated.targetMinutes = targetMinutes
+            updated.weekStartDay = weekStartDay
+            updated.isActive = true
+            updated.updatedAt = Date().epochMilliseconds
+            try await repository.updateGoal(updated)
+        } else {
+            try await repository.insertGoal(
+                Goal(
+                    type: type,
+                    targetMinutes: targetMinutes,
+                    weekStartDay: weekStartDay,
+                    isActive: true
+                )
+            )
+        }
+    }
+}
+
+struct SaveStudySessionUseCase {
+    let sessionRepository: StudySessionRepository
+    let subjectRepository: SubjectRepository
+    let materialRepository: MaterialRepository
+
+    func saveManualSession(subjectId: Int64, materialId: Int64?, durationMinutes: Int, note: String?) async throws {
+        guard let subject = try await subjectRepository.getSubjectById(subjectId) else {
+            throw ValidationError(message: "科目を選択してください")
+        }
+        let materials = try await materialRepository.getAllMaterials()
+        let materialName = materials.first(where: { $0.id == materialId })?.name ?? ""
+        let end = Date().epochMilliseconds
+        let start = end - Int64(durationMinutes * 60_000)
+        try await sessionRepository.insertSession(
+            StudySession(
+                materialId: materialId,
+                materialName: materialName,
+                subjectId: subject.id,
+                subjectName: subject.name,
+                startTime: start,
+                endTime: end,
+                note: note?.nilIfBlank
+            )
         )
     }
 }
 
-struct BackupExam: Codable {
-    var id: Int64
-    var name: String
-    var date: Int64
-    var note: String?
+struct ManageMaterialsUseCase {
+    let materialRepository: MaterialRepository
+    let subjectRepository: SubjectRepository
+    let bookSearchRepository: BookSearchRepository
 
-    init(_ model: Exam) {
-        id = model.id
-        name = model.name
-        date = model.date.epochDay
-        note = model.note
+    func searchBook(isbn: String) async throws -> BookInfo {
+        try await bookSearchRepository.searchByIsbn(isbn)
     }
 
-    var model: Exam {
-        Exam(id: id, name: name, date: Date(epochDay: date), note: note)
-    }
-}
-
-struct BackupStudyPlan: Codable {
-    var id: Int64
-    var name: String
-    var startDate: Int64
-    var endDate: Int64
-    var isActive: Bool
-    var createdAt: Int64
-
-    init(_ model: StudyPlan) {
-        id = model.id
-        name = model.name
-        startDate = model.startDate.epochMilliseconds
-        endDate = model.endDate.epochMilliseconds
-        isActive = model.isActive
-        createdAt = model.createdAt.epochMilliseconds
-    }
-
-    var model: StudyPlan {
-        StudyPlan(
-            id: id,
-            name: name,
-            startDate: Date(epochMilliseconds: startDate),
-            endDate: Date(epochMilliseconds: endDate),
-            isActive: isActive,
-            createdAt: Date(epochMilliseconds: createdAt)
+    func addMaterial(
+        name: String,
+        subjectId: Int64,
+        totalPages: Int,
+        color: Int? = nil,
+        note: String? = nil
+    ) async throws {
+        guard try await subjectRepository.getSubjectById(subjectId) != nil else {
+            throw ValidationError(message: "科目を選択してください")
+        }
+        try await materialRepository.insertMaterial(
+            Material(
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                subjectId: subjectId,
+                totalPages: totalPages,
+                currentPage: 0,
+                color: color,
+                note: note?.nilIfBlank
+            )
         )
     }
 }
 
-struct BackupPlanItem: Codable {
-    var id: Int64
-    var planId: Int64
-    var subjectId: Int64
-    var dayOfWeek: String
-    var targetMinutes: Int
-    var actualMinutes: Int
-    var timeSlot: String?
+struct ManagePlansUseCase {
+    let repository: PlanRepository
 
-    init(_ model: PlanItem) {
-        id = model.id
-        planId = model.planId
-        subjectId = model.subjectId
-        dayOfWeek = model.dayOfWeek.rawValue
-        targetMinutes = model.targetMinutes
-        actualMinutes = model.actualMinutes
-        timeSlot = model.timeSlot
+    func createPlan(name: String, startDate: Date, endDate: Date, items: [PlanItem]) async throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw ValidationError(message: "プラン名を入力してください")
+        }
+        guard startDate < endDate else {
+            throw ValidationError(message: "開始日は終了日より前に設定してください")
+        }
+        guard !items.isEmpty else {
+            throw ValidationError(message: "少なくとも1つの学習項目を追加してください")
+        }
+        try await repository.createPlan(
+            StudyPlan(
+                name: trimmed,
+                startDate: Calendar.current.startOfDay(for: startDate).epochMilliseconds,
+                endDate: Calendar.current.startOfDay(for: endDate).epochMilliseconds,
+                isActive: true
+            ),
+            items: items
+        )
+    }
+}
+
+struct GetReportsDataUseCase {
+    let subjectRepository: SubjectRepository
+    let sessionRepository: StudySessionRepository
+    let clock: Clock
+
+    func execute(reference: Date = Date()) async throws -> ReportsData {
+        async let subjectsTask = subjectRepository.getAllSubjects()
+        async let sessionsTask = sessionRepository.getAllSessions()
+        let subjects = try await subjectsTask
+        let sessions = try await sessionsTask
+
+        let sortedSessions = sessions.sorted { $0.startTime < $1.startTime }
+        let daily = reportDailyData(sessions: sortedSessions, reference: reference)
+        let weekly = reportWeeklyData(sessions: sortedSessions, reference: reference)
+        let monthly = reportMonthlyData(sessions: sortedSessions, reference: reference)
+        let bySubject = subjectBreakdown(subjects: subjects, sessions: sortedSessions, reference: reference)
+
+        return ReportsData(
+            daily: daily,
+            weekly: weekly,
+            monthly: monthly,
+            bySubject: bySubject,
+            streakDays: streakDays(sessions: sortedSessions, reference: reference),
+            bestStreak: bestStreak(sessions: sortedSessions)
+        )
     }
 
-    var model: PlanItem {
-        PlanItem(
-            id: id,
-            planId: planId,
-            subjectId: subjectId,
-            dayOfWeek: StudyWeekday(rawValue: dayOfWeek) ?? .monday,
-            targetMinutes: targetMinutes,
-            actualMinutes: actualMinutes,
-            timeSlot: timeSlot
-        )
+    private func reportDailyData(sessions: [StudySession], reference: Date) -> [DailyStudyData] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M/d (E)"
+        return (0..<7).compactMap { offset in
+            guard let date = Calendar.current.date(byAdding: .day, value: -offset, to: reference) else { return nil }
+            let start = Calendar.current.startOfDay(for: date).epochMilliseconds
+            let end = start + 86_400_000
+            let minutes = sessions.filter { $0.startTime >= start && $0.startTime < end }.reduce(0) { $0 + $1.durationMinutes }
+            return DailyStudyData(date: start, dateLabel: formatter.string(from: date), minutes: minutes, hours: Double(minutes) / 60)
+        }
+        .reversed()
+    }
+
+    private func reportWeeklyData(sessions: [StudySession], reference: Date) -> [WeeklyStudyData] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M/d"
+        return (0..<4).compactMap { offset in
+            guard let date = Calendar.current.date(byAdding: .weekOfYear, value: -offset, to: reference) else { return nil }
+            let interval = Calendar.current.dateInterval(of: .weekOfYear, for: date)
+            let start = (interval?.start ?? date).epochMilliseconds
+            let end = Int64((interval?.end ?? date).epochMilliseconds)
+            let minutes = sessions.filter { $0.startTime >= start && $0.startTime <= end }.reduce(0) { $0 + $1.durationMinutes }
+            return WeeklyStudyData(
+                weekStart: start,
+                weekLabel: "\(formatter.string(from: Date(epochMilliseconds: start)))週",
+                hours: minutes / 60,
+                minutes: minutes % 60
+            )
+        }
+        .reversed()
+    }
+
+    private func reportMonthlyData(sessions: [StudySession], reference: Date) -> [MonthlyStudyData] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M月"
+        return (0..<6).compactMap { offset in
+            guard let date = Calendar.current.date(byAdding: .month, value: -offset, to: reference),
+                  let interval = Calendar.current.dateInterval(of: .month, for: date) else {
+                return nil
+            }
+            let minutes = sessions.filter {
+                $0.startTime >= interval.start.epochMilliseconds && $0.startTime <= interval.end.epochMilliseconds
+            }
+            .reduce(0) { $0 + $1.durationMinutes }
+            return MonthlyStudyData(
+                monthStart: interval.start.epochMilliseconds,
+                monthLabel: formatter.string(from: interval.start),
+                totalHours: minutes / 60
+            )
+        }
+        .reversed()
+    }
+
+    private func subjectBreakdown(subjects: [Subject], sessions: [StudySession], reference: Date) -> [SubjectStudyData] {
+        guard let monthAgo = Calendar.current.date(byAdding: .month, value: -1, to: reference) else { return [] }
+        let lowerBound = monthAgo.epochMilliseconds
+        return subjects.compactMap { subject in
+            let totalMinutes = sessions
+                .filter { $0.subjectId == subject.id && $0.startTime >= lowerBound && $0.startTime <= reference.epochMilliseconds }
+                .reduce(0) { $0 + $1.durationMinutes }
+            guard totalMinutes > 0 else { return nil }
+            return SubjectStudyData(
+                subjectName: subject.name,
+                hours: totalMinutes / 60,
+                minutes: totalMinutes % 60,
+                color: subject.color
+            )
+        }
+        .sorted { ($0.hours * 60 + $0.minutes) > ($1.hours * 60 + $1.minutes) }
+    }
+
+    private func streakDays(sessions: [StudySession], reference: Date) -> Int {
+        let days = Set(sessions.map { Date(epochMilliseconds: $0.startTime).startOfDay.epochDay })
+        var streak = 0
+        var current = reference.startOfDay
+        for index in 0..<365 {
+            if days.contains(current.epochDay) {
+                streak += 1
+            } else if index > 0 {
+                break
+            }
+            current = Calendar.current.date(byAdding: .day, value: -1, to: current) ?? current
+        }
+        return streak
+    }
+
+    private func bestStreak(sessions: [StudySession]) -> Int {
+        let sortedDays = Set(sessions.map { Date(epochMilliseconds: $0.startTime).startOfDay.epochDay }).sorted()
+        guard var previous = sortedDays.first else { return 0 }
+        var current = 1
+        var best = 1
+        for day in sortedDays.dropFirst() {
+            if day - previous == 1 {
+                current += 1
+                best = max(best, current)
+            } else {
+                current = 1
+            }
+            previous = day
+        }
+        return best
+    }
+}
+
+struct ExportImportDataUseCase {
+    let repository: AppDataRepository
+
+    func exportJSON() async throws -> String {
+        try await repository.exportJSON()
+    }
+
+    func exportCSV() async throws -> String {
+        try await repository.exportCSV()
+    }
+
+    func importJSON(_ json: String, currentPreferences: AppPreferences) async throws -> AppPreferences {
+        try await repository.importJSON(json, currentPreferences: currentPreferences)
+    }
+}
+
+struct ValidationError: LocalizedError {
+    let message: String
+
+    var errorDescription: String? {
+        message
     }
 }
 
 extension Date {
     var epochMilliseconds: Int64 {
-        Int64((timeIntervalSince1970 * 1000).rounded())
+        Int64((timeIntervalSince1970 * 1_000).rounded())
     }
 
     var epochDay: Int64 {
-        Int64(Calendar.current.startOfDay(for: self).timeIntervalSince1970 / 86_400)
+        Int64(startOfDay.timeIntervalSince1970 / 86_400)
+    }
+
+    var startOfDay: Date {
+        Calendar.current.startOfDay(for: self)
     }
 
     init(epochMilliseconds: Int64) {
-        self = Date(timeIntervalSince1970: TimeInterval(epochMilliseconds) / 1000)
+        self = Date(timeIntervalSince1970: TimeInterval(epochMilliseconds) / 1_000)
     }
 
     init(epochDay: Int64) {
         self = Date(timeIntervalSince1970: TimeInterval(epochDay) * 86_400)
+    }
+}
+
+extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

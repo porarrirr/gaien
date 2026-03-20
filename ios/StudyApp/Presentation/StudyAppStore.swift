@@ -2,134 +2,65 @@ import Combine
 import Foundation
 
 @MainActor
-final class StudyAppStore: ObservableObject {
-    @Published private(set) var snapshot: AppSnapshot = .empty
+final class StudyAppContainer: ObservableObject {
+    @Published private(set) var preferences: AppPreferences
     @Published private(set) var isLoaded = false
     @Published var errorMessage: String?
-    @Published var bookSearchResult: BookInfo?
-    @Published private(set) var elapsedTime: TimeInterval = 0
+    @Published private(set) var dataVersion = 0
 
-    private let persistence: PersistenceController
-    private let googleBooksService: GoogleBooksService
-    private let reminderScheduler: ReminderScheduler
-    private var timerCancellable: AnyCancellable?
+    let persistence: PersistenceController
+    let preferencesRepository: UserDefaultsPreferencesRepository
+    let googleBooksService: GoogleBooksService
+    let reminderScheduler: ReminderScheduler
+    let clock = Clock()
 
     init(
         persistence: PersistenceController = .shared,
+        preferencesRepository: UserDefaultsPreferencesRepository = UserDefaultsPreferencesRepository(),
         googleBooksService: GoogleBooksService = GoogleBooksService(),
-        reminderScheduler: ReminderScheduler? = nil
+        reminderScheduler: ReminderScheduler = ReminderScheduler()
     ) {
         self.persistence = persistence
+        self.preferencesRepository = preferencesRepository
         self.googleBooksService = googleBooksService
-        self.reminderScheduler = reminderScheduler ?? ReminderScheduler()
+        self.reminderScheduler = reminderScheduler
+        self.preferences = preferencesRepository.loadPreferences()
 
         Task {
             await load()
         }
     }
 
-    var subjects: [Subject] {
-        snapshot.subjects.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-    }
-
-    var materials: [Material] {
-        snapshot.materials.sorted { lhs, rhs in
-            if lhs.id == rhs.id {
-                return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
-            }
-            return lhs.id > rhs.id
-        }
-    }
-
-    var sessions: [StudySession] {
-        snapshot.sessions.sorted { $0.startTime > $1.startTime }
-    }
-
-    var exams: [Exam] {
-        snapshot.exams.sorted { $0.date < $1.date }
-    }
-
-    var goals: [Goal] {
-        snapshot.goals
-    }
-
-    var plans: [StudyPlan] {
-        snapshot.plans.sorted { $0.createdAt > $1.createdAt }
-    }
-
-    var planItems: [PlanItem] {
-        snapshot.planItems
-    }
-
-    var onboardingCompleted: Bool {
-        snapshot.onboardingCompleted
-    }
-
-    var reminderEnabled: Bool {
-        snapshot.reminderEnabled
-    }
-
-    var reminderHour: Int {
-        snapshot.reminderHour
-    }
-
-    var reminderMinute: Int {
-        snapshot.reminderMinute
-    }
-
-    var reminderTimeString: String {
-        String(format: "%02d:%02d", snapshot.reminderHour, snapshot.reminderMinute)
-    }
-
-    var selectedColorTheme: ColorTheme {
-        snapshot.selectedColorTheme
-    }
-
-    var selectedThemeMode: ThemeMode {
-        snapshot.selectedThemeMode
-    }
-
-    var activePlan: StudyPlan? {
-        snapshot.plans.first(where: \.isActive)
-    }
-
-    var activeDailyGoal: Goal? {
-        snapshot.goals.first(where: { $0.type == .daily && $0.isActive })
-    }
-
-    var activeWeeklyGoal: Goal? {
-        snapshot.goals.first(where: { $0.type == .weekly && $0.isActive })
-    }
-
     func load() async {
         do {
-            var loaded = try await persistence.load()
-            snapshot = loaded
-            recalculatePlanActualMinutes()
-            loaded = snapshot
-            try await persistence.save(snapshot: loaded)
+            try await persistence.migrateLegacySnapshotIfNeeded(preferencesRepository: preferencesRepository)
+            preferences = preferencesRepository.loadPreferences()
             isLoaded = true
-            restoreTimerState()
+            bumpDataVersion()
         } catch {
-            snapshot = .empty
             isLoaded = true
             present(error)
         }
     }
 
-    func completeOnboarding() {
-        snapshot.onboardingCompleted = true
-        persist()
+    func savePreferences(_ update: (inout AppPreferences) -> Void) {
+        var next = preferences
+        update(&next)
+        preferences = next
+        preferencesRepository.savePreferences(next)
+        objectWillChange.send()
     }
 
-    func setColorTheme(_ theme: ColorTheme) {
-        snapshot.selectedColorTheme = theme
-        persist()
+    func completeOnboarding() {
+        savePreferences { $0.onboardingCompleted = true }
     }
 
     func setThemeMode(_ mode: ThemeMode) {
-        snapshot.selectedThemeMode = mode
-        persist()
+        savePreferences { $0.selectedThemeMode = mode }
+    }
+
+    func setColorTheme(_ theme: ColorTheme) {
+        savePreferences { $0.selectedColorTheme = theme }
     }
 
     func setReminderEnabled(_ enabled: Bool) async {
@@ -140,20 +71,15 @@ final class StudyAppStore: ObservableObject {
                     present("通知の許可が必要です")
                     return
                 }
-                try await reminderScheduler.scheduleDailyReminder(
-                    hour: snapshot.reminderHour,
-                    minute: snapshot.reminderMinute
-                )
-                snapshot.reminderEnabled = true
+                try await reminderScheduler.scheduleDailyReminder(hour: preferences.reminderHour, minute: preferences.reminderMinute)
+                savePreferences { $0.reminderEnabled = true }
             } catch {
                 present(error)
-                return
             }
         } else {
             reminderScheduler.cancelReminder()
-            snapshot.reminderEnabled = false
+            savePreferences { $0.reminderEnabled = false }
         }
-        persist()
     }
 
     func setReminderTime(hour: Int, minute: Int) async {
@@ -161,245 +87,145 @@ final class StudyAppStore: ObservableObject {
             present("時刻の形式が正しくありません")
             return
         }
-
-        snapshot.reminderHour = hour
-        snapshot.reminderMinute = minute
-        if snapshot.reminderEnabled {
-            do {
+        do {
+            if preferences.reminderEnabled {
                 try await reminderScheduler.scheduleDailyReminder(hour: hour, minute: minute)
+            }
+            savePreferences {
+                $0.reminderHour = hour
+                $0.reminderMinute = minute
+            }
+        } catch {
+            present(error)
+        }
+    }
+
+    func updateActiveTimer(_ timer: TimerSnapshot?) {
+        savePreferences { $0.activeTimer = timer }
+    }
+
+    func bumpDataVersion() {
+        dataVersion += 1
+    }
+
+    func clearError() {
+        errorMessage = nil
+    }
+
+    func present(_ error: Error) {
+        errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    }
+
+    func present(_ message: String) {
+        errorMessage = message
+    }
+}
+
+@MainActor
+class ScreenViewModel: ObservableObject {
+    unowned let app: StudyAppContainer
+
+    init(app: StudyAppContainer) {
+        self.app = app
+    }
+
+    func perform(_ action: @escaping () async throws -> Void) {
+        Task {
+            do {
+                try await action()
             } catch {
-                present(error)
-                return
+                app.present(error)
             }
         }
-        persist()
+    }
+}
+
+@MainActor
+final class OnboardingViewModel: ScreenViewModel {
+    func complete() {
+        app.completeOnboarding()
+    }
+}
+
+@MainActor
+final class HomeViewModel: ScreenViewModel {
+    @Published private(set) var homeData = HomeData(todayStudyMinutes: 0, todaySessions: [], weeklyGoal: nil, weeklyStudyMinutes: 0, upcomingExams: [])
+    @Published private(set) var recentMaterials: [(Material, Subject)] = []
+
+    func load() async {
+        do {
+            let homeUseCase = GetHomeDataUseCase(studySessionRepository: app.persistence, goalRepository: app.persistence, examRepository: app.persistence, clock: app.clock)
+            let recentUseCase = GetRecentMaterialsUseCase(materialRepository: app.persistence, studySessionRepository: app.persistence, subjectRepository: app.persistence)
+            homeData = try await homeUseCase.execute()
+            recentMaterials = try await recentUseCase.execute()
+        } catch {
+            app.present(error)
+        }
+    }
+}
+
+@MainActor
+final class SubjectsViewModel: ScreenViewModel {
+    @Published private(set) var subjects: [Subject] = []
+
+    func load() async {
+        do {
+            subjects = try await app.persistence.getAllSubjects()
+        } catch {
+            app.present(error)
+        }
     }
 
-    func subject(for id: Int64) -> Subject? {
-        snapshot.subjects.first(where: { $0.id == id })
+    func saveSubject(id: Int64? = nil, name: String, color: Int, icon: SubjectIcon?) {
+        perform {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { throw ValidationError(message: "科目名を入力してください") }
+            if let id {
+                try await self.app.persistence.updateSubject(
+                    Subject(id: id, name: trimmed, color: color, icon: icon, createdAt: Date().epochMilliseconds, updatedAt: Date().epochMilliseconds)
+                )
+            } else {
+                _ = try await self.app.persistence.insertSubject(Subject(name: trimmed, color: color, icon: icon))
+            }
+            await self.load()
+            self.app.bumpDataVersion()
+        }
     }
 
-    func material(for id: Int64?) -> Material? {
-        guard let id else { return nil }
-        return snapshot.materials.first(where: { $0.id == id })
+    func deleteSubject(_ subject: Subject) {
+        perform {
+            try await self.app.persistence.deleteSubject(subject)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
+}
+
+@MainActor
+final class MaterialsViewModel: ScreenViewModel {
+    @Published private(set) var subjects: [Subject] = []
+    @Published private(set) var materials: [Material] = []
+    @Published var bookSearchResult: BookInfo?
+
+    func load() async {
+        do {
+            async let subjectsTask = app.persistence.getAllSubjects()
+            async let materialsTask = app.persistence.getAllMaterials()
+            subjects = try await subjectsTask
+            materials = try await materialsTask
+        } catch {
+            app.present(error)
+        }
     }
 
     func materials(for subjectId: Int64) -> [Material] {
         materials.filter { $0.subjectId == subjectId }
     }
 
-    func planItems(for planId: Int64) -> [PlanItem] {
-        snapshot.planItems
-            .filter { $0.planId == planId }
-            .sorted { lhs, rhs in
-                if lhs.dayOfWeek == rhs.dayOfWeek {
-                    return lhs.targetMinutes > rhs.targetMinutes
-                }
-                return StudyWeekday.allCases.firstIndex(of: lhs.dayOfWeek) ?? 0
-                    < StudyWeekday.allCases.firstIndex(of: rhs.dayOfWeek) ?? 0
-            }
-    }
-
-    func weeklySchedule(for plan: StudyPlan) -> [StudyWeekday: [PlanItemWithSubject]] {
-        let subjectMap = Dictionary(uniqueKeysWithValues: subjects.map { ($0.id, $0) })
-        return Dictionary(uniqueKeysWithValues: StudyWeekday.allCases.map { weekday in
-            let items = planItems(for: plan.id)
-                .filter { $0.dayOfWeek == weekday }
-                .compactMap { item -> PlanItemWithSubject? in
-                    guard let subject = subjectMap[item.subjectId] else { return nil }
-                    return PlanItemWithSubject(item: item, subject: subject)
-                }
-            return (weekday, items)
-        })
-    }
-
-    var subjectStudyMinutes: [Int64: Int] {
-        snapshot.sessions.reduce(into: [Int64: Int]()) { result, session in
-            result[session.subjectId, default: 0] += session.durationMinutes
-        }
-    }
-
-    func todayStudyMinutes(reference: Date = Date()) -> Int {
-        sessions(on: reference).reduce(0) { $0 + $1.durationMinutes }
-    }
-
-    func weeklyStudyMinutes(reference: Date = Date()) -> Int {
-        let range = weekRange(containing: reference)
-        return sessions(in: range.start...range.end).reduce(0) { $0 + $1.durationMinutes }
-    }
-
-    func recentSessions(limit: Int = 3) -> [StudySession] {
-        Array(sessions.prefix(limit))
-    }
-
-    func recentMaterials(limit: Int = 5) -> [(Material, Subject)] {
-        let materialIds = sessions
-            .compactMap(\.materialId)
-            .reduce(into: [Int64]()) { result, materialId in
-                if !result.contains(materialId) {
-                    result.append(materialId)
-                }
-            }
-            .prefix(limit)
-
-        return materialIds.compactMap { materialId in
-            guard let material = material(for: materialId), let subject = subject(for: material.subjectId) else {
-                return nil
-            }
-            return (material, subject)
-        }
-    }
-
-    func upcomingExams(limit: Int? = nil) -> [Exam] {
-        let filtered = exams.filter { !$0.isPast() }.sorted { $0.date < $1.date }
-        if let limit {
-            return Array(filtered.prefix(limit))
-        }
-        return filtered
-    }
-
-    func addSubject(name: String, color: Int, icon: SubjectIcon?) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            present("科目名を入力してください")
-            return
-        }
-
-        snapshot.subjects.append(Subject(id: nextIdentifier(), name: trimmed, color: color, icon: icon))
-        persist()
-    }
-
-    func updateSubject(_ subject: Subject) {
-        let trimmed = subject.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            present("科目名を入力してください")
-            return
-        }
-        guard let index = snapshot.subjects.firstIndex(where: { $0.id == subject.id }) else { return }
-        snapshot.subjects[index] = Subject(id: subject.id, name: trimmed, color: subject.color, icon: subject.icon)
-        snapshot.sessions = snapshot.sessions.map { session in
-            guard session.subjectId == subject.id else { return session }
-            var updated = session
-            updated.subjectName = trimmed
-            return updated
-        }
-        persist()
-    }
-
-    func deleteSubject(_ subject: Subject) {
-        let materialIds = snapshot.materials.filter { $0.subjectId == subject.id }.map(\.id)
-        snapshot.subjects.removeAll { $0.id == subject.id }
-        snapshot.materials.removeAll { $0.subjectId == subject.id }
-        snapshot.sessions.removeAll { $0.subjectId == subject.id || ($0.materialId.map(materialIds.contains) ?? false) }
-        snapshot.planItems.removeAll { $0.subjectId == subject.id }
-        recalculatePlanActualMinutes()
-        persist()
-    }
-
-    func addMaterial(name: String, subjectId: Int64, totalPages: Int, color: Int? = nil, note: String? = nil) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            present("教材名を入力してください")
-            return
-        }
-        guard subject(for: subjectId) != nil else {
-            present("科目を選択してください")
-            return
-        }
-        guard totalPages >= 0 else {
-            present("ページ数は0以上で入力してください")
-            return
-        }
-
-        snapshot.materials.append(
-            Material(
-                id: nextIdentifier(),
-                name: trimmed,
-                subjectId: subjectId,
-                totalPages: totalPages,
-                currentPage: 0,
-                color: color,
-                note: note?.nilIfBlank
-            )
-        )
-        persist()
-    }
-
-    func updateMaterial(_ material: Material) {
-        let trimmed = material.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            present("教材名を入力してください")
-            return
-        }
-        guard subject(for: material.subjectId) != nil else {
-            present("科目を選択してください")
-            return
-        }
-        guard material.totalPages >= 0 else {
-            present("ページ数は0以上で入力してください")
-            return
-        }
-        guard material.currentPage <= material.totalPages || material.totalPages == 0 else {
-            present("現在のページは総ページ数以下にしてください")
-            return
-        }
-        guard let index = snapshot.materials.firstIndex(where: { $0.id == material.id }) else { return }
-        snapshot.materials[index] = Material(
-            id: material.id,
-            name: trimmed,
-            subjectId: material.subjectId,
-            totalPages: material.totalPages,
-            currentPage: material.currentPage,
-            color: material.color,
-            note: material.note?.nilIfBlank
-        )
-        snapshot.sessions = snapshot.sessions.map { session in
-            guard session.materialId == material.id else { return session }
-            var updated = session
-            updated.materialName = trimmed
-            if let subject = subject(for: material.subjectId) {
-                updated.subjectId = subject.id
-                updated.subjectName = subject.name
-            }
-            return updated
-        }
-        persist()
-    }
-
-    func deleteMaterial(_ material: Material) {
-        snapshot.materials.removeAll { $0.id == material.id }
-        snapshot.sessions.removeAll { $0.materialId == material.id }
-        persist()
-    }
-
-    func updateMaterialProgress(materialId: Int64, page: Int) {
-        guard page >= 0 else {
-            present("ページ数は0以上で入力してください")
-            return
-        }
-        guard let index = snapshot.materials.firstIndex(where: { $0.id == materialId }) else {
-            present("教材が見つかりません")
-            return
-        }
-        let material = snapshot.materials[index]
-        guard material.totalPages == 0 || page <= material.totalPages else {
-            present("現在のページは総ページ数以下にしてください")
-            return
-        }
-        snapshot.materials[index].currentPage = page
-        persist()
-    }
-
-    func searchBookByIsbn(_ isbn: String) async {
-        let trimmed = isbn.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            present("ISBNを入力してください")
-            return
-        }
-        do {
-            bookSearchResult = try await googleBooksService.searchByIsbn(trimmed)
-        } catch {
-            present(error)
+    func searchBook(isbn: String) {
+        perform {
+            let useCase = ManageMaterialsUseCase(materialRepository: self.app.persistence, subjectRepository: self.app.persistence, bookSearchRepository: self.app.googleBooksService)
+            self.bookSearchResult = try await useCase.searchBook(isbn: isbn)
         }
     }
 
@@ -407,623 +233,407 @@ final class StudyAppStore: ObservableObject {
         bookSearchResult = nil
     }
 
-    func addMaterial(from bookInfo: BookInfo, subjectId: Int64) {
-        let note = buildBookNote(bookInfo)
-        addMaterial(
-            name: bookInfo.title,
-            subjectId: subjectId,
-            totalPages: bookInfo.pageCount ?? 0,
-            note: note
-        )
-        bookSearchResult = nil
-    }
-
-    func addExam(name: String, date: Date, note: String?) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            present("テスト名を入力してください")
-            return
-        }
-        snapshot.exams.append(
-            Exam(id: nextIdentifier(), name: trimmed, date: Calendar.current.startOfDay(for: date), note: note?.nilIfBlank)
-        )
-        persist()
-    }
-
-    func updateExam(_ exam: Exam) {
-        let trimmed = exam.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            present("テスト名を入力してください")
-            return
-        }
-        guard let index = snapshot.exams.firstIndex(where: { $0.id == exam.id }) else { return }
-        snapshot.exams[index] = Exam(
-            id: exam.id,
-            name: trimmed,
-            date: Calendar.current.startOfDay(for: exam.date),
-            note: exam.note?.nilIfBlank
-        )
-        persist()
-    }
-
-    func deleteExam(_ exam: Exam) {
-        snapshot.exams.removeAll { $0.id == exam.id }
-        persist()
-    }
-
-    func updateGoal(type: GoalType, targetMinutes: Int) {
-        guard targetMinutes > 0 else {
-            present("目標時間は0より大きくしてください")
-            return
-        }
-
-        if let index = snapshot.goals.firstIndex(where: { $0.type == type && $0.isActive }) {
-            snapshot.goals[index].targetMinutes = targetMinutes
-        } else {
-            snapshot.goals = snapshot.goals.map { goal in
-                var updated = goal
-                if updated.type == type {
-                    updated.isActive = false
-                }
-                return updated
+    func saveMaterial(id: Int64? = nil, name: String, subjectId: Int64, totalPages: Int, currentPage: Int = 0, note: String?) {
+        perform {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { throw ValidationError(message: "教材名を入力してください") }
+            guard totalPages >= 0 else { throw ValidationError(message: "ページ数は0以上で入力してください") }
+            guard currentPage >= 0 else { throw ValidationError(message: "ページ数は0以上で入力してください") }
+            guard totalPages == 0 || currentPage <= totalPages else { throw ValidationError(message: "現在のページは総ページ数以下にしてください") }
+            if let id {
+                try await self.app.persistence.updateMaterial(
+                    Material(id: id, name: trimmed, subjectId: subjectId, totalPages: totalPages, currentPage: currentPage, color: nil, note: note?.nilIfBlank)
+                )
+            } else {
+                let useCase = ManageMaterialsUseCase(materialRepository: self.app.persistence, subjectRepository: self.app.persistence, bookSearchRepository: self.app.googleBooksService)
+                try await useCase.addMaterial(name: trimmed, subjectId: subjectId, totalPages: totalPages, note: note?.nilIfBlank)
             }
-            snapshot.goals.append(
-                Goal(
-                    id: nextIdentifier(),
-                    type: type,
-                    targetMinutes: targetMinutes,
-                    weekStartDay: .monday,
-                    isActive: true
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
+
+    func updateProgress(materialId: Int64, currentPage: Int) {
+        perform {
+            let materials = try await self.app.persistence.getAllMaterials()
+            guard let material = materials.first(where: { $0.id == materialId }) else {
+                throw ValidationError(message: "教材が見つかりません")
+            }
+            var updated = material
+            updated.currentPage = currentPage
+            try await self.app.persistence.updateMaterial(updated)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
+
+    func deleteMaterial(_ material: Material) {
+        perform {
+            try await self.app.persistence.deleteMaterial(material)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
+}
+
+@MainActor
+final class TimerViewModel: ScreenViewModel {
+    @Published private(set) var subjects: [Subject] = []
+    @Published private(set) var materials: [Material] = []
+    @Published private(set) var elapsedMilliseconds: Int64 = 0
+    @Published var selectedSubjectId: Int64?
+    @Published var selectedMaterialId: Int64?
+
+    private var cancellable: AnyCancellable?
+
+    func load() async {
+        do {
+            async let subjectsTask = app.persistence.getAllSubjects()
+            async let materialsTask = app.persistence.getAllMaterials()
+            subjects = try await subjectsTask
+            materials = try await materialsTask
+            let activeTimer = app.preferences.activeTimer
+            selectedSubjectId = selectedSubjectId ?? activeTimer?.subjectId ?? subjects.first?.id
+            selectedMaterialId = selectedMaterialId ?? activeTimer?.materialId
+            elapsedMilliseconds = activeTimer?.elapsedTime() ?? 0
+            configureTicker()
+        } catch {
+            app.present(error)
+        }
+    }
+
+    var isRunning: Bool {
+        app.preferences.activeTimer?.isRunning ?? false
+    }
+
+    var recentMaterialPairs: [(Material, Subject)] {
+        let subjectMap = Dictionary(uniqueKeysWithValues: subjects.map { ($0.id, $0) })
+        return materials.compactMap { material in
+            guard let subject = subjectMap[material.subjectId] else { return nil }
+            return (material, subject)
+        }
+    }
+
+    func materialsForSelectedSubject() -> [Material] {
+        guard let selectedSubjectId else { return [] }
+        return materials.filter { $0.subjectId == selectedSubjectId }
+    }
+
+    func startOrResume() {
+        perform {
+            guard let subjectId = self.selectedSubjectId ?? self.subjects.first?.id else {
+                throw ValidationError(message: "科目を選択してください")
+            }
+            let current = self.app.preferences.activeTimer
+            let next = TimerSnapshot(
+                subjectId: subjectId,
+                materialId: self.selectedMaterialId,
+                startedAt: Date().epochMilliseconds,
+                accumulatedMilliseconds: current?.elapsedTime() ?? 0,
+                isRunning: true
+            )
+            self.app.updateActiveTimer(next)
+            self.elapsedMilliseconds = next.elapsedTime()
+            self.configureTicker()
+        }
+    }
+
+    func pause() {
+        guard var timer = app.preferences.activeTimer else { return }
+        timer.accumulatedMilliseconds = timer.elapsedTime()
+        timer.startedAt = nil
+        timer.isRunning = false
+        app.updateActiveTimer(timer)
+        elapsedMilliseconds = timer.accumulatedMilliseconds
+        configureTicker()
+    }
+
+    func stop(note: String? = nil) {
+        perform {
+            guard let timer = self.app.preferences.activeTimer else { return }
+            let elapsed = timer.elapsedTime()
+            guard elapsed > 0 else {
+                self.app.updateActiveTimer(nil)
+                self.elapsedMilliseconds = 0
+                self.configureTicker()
+                return
+            }
+            guard let subject = try await self.app.persistence.getSubjectById(timer.subjectId) else {
+                throw ValidationError(message: "科目を選択してください")
+            }
+            let materials = try await self.app.persistence.getAllMaterials()
+            let materialName = materials.first(where: { $0.id == timer.materialId })?.name ?? ""
+            let end = Date().epochMilliseconds
+            let start = end - elapsed
+            _ = try await self.app.persistence.insertSession(
+                StudySession(
+                    materialId: timer.materialId,
+                    materialName: materialName,
+                    subjectId: subject.id,
+                    subjectName: subject.name,
+                    startTime: start,
+                    endTime: end,
+                    note: note?.nilIfBlank
                 )
             )
+            self.app.updateActiveTimer(nil)
+            self.elapsedMilliseconds = 0
+            self.configureTicker()
+            await self.load()
+            self.app.bumpDataVersion()
         }
-        persist()
     }
 
-    func sessions(on date: Date) -> [StudySession] {
-        let calendar = Calendar.current
-        let start = calendar.startOfDay(for: date)
-        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
-        return sessions.filter { $0.startTime >= start && $0.startTime < end }
+    func saveManualSession(subjectId: Int64, materialId: Int64?, durationMinutes: Int, note: String?) {
+        perform {
+            guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
+            let useCase = SaveStudySessionUseCase(sessionRepository: self.app.persistence, subjectRepository: self.app.persistence, materialRepository: self.app.persistence)
+            try await useCase.saveManualSession(subjectId: subjectId, materialId: materialId, durationMinutes: durationMinutes, note: note)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
     }
 
-    func sessions(in range: ClosedRange<Date>) -> [StudySession] {
-        sessions.filter { range.contains($0.startTime) }
+    private func configureTicker() {
+        cancellable?.cancel()
+        guard app.preferences.activeTimer?.isRunning == true else { return }
+        cancellable = Timer.publish(every: 1, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.elapsedMilliseconds = self.app.preferences.activeTimer?.elapsedTime() ?? 0
+            }
+    }
+}
+
+@MainActor
+final class HistoryViewModel: ScreenViewModel {
+    @Published private(set) var sessions: [StudySession] = []
+
+    func load() async {
+        do {
+            sessions = try await app.persistence.getAllSessions()
+        } catch {
+            app.present(error)
+        }
     }
 
-    func saveManualSession(subjectId: Int64, materialId: Int64?, durationMinutes: Int, note: String? = nil) {
-        guard durationMinutes > 0 else {
-            present("学習時間は0より大きくしてください")
-            return
+    func updateSession(_ session: StudySession, durationMinutes: Int, note: String?) {
+        perform {
+            guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
+            var updated = session
+            updated.endTime = updated.startTime + Int64(durationMinutes * 60_000)
+            updated.note = note?.nilIfBlank
+            try await self.app.persistence.updateSession(updated)
+            await self.load()
+            self.app.bumpDataVersion()
         }
-        guard let subject = subject(for: subjectId) else {
-            present("科目を選択してください")
-            return
-        }
-        let now = Date()
-        let durationSeconds = TimeInterval(durationMinutes * 60)
-        let session = StudySession(
-            id: nextIdentifier(),
-            materialId: materialId,
-            materialName: material(for: materialId)?.name ?? "",
-            subjectId: subject.id,
-            subjectName: subject.name,
-            startTime: now.addingTimeInterval(-durationSeconds),
-            endTime: now,
-            note: note?.nilIfBlank
-        )
-        snapshot.sessions.append(session)
-        recalculatePlanActualMinutes()
-        persist()
-    }
-
-    func updateSession(id: Int64, durationMinutes: Int, note: String?) {
-        guard durationMinutes > 0 else {
-            present("学習時間は0より大きくしてください")
-            return
-        }
-        guard let index = snapshot.sessions.firstIndex(where: { $0.id == id }) else { return }
-        snapshot.sessions[index].endTime = snapshot.sessions[index].startTime.addingTimeInterval(TimeInterval(durationMinutes * 60))
-        snapshot.sessions[index].note = note?.nilIfBlank
-        recalculatePlanActualMinutes()
-        persist()
     }
 
     func deleteSession(_ session: StudySession) {
-        snapshot.sessions.removeAll { $0.id == session.id }
-        recalculatePlanActualMinutes()
-        persist()
+        perform {
+            try await self.app.persistence.deleteSession(session)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
+}
+
+@MainActor
+final class GoalsViewModel: ScreenViewModel {
+    @Published private(set) var dailyGoal: Goal?
+    @Published private(set) var weeklyGoal: Goal?
+
+    func load() async {
+        do {
+            dailyGoal = try await app.persistence.getActiveGoalByType(.daily)
+            weeklyGoal = try await app.persistence.getActiveGoalByType(.weekly)
+        } catch {
+            app.present(error)
+        }
     }
 
-    func startTimer(subjectId: Int64, materialId: Int64?) {
-        guard subject(for: subjectId) != nil else {
-            present("科目を選択してください")
-            return
+    func updateGoal(type: GoalType, targetMinutes: Int) {
+        perform {
+            guard targetMinutes > 0 else { throw ValidationError(message: "目標時間は0より大きくしてください") }
+            let useCase = ManageGoalsUseCase(repository: self.app.persistence)
+            try await useCase.updateGoal(type: type, targetMinutes: targetMinutes)
+            await self.load()
+            self.app.bumpDataVersion()
         }
-        if var activeTimer = snapshot.activeTimer {
-            activeTimer.subjectId = subjectId
-            activeTimer.materialId = materialId
-            activeTimer.startedAt = Date()
-            activeTimer.isRunning = true
-            snapshot.activeTimer = activeTimer
-        } else {
-            snapshot.activeTimer = TimerSnapshot(
-                subjectId: subjectId,
-                materialId: materialId,
-                startedAt: Date(),
-                accumulatedSeconds: 0,
-                isRunning: true
-            )
+    }
+}
+
+@MainActor
+final class ExamsViewModel: ScreenViewModel {
+    @Published private(set) var exams: [Exam] = []
+
+    func load() async {
+        do {
+            exams = try await app.persistence.getAllExams()
+        } catch {
+            app.present(error)
         }
-        startTicker()
-        updateElapsedTime()
-        persist()
     }
 
-    func pauseTimer() {
-        guard var activeTimer = snapshot.activeTimer, activeTimer.isRunning, let startedAt = activeTimer.startedAt else {
-            return
+    func saveExam(id: Int64? = nil, name: String, date: Date, note: String?) {
+        perform {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { throw ValidationError(message: "テスト名を入力してください") }
+            let exam = Exam(id: id ?? 0, name: trimmed, date: date.startOfDay.epochDay, note: note?.nilIfBlank)
+            if id == nil {
+                _ = try await self.app.persistence.insertExam(exam)
+            } else {
+                try await self.app.persistence.updateExam(exam)
+            }
+            await self.load()
+            self.app.bumpDataVersion()
         }
-        activeTimer.accumulatedSeconds += Date().timeIntervalSince(startedAt)
-        activeTimer.startedAt = nil
-        activeTimer.isRunning = false
-        snapshot.activeTimer = activeTimer
-        stopTicker()
-        elapsedTime = activeTimer.accumulatedSeconds
-        persist()
     }
 
-    func stopTimer(note: String? = nil) {
-        guard let activeTimer = snapshot.activeTimer else { return }
-        let duration = activeTimer.elapsedTime()
-        guard duration > 0 else {
-            snapshot.activeTimer = nil
-            elapsedTime = 0
-            stopTicker()
-            persist()
-            return
+    func deleteExam(_ exam: Exam) {
+        perform {
+            try await self.app.persistence.deleteExam(exam)
+            await self.load()
+            self.app.bumpDataVersion()
         }
-        guard let subject = subject(for: activeTimer.subjectId) else {
-            present("科目を選択してください")
-            return
+    }
+}
+
+@MainActor
+final class PlanViewModel: ScreenViewModel {
+    @Published private(set) var plans: [StudyPlan] = []
+    @Published private(set) var activePlan: StudyPlan?
+    @Published private(set) var planItems: [PlanItem] = []
+    @Published private(set) var subjects: [Subject] = []
+
+    func load() async {
+        do {
+            async let plansTask = app.persistence.getAllPlans()
+            async let subjectsTask = app.persistence.getAllSubjects()
+            let loadedPlans = try await plansTask
+            plans = loadedPlans
+            activePlan = loadedPlans.first(where: \.isActive)
+            subjects = try await subjectsTask
+            if let activePlan {
+                planItems = try await app.persistence.getPlanItems(planId: activePlan.id)
+            } else {
+                planItems = []
+            }
+        } catch {
+            app.present(error)
         }
-        let endTime = Date()
-        let startTime = endTime.addingTimeInterval(-duration)
-        snapshot.sessions.append(
-            StudySession(
-                id: nextIdentifier(),
-                materialId: activeTimer.materialId,
-                materialName: material(for: activeTimer.materialId)?.name ?? "",
-                subjectId: subject.id,
-                subjectName: subject.name,
-                startTime: startTime,
-                endTime: endTime,
-                note: note?.nilIfBlank
-            )
-        )
-        snapshot.activeTimer = nil
-        elapsedTime = 0
-        stopTicker()
-        recalculatePlanActualMinutes()
-        persist()
     }
 
     func createPlan(name: String, startDate: Date, endDate: Date, items: [PlanItem]) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            present("プラン名を入力してください")
-            return
+        perform {
+            let useCase = ManagePlansUseCase(repository: self.app.persistence)
+            try await useCase.createPlan(name: name, startDate: startDate, endDate: endDate, items: items)
+            await self.load()
+            self.app.bumpDataVersion()
         }
-        guard startDate < endDate else {
-            present("開始日は終了日より前に設定してください")
-            return
-        }
-        guard !items.isEmpty else {
-            present("少なくとも1つの学習項目を追加してください")
-            return
-        }
-
-        snapshot.plans = snapshot.plans.map { plan in
-            var updated = plan
-            updated.isActive = false
-            return updated
-        }
-
-        let newPlanId = nextIdentifier()
-        let plan = StudyPlan(
-            id: newPlanId,
-            name: trimmed,
-            startDate: Calendar.current.startOfDay(for: startDate),
-            endDate: Calendar.current.startOfDay(for: endDate),
-            isActive: true,
-            createdAt: Date()
-        )
-        snapshot.plans.append(plan)
-        snapshot.planItems.removeAll { existing in
-            snapshot.plans.contains(where: { $0.id == existing.planId && $0.isActive })
-        }
-        snapshot.planItems.append(contentsOf: items.map { item in
-            PlanItem(
-                id: nextIdentifier(),
-                planId: newPlanId,
-                subjectId: item.subjectId,
-                dayOfWeek: item.dayOfWeek,
-                targetMinutes: item.targetMinutes,
-                actualMinutes: item.actualMinutes,
-                timeSlot: item.timeSlot?.nilIfBlank
-            )
-        })
-        recalculatePlanActualMinutes()
-        persist()
     }
 
-    func addPlanItem(subjectId: Int64, dayOfWeek: StudyWeekday, targetMinutes: Int, timeSlot: String?) {
-        guard let activePlan else { return }
-        guard targetMinutes > 0 else {
-            present("目標時間は0より大きくしてください")
-            return
+    func savePlanItem(_ item: PlanItem) {
+        perform {
+            guard item.targetMinutes > 0 else { throw ValidationError(message: "目標時間は0より大きくしてください") }
+            if item.id == 0, let activePlan = self.activePlan {
+                _ = try await self.app.persistence.createPlan(
+                    StudyPlan(id: activePlan.id, name: activePlan.name, startDate: activePlan.startDate, endDate: activePlan.endDate, isActive: activePlan.isActive, createdAt: activePlan.createdAt),
+                    items: self.planItems + [item]
+                )
+            } else {
+                try await self.app.persistence.updatePlanItem(item)
+            }
+            await self.load()
+            self.app.bumpDataVersion()
         }
-        snapshot.planItems.append(
-            PlanItem(
-                id: nextIdentifier(),
-                planId: activePlan.id,
-                subjectId: subjectId,
-                dayOfWeek: dayOfWeek,
-                targetMinutes: targetMinutes,
-                actualMinutes: 0,
-                timeSlot: timeSlot?.nilIfBlank
-            )
-        )
-        recalculatePlanActualMinutes()
-        persist()
-    }
-
-    func updatePlanItem(_ item: PlanItem) {
-        guard item.targetMinutes > 0 else {
-            present("目標時間は0より大きくしてください")
-            return
-        }
-        guard let index = snapshot.planItems.firstIndex(where: { $0.id == item.id }) else { return }
-        snapshot.planItems[index] = item
-        recalculatePlanActualMinutes()
-        persist()
     }
 
     func deletePlanItem(_ item: PlanItem) {
-        snapshot.planItems.removeAll { $0.id == item.id }
-        recalculatePlanActualMinutes()
-        persist()
+        perform {
+            try await self.app.persistence.deletePlanItem(item)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
     }
 
     func deleteActivePlan() {
-        guard let activePlan else { return }
-        snapshot.planItems.removeAll { $0.planId == activePlan.id }
-        snapshot.plans.removeAll { $0.id == activePlan.id }
-        persist()
-    }
-
-    func completionRate(for plan: StudyPlan) -> Double {
-        let items = planItems(for: plan.id)
-        let totalTarget = items.reduce(0) { $0 + $1.targetMinutes }
-        let totalActual = items.reduce(0) { $0 + $1.actualMinutes }
-        guard totalTarget > 0 else { return 0 }
-        return min(Double(totalActual) / Double(totalTarget), 1)
-    }
-
-    func weeklyPlanSummary(for plan: StudyPlan) -> WeeklyPlanSummary {
-        let items = planItems(for: plan.id)
-        let daySummaries = Dictionary(uniqueKeysWithValues: StudyWeekday.allCases.map { day in
-            let dayItems = items.filter { $0.dayOfWeek == day }
-            let target = dayItems.reduce(0) { $0 + $1.targetMinutes }
-            let actual = dayItems.reduce(0) { $0 + $1.actualMinutes }
-            return (day, DailyPlanSummary(dayOfWeek: day, targetMinutes: target, actualMinutes: actual))
-        })
-        return WeeklyPlanSummary(
-            weekStart: weekRange(containing: Date()).start,
-            weekEnd: weekRange(containing: Date()).end,
-            totalTargetMinutes: items.reduce(0) { $0 + $1.targetMinutes },
-            totalActualMinutes: items.reduce(0) { $0 + $1.actualMinutes },
-            dailyBreakdown: daySummaries
-        )
-    }
-
-    func monthlyStudyMap(year: Int, month: Int) -> [Int: Int] {
-        var components = DateComponents()
-        components.year = year
-        components.month = month
-        components.day = 1
-        let calendar = Calendar.current
-        guard let start = calendar.date(from: components),
-              let end = calendar.date(byAdding: .month, value: 1, to: start) else {
-            return [:]
-        }
-        let monthSessions = sessions(in: start...end)
-        return monthSessions.reduce(into: [Int: Int]()) { result, session in
-            let day = calendar.component(.day, from: session.startTime)
-            result[day, default: 0] += session.durationMinutes
+        perform {
+            guard let activePlan = self.activePlan else { return }
+            try await self.app.persistence.deletePlan(activePlan)
+            await self.load()
+            self.app.bumpDataVersion()
         }
     }
+}
 
-    func reportDailyData(reference: Date = Date()) -> [DailyStudyData] {
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M/d (E)"
-        return (0..<7).compactMap { offset in
-            guard let date = calendar.date(byAdding: .day, value: -offset, to: reference) else { return nil }
-            let minutes = sessions(on: date).reduce(0) { $0 + $1.durationMinutes }
-            return DailyStudyData(
-                date: calendar.startOfDay(for: date),
-                dateLabel: formatter.string(from: date),
-                minutes: minutes,
-                hours: Double(minutes) / 60.0
-            )
-        }
-        .reversed()
-    }
+@MainActor
+final class CalendarViewModel: ScreenViewModel {
+    @Published private(set) var monthStudyMap: [Int: Int] = [:]
+    @Published var displayedMonth = Date()
 
-    func reportWeeklyData(reference: Date = Date()) -> [WeeklyStudyData] {
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M/d"
-        return (0..<4).compactMap { offset in
-            guard let date = calendar.date(byAdding: .weekOfYear, value: -offset, to: reference) else { return nil }
-            let range = weekRange(containing: date)
-            let minutes = sessions(in: range.start...range.end).reduce(0) { $0 + $1.durationMinutes }
-            return WeeklyStudyData(
-                weekStart: range.start,
-                weekLabel: "\(formatter.string(from: range.start))週",
-                hours: minutes / 60,
-                minutes: minutes % 60
-            )
-        }
-        .reversed()
-    }
-
-    func reportMonthlyData(reference: Date = Date()) -> [MonthlyStudyData] {
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M月"
-        return (0..<6).compactMap { offset in
-            guard let monthDate = calendar.date(byAdding: .month, value: -offset, to: reference),
-                  let monthInterval = calendar.dateInterval(of: .month, for: monthDate) else {
-                return nil
-            }
-            let minutes = sessions(in: monthInterval.start...monthInterval.end).reduce(0) { $0 + $1.durationMinutes }
-            return MonthlyStudyData(
-                monthStart: monthInterval.start,
-                monthLabel: formatter.string(from: monthInterval.start),
-                totalHours: minutes / 60
-            )
-        }
-        .reversed()
-    }
-
-    func subjectBreakdown(reference: Date = Date()) -> [SubjectStudyData] {
-        let calendar = Calendar.current
-        guard let monthAgo = calendar.date(byAdding: .month, value: -1, to: reference) else {
-            return []
-        }
-        return subjects.compactMap { subject in
-            let minutes = sessions
-                .filter { $0.subjectId == subject.id && $0.startTime >= monthAgo && $0.startTime <= reference }
-                .reduce(0) { $0 + $1.durationMinutes }
-            guard minutes > 0 else { return nil }
-            return SubjectStudyData(
-                subjectName: subject.name,
-                hours: minutes / 60,
-                minutes: minutes % 60,
-                color: subject.color
-            )
-        }
-        .sorted { ($0.hours * 60 + $0.minutes) > ($1.hours * 60 + $1.minutes) }
-    }
-
-    func streakDays(reference: Date = Date()) -> Int {
-        let calendar = Calendar.current
-        var streak = 0
-        var current = calendar.startOfDay(for: reference)
-        for index in 0..<365 {
-            let total = sessions(on: current).reduce(0) { $0 + $1.durationMinutes }
-            if total > 0 {
-                streak += 1
-            } else if index > 0 {
-                break
-            }
-            current = calendar.date(byAdding: .day, value: -1, to: current) ?? current
-        }
-        return streak
-    }
-
-    func bestStreak() -> Int {
-        let dayKeys = Set(sessions.map { Calendar.current.startOfDay(for: $0.startTime) })
-        let sortedDates = dayKeys.sorted()
-        guard var previous = sortedDates.first else { return 0 }
-        var best = 1
-        var current = 1
-        for date in sortedDates.dropFirst() {
-            let diff = Calendar.current.dateComponents([.day], from: previous, to: date).day ?? 0
-            if diff == 1 {
-                current += 1
-                best = max(best, current)
-            } else {
-                current = 1
-            }
-            previous = date
-        }
-        return best
-    }
-
-    func exportFile(format: ExportFormat) async -> URL? {
+    func load() async {
         do {
-            let contents: String
-            switch format {
-            case .json:
-                contents = try await persistence.exportJSON(from: snapshot)
-            case .csv:
-                contents = await persistence.exportCSV(from: snapshot)
+            let sessions = try await app.persistence.getAllSessions()
+            let monthInterval = Calendar.current.dateInterval(of: .month, for: displayedMonth)
+            let start = monthInterval?.start ?? displayedMonth.startOfDay
+            let end = monthInterval?.end ?? displayedMonth
+            monthStudyMap = sessions.reduce(into: [:]) { result, session in
+                let sessionDate = session.startDate
+                guard sessionDate >= start && sessionDate < end else { return }
+                let day = Calendar.current.component(.day, from: sessionDate)
+                result[day, default: 0] += session.durationMinutes
             }
-
-            let fileName = "studyapp_backup_\(timestampString()).\(format.rawValue)"
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-            try contents.data(using: .utf8)?.write(to: url, options: .atomic)
-            return url
         } catch {
-            present(error)
-            return nil
+            app.present(error)
+        }
+    }
+}
+
+@MainActor
+final class ReportsViewModel: ScreenViewModel {
+    @Published private(set) var reports = ReportsData(daily: [], weekly: [], monthly: [], bySubject: [], streakDays: 0, bestStreak: 0)
+
+    func load() async {
+        do {
+            let useCase = GetReportsDataUseCase(subjectRepository: app.persistence, sessionRepository: app.persistence, clock: app.clock)
+            reports = try await useCase.execute()
+        } catch {
+            app.present(error)
+        }
+    }
+}
+
+@MainActor
+final class SettingsViewModel: ScreenViewModel {
+    @Published private(set) var exportURL: URL?
+
+    func export(format: ExportFormat) {
+        perform {
+            let useCase = ExportImportDataUseCase(repository: self.app.persistence)
+            let contents = try await (format == .json ? useCase.exportJSON() : useCase.exportCSV())
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("studyapp_backup_\(Int(Date().timeIntervalSince1970)).\(format.rawValue)")
+            try contents.write(to: url, atomically: true, encoding: .utf8)
+            self.exportURL = url
         }
     }
 
-    func importBackup(from url: URL) async {
-        do {
-            let data = try Data(contentsOf: url)
-            guard let json = String(data: data, encoding: .utf8) else {
-                present("バックアップの読み込みに失敗しました")
-                return
-            }
-            let imported = try await persistence.importJSON(json, into: snapshot)
-            snapshot = imported
-            recalculatePlanActualMinutes()
-            restoreTimerState()
-            persist()
-        } catch {
-            present(error)
+    func importBackup(from url: URL) {
+        perform {
+            let contents = try String(contentsOf: url, encoding: .utf8)
+            let useCase = ExportImportDataUseCase(repository: self.app.persistence)
+            let preferences = try await useCase.importJSON(contents, currentPreferences: self.app.preferences)
+            self.app.savePreferences { $0 = preferences }
+            self.app.bumpDataVersion()
         }
     }
 
     func deleteAllData() {
-        let reminderEnabled = snapshot.reminderEnabled
-        let reminderHour = snapshot.reminderHour
-        let reminderMinute = snapshot.reminderMinute
-        let onboardingCompleted = snapshot.onboardingCompleted
-        let selectedColorTheme = snapshot.selectedColorTheme
-        let selectedThemeMode = snapshot.selectedThemeMode
-
-        snapshot = AppSnapshot.empty
-        snapshot.reminderEnabled = reminderEnabled
-        snapshot.reminderHour = reminderHour
-        snapshot.reminderMinute = reminderMinute
-        snapshot.onboardingCompleted = onboardingCompleted
-        snapshot.selectedColorTheme = selectedColorTheme
-        snapshot.selectedThemeMode = selectedThemeMode
-        elapsedTime = 0
-        stopTicker()
-        persist()
-    }
-
-    func clearError() {
-        errorMessage = nil
-    }
-
-    private func restoreTimerState() {
-        if let activeTimer = snapshot.activeTimer {
-            elapsedTime = activeTimer.elapsedTime()
-            if activeTimer.isRunning {
-                startTicker()
-            } else {
-                stopTicker()
-            }
-        } else {
-            elapsedTime = 0
-            stopTicker()
+        perform {
+            try await self.app.persistence.deleteAllData()
+            self.app.updateActiveTimer(nil)
+            self.app.bumpDataVersion()
         }
-    }
-
-    private func startTicker() {
-        stopTicker()
-        timerCancellable = Timer.publish(every: 1, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                self?.updateElapsedTime()
-            }
-    }
-
-    private func stopTicker() {
-        timerCancellable?.cancel()
-        timerCancellable = nil
-    }
-
-    private func updateElapsedTime() {
-        elapsedTime = snapshot.activeTimer?.elapsedTime() ?? 0
-    }
-
-    private func recalculatePlanActualMinutes() {
-        guard let activePlan else { return }
-        snapshot.planItems = snapshot.planItems.map { item in
-            guard item.planId == activePlan.id else { return item }
-            var updated = item
-            updated.actualMinutes = sessions
-                .filter { session in
-                    session.subjectId == item.subjectId &&
-                    session.dayOfWeek == item.dayOfWeek &&
-                    session.startTime >= activePlan.startDate &&
-                    session.startTime <= activePlan.endDate
-                }
-                .reduce(0) { $0 + $1.durationMinutes }
-            return updated
-        }
-    }
-
-    private func weekRange(containing date: Date) -> (start: Date, end: Date) {
-        let calendar = Calendar.current
-        let interval = calendar.dateInterval(of: .weekOfYear, for: date)
-        let start = interval?.start ?? calendar.startOfDay(for: date)
-        let end = interval?.end ?? start
-        return (start, end)
-    }
-
-    private func nextIdentifier() -> Int64 {
-        snapshot.lastIdentifier += 1
-        return snapshot.lastIdentifier
-    }
-
-    private func persist() {
-        let current = snapshot
-        Task {
-            do {
-                try await persistence.save(snapshot: current)
-            } catch {
-                await MainActor.run {
-                    self.present(error)
-                }
-            }
-        }
-    }
-
-    private func buildBookNote(_ bookInfo: BookInfo) -> String? {
-        var lines = [String]()
-        if !bookInfo.authors.isEmpty {
-            lines.append("著者: \(bookInfo.authors.joined(separator: ", "))")
-        }
-        if let publisher = bookInfo.publisher, !publisher.isEmpty {
-            lines.append("出版社: \(publisher)")
-        }
-        if let publishedDate = bookInfo.publishedDate, !publishedDate.isEmpty {
-            lines.append("出版日: \(publishedDate)")
-        }
-        return lines.isEmpty ? nil : lines.joined(separator: "\n")
-    }
-
-    private func timestampString() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd_HHmmss"
-        return formatter.string(from: Date())
-    }
-
-    private func present(_ message: String) {
-        errorMessage = message
-    }
-
-    private func present(_ error: Error) {
-        errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-    }
-}
-
-private extension String {
-    var nilIfBlank: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
