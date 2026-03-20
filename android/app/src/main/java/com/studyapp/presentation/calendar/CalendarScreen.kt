@@ -2,7 +2,9 @@ package com.studyapp.presentation.calendar
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
@@ -14,11 +16,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlin.math.ceil
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -49,6 +53,7 @@ fun CalendarScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
         ) {
             CalendarHeader(
                 year = uiState.currentYear,
@@ -123,6 +128,8 @@ private fun CalendarGrid(
     
     val firstDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK) - 1
     val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val totalCells = firstDayOfWeek + daysInMonth
+    val weekRows = ceil(totalCells / 7f).toInt()
     
     val weekDays = listOf("日", "月", "火", "水", "木", "金", "土")
     
@@ -143,42 +150,55 @@ private fun CalendarGrid(
             }
         }
         
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(7),
-            modifier = Modifier.height(300.dp)
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
         ) {
-            items(firstDayOfWeek) {
-                Box(modifier = Modifier.aspectRatio(1f))
-            }
-            
-            items(daysInMonth) { day ->
-                val studyMinutes = studyData[day + 1] ?: 0L
-                val isSelected = selectedDate?.let { 
-                    val cal = Calendar.getInstance()
-                    cal.time = it
-                    cal.get(Calendar.YEAR) == year && 
-                    cal.get(Calendar.MONTH) == month - 1 && 
-                    cal.get(Calendar.DAY_OF_MONTH) == day + 1
-                } ?: false
-                
-                val isToday = run {
-                    val today = Calendar.getInstance()
-                    today.get(Calendar.YEAR) == year &&
-                    today.get(Calendar.MONTH) == month - 1 &&
-                    today.get(Calendar.DAY_OF_MONTH) == day + 1
+            val cellSize = maxWidth / 7
+            val gridHeight = cellSize * weekRows
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(7),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(gridHeight)
+                    .testTag("calendar_grid"),
+                userScrollEnabled = false
+            ) {
+                items(firstDayOfWeek) {
+                    Box(modifier = Modifier.aspectRatio(1f))
                 }
                 
-                DayCell(
-                    day = day + 1,
-                    studyMinutes = studyMinutes,
-                    isSelected = isSelected,
-                    isToday = isToday,
-                    onClick = {
+                items(daysInMonth) { day ->
+                    val studyMinutes = studyData[day + 1] ?: 0L
+                    val isSelected = selectedDate?.let {
                         val cal = Calendar.getInstance()
-                        cal.set(year, month - 1, day + 1)
-                        onDateSelect(cal.time)
+                        cal.time = it
+                        cal.get(Calendar.YEAR) == year &&
+                            cal.get(Calendar.MONTH) == month - 1 &&
+                            cal.get(Calendar.DAY_OF_MONTH) == day + 1
+                    } ?: false
+                    
+                    val isToday = run {
+                        val today = Calendar.getInstance()
+                        today.get(Calendar.YEAR) == year &&
+                            today.get(Calendar.MONTH) == month - 1 &&
+                            today.get(Calendar.DAY_OF_MONTH) == day + 1
                     }
-                )
+                    
+                    DayCell(
+                        day = day + 1,
+                        studyMinutes = studyMinutes,
+                        isSelected = isSelected,
+                        isToday = isToday,
+                        onClick = {
+                            val cal = Calendar.getInstance()
+                            cal.set(year, month - 1, day + 1)
+                            onDateSelect(cal.time)
+                        }
+                    )
+                }
             }
         }
     }
@@ -204,6 +224,7 @@ private fun DayCell(
         modifier = Modifier
             .aspectRatio(1f)
             .padding(2.dp)
+            .testTag("calendar_day_$day")
             .clip(CircleShape)
             .background(backgroundColor)
             .clickable(onClick = onClick)
