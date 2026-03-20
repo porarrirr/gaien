@@ -1,0 +1,87 @@
+name: iOS Unsigned IPA Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to build and release"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build unsigned iOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DERIVED_DATA_PATH="$RUNNER_TEMP/DerivedData"
+
+          xcodebuild \
+            -project ios/StudyApp.xcodeproj \
+            -scheme StudyApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination generic/platform=iOS \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            clean build
+
+          APP_PATH="$DERIVED_DATA_PATH/Build/Products/Release-iphoneos/StudyApp.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Expected app bundle was not found at: $APP_PATH"
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/StudyApp.app"
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG_NAME="${{ inputs.tag || github.ref_name }}"
+          IPA_NAME="StudyApp-${TAG_NAME}-unsigned.ipa"
+
+          cd "$RUNNER_TEMP"
+          /usr/bin/zip -qry "$IPA_NAME" Payload
+
+          mv "$IPA_NAME" "$GITHUB_WORKSPACE/$IPA_NAME"
+          echo "ipa_name=$IPA_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa
+          path: ${{ env.ipa_name }}
+
+      - name: Attach IPA to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: ${{ env.ipa_name }}
+          generate_release_notes: true
