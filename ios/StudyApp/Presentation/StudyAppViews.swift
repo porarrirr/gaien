@@ -538,9 +538,9 @@ private struct TimerScreen: View {
                                 .foregroundStyle(.white)
                                 .frame(width: 80, height: 80)
                                 .background(
-                                    Circle().fill(.tint)
+                                    Circle().fill(Color.accentColor)
                                 )
-                                .shadow(color: .tint.opacity(0.4), radius: 12, y: 4)
+                                .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 4)
                         }
                     }
                 }
