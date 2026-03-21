@@ -1,13 +1,14 @@
 package com.studyapp.data.service
 
 import android.util.Log
+import com.studyapp.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.IOException
-import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -41,14 +42,15 @@ class GoogleBooksService @Inject constructor(
     private val apiKey: String? = try {
         System.getenv("GOOGLE_BOOKS_API_KEY")
     } catch (e: Exception) {
-        Log.w(TAG, "Failed to get API key from environment", e)
+        if (BuildConfig.DEBUG) {
+            Log.w(TAG, "Failed to access Google Books API key", e)
+        }
         null
     }
     
     suspend fun searchByIsbn(isbn: String): Result<BookInfo> = withContext(Dispatchers.IO) {
         try {
-            val encodedIsbn = URLEncoder.encode(isbn, "UTF-8")
-            val url = buildUrl("isbn:$encodedIsbn")
+            val url = buildUrl("isbn:$isbn")
             
             val request = Request.Builder().url(url).build()
             
@@ -81,18 +83,17 @@ class GoogleBooksService @Inject constructor(
                 Result.success(parseVolumeInfo(volumeInfo))
             }
         } catch (e: IOException) {
-            Log.e(TAG, "Network error while searching ISBN: $isbn", e)
+            logFailure("Network error while searching ISBN", e)
             Result.failure(BookApiError.NetworkError(e.message ?: "Network error", e))
         } catch (e: Exception) {
-            Log.e(TAG, "Error while searching ISBN: $isbn", e)
+            logFailure("Unexpected error while searching ISBN", e)
             Result.failure(BookApiError.UnknownError(e.message ?: "Unknown error", e))
         }
     }
     
     suspend fun searchByTitle(title: String): Result<List<BookInfo>> = withContext(Dispatchers.IO) {
         try {
-            val encodedTitle = URLEncoder.encode(title, "UTF-8")
-            val url = buildUrl("intitle:$encodedTitle", maxResults = 10)
+            val url = buildUrl("intitle:$title", maxResults = 10)
             
             val request = Request.Builder().url(url).build()
             
@@ -133,33 +134,32 @@ class GoogleBooksService @Inject constructor(
                 Result.success(books)
             }
         } catch (e: IOException) {
-            Log.e(TAG, "Network error while searching title: $title", e)
+            logFailure("Network error while searching title", e)
             Result.failure(BookApiError.NetworkError(e.message ?: "Network error", e))
         } catch (e: Exception) {
-            Log.e(TAG, "Error while searching title: $title", e)
+            logFailure("Unexpected error while searching title", e)
             Result.failure(BookApiError.UnknownError(e.message ?: "Unknown error", e))
         }
     }
     
     private fun buildUrl(query: String, maxResults: Int? = null): String {
-        val builder = StringBuilder("$BASE_URL?q=$query")
-        
-        apiKey?.let {
-            builder.append("&key=$it")
-        }
-        
+        val builder = BASE_URL.toHttpUrlOrNull()?.newBuilder()
+            ?: throw IllegalStateException("Invalid Google Books base URL")
+        builder.addQueryParameter("q", query)
         maxResults?.let {
-            builder.append("&maxResults=$it")
+            builder.addQueryParameter("maxResults", it.toString())
         }
-        
-        return builder.toString()
+        apiKey?.let {
+            builder.addQueryParameter("key", it)
+        }
+        return builder.build().toString()
     }
     
     private fun parseJson(jsonString: String): JSONObject? {
         return try {
             JSONObject(jsonString)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse JSON", e)
+            logFailure("Failed to parse Google Books response", e)
             null
         }
     }
@@ -185,5 +185,11 @@ class GoogleBooksService @Inject constructor(
             pageCount = if (pageCount > 0) pageCount else null,
             thumbnailUrl = thumbnailUrl
         )
+    }
+
+    private fun logFailure(message: String, throwable: Throwable) {
+        if (BuildConfig.DEBUG) {
+            Log.e(TAG, message, throwable)
+        }
     }
 }

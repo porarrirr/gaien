@@ -44,6 +44,8 @@ class TimerViewModelTest {
     private val elapsedTimeFlow = MutableStateFlow(0L)
     private val isRunningFlow = MutableStateFlow(false)
     private val isBoundFlow = MutableStateFlow(false)
+    private val currentSubjectIdFlow = MutableStateFlow<Long?>(null)
+    private val currentMaterialIdFlow = MutableStateFlow<Long?>(null)
     
     @Before
     fun setup() {
@@ -62,6 +64,8 @@ class TimerViewModelTest {
         every { timerServiceManager.elapsedTime } returns elapsedTimeFlow
         every { timerServiceManager.isRunning } returns isRunningFlow
         every { timerServiceManager.isBound } returns isBoundFlow
+        every { timerServiceManager.currentSubjectId } returns currentSubjectIdFlow
+        every { timerServiceManager.currentMaterialId } returns currentMaterialIdFlow
         every { timerServiceManager.bind() } just runs
         every { timerServiceManager.unbind() } just runs
         
@@ -444,6 +448,29 @@ class TimerViewModelTest {
         assertEquals(1, state.recentMaterials.size)
         assertEquals("Textbook", state.recentMaterials.first().first.name)
         assertEquals("Math", state.recentMaterials.first().second.name)
+    }
+
+    @Test
+    fun `active timer selection is restored from service manager state`() = runTest {
+        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
+        val material = Material(id = 2L, name = "Workbook", subjectId = 1L)
+
+        every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(listOf(subject)))
+        every { materialRepository.getAllMaterials() } returns flowOf(Result.Success(listOf(material)))
+        currentSubjectIdFlow.value = subject.id
+        currentMaterialIdFlow.value = material.id
+
+        viewModel = TimerViewModel(
+            subjectRepository = subjectRepository,
+            materialRepository = materialRepository,
+            saveStudySessionUseCase = saveStudySessionUseCase,
+            getRecentMaterialsUseCase = getRecentMaterialsUseCase,
+            timerServiceManager = timerServiceManager
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(subject, viewModel.uiState.value.selectedSubject)
+        assertEquals(material, viewModel.uiState.value.selectedMaterial)
     }
     
     @Test

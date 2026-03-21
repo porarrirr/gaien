@@ -11,4 +11,6 @@ interface TimerServiceManager {
     val elapsedTime: Flow<Long>
     val isRunning: Flow<Boolean>
     val isBound: Flow<Boolean>
+    val currentSubjectId: Flow<Long?>
+    val currentMaterialId: Flow<Long?>
 }

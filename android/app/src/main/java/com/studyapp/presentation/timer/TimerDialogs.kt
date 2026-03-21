@@ -6,7 +6,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.studyapp.R
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.Subject
 
@@ -79,23 +81,71 @@ fun MaterialPickerDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManualInputDialog(
+    subjects: List<Subject>,
+    initialSubjectId: Long? = null,
     onDismiss: () -> Unit,
     onConfirm: (subjectId: Long, materialId: Long?, durationMinutes: Long) -> Unit
 ) {
     var duration by remember { mutableStateOf("") }
-    var selectedSubjectId by remember { mutableStateOf<Long?>(null) }
+    var selectedSubjectId by remember(initialSubjectId) { mutableStateOf(initialSubjectId) }
+    var isSubjectMenuExpanded by remember { mutableStateOf(false) }
+    val selectedSubject = remember(subjects, selectedSubjectId) {
+        subjects.firstOrNull { it.id == selectedSubjectId }
+    }
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("手動入力") },
+        title = { Text(stringResource(R.string.timer_manual_input_title)) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                ExposedDropdownMenuBox(
+                    expanded = isSubjectMenuExpanded,
+                    onExpandedChange = { isSubjectMenuExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedSubject?.name ?: "",
+                        onValueChange = {},
+                        label = { Text(stringResource(R.string.timer_select_subject)) },
+                        readOnly = true,
+                        enabled = subjects.isNotEmpty(),
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = isSubjectMenuExpanded)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isSubjectMenuExpanded,
+                        onDismissRequest = { isSubjectMenuExpanded = false }
+                    ) {
+                        subjects.forEach { subject ->
+                            DropdownMenuItem(
+                                text = { Text(subject.name) },
+                                onClick = {
+                                    selectedSubjectId = subject.id
+                                    isSubjectMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (subjects.isEmpty()) {
+                    Text(
+                        text = "先に科目を追加してください",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 OutlinedTextField(
                     value = duration,
                     onValueChange = { duration = it.filter { c -> c.isDigit() } },
-                    label = { Text("学習時間（分）") },
+                    label = { Text(stringResource(R.string.timer_duration)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -112,12 +162,12 @@ fun ManualInputDialog(
                 },
                 enabled = duration.isNotEmpty() && selectedSubjectId != null
             ) {
-                Text("保存")
+                Text(stringResource(R.string.common_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("キャンセル")
+                Text(stringResource(R.string.common_cancel))
             }
         }
     )

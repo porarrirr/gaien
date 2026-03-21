@@ -8,7 +8,6 @@ import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -49,24 +48,43 @@ class ReportsViewModel @Inject constructor(
             val weeklyDataDeferred = async { loadWeeklyData() }
             val monthlyDataDeferred = async { loadMonthlyData() }
             val subjectBreakdownDeferred = async { loadSubjectBreakdown() }
-            
-            val results = awaitAll(
-                dailyDataDeferred,
-                weeklyDataDeferred,
-                monthlyDataDeferred,
-                subjectBreakdownDeferred
-            )
-            
-            val errors = results.mapNotNull { (it as? Result.Error)?.let { e -> e.message ?: e.exception.message } }
-            if (errors.isNotEmpty()) {
-                _uiState.update { it.copy(isLoading = false, error = errors.first()) }
-                return@launch
+
+            val dailyData = when (val result = dailyDataDeferred.await()) {
+                is Result.Success -> result.data
+                is Result.Error -> {
+                    _uiState.update {
+                        it.copy(isLoading = false, error = result.getErrorMessage())
+                    }
+                    return@launch
+                }
             }
-            
-            val dailyData = (results[0] as Result.Success<List<DailyStudyData>>).data
-            val weeklyData = (results[1] as Result.Success<List<WeeklyStudyData>>).data
-            val monthlyData = (results[2] as Result.Success<List<MonthlyStudyData>>).data
-            val subjectBreakdown = (results[3] as Result.Success<List<SubjectStudyData>>).data
+            val weeklyData = when (val result = weeklyDataDeferred.await()) {
+                is Result.Success -> result.data
+                is Result.Error -> {
+                    _uiState.update {
+                        it.copy(isLoading = false, error = result.getErrorMessage())
+                    }
+                    return@launch
+                }
+            }
+            val monthlyData = when (val result = monthlyDataDeferred.await()) {
+                is Result.Success -> result.data
+                is Result.Error -> {
+                    _uiState.update {
+                        it.copy(isLoading = false, error = result.getErrorMessage())
+                    }
+                    return@launch
+                }
+            }
+            val subjectBreakdown = when (val result = subjectBreakdownDeferred.await()) {
+                is Result.Success -> result.data
+                is Result.Error -> {
+                    _uiState.update {
+                        it.copy(isLoading = false, error = result.getErrorMessage())
+                    }
+                    return@launch
+                }
+            }
             
             val totalMinutes = monthlyData.sumOf { it.totalHours * 60L }
             val averageTime = if (dailyData.isNotEmpty()) {
@@ -210,7 +228,7 @@ class ReportsViewModel @Inject constructor(
             val calendar = Calendar.getInstance()
             calendar.add(Calendar.MONTH, -1)
             val startTime = calendar.timeInMillis
-            val endTime = System.currentTimeMillis()
+            val endTime = clock.currentTimeMillis()
             
             val subjectsResult = subjectRepository.getAllSubjects().first()
             

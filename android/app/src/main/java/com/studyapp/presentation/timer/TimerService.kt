@@ -1,6 +1,5 @@
 package com.studyapp.presentation.timer
 
-import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -24,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -43,21 +43,10 @@ class TimerService : Service() {
     
     private val binder = LocalBinder()
     private var timerJob: Job? = null
-    private var startTime: Long = 0L
     private lateinit var notificationManager: NotificationManager
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    
-    private val _elapsedTime = MutableStateFlow(0L)
-    val elapsedTime: StateFlow<Long> = _elapsedTime.asStateFlow()
-    
-    private val _isRunning = MutableStateFlow(false)
-    val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
-    
-    private val _currentSubjectId = MutableStateFlow<Long?>(null)
-    val currentSubjectId: StateFlow<Long?> = _currentSubjectId.asStateFlow()
-    
-    private val _currentMaterialId = MutableStateFlow<Long?>(null)
-    val currentMaterialId: StateFlow<Long?> = _currentMaterialId.asStateFlow()
+    private val _timerState = MutableStateFlow(TimerState())
+    val timerState: StateFlow<TimerState> = _timerState.asStateFlow()
     
     private var notificationIconResId: Int = android.R.drawable.ic_menu_recent_history
     
@@ -74,39 +63,19 @@ class TimerService : Service() {
     
     private fun restoreTimerState() {
         serviceScope.launch {
-            timerStateStore.timerState.first().let { state ->
-                if (state.isRunning && state.subjectId != null) {
-                    _currentSubjectId.value = state.subjectId
-                    _currentMaterialId.value = state.materialId
-                    startTime = state.startTime
-                    val elapsed = if (state.startTime > 0) {
-                        System.currentTimeMillis() - state.startTime
-                    } else {
-                        state.elapsedTime
-                    }
-                    _elapsedTime.value = elapsed
-                    _isRunning.value = true
-                    
-                    timerJob?.cancel()
-                    timerJob = serviceScope.launch {
-                        while (_isRunning.value) {
-                            delay(1000)
-                            _elapsedTime.value = System.currentTimeMillis() - startTime
-                            updateNotification()
-                        }
-                    }
-                    try {
-                        ServiceCompat.startForeground(
-                            this@TimerService,
-                            NOTIFICATION_ID,
-                            createNotification(),
-                            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                        )
-                    } catch (e: Exception) {
-                        _isRunning.value = false
-                        timerJob?.cancel()
-                    }
-                }
+            val persistedState = timerStateStore.timerState.first()
+            if (persistedState.subjectId == null && persistedState.elapsedTime <= 0L) {
+                return@launch
+            }
+
+            val restoredState = persistedState.copy(
+                elapsedTime = currentElapsedTime(persistedState)
+            )
+            _timerState.value = restoredState
+
+            if (restoredState.isRunning && restoredState.subjectId != null) {
+                startTicker()
+                tryStartForeground(restoredState)
             }
         }
     }
@@ -127,7 +96,9 @@ class TimerService : Service() {
             ACTION_START -> {
                 val subjectId = intent.getLongExtra("subjectId", -1).takeIf { it > 0 }
                 val materialId = intent.getLongExtra("materialId", -1).takeIf { it > 0 }
-                startTimer(subjectId, materialId)
+                if (subjectId != null) {
+                    startTimer(subjectId, materialId)
+                }
             }
             ACTION_PAUSE -> pauseTimer()
             ACTION_STOP -> stopTimer()
@@ -167,7 +138,8 @@ class TimerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        val time = _elapsedTime.value
+        val state = _timerState.value
+        val time = state.elapsedTime
         val hours = time / 3600000
         val minutes = (time % 3600000) / 60000
         val seconds = (time % 60000) / 1000
@@ -198,17 +170,17 @@ class TimerService : Service() {
             .setContentIntent(pendingIntent)
             .setContentTitle(
                 getString(
-                    if (_isRunning.value) {
+                    if (state.isRunning) {
                         R.string.timer_running
                     } else {
                         R.string.timer_notification_paused
                     }
                 )
             )
-            .setOngoing(_isRunning.value)
+            .setOngoing(state.isRunning)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
 
-        if (_isRunning.value) {
+        if (state.isRunning) {
             builder.addAction(pauseIconResId, getString(R.string.pause), pausePendingIntent)
         }
 
@@ -216,56 +188,37 @@ class TimerService : Service() {
         return builder.build()
     }
     
-    fun startTimer(subjectId: Long?, materialId: Long?) {
-        if (_isRunning.value) return
-        
-        _currentSubjectId.value = subjectId
-        _currentMaterialId.value = materialId
-        startTime = System.currentTimeMillis() - _elapsedTime.value
-        _isRunning.value = true
-        
-        persistTimerState()
-        
-        timerJob?.cancel()
-        timerJob = serviceScope.launch {
-            while (_isRunning.value) {
-                delay(1000)
-                _elapsedTime.value = System.currentTimeMillis() - startTime
-                updateNotification()
-            }
-        }
-        
-        try {
-            ServiceCompat.startForeground(
-                this,
-                NOTIFICATION_ID,
-                createNotification(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            )
-        } catch (e: Exception) {
-            _isRunning.value = false
-            timerJob?.cancel()
-            clearPersistedTimerState()
-        }
+    fun startTimer(subjectId: Long, materialId: Long?) {
+        val currentState = _timerState.value
+        if (currentState.isRunning) return
+
+        val updatedState = currentState.copy(
+            subjectId = subjectId,
+            materialId = materialId,
+            isRunning = true,
+            startTime = System.currentTimeMillis() - currentState.elapsedTime
+        )
+        _timerState.value = updatedState
+        persistTimerState(updatedState)
+
+        startTicker()
+        tryStartForeground(updatedState)
     }
     
     fun pauseTimer() {
         timerJob?.cancel()
-        _isRunning.value = false
-        persistTimerState()
+        val pausedState = _timerState.value.pause()
+        _timerState.value = pausedState
+        persistTimerState(pausedState)
         updateNotification()
     }
     
     fun stopTimer(): Pair<Long, Long?> {
         timerJob?.cancel()
-        val elapsed = _elapsedTime.value
-        val subjectId = _currentSubjectId.value
-        val materialId = _currentMaterialId.value
-        
-        _elapsedTime.value = 0L
-        _isRunning.value = false
-        _currentSubjectId.value = null
-        _currentMaterialId.value = null
+        val currentState = _timerState.value
+        val elapsed = currentElapsedTime(currentState)
+        val materialId = currentState.materialId
+        _timerState.value = TimerState()
         
         clearPersistedTimerState()
         
@@ -279,17 +232,9 @@ class TimerService : Service() {
         notificationManager.notify(NOTIFICATION_ID, createNotification())
     }
     
-    private fun persistTimerState() {
+    private fun persistTimerState(state: TimerState = _timerState.value) {
         serviceScope.launch {
-            timerStateStore.updateTimerState(
-                TimerState(
-                    elapsedTime = _elapsedTime.value,
-                    subjectId = _currentSubjectId.value,
-                    materialId = _currentMaterialId.value,
-                    isRunning = _isRunning.value,
-                    startTime = startTime
-                )
-            )
+            timerStateStore.updateTimerState(state)
         }
     }
     
@@ -300,11 +245,68 @@ class TimerService : Service() {
     }
     
     fun setElapsedTime(elapsedTime: Long) {
-        _elapsedTime.value = elapsedTime
-        startTime = System.currentTimeMillis() - elapsedTime
+        _timerState.update { state ->
+            state.copy(
+                elapsedTime = elapsedTime,
+                startTime = if (state.isRunning) {
+                    System.currentTimeMillis() - elapsedTime
+                } else {
+                    0L
+                }
+            )
+        }
     }
     
-    fun getElapsedTime(): Long = _elapsedTime.value
+    fun getElapsedTime(): Long = currentElapsedTime(_timerState.value)
     
-    fun isRunning(): Boolean = _isRunning.value
+    fun isRunning(): Boolean = _timerState.value.isRunning
+
+    private fun startTicker() {
+        timerJob?.cancel()
+        timerJob = serviceScope.launch {
+            while (_timerState.value.isRunning) {
+                delay(1000)
+                _timerState.update { state ->
+                    if (!state.isRunning) {
+                        state
+                    } else {
+                        state.copy(elapsedTime = currentElapsedTime(state))
+                    }
+                }
+                updateNotification()
+            }
+        }
+    }
+
+    private fun tryStartForeground(state: TimerState) {
+        try {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                createNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } catch (e: Exception) {
+            timerJob?.cancel()
+            val pausedState = state.pause()
+            _timerState.value = pausedState
+            persistTimerState(pausedState)
+        }
+    }
+
+    private fun currentElapsedTime(state: TimerState): Long {
+        return if (state.isRunning && state.startTime > 0L) {
+            System.currentTimeMillis() - state.startTime
+        } else {
+            state.elapsedTime
+        }
+    }
+
+    private fun TimerState.pause(): TimerState {
+        return copy(
+            elapsedTime = currentElapsedTime(this),
+            isRunning = false,
+            startTime = 0L
+        )
+    }
 }

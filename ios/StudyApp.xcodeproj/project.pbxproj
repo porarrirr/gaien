@@ -11,6 +11,7 @@
 		A10000000000000000000002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Models.swift */; };
 		A10000000000000000000003 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* PersistenceController.swift */; };
 		A10000000000000000000004 /* GoogleBooksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* GoogleBooksService.swift */; };
+		A10000000000000000000018 /* FirebaseRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseRepositories.swift */; };
 		A10000000000000000000005 /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* ReminderScheduler.swift */; };
 		A10000000000000000000006 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Theme.swift */; };
 		A10000000000000000000007 /* StudyAppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* StudyAppStore.swift */; };
@@ -32,6 +33,7 @@
 		B10000000000000000000003 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
+		B10000000000000000000016 /* FirebaseRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseRepositories.swift; sourceTree = "<group>"; };
 		B10000000000000000000006 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		B10000000000000000000007 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000000000000000000008 /* StudyAppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppStore.swift; sourceTree = "<group>"; };
@@ -100,6 +102,7 @@
 			children = (
 				B10000000000000000000004 /* PersistenceController.swift */,
 				B10000000000000000000005 /* GoogleBooksService.swift */,
+				B10000000000000000000016 /* FirebaseRepositories.swift */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -285,6 +288,7 @@
 				A10000000000000000000002 /* Models.swift in Sources */,
 				A10000000000000000000003 /* PersistenceController.swift in Sources */,
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,
+				A10000000000000000000018 /* FirebaseRepositories.swift in Sources */,
 				A10000000000000000000005 /* ReminderScheduler.swift in Sources */,
 				A10000000000000000000006 /* Theme.swift in Sources */,
 				A10000000000000000000007 /* StudyAppStore.swift in Sources */,

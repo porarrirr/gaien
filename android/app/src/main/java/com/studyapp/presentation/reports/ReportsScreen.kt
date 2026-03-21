@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.presentation.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,7 +32,7 @@ import com.studyapp.presentation.components.*
 fun ReportsScreen(
     viewModel: ReportsViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("概要", "日別", "週別", "月別", "科目別")
     

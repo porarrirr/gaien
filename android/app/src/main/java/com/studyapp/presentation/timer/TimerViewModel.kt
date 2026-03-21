@@ -55,23 +55,40 @@ class TimerViewModel @Inject constructor(
         combine(
             subjectRepository.getAllSubjects(),
             materialRepository.getAllMaterials(),
-            getRecentMaterialsUseCase()
-        ) { subjectsResult, materialsResult, recentMaterials ->
-            Triple(
-                subjectsResult.getOrNull() ?: emptyList(),
-                materialsResult.getOrNull() ?: emptyList(),
-                recentMaterials
+            getRecentMaterialsUseCase(),
+            timerServiceManager.currentSubjectId,
+            timerServiceManager.currentMaterialId
+        ) { subjectsResult, materialsResult, recentMaterials, currentSubjectId, currentMaterialId ->
+            TimerDataState(
+                subjects = subjectsResult.getOrNull() ?: emptyList(),
+                materials = materialsResult.getOrNull() ?: emptyList(),
+                recentMaterials = recentMaterials,
+                currentSubjectId = currentSubjectId,
+                currentMaterialId = currentMaterialId
             )
         }
-        .onEach { (subjects, materials, recentMaterials) ->
-            val bySubject = materials.groupBy { it.subjectId }
+        .onEach { data ->
+            val bySubject = data.materials.groupBy { it.subjectId }
             _uiState.update { state ->
+                val selectedSubject = when (val currentSubjectId = data.currentSubjectId) {
+                    null -> state.selectedSubject?.let { selected -> data.subjects.find { it.id == selected.id } }
+                    else -> data.subjects.find { it.id == currentSubjectId }
+                }
+                val selectedMaterial = when (val currentMaterialId = data.currentMaterialId) {
+                    null -> state.selectedMaterial?.let { selected -> data.materials.find { it.id == selected.id } }
+                    else -> data.materials.find { it.id == currentMaterialId }
+                }?.takeIf { material ->
+                    selectedSubject == null || material.subjectId == selectedSubject.id
+                }
+
                 state.copy(
                     isLoading = false,
                     error = null,
-                    subjects = subjects,
+                    subjects = data.subjects,
                     materialsBySubject = bySubject,
-                    recentMaterials = recentMaterials
+                    recentMaterials = data.recentMaterials,
+                    selectedSubject = selectedSubject,
+                    selectedMaterial = selectedMaterial
                 )
             }
         }
@@ -184,4 +201,12 @@ class TimerViewModel @Inject constructor(
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }
+
+    private data class TimerDataState(
+        val subjects: List<Subject>,
+        val materials: List<Material>,
+        val recentMaterials: List<Pair<Material, Subject>>,
+        val currentSubjectId: Long?,
+        val currentMaterialId: Long?
+    )
 }

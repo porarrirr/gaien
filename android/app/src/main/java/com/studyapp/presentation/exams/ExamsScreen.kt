@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.Exam
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -24,7 +25,7 @@ import java.util.*
 fun ExamsScreen(
     viewModel: ExamsViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingExam by remember { mutableStateOf<Exam?>(null) }
     

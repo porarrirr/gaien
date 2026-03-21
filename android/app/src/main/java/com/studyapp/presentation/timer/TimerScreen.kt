@@ -34,7 +34,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.Subject
 import com.studyapp.R
@@ -55,7 +55,7 @@ import com.studyapp.R
 fun TimerScreen(
     viewModel: TimerViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showManualInputDialog by remember { mutableStateOf(false) }
     var showMaterialPicker by remember { mutableStateOf(false) }
     
@@ -169,6 +169,8 @@ fun TimerScreen(
     
     if (showManualInputDialog) {
         ManualInputDialog(
+            subjects = uiState.subjects,
+            initialSubjectId = uiState.selectedSubject?.id,
             onDismiss = { showManualInputDialog = false },
             onConfirm = { subjectId, materialId, durationMinutes ->
                 viewModel.saveManualEntry(subjectId, materialId, durationMinutes)

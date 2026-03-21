@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.PlanItem
 import com.studyapp.domain.model.PlanItemWithSubject
 import com.studyapp.domain.model.Subject
@@ -33,7 +34,7 @@ import java.util.*
 fun PlanScreen(
     viewModel: PlanViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
     var showAddItemDialog by remember { mutableStateOf(false) }
     var selectedDay by remember { mutableStateOf<DayOfWeek?>(null) }

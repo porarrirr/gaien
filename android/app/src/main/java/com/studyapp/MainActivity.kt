@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.presentation.MainScreen
 import com.studyapp.presentation.onboarding.OnboardingScreen
 import com.studyapp.presentation.onboarding.OnboardingUiState
@@ -31,7 +32,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val viewModel: OnboardingViewModel = hiltViewModel()
-                    val uiState by viewModel.uiState.collectAsState()
+                    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                     
                     when (val state = uiState) {
                         is OnboardingUiState.Loading -> {

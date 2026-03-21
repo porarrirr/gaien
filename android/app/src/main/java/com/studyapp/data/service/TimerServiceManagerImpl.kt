@@ -15,7 +15,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,19 +32,13 @@ class TimerServiceManagerImpl @Inject constructor(
     private var serviceStateJob: Job? = null
     private var hasActiveBinding = false
     private val _isBound = MutableStateFlow(false)
-    private val _elapsedTime = MutableStateFlow(0L)
-    private val _isRunning = MutableStateFlow(false)
-    private val _currentSubjectId = MutableStateFlow<Long?>(null)
-    private val _currentMaterialId = MutableStateFlow<Long?>(null)
+    private val _timerState = MutableStateFlow(TimerState())
 
     init {
         scope.launch {
             timerStateStore.timerState.collect { state ->
                 if (timerService == null) {
-                    _elapsedTime.value = state.elapsedTime
-                    _isRunning.value = state.isRunning
-                    _currentSubjectId.value = state.subjectId
-                    _currentMaterialId.value = state.materialId
+                    _timerState.value = state
                 }
             }
         }
@@ -119,42 +114,36 @@ class TimerServiceManagerImpl @Inject constructor(
             }
             context.startService(intent)
 
-            val elapsedTime = _elapsedTime.value
-            val materialId = _currentMaterialId.value
-            _elapsedTime.value = 0L
-            _isRunning.value = false
-            _currentSubjectId.value = null
-            _currentMaterialId.value = null
+            val currentState = _timerState.value
+            val elapsedTime = currentState.elapsedTime
+            val materialId = currentState.materialId
+            _timerState.value = TimerState()
 
             Pair(elapsedTime, materialId)
         }
     }
     
     override val elapsedTime: Flow<Long>
-        get() = _elapsedTime.asStateFlow()
+        get() = _timerState.asStateFlow().map { it.elapsedTime }.distinctUntilChanged()
     
     override val isRunning: Flow<Boolean>
-        get() = _isRunning.asStateFlow()
+        get() = _timerState.asStateFlow().map { it.isRunning }.distinctUntilChanged()
     
     override val isBound: Flow<Boolean>
         get() = _isBound.asStateFlow()
+
+    override val currentSubjectId: Flow<Long?>
+        get() = _timerState.asStateFlow().map { it.subjectId }.distinctUntilChanged()
+
+    override val currentMaterialId: Flow<Long?>
+        get() = _timerState.asStateFlow().map { it.materialId }.distinctUntilChanged()
 
     private fun connectToService(service: TimerService) {
         timerService = service
         serviceStateJob?.cancel()
         serviceStateJob = scope.launch {
-            combine(
-                service.elapsedTime,
-                service.isRunning,
-                service.currentSubjectId,
-                service.currentMaterialId
-            ) { elapsedTime, isRunning, subjectId, materialId ->
-                TimerStateSnapshot(elapsedTime, isRunning, subjectId, materialId)
-            }.collect { snapshot ->
-                _elapsedTime.value = snapshot.elapsedTime
-                _isRunning.value = snapshot.isRunning
-                _currentSubjectId.value = snapshot.subjectId
-                _currentMaterialId.value = snapshot.materialId
+            service.timerState.collect { state ->
+                _timerState.value = state
             }
         }
     }
@@ -165,11 +154,4 @@ class TimerServiceManagerImpl @Inject constructor(
         timerService = null
         _isBound.value = false
     }
-
-    private data class TimerStateSnapshot(
-        val elapsedTime: Long,
-        val isRunning: Boolean,
-        val subjectId: Long?,
-        val materialId: Long?
-    )
 }

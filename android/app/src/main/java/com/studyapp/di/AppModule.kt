@@ -1,7 +1,9 @@
 package com.studyapp.di
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
+import com.studyapp.BuildConfig
 import com.studyapp.data.local.db.ALL_MIGRATIONS
 import com.studyapp.data.local.db.StudyDatabase
 import com.studyapp.data.local.db.dao.*
@@ -25,8 +27,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
@@ -107,12 +109,20 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
+        return OkHttpClient.Builder().apply {
+            if (BuildConfig.DEBUG) {
+                addInterceptor(
+                    Interceptor { chain ->
+                        val request = chain.request()
+                        Log.d(
+                            "GoogleBooksNetwork",
+                            "${request.method} ${request.url.newBuilder().query(null).build()}"
+                        )
+                        chain.proceed(request)
+                    }
+                )
+            }
         }
-        
-        return OkHttpClient.Builder()
-            .addInterceptor(loggingInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
