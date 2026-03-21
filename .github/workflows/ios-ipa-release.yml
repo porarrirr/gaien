@@ -79,15 +79,7 @@ jobs:
           mkdir -p "$(dirname "$CONFIG_PATH")"
 
           if [ -n "${IOS_GOOGLE_SERVICE_INFO_PLIST_B64:-}" ]; then
-            python3 - <<'PY'
-            import base64
-            import os
-            from pathlib import Path
-
-            Path(os.environ["CONFIG_PATH"]).write_bytes(
-                base64.b64decode(os.environ["IOS_GOOGLE_SERVICE_INFO_PLIST_B64"])
-            )
-            PY
+            python3 -c "import base64, os, pathlib; pathlib.Path(os.environ['CONFIG_PATH']).write_bytes(base64.b64decode(os.environ['IOS_GOOGLE_SERVICE_INFO_PLIST_B64']))"
           elif [ -n "${IOS_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
             printf '%s' "$IOS_GOOGLE_SERVICE_INFO_PLIST" > "$CONFIG_PATH"
           else
@@ -147,18 +139,7 @@ jobs:
           INSTALLED_PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           export CERTIFICATE_PATH PROFILE_PATH
 
-          python3 - <<'PY'
-          import base64
-          import os
-          from pathlib import Path
-
-          Path(os.environ["CERTIFICATE_PATH"]).write_bytes(
-              base64.b64decode(os.environ["BUILD_CERTIFICATE_BASE64"])
-          )
-          Path(os.environ["PROFILE_PATH"]).write_bytes(
-              base64.b64decode(os.environ["BUILD_PROVISION_PROFILE_BASE64"])
-          )
-          PY
+          python3 -c "import base64, os, pathlib; pathlib.Path(os.environ['CERTIFICATE_PATH']).write_bytes(base64.b64decode(os.environ['BUILD_CERTIFICATE_BASE64'])); pathlib.Path(os.environ['PROFILE_PATH']).write_bytes(base64.b64decode(os.environ['BUILD_PROVISION_PROFILE_BASE64']))"
           security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST_PATH"
 
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PROFILE_PLIST_PATH")
