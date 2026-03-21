@@ -11,12 +11,15 @@ import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.studyapp.MainActivity
 import com.studyapp.R
 import com.studyapp.data.service.TimerState
 import com.studyapp.data.service.TimerStateStore
+import com.studyapp.domain.usecase.SaveStudySessionUseCase
+import com.studyapp.domain.util.Result
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +34,9 @@ class TimerService : Service() {
     
     @Inject
     lateinit var timerStateStore: TimerStateStore
+
+    @Inject
+    lateinit var saveStudySessionUseCase: SaveStudySessionUseCase
     
     companion object {
         const val CHANNEL_ID = "timer_channel"
@@ -39,6 +45,9 @@ class TimerService : Service() {
         const val ACTION_START = "com.studyapp.action.START_TIMER"
         const val ACTION_PAUSE = "com.studyapp.action.PAUSE_TIMER"
         const val ACTION_STOP = "com.studyapp.action.STOP_TIMER"
+        const val ACTION_STOP_AND_SAVE = "com.studyapp.action.STOP_TIMER_AND_SAVE"
+
+        private const val TAG = "TimerService"
     }
     
     private val binder = LocalBinder()
@@ -102,6 +111,7 @@ class TimerService : Service() {
             }
             ACTION_PAUSE -> pauseTimer()
             ACTION_STOP -> stopTimer()
+            ACTION_STOP_AND_SAVE -> serviceScope.launch { stopTimerAndPersist() }
         }
         return START_NOT_STICKY
     }
@@ -131,7 +141,7 @@ class TimerService : Service() {
         )
         
         val stopIntent = Intent(this, TimerService::class.java).apply {
-            action = ACTION_STOP
+            action = ACTION_STOP_AND_SAVE
         }
         val stopPendingIntent = PendingIntent.getService(
             this, 2, stopIntent,
@@ -214,10 +224,33 @@ class TimerService : Service() {
     }
     
     fun stopTimer(): Pair<Long, Long?> {
+        val stoppedTimer = clearTimerState()
+        return Pair(stoppedTimer.elapsed, stoppedTimer.materialId)
+    }
+
+    private suspend fun stopTimerAndPersist() {
+        val stoppedTimer = clearTimerState()
+        val subjectId = stoppedTimer.subjectId ?: return
+        if (stoppedTimer.elapsed <= 0L) {
+            return
+        }
+
+        when (val result = saveStudySessionUseCase(subjectId, stoppedTimer.materialId, stoppedTimer.elapsed)) {
+            is Result.Error -> {
+                Log.e(TAG, "Failed to save session from timer notification", result.exception)
+            }
+            is Result.Success -> Unit
+        }
+    }
+
+    private fun clearTimerState(): StoppedTimer {
         timerJob?.cancel()
         val currentState = _timerState.value
-        val elapsed = currentElapsedTime(currentState)
-        val materialId = currentState.materialId
+        val stoppedTimer = StoppedTimer(
+            subjectId = currentState.subjectId,
+            materialId = currentState.materialId,
+            elapsed = currentElapsedTime(currentState)
+        )
         _timerState.value = TimerState()
         
         clearPersistedTimerState()
@@ -225,7 +258,7 @@ class TimerService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         
-        return Pair(elapsed, materialId)
+        return stoppedTimer
     }
     
     private fun updateNotification() {
@@ -309,4 +342,10 @@ class TimerService : Service() {
             startTime = 0L
         )
     }
+
+    private data class StoppedTimer(
+        val subjectId: Long?,
+        val materialId: Long?,
+        val elapsed: Long
+    )
 }

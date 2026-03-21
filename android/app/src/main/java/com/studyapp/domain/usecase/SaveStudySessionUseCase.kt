@@ -2,6 +2,8 @@ package com.studyapp.domain.usecase
 
 import android.util.Log
 import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.repository.MaterialRepository
+import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
@@ -9,6 +11,8 @@ import javax.inject.Inject
 
 class SaveStudySessionUseCase @Inject constructor(
     private val studySessionRepository: StudySessionRepository,
+    private val subjectRepository: SubjectRepository,
+    private val materialRepository: MaterialRepository,
     private val clock: Clock
 ) {
     suspend operator fun invoke(
@@ -25,12 +29,20 @@ class SaveStudySessionUseCase @Inject constructor(
             }
             
             val currentTime = clock.currentTimeMillis()
+            val subject = subjectRepository.getSubjectById(subjectId).getOrNull()
+                ?: return Result.Error(
+                    NoSuchElementException("Subject not found"),
+                    "科目が見つかりません"
+                )
+            val material = materialId?.let { materialRepository.getMaterialById(it).getOrNull() }
             
             val session = StudySession(
                 materialId = materialId,
-                materialName = "",
+                materialSyncId = material?.syncId,
+                materialName = material?.name.orEmpty(),
                 subjectId = subjectId,
-                subjectName = "",
+                subjectSyncId = subject.syncId,
+                subjectName = subject.name,
                 startTime = currentTime - duration,
                 endTime = currentTime
             )

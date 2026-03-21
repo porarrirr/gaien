@@ -7,6 +7,7 @@ import com.studyapp.data.local.db.entity.MaterialWithSubject
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.util.Result
+import com.studyapp.sync.AppDataWriteLock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -14,7 +15,8 @@ import javax.inject.Singleton
 
 @Singleton
 class MaterialRepositoryImpl @Inject constructor(
-    private val materialDao: MaterialDao
+    private val materialDao: MaterialDao,
+    private val writeLock: AppDataWriteLock
 ) : MaterialRepository {
 
     companion object {
@@ -45,7 +47,9 @@ class MaterialRepositoryImpl @Inject constructor(
 
     override suspend fun insertMaterial(material: Material): Result<Long> {
         return try {
-            val id = materialDao.insertMaterial(material.toEntity())
+            val id = writeLock.withLock {
+                materialDao.insertMaterial(material.toEntity())
+            }
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert material: ${material.name}", e)
@@ -55,7 +59,9 @@ class MaterialRepositoryImpl @Inject constructor(
 
     override suspend fun updateMaterial(material: Material): Result<Unit> {
         return try {
-            materialDao.updateMaterial(material.copy(updatedAt = System.currentTimeMillis()).toEntity())
+            writeLock.withLock {
+                materialDao.updateMaterial(material.copy(updatedAt = System.currentTimeMillis()).toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update material: ${material.id}", e)
@@ -66,7 +72,9 @@ class MaterialRepositoryImpl @Inject constructor(
     override suspend fun deleteMaterial(material: Material): Result<Unit> {
         return try {
             val now = System.currentTimeMillis()
-            materialDao.updateMaterial(material.copy(deletedAt = now, updatedAt = now).toEntity())
+            writeLock.withLock {
+                materialDao.updateMaterial(material.copy(deletedAt = now, updatedAt = now).toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete material: ${material.id}", e)
@@ -76,7 +84,9 @@ class MaterialRepositoryImpl @Inject constructor(
 
     override suspend fun updateProgress(id: Long, page: Int): Result<Unit> {
         return try {
-            materialDao.updateProgress(id, page, System.currentTimeMillis())
+            writeLock.withLock {
+                materialDao.updateProgress(id, page, System.currentTimeMillis())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update progress for material: $id", e)

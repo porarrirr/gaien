@@ -13,6 +13,7 @@ import com.studyapp.domain.usecase.PlanData
 import com.studyapp.domain.util.Result
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Transaction
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +28,8 @@ class FirebaseSyncRepository @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
     private val firebaseFirestore: FirebaseFirestore,
     private val syncPreferences: SyncPreferences,
-    private val exportImportDataUseCase: ExportImportDataUseCase
+    private val exportImportDataUseCase: ExportImportDataUseCase,
+    private val writeLock: AppDataWriteLock
 ) : SyncRepository {
     private val _status = MutableStateFlow(
         SyncStatus(
@@ -42,18 +44,42 @@ class FirebaseSyncRepository @Inject constructor(
         val session = requireSession()
         setSyncing(true)
         try {
-            val local = exportLocalData()
-            val remoteJson = loadSnapshot(session.localId)
-            val merged = if (remoteJson == null) local else merge(local, AppData.fromJson(JSONObject(remoteJson)))
-            val payload = markSynced(merged, System.currentTimeMillis()).toJson().toString()
-            when (val result = exportImportDataUseCase.importFromJson(payload)) {
-                is Result.Error -> throw result.exception
-                is Result.Success -> Unit
+            writeLock.withLock {
+                var lastConflict: Throwable? = null
+                repeat(MAX_SYNC_ATTEMPTS) { attempt ->
+                    val local = exportLocalData()
+                    val remoteSnapshot = loadSnapshot(session.localId)
+                    val merged = remoteSnapshot.payload?.let { remotePayload ->
+                        merge(local, AppData.fromJson(JSONObject(remotePayload)))
+                    } ?: local
+                    val now = System.currentTimeMillis()
+                    val payload = markSynced(merged, now).toJson().toString()
+
+                    try {
+                        saveSnapshot(
+                            userId = session.localId,
+                            payload = payload,
+                            updatedAt = now,
+                            expectedVersion = remoteSnapshot.version
+                        )
+                        when (val result = exportImportDataUseCase.importFromJsonWithoutWriteLock(payload)) {
+                            is Result.Error -> throw result.exception
+                            is Result.Success -> Unit
+                        }
+                        syncPreferences.setLastSyncAt(now)
+                        _status.value = SyncStatus(true, session.email, false, now, null)
+                        return@withLock
+                    } catch (t: Throwable) {
+                        if (isConcurrentSnapshotUpdate(t) && attempt < MAX_SYNC_ATTEMPTS - 1) {
+                            lastConflict = t
+                            return@repeat
+                        }
+                        throw t
+                    }
+                }
+
+                throw lastConflict ?: IllegalStateException("Sync failed after repeated remote conflicts.")
             }
-            val now = System.currentTimeMillis()
-            saveSnapshot(session.localId, payload, now)
-            syncPreferences.setLastSyncAt(now)
-            _status.value = SyncStatus(true, session.email, false, now, null)
         } catch (t: Throwable) {
             _status.value = _status.value.copy(isSyncing = false, errorMessage = t.message)
             throw t
@@ -64,11 +90,23 @@ class FirebaseSyncRepository @Inject constructor(
         val session = requireSession()
         setSyncing(true)
         try {
-            val now = System.currentTimeMillis()
-            val payload = markSynced(exportLocalData(), now).toJson().toString()
-            saveSnapshot(session.localId, payload, now)
-            syncPreferences.setLastSyncAt(now)
-            _status.value = SyncStatus(true, session.email, false, now, null)
+            writeLock.withLock {
+                val remoteSnapshot = loadSnapshot(session.localId)
+                val now = System.currentTimeMillis()
+                val payload = markSynced(exportLocalData(), now).toJson().toString()
+                saveSnapshot(
+                    userId = session.localId,
+                    payload = payload,
+                    updatedAt = now,
+                    expectedVersion = remoteSnapshot.version
+                )
+                when (val result = exportImportDataUseCase.importFromJsonWithoutWriteLock(payload)) {
+                    is Result.Error -> throw result.exception
+                    is Result.Success -> Unit
+                }
+                syncPreferences.setLastSyncAt(now)
+                _status.value = SyncStatus(true, session.email, false, now, null)
+            }
         } catch (t: Throwable) {
             _status.value = _status.value.copy(isSyncing = false, errorMessage = t.message)
             throw t
@@ -76,36 +114,86 @@ class FirebaseSyncRepository @Inject constructor(
     }
 
     private suspend fun exportLocalData(): AppData {
-        return when (val result = exportImportDataUseCase.exportToJson()) {
-            is Result.Error -> throw result.exception
-            is Result.Success -> AppData.fromJson(JSONObject(result.data))
+        return exportImportDataUseCase.exportAppDataWithoutWriteLock()
+    }
+
+    private suspend fun loadSnapshot(userId: String): RemoteSnapshot {
+        val manifest = manifestDocument(userId).get().await()
+        if (!manifest.exists()) {
+            return RemoteSnapshot()
         }
+
+        val version = manifest.getLong("version") ?: 0L
+        val legacyPayload = manifest.getString("payload")
+        if (legacyPayload != null) {
+            return RemoteSnapshot(payload = legacyPayload, version = version)
+        }
+
+        val chunkCount = (manifest.getLong("chunkCount") ?: 0L).toInt()
+        if (chunkCount == 0) {
+            return RemoteSnapshot(payload = null, version = version, chunkCount = 0)
+        }
+
+        val payload = buildString {
+            for (index in 0 until chunkCount) {
+                val chunkSnapshot = chunkDocument(userId, index).get().await()
+                val chunkVersion = chunkSnapshot.getLong("version")
+                    ?: error("Missing snapshot chunk version for ${chunkId(index)}")
+                check(chunkVersion == version) {
+                    "Snapshot chunk version mismatch for ${chunkId(index)}"
+                }
+                append(
+                    chunkSnapshot.getString("payloadPart")
+                        ?: error("Missing snapshot chunk payload for ${chunkId(index)}")
+                )
+            }
+        }
+
+        return RemoteSnapshot(payload = payload, version = version, chunkCount = chunkCount)
     }
 
-    private suspend fun loadSnapshot(userId: String): String? {
-        val snapshot = firebaseFirestore
-            .collection("users")
-            .document(userId)
-            .collection("sync")
-            .document("default")
-            .get()
-            .await()
-        return snapshot.getString("payload")
-    }
+    private suspend fun saveSnapshot(
+        userId: String,
+        payload: String,
+        updatedAt: Long,
+        expectedVersion: Long
+    ): Long {
+        val manifestRef = manifestDocument(userId)
+        val chunks = payload.chunked(SNAPSHOT_CHUNK_SIZE)
 
-    private suspend fun saveSnapshot(userId: String, payload: String, updatedAt: Long) {
-        firebaseFirestore
-            .collection("users")
-            .document(userId)
-            .collection("sync")
-            .document("default")
-            .set(
+        return firebaseFirestore.runTransaction { transaction ->
+            val manifestSnapshot = transaction.get(manifestRef)
+            val currentVersion = manifestSnapshot.getLong("version") ?: 0L
+            val currentChunkCount = (manifestSnapshot.getLong("chunkCount") ?: 0L).toInt()
+            if (currentVersion != expectedVersion) {
+                throw ConcurrentSnapshotUpdateException()
+            }
+
+            val nextVersion = currentVersion + 1
+            chunks.forEachIndexed { index, chunk ->
+                transaction.set(
+                    chunkDocument(userId, index),
+                    mapOf(
+                        "version" to nextVersion,
+                        "index" to index,
+                        "payloadPart" to chunk
+                    )
+                )
+            }
+            for (index in chunks.size until currentChunkCount) {
+                transaction.delete(chunkDocument(userId, index))
+            }
+            transaction.set(
+                manifestRef,
                 mapOf(
-                    "payload" to payload,
-                    "updatedAt" to updatedAt
+                    "format" to SNAPSHOT_FORMAT,
+                    "version" to nextVersion,
+                    "updatedAt" to updatedAt,
+                    "chunkCount" to chunks.size
                 )
             )
-            .await()
+            nextVersion
+        }.await()
     }
 
     private fun merge(local: AppData, remote: AppData): AppData {
@@ -192,5 +280,36 @@ class FirebaseSyncRepository @Inject constructor(
             isSyncing = isSyncing,
             errorMessage = null
         )
+    }
+
+    private fun manifestDocument(userId: String) = firebaseFirestore
+        .collection("users")
+        .document(userId)
+        .collection("sync")
+        .document("default")
+
+    private fun chunkDocument(userId: String, index: Int) = manifestDocument(userId)
+        .collection("chunks")
+        .document(chunkId(index))
+
+    private fun chunkId(index: Int): String = index.toString().padStart(6, '0')
+
+    private fun isConcurrentSnapshotUpdate(throwable: Throwable): Boolean {
+        return throwable is ConcurrentSnapshotUpdateException ||
+            throwable.cause is ConcurrentSnapshotUpdateException
+    }
+
+    private data class RemoteSnapshot(
+        val payload: String? = null,
+        val version: Long = 0L,
+        val chunkCount: Int = 0
+    )
+
+    private class ConcurrentSnapshotUpdateException : IllegalStateException("Remote snapshot changed during sync.")
+
+    private companion object {
+        const val MAX_SYNC_ATTEMPTS = 3
+        const val SNAPSHOT_FORMAT = "chunked-v2"
+        const val SNAPSHOT_CHUNK_SIZE = 200_000
     }
 }

@@ -270,8 +270,20 @@ final class MaterialsViewModel: ScreenViewModel {
             guard currentPage >= 0 else { throw ValidationError(message: "ページ数は0以上で入力してください") }
             guard totalPages == 0 || currentPage <= totalPages else { throw ValidationError(message: "現在のページは総ページ数以下にしてください") }
             if let id {
+                guard let subject = try await self.app.persistence.getSubjectById(subjectId) else {
+                    throw ValidationError(message: "科目を選択してください")
+                }
                 try await self.app.persistence.updateMaterial(
-                    Material(id: id, name: trimmed, subjectId: subjectId, totalPages: totalPages, currentPage: currentPage, color: nil, note: note?.nilIfBlank)
+                    Material(
+                        id: id,
+                        name: trimmed,
+                        subjectId: subjectId,
+                        subjectSyncId: subject.syncId,
+                        totalPages: totalPages,
+                        currentPage: currentPage,
+                        color: nil,
+                        note: note?.nilIfBlank
+                    )
                 )
             } else {
                 let useCase = ManageMaterialsUseCase(materialRepository: self.app.persistence, subjectRepository: self.app.persistence, bookSearchRepository: self.app.googleBooksService)
@@ -391,14 +403,17 @@ final class TimerViewModel: ScreenViewModel {
                 throw ValidationError(message: "科目を選択してください")
             }
             let materials = try await self.app.persistence.getAllMaterials()
-            let materialName = materials.first(where: { $0.id == timer.materialId })?.name ?? ""
+            let material = materials.first(where: { $0.id == timer.materialId })
+            let materialName = material?.name ?? ""
             let end = Date().epochMilliseconds
             let start = end - elapsed
             _ = try await self.app.persistence.insertSession(
                 StudySession(
                     materialId: timer.materialId,
+                    materialSyncId: material?.syncId,
                     materialName: materialName,
                     subjectId: subject.id,
+                    subjectSyncId: subject.syncId,
                     subjectName: subject.name,
                     startTime: start,
                     endTime: end,
@@ -599,7 +614,12 @@ final class PlanViewModel: ScreenViewModel {
     func createPlan(name: String, startDate: Date, endDate: Date, items: [PlanItem]) {
         perform {
             let useCase = ManagePlansUseCase(repository: self.app.persistence)
-            try await useCase.createPlan(name: name, startDate: startDate, endDate: endDate, items: items)
+            let syncedItems = items.map { item -> PlanItem in
+                var value = item
+                value.subjectSyncId = self.subjects.first(where: { $0.id == item.subjectId })?.syncId
+                return value
+            }
+            try await useCase.createPlan(name: name, startDate: startDate, endDate: endDate, items: syncedItems)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -608,11 +628,12 @@ final class PlanViewModel: ScreenViewModel {
     func savePlanItem(_ item: PlanItem) {
         perform {
             guard item.targetMinutes > 0 else { throw ValidationError(message: "目標時間は0より大きくしてください") }
+            let subjectSyncId = self.subjects.first(where: { $0.id == item.subjectId })?.syncId
+            let planSyncId = item.planSyncId ?? self.activePlan?.syncId
             if item.id == 0 {
                 guard let activePlan = self.activePlan else {
                     throw ValidationError(message: "アクティブなプランがありません")
                 }
-                let subjectSyncId = self.subjects.first(where: { $0.id == item.subjectId })?.syncId
                 _ = try await self.app.persistence.insertPlanItem(
                     PlanItem(
                         planId: activePlan.id,
@@ -626,7 +647,10 @@ final class PlanViewModel: ScreenViewModel {
                     )
                 )
             } else {
-                try await self.app.persistence.updatePlanItem(item)
+                var updatedItem = item
+                updatedItem.planSyncId = planSyncId
+                updatedItem.subjectSyncId = subjectSyncId
+                try await self.app.persistence.updatePlanItem(updatedItem)
             }
             await self.load()
             self.app.bumpDataVersion()
@@ -774,4 +798,3 @@ final class SettingsViewModel: ScreenViewModel {
         }
     }
 }
-

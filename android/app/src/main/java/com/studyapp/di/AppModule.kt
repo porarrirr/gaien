@@ -222,9 +222,11 @@ object UseCaseModule {
     @Singleton
     fun provideSaveStudySessionUseCase(
         studySessionRepository: StudySessionRepository,
+        subjectRepository: SubjectRepository,
+        materialRepository: MaterialRepository,
         clock: Clock
     ): SaveStudySessionUseCase {
-        return SaveStudySessionUseCase(studySessionRepository, clock)
+        return SaveStudySessionUseCase(studySessionRepository, subjectRepository, materialRepository, clock)
     }
     
     @Provides
@@ -263,7 +265,8 @@ object UseCaseModule {
         goalRepository: GoalRepository,
         examRepository: ExamRepository,
         planRepository: PlanRepository,
-        database: StudyDatabase
+        database: StudyDatabase,
+        writeLock: com.studyapp.sync.AppDataWriteLock
     ): ExportImportDataUseCase {
         return ExportImportDataUseCase(
             subjectRepository,
@@ -272,7 +275,8 @@ object UseCaseModule {
             goalRepository,
             examRepository,
             planRepository,
-            database
+            database,
+            writeLock
         )
     }
 }

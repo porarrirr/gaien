@@ -17,6 +17,9 @@ permissions:
 jobs:
   build-unsigned-ipa:
     runs-on: macos-latest
+    env:
+      IOS_GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST }}
+      IOS_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST_B64 }}
 
     steps:
       - name: Checkout source
@@ -28,6 +31,28 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+
+      - name: Restore Firebase iOS config
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CONFIG_PATH="ios/StudyApp/Resources/GoogleService-Info.plist"
+          mkdir -p "$(dirname "$CONFIG_PATH")"
+
+          if [ -n "${IOS_GOOGLE_SERVICE_INFO_PLIST_B64:-}" ]; then
+            echo "$IOS_GOOGLE_SERVICE_INFO_PLIST_B64" | base64 --decode > "$CONFIG_PATH"
+          elif [ -n "${IOS_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
+            printf '%s' "$IOS_GOOGLE_SERVICE_INFO_PLIST" > "$CONFIG_PATH"
+          else
+            echo "Missing Firebase config secret. Set IOS_GOOGLE_SERVICE_INFO_PLIST_B64 or IOS_GOOGLE_SERVICE_INFO_PLIST."
+            exit 1
+          fi
+
+          if [ ! -s "$CONFIG_PATH" ]; then
+            echo "Firebase config file was created but is empty: $CONFIG_PATH"
+            exit 1
+          fi
 
       - name: Build unsigned iOS app
         shell: bash

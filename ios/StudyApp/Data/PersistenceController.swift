@@ -9,6 +9,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private let fileManager: FileManager
     private let loadTask: Task<Void, Error>
     private let legacyURL: URL
+    private(set) var changeToken: Int64 = 0
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -96,6 +97,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     func updateSubject(_ subject: Subject) async throws {
         try await ensureLoaded()
         guard let record = try fetchOne(entity: "SubjectRecord", id: subject.id) else { return }
+        let subjectSyncId = record.value(forKey: "syncId") as? String ?? subject.syncId
         record.setValue(subject.name, forKey: "name")
         record.setValue(Int64(subject.color), forKey: "color")
         record.setValue(subject.icon?.rawValue, forKey: "icon")
@@ -105,7 +107,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
         let sessions = try fetch(entity: "StudySessionRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
         for session in sessions {
+            session.setValue(subjectSyncId, forKey: "subjectSyncId")
             session.setValue(subject.name, forKey: "subjectName")
+            session.setValue(Date().epochMilliseconds, forKey: "updatedAt")
         }
         try saveContext()
     }
@@ -186,9 +190,13 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     func updateMaterial(_ material: Material) async throws {
         try await ensureLoaded()
         guard let record = try fetchOne(entity: "MaterialRecord", id: material.id) else { return }
+        let subject = try await getSubjectById(material.subjectId)
+        let subjectName = subject?.name ?? ""
+        let subjectSyncId = material.subjectSyncId ?? subject?.syncId
+        let materialSyncId = record.value(forKey: "syncId") as? String
         record.setValue(material.name, forKey: "name")
         record.setValue(material.subjectId, forKey: "subjectId")
-        record.setValue(material.subjectSyncId, forKey: "subjectSyncId")
+        record.setValue(subjectSyncId, forKey: "subjectSyncId")
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(material.color.map(Int64.init), forKey: "color")
@@ -197,12 +205,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(material.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
 
-        let subjectName = try await getSubjectById(material.subjectId)?.name ?? ""
         let sessions = try fetch(entity: "StudySessionRecord", predicate: NSPredicate(format: "materialId == %lld", material.id))
         for session in sessions {
+            session.setValue(materialSyncId, forKey: "materialSyncId")
             session.setValue(material.name, forKey: "materialName")
             session.setValue(material.subjectId, forKey: "subjectId")
+            session.setValue(subjectSyncId, forKey: "subjectSyncId")
             session.setValue(subjectName, forKey: "subjectName")
+            session.setValue(Date().epochMilliseconds, forKey: "updatedAt")
         }
         try saveContext()
     }
@@ -462,6 +472,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     func updatePlanItem(_ item: PlanItem) async throws {
         try await ensureLoaded()
         guard let record = try fetchOne(entity: "PlanItemRecord", id: item.id) else { return }
+        if let planSyncId = item.planSyncId {
+            record.setValue(planSyncId, forKey: "planSyncId")
+        }
         record.setValue(item.subjectId, forKey: "subjectId")
         record.setValue(item.subjectSyncId, forKey: "subjectSyncId")
         record.setValue(item.dayOfWeek.rawValue, forKey: "dayOfWeek")
@@ -504,6 +517,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func exportData() async throws -> AppData {
         try await ensureLoaded()
+        try backfillMissingSyncMetadataIfNeeded()
         let subjects = try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(Self.subject)
         let materials = try fetch(entity: "MaterialRecord", sort: [NSSortDescriptor(key: "id", ascending: false)]).map(Self.material)
         let sessions = try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(Self.session)
@@ -574,12 +588,21 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func deleteAllData() async throws {
         try await ensureLoaded()
+        var deletedObjectIDs = [NSManagedObjectID]()
         for entity in Self.entityNames {
             let request = NSFetchRequest<NSFetchRequestResult>(entityName: entity)
             let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
-            try container.viewContext.execute(deleteRequest)
+            deleteRequest.resultType = .resultTypeObjectIDs
+            let result = try container.viewContext.execute(deleteRequest) as? NSBatchDeleteResult
+            let objectIDs = result?.result as? [NSManagedObjectID] ?? []
+            deletedObjectIDs.append(contentsOf: objectIDs)
         }
-        try saveContext()
+        guard !deletedObjectIDs.isEmpty else { return }
+        NSManagedObjectContext.mergeChanges(
+            fromRemoteContextSave: [NSDeletedObjectsKey: deletedObjectIDs],
+            into: [container.viewContext]
+        )
+        changeToken += 1
     }
 
     private func importLegacySnapshot(_ snapshot: LegacySnapshot) async throws {
@@ -843,11 +866,20 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     }
 
     private func recalculatePlanActualMinutes() async throws {
-        let activePlans = try fetch(entity: "StudyPlanRecord", predicate: NSPredicate(format: "isActive == YES"))
+        let activePlans = try fetch(
+            entity: "StudyPlanRecord",
+            predicate: NSPredicate(format: "isActive == YES AND deletedAt == NIL")
+        )
         guard let activePlanRecord = activePlans.first else { return }
         let activePlan = Self.plan(activePlanRecord)
-        let planItems = try fetch(entity: "PlanItemRecord", predicate: NSPredicate(format: "planId == %lld", activePlan.id))
-        let sessions = try fetch(entity: "StudySessionRecord")
+        let planItems = try fetch(
+            entity: "PlanItemRecord",
+            predicate: NSPredicate(format: "planId == %lld AND deletedAt == NIL", activePlan.id)
+        )
+        let sessions = try fetch(
+            entity: "StudySessionRecord",
+            predicate: NSPredicate(format: "deletedAt == NIL")
+        )
 
         for itemRecord in planItems {
             let item = Self.planItem(itemRecord)
@@ -955,7 +987,135 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private func saveContext() throws {
         if container.viewContext.hasChanges {
             try container.viewContext.save()
+            changeToken += 1
         }
+    }
+
+    private func backfillMissingSyncMetadataIfNeeded() throws {
+        var didChange = false
+
+        let subjectRecords = try fetch(entity: "SubjectRecord")
+        var subjectSyncIds = [Int64: String]()
+        var subjectNames = [Int64: String]()
+        for record in subjectRecords {
+            let id = record.value(forKey: "id") as? Int64 ?? 0
+            let syncId = ensureSyncId(on: record, didChange: &didChange)
+            subjectSyncIds[id] = syncId
+            subjectNames[id] = record.value(forKey: "name") as? String ?? ""
+        }
+
+        let planRecords = try fetch(entity: "StudyPlanRecord")
+        var planSyncIds = [Int64: String]()
+        for record in planRecords {
+            let id = record.value(forKey: "id") as? Int64 ?? 0
+            planSyncIds[id] = ensureSyncId(on: record, didChange: &didChange)
+        }
+
+        let materialRecords = try fetch(entity: "MaterialRecord")
+        var materialSyncIds = [Int64: String]()
+        var materialNames = [Int64: String]()
+        for record in materialRecords {
+            let id = record.value(forKey: "id") as? Int64 ?? 0
+            let syncId = ensureSyncId(on: record, didChange: &didChange)
+            materialSyncIds[id] = syncId
+            materialNames[id] = record.value(forKey: "name") as? String ?? ""
+            let subjectId = record.value(forKey: "subjectId") as? Int64 ?? 0
+            ensureStringValue(
+                on: record,
+                key: "subjectSyncId",
+                value: subjectSyncIds[subjectId],
+                didChange: &didChange
+            )
+        }
+
+        let sessionRecords = try fetch(entity: "StudySessionRecord")
+        for record in sessionRecords {
+            _ = ensureSyncId(on: record, didChange: &didChange)
+            let subjectId = record.value(forKey: "subjectId") as? Int64 ?? 0
+            ensureStringValue(
+                on: record,
+                key: "subjectSyncId",
+                value: subjectSyncIds[subjectId],
+                didChange: &didChange
+            )
+            ensureStringValue(
+                on: record,
+                key: "subjectName",
+                value: subjectNames[subjectId],
+                didChange: &didChange
+            )
+            if let materialId = record.value(forKey: "materialId") as? Int64 {
+                ensureStringValue(
+                    on: record,
+                    key: "materialSyncId",
+                    value: materialSyncIds[materialId],
+                    didChange: &didChange
+                )
+                ensureStringValue(
+                    on: record,
+                    key: "materialName",
+                    value: materialNames[materialId],
+                    didChange: &didChange
+                )
+            }
+        }
+
+        let planItemRecords = try fetch(entity: "PlanItemRecord")
+        for record in planItemRecords {
+            _ = ensureSyncId(on: record, didChange: &didChange)
+            let planId = record.value(forKey: "planId") as? Int64 ?? 0
+            let subjectId = record.value(forKey: "subjectId") as? Int64 ?? 0
+            ensureStringValue(
+                on: record,
+                key: "planSyncId",
+                value: planSyncIds[planId],
+                didChange: &didChange
+            )
+            ensureStringValue(
+                on: record,
+                key: "subjectSyncId",
+                value: subjectSyncIds[subjectId],
+                didChange: &didChange
+            )
+        }
+
+        for entity in ["GoalRecord", "ExamRecord"] {
+            let records = try fetch(entity: entity)
+            for record in records {
+                _ = ensureSyncId(on: record, didChange: &didChange)
+            }
+        }
+
+        if didChange {
+            try saveContext()
+        }
+    }
+
+    @discardableResult
+    private func ensureSyncId(on record: NSManagedObject, didChange: inout Bool) -> String {
+        if let existing = record.value(forKey: "syncId") as? String, !existing.isEmpty {
+            return existing
+        }
+        let syncId = UUID().uuidString.lowercased()
+        record.setValue(syncId, forKey: "syncId")
+        record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
+        didChange = true
+        return syncId
+    }
+
+    private func ensureStringValue(
+        on record: NSManagedObject,
+        key: String,
+        value: String?,
+        didChange: inout Bool
+    ) {
+        guard let value, !value.isEmpty else { return }
+        if let existing = record.value(forKey: key) as? String, !existing.isEmpty {
+            return
+        }
+        record.setValue(value, forKey: key)
+        record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
+        didChange = true
     }
 
     private func csvEscaped(_ value: String) -> String {

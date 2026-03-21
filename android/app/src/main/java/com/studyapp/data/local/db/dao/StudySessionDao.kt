@@ -28,6 +28,15 @@ interface StudySessionDao {
     @Query("SELECT * FROM study_sessions ORDER BY startTime DESC")
     suspend fun getAllSessionsForSync(): List<StudySessionEntity>
 
+    @Query("""
+        SELECT s.*, sub.name as subjectName, m.name as materialName
+        FROM study_sessions s
+        INNER JOIN subjects sub ON s.subjectId = sub.id
+        LEFT JOIN materials m ON s.materialId = m.id
+        ORDER BY s.startTime DESC
+    """)
+    suspend fun getAllSessionsForSyncWithNames(): List<StudySessionWithNames>
+
     @Transaction
     @Query("SELECT * FROM study_sessions WHERE date = :date AND deletedAt IS NULL ORDER BY startTime DESC")
     fun getSessionsByDateWithDetails(date: Long): Flow<List<StudySessionWithDetails>>
@@ -67,4 +76,7 @@ interface StudySessionDao {
 
     @Query("DELETE FROM study_sessions WHERE id = :id")
     suspend fun deleteSessionById(id: Long)
+
+    @Query("DELETE FROM study_sessions")
+    suspend fun deleteAllSessionsForImport()
 }

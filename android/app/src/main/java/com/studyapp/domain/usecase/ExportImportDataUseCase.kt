@@ -1,6 +1,7 @@
 package com.studyapp.domain.usecase
 
 import android.util.Log
+import androidx.room.withTransaction
 import com.studyapp.domain.model.Exam
 import com.studyapp.domain.model.Goal
 import com.studyapp.domain.model.Material
@@ -22,11 +23,13 @@ import com.studyapp.data.local.db.entity.MaterialEntity
 import com.studyapp.data.local.db.entity.PlanEntity
 import com.studyapp.data.local.db.entity.PlanItemEntity
 import com.studyapp.data.local.db.entity.StudySessionEntity
+import com.studyapp.data.local.db.entity.StudySessionWithNames
 import com.studyapp.data.local.db.entity.SubjectEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import com.studyapp.sync.AppDataWriteLock
 import javax.inject.Inject
 
 data class AppData(
@@ -316,9 +319,61 @@ class ExportImportDataUseCase @Inject constructor(
     private val goalRepository: GoalRepository,
     private val examRepository: ExamRepository,
     private val planRepository: PlanRepository,
-    private val studyDatabase: StudyDatabase
+    private val studyDatabase: StudyDatabase,
+    private val writeLock: AppDataWriteLock
 ) {
     suspend fun exportToJson(): Result<String> {
+        return writeLock.withLock {
+            exportToJsonWithoutWriteLock()
+        }
+    }
+
+    suspend fun exportAppDataWithoutWriteLock(): AppData {
+        return snapshotAppData()
+    }
+
+    suspend fun importFromJson(jsonString: String): Result<Unit> {
+        return writeLock.withLock {
+            importFromJsonWithoutWriteLock(jsonString)
+        }
+    }
+
+    suspend fun importFromJsonWithoutWriteLock(jsonString: String): Result<Unit> {
+        Log.d(TAG, "Starting data import")
+        return try {
+            val appData = AppData.fromJson(JSONObject(jsonString))
+            studyDatabase.withTransaction {
+                clearAllDataForImport()
+                insertAppDataForImport(appData)
+            }
+            Log.i(
+                TAG,
+                "Data import completed: subjects=${appData.subjects.size}, materials=${appData.materials.size}, sessions=${appData.sessions.size}, goals=${appData.goals.size}, exams=${appData.exams.size}, plans=${appData.plans.size}"
+            )
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to import data", e)
+            Result.Error(e, "データのインポートに失敗しました")
+        }
+    }
+
+    suspend fun deleteAllData(): Result<Unit> {
+        return writeLock.withLock {
+            Log.d(TAG, "Starting to delete all data")
+            try {
+                studyDatabase.withTransaction {
+                    clearAllDataForImport()
+                }
+                Log.i(TAG, "All data deleted successfully")
+                Result.Success(Unit)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete all data", e)
+                Result.Error(e, "データの削除に失敗しました")
+            }
+        }
+    }
+
+    private suspend fun exportToJsonWithoutWriteLock(): Result<String> {
         Log.d(TAG, "Starting data export")
 
         val appData = snapshotAppData()
@@ -332,156 +387,6 @@ class ExportImportDataUseCase @Inject constructor(
             Result.Error(e, "データのエクスポートに失敗しました")
         }
     }
-    
-    suspend fun importFromJson(jsonString: String): Result<Unit> {
-        Log.d(TAG, "Starting data import")
-        
-        val backup = try {
-            createBackup()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to create backup before import", e)
-            return Result.Error(e, "インポート前のバックアップに失敗しました")
-        }
-        
-        return try {
-            val json = JSONObject(jsonString)
-            val appData = AppData.fromJson(json)
-            
-            when (val deleteResult = deleteAllData()) {
-                is Result.Error -> return deleteResult
-                is Result.Success -> Unit
-            }
-            
-            var importError: Throwable? = null
-            
-            appData.subjects.forEach { subject ->
-                if (importError == null) {
-                    when (val result = subjectRepository.insertSubject(subject)) {
-                        is Result.Error -> importError = result.exception
-                        else -> {}
-                    }
-                }
-            }
-            
-            appData.materials.forEach { material ->
-                if (importError == null) {
-                    when (val result = materialRepository.insertMaterial(material)) {
-                        is Result.Error -> importError = result.exception
-                        else -> {}
-                    }
-                }
-            }
-            
-            appData.sessions.forEach { session ->
-                if (importError == null) {
-                    when (val result = studySessionRepository.insertSession(session)) {
-                        is Result.Error -> importError = result.exception
-                        else -> {}
-                    }
-                }
-            }
-            
-            appData.goals.forEach { goal ->
-                if (importError == null) {
-                    when (val result = goalRepository.insertGoal(goal)) {
-                        is Result.Error -> importError = result.exception
-                        else -> {}
-                    }
-                }
-            }
-            
-            appData.exams.forEach { exam ->
-                if (importError == null) {
-                    when (val result = examRepository.insertExam(exam)) {
-                        is Result.Error -> importError = result.exception
-                        else -> {}
-                    }
-                }
-            }
-            
-            appData.plans
-                .sortedBy { it.plan.isActive }
-                .forEach { planData ->
-                if (importError == null) {
-                    when (val result = planRepository.createPlan(planData.plan, planData.items)) {
-                        is Result.Error -> importError = result.exception
-                        else -> {}
-                    }
-                }
-            }
-            
-            if (importError != null) {
-                Log.e(TAG, "Import failed, restoring from backup", importError)
-                restoreFromBackup(backup)
-                Result.Error(importError!!, "データのインポートに失敗しました")
-            } else {
-                Log.i(TAG, "Data import completed: subjects=${appData.subjects.size}, materials=${appData.materials.size}, sessions=${appData.sessions.size}, goals=${appData.goals.size}, exams=${appData.exams.size}, plans=${appData.plans.size}")
-                Result.Success(Unit)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to import data, restoring from backup", e)
-            restoreFromBackup(backup)
-            Result.Error(e, "データのインポートに失敗しました")
-        }
-    }
-    
-    private suspend fun createBackup(): AppData {
-        return snapshotAppData()
-    }
-    
-    private suspend fun restoreFromBackup(backup: AppData) {
-        try {
-            when (deleteAllData()) {
-                is Result.Error -> return
-                is Result.Success -> Unit
-            }
-            
-            backup.subjects.forEach { subject ->
-                subjectRepository.insertSubject(subject)
-            }
-            
-            backup.materials.forEach { material ->
-                materialRepository.insertMaterial(material)
-            }
-            
-            backup.sessions.forEach { session ->
-                studySessionRepository.insertSession(session)
-            }
-            
-            backup.goals.forEach { goal ->
-                goalRepository.insertGoal(goal)
-            }
-            
-            backup.exams.forEach { exam ->
-                examRepository.insertExam(exam)
-            }
-            
-            backup.plans
-                .sortedBy { it.plan.isActive }
-                .forEach { planData ->
-                planRepository.createPlan(planData.plan, planData.items)
-            }
-            
-            Log.i(TAG, "Backup restored successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to restore from backup", e)
-        }
-    }
-    
-    suspend fun deleteAllData(): Result<Unit> {
-        Log.d(TAG, "Starting to delete all data")
-        
-        return try {
-            withContext(Dispatchers.IO) {
-                studyDatabase.clearAllTables()
-            }
-            Log.i(TAG, "All data deleted successfully")
-            Result.Success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to delete all data", e)
-            Result.Error(e, "データの削除に失敗しました")
-        }
-    }
 
     private suspend fun snapshotAppData(): AppData {
         val subjectDao = studyDatabase.subjectDao()
@@ -491,15 +396,36 @@ class ExportImportDataUseCase @Inject constructor(
         val examDao = studyDatabase.examDao()
         val planDao = studyDatabase.planDao()
 
-        val subjects = subjectDao.getAllSubjectsForSync().map { it.toDomain() }
-        val materials = materialDao.getAllMaterialsForSync().map { it.toDomain() }
-        val sessions = studySessionDao.getAllSessionsForSync().map { it.toDomain() }
+        val subjectEntities = subjectDao.getAllSubjectsForSync()
+        val subjects = subjectEntities.map { it.toDomain() }
+        val subjectsById = subjectEntities.associateBy { it.id }
+
+        val materialEntities = materialDao.getAllMaterialsForSync()
+        val materials = materialEntities.map { entity ->
+            entity.toDomain().copy(
+                subjectSyncId = entity.subjectSyncId ?: subjectsById[entity.subjectId]?.syncId
+            )
+        }
+        val materialsById = materials.associateBy { it.id }
+
+        val sessions = studySessionDao.getAllSessionsForSyncWithNames().map { row ->
+            row.toDomain().copy(
+                materialSyncId = row.session.materialSyncId ?: row.session.materialId?.let { materialsById[it]?.syncId },
+                subjectSyncId = row.session.subjectSyncId ?: subjectsById[row.session.subjectId]?.syncId
+            )
+        }
         val goals = goalDao.getAllGoalsForSync().map { it.toDomain() }
         val exams = examDao.getAllExamsForSync().map { it.toDomain() }
-        val plans = planDao.getAllPlansForSync().map { plan ->
+        val planEntities = planDao.getAllPlansForSync()
+        val plans = planEntities.map { plan ->
             PlanData(
                 plan = plan.toDomain(),
-                items = planDao.getPlanItemsForSync(plan.id).map { it.toDomain() }
+                items = planDao.getPlanItemsForSync(plan.id).map { item ->
+                    item.toDomain().copy(
+                        planSyncId = item.planSyncId ?: plan.syncId,
+                        subjectSyncId = item.subjectSyncId ?: subjectsById[item.subjectId]?.syncId
+                    )
+                }
             )
         }
 
@@ -512,6 +438,243 @@ class ExportImportDataUseCase @Inject constructor(
             plans = plans,
             exportDate = System.currentTimeMillis()
         )
+    }
+
+    private suspend fun clearAllDataForImport() {
+        val subjectDao = studyDatabase.subjectDao()
+        val materialDao = studyDatabase.materialDao()
+        val studySessionDao = studyDatabase.studySessionDao()
+        val goalDao = studyDatabase.goalDao()
+        val examDao = studyDatabase.examDao()
+        val planDao = studyDatabase.planDao()
+
+        planDao.deleteAllPlanItemsForImport()
+        studySessionDao.deleteAllSessionsForImport()
+        materialDao.deleteAllMaterialsForImport()
+        examDao.deleteAllExamsForImport()
+        goalDao.deleteAllGoalsForImport()
+        planDao.deleteAllPlansForImport()
+        subjectDao.deleteAllSubjectsForImport()
+    }
+
+    private suspend fun insertAppDataForImport(appData: AppData) {
+        val subjectDao = studyDatabase.subjectDao()
+        val materialDao = studyDatabase.materialDao()
+        val studySessionDao = studyDatabase.studySessionDao()
+        val goalDao = studyDatabase.goalDao()
+        val examDao = studyDatabase.examDao()
+        val planDao = studyDatabase.planDao()
+
+        val subjectIdsBySyncId = linkedMapOf<String, Long>()
+        val subjectIdsByLegacyId = linkedMapOf<Long, Long>()
+        val subjectSyncIdsByLegacyId = linkedMapOf<Long, String>()
+        appData.subjects.forEach { subject ->
+            val newId = subjectDao.insertSubject(
+                SubjectEntity(
+                    syncId = subject.syncId,
+                    name = subject.name,
+                    color = subject.color,
+                    icon = subject.icon?.name,
+                    createdAt = subject.createdAt,
+                    updatedAt = subject.updatedAt,
+                    deletedAt = subject.deletedAt,
+                    lastSyncedAt = subject.lastSyncedAt
+                )
+            )
+            subjectIdsBySyncId[subject.syncId] = newId
+            subjectIdsByLegacyId[subject.id] = newId
+            subjectSyncIdsByLegacyId[subject.id] = subject.syncId
+        }
+
+        val materialIdsBySyncId = linkedMapOf<String, Long>()
+        val materialIdsByLegacyId = linkedMapOf<Long, Long>()
+        val materialSyncIdsByLegacyId = linkedMapOf<Long, String>()
+        appData.materials.forEach { material ->
+            val resolvedSubjectId = resolveMappedId(
+                label = "subject",
+                ownerSyncId = material.syncId,
+                syncId = material.subjectSyncId,
+                legacyId = material.subjectId,
+                idsBySyncId = subjectIdsBySyncId,
+                idsByLegacyId = subjectIdsByLegacyId
+            )
+            val resolvedSubjectSyncId = material.subjectSyncId ?: subjectSyncIdsByLegacyId[material.subjectId]
+            val newId = materialDao.insertMaterial(
+                MaterialEntity(
+                    syncId = material.syncId,
+                    name = material.name,
+                    subjectId = resolvedSubjectId,
+                    subjectSyncId = resolvedSubjectSyncId,
+                    totalPages = material.totalPages,
+                    currentPage = material.currentPage,
+                    color = material.color,
+                    note = material.note,
+                    createdAt = material.createdAt,
+                    updatedAt = material.updatedAt,
+                    deletedAt = material.deletedAt,
+                    lastSyncedAt = material.lastSyncedAt
+                )
+            )
+            materialIdsBySyncId[material.syncId] = newId
+            materialIdsByLegacyId[material.id] = newId
+            materialSyncIdsByLegacyId[material.id] = material.syncId
+        }
+
+        appData.sessions.forEach { session ->
+            val resolvedSubjectId = resolveMappedId(
+                label = "subject",
+                ownerSyncId = session.syncId,
+                syncId = session.subjectSyncId,
+                legacyId = session.subjectId,
+                idsBySyncId = subjectIdsBySyncId,
+                idsByLegacyId = subjectIdsByLegacyId
+            )
+            val resolvedMaterialId = session.materialId?.let { legacyMaterialId ->
+                resolveMappedOptionalId(
+                    label = "material",
+                    ownerSyncId = session.syncId,
+                    syncId = session.materialSyncId,
+                    legacyId = legacyMaterialId,
+                    idsBySyncId = materialIdsBySyncId,
+                    idsByLegacyId = materialIdsByLegacyId
+                )
+            }
+            studySessionDao.insertSession(
+                StudySessionEntity(
+                    syncId = session.syncId,
+                    materialId = resolvedMaterialId,
+                    materialSyncId = session.materialSyncId ?: session.materialId?.let { materialSyncIdsByLegacyId[it] },
+                    subjectId = resolvedSubjectId,
+                    subjectSyncId = session.subjectSyncId ?: subjectSyncIdsByLegacyId[session.subjectId],
+                    startTime = session.startTime,
+                    endTime = session.endTime,
+                    duration = session.duration,
+                    date = session.date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    note = session.note,
+                    createdAt = session.createdAt,
+                    updatedAt = session.updatedAt,
+                    deletedAt = session.deletedAt,
+                    lastSyncedAt = session.lastSyncedAt
+                )
+            )
+        }
+
+        appData.goals.forEach { goal ->
+            goalDao.insertGoal(
+                GoalEntity(
+                    syncId = goal.syncId,
+                    type = goal.type,
+                    targetMinutes = goal.targetMinutes,
+                    weekStartDay = goal.weekStartDay.value,
+                    isActive = goal.isActive,
+                    createdAt = goal.createdAt,
+                    updatedAt = goal.updatedAt,
+                    deletedAt = goal.deletedAt,
+                    lastSyncedAt = goal.lastSyncedAt
+                )
+            )
+        }
+
+        appData.exams.forEach { exam ->
+            examDao.insertExam(
+                ExamEntity(
+                    syncId = exam.syncId,
+                    name = exam.name,
+                    date = exam.date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    note = exam.note,
+                    createdAt = exam.createdAt,
+                    updatedAt = exam.updatedAt,
+                    deletedAt = exam.deletedAt,
+                    lastSyncedAt = exam.lastSyncedAt
+                )
+            )
+        }
+
+        val planIdsBySyncId = linkedMapOf<String, Long>()
+        val planIdsByLegacyId = linkedMapOf<Long, Long>()
+        val planSyncIdsByLegacyId = linkedMapOf<Long, String>()
+        val activePlanSyncId = appData.plans.lastOrNull { it.plan.isActive && it.plan.deletedAt == null }?.plan?.syncId
+        appData.plans.forEach { planData ->
+            val plan = planData.plan
+            val newId = planDao.insertPlan(
+                PlanEntity(
+                    syncId = plan.syncId,
+                    name = plan.name,
+                    startDate = plan.startDate,
+                    endDate = plan.endDate,
+                    isActive = plan.syncId == activePlanSyncId,
+                    createdAt = plan.createdAt,
+                    updatedAt = plan.updatedAt,
+                    deletedAt = plan.deletedAt,
+                    lastSyncedAt = plan.lastSyncedAt
+                )
+            )
+            planIdsBySyncId[plan.syncId] = newId
+            planIdsByLegacyId[plan.id] = newId
+            planSyncIdsByLegacyId[plan.id] = plan.syncId
+        }
+
+        appData.plans.flatMap { it.items }.forEach { item ->
+            val resolvedPlanId = resolveMappedId(
+                label = "plan",
+                ownerSyncId = item.syncId,
+                syncId = item.planSyncId,
+                legacyId = item.planId,
+                idsBySyncId = planIdsBySyncId,
+                idsByLegacyId = planIdsByLegacyId
+            )
+            val resolvedSubjectId = resolveMappedId(
+                label = "subject",
+                ownerSyncId = item.syncId,
+                syncId = item.subjectSyncId,
+                legacyId = item.subjectId,
+                idsBySyncId = subjectIdsBySyncId,
+                idsByLegacyId = subjectIdsByLegacyId
+            )
+            planDao.insertPlanItem(
+                PlanItemEntity(
+                    syncId = item.syncId,
+                    planId = resolvedPlanId,
+                    planSyncId = item.planSyncId ?: planSyncIdsByLegacyId[item.planId],
+                    subjectId = resolvedSubjectId,
+                    subjectSyncId = item.subjectSyncId ?: subjectSyncIdsByLegacyId[item.subjectId],
+                    dayOfWeek = item.dayOfWeek.value,
+                    targetMinutes = item.targetMinutes,
+                    actualMinutes = item.actualMinutes,
+                    timeSlot = item.timeSlot,
+                    createdAt = item.createdAt,
+                    updatedAt = item.updatedAt,
+                    deletedAt = item.deletedAt,
+                    lastSyncedAt = item.lastSyncedAt
+                )
+            )
+        }
+    }
+
+    private fun resolveMappedId(
+        label: String,
+        ownerSyncId: String,
+        syncId: String?,
+        legacyId: Long,
+        idsBySyncId: Map<String, Long>,
+        idsByLegacyId: Map<Long, Long>
+    ): Long {
+        syncId?.let { idsBySyncId[it] }?.let { return it }
+        idsByLegacyId[legacyId]?.let { return it }
+        error("Missing $label mapping for $ownerSyncId")
+    }
+
+    private fun resolveMappedOptionalId(
+        label: String,
+        ownerSyncId: String,
+        syncId: String?,
+        legacyId: Long,
+        idsBySyncId: Map<String, Long>,
+        idsByLegacyId: Map<Long, Long>
+    ): Long? {
+        syncId?.let { idsBySyncId[it] }?.let { return it }
+        idsByLegacyId[legacyId]?.let { return it }
+        error("Missing $label mapping for $ownerSyncId")
     }
     
     companion object {
@@ -563,6 +726,24 @@ private fun StudySessionEntity.toDomain() = StudySession(
     updatedAt = updatedAt,
     deletedAt = deletedAt,
     lastSyncedAt = lastSyncedAt
+)
+
+private fun StudySessionWithNames.toDomain() = StudySession(
+    id = session.id,
+    syncId = session.syncId.ifEmpty { "session-${session.id}" },
+    materialId = session.materialId,
+    materialSyncId = session.materialSyncId,
+    materialName = materialName.orEmpty(),
+    subjectId = session.subjectId,
+    subjectSyncId = session.subjectSyncId,
+    subjectName = subjectName,
+    startTime = session.startTime,
+    endTime = session.endTime,
+    note = session.note,
+    createdAt = session.createdAt,
+    updatedAt = session.updatedAt,
+    deletedAt = session.deletedAt,
+    lastSyncedAt = session.lastSyncedAt
 )
 
 private fun GoalEntity.toDomain() = Goal(

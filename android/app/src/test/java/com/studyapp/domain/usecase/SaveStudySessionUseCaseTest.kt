@@ -1,5 +1,9 @@
 package com.studyapp.domain.usecase
 
+import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.Subject
+import com.studyapp.domain.repository.MaterialRepository
+import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
@@ -18,6 +22,8 @@ import org.junit.Test
 class SaveStudySessionUseCaseTest {
     
     private lateinit var studySessionRepository: StudySessionRepository
+    private lateinit var subjectRepository: SubjectRepository
+    private lateinit var materialRepository: MaterialRepository
     private lateinit var clock: Clock
     private lateinit var saveStudySessionUseCase: SaveStudySessionUseCase
     
@@ -25,8 +31,24 @@ class SaveStudySessionUseCaseTest {
     fun setup() {
         LogMock.setup()
         studySessionRepository = mockk()
+        subjectRepository = mockk()
+        materialRepository = mockk()
         clock = mockk()
-        saveStudySessionUseCase = SaveStudySessionUseCase(studySessionRepository, clock)
+        saveStudySessionUseCase = SaveStudySessionUseCase(
+            studySessionRepository,
+            subjectRepository,
+            materialRepository,
+            clock
+        )
+
+        coEvery { subjectRepository.getSubjectById(any()) } answers {
+            val id = firstArg<Long>()
+            Result.Success(Subject(id = id, syncId = "subject-$id", name = "数学", color = 0))
+        }
+        coEvery { materialRepository.getMaterialById(any()) } answers {
+            val id = firstArg<Long>()
+            Result.Success(Material(id = id, syncId = "material-$id", name = "教材$id", subjectId = 1L))
+        }
     }
     
     @After
@@ -94,6 +116,8 @@ class SaveStudySessionUseCaseTest {
             studySessionRepository.insertSession(match { session ->
                 session.subjectId == subjectId &&
                 session.materialId == materialId &&
+                session.subjectSyncId == "subject-$subjectId" &&
+                session.materialSyncId == "material-$materialId" &&
                 session.duration == duration &&
                 session.startTime == currentTime - duration &&
                 session.endTime == currentTime

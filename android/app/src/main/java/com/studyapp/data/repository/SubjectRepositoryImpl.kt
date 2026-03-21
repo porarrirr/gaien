@@ -7,6 +7,7 @@ import com.studyapp.domain.model.Subject
 import com.studyapp.domain.model.SubjectIcon
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.util.Result
+import com.studyapp.sync.AppDataWriteLock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -14,7 +15,8 @@ import javax.inject.Singleton
 
 @Singleton
 class SubjectRepositoryImpl @Inject constructor(
-    private val subjectDao: SubjectDao
+    private val subjectDao: SubjectDao,
+    private val writeLock: AppDataWriteLock
 ) : SubjectRepository {
 
     companion object {
@@ -39,7 +41,9 @@ class SubjectRepositoryImpl @Inject constructor(
 
     override suspend fun insertSubject(subject: Subject): Result<Long> {
         return try {
-            val id = subjectDao.insertSubject(subject.toEntity())
+            val id = writeLock.withLock {
+                subjectDao.insertSubject(subject.toEntity())
+            }
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert subject: ${subject.name}", e)
@@ -49,7 +53,9 @@ class SubjectRepositoryImpl @Inject constructor(
 
     override suspend fun updateSubject(subject: Subject): Result<Unit> {
         return try {
-            subjectDao.updateSubject(subject.toEntity())
+            writeLock.withLock {
+                subjectDao.updateSubject(subject.toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update subject: ${subject.id}", e)
@@ -60,7 +66,9 @@ class SubjectRepositoryImpl @Inject constructor(
     override suspend fun deleteSubject(subject: Subject): Result<Unit> {
         return try {
             val now = System.currentTimeMillis()
-            subjectDao.updateSubject(subject.copy(deletedAt = now, updatedAt = now).toEntity())
+            writeLock.withLock {
+                subjectDao.updateSubject(subject.copy(deletedAt = now, updatedAt = now).toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete subject: ${subject.id}", e)

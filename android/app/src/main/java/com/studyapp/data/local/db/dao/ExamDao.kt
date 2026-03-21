@@ -29,4 +29,7 @@ interface ExamDao {
 
     @Query("DELETE FROM exams WHERE id = :id")
     suspend fun deleteExamById(id: Long)
+
+    @Query("DELETE FROM exams")
+    suspend fun deleteAllExamsForImport()
 }

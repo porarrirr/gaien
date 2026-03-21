@@ -729,14 +729,17 @@ struct SaveStudySessionUseCase {
             throw ValidationError(message: "科目を選択してください")
         }
         let materials = try await materialRepository.getAllMaterials()
-        let materialName = materials.first(where: { $0.id == materialId })?.name ?? ""
+        let material = materials.first(where: { $0.id == materialId })
+        let materialName = material?.name ?? ""
         let end = Date().epochMilliseconds
         let start = end - Int64(durationMinutes * 60_000)
         try await sessionRepository.insertSession(
             StudySession(
                 materialId: materialId,
+                materialSyncId: material?.syncId,
                 materialName: materialName,
                 subjectId: subject.id,
+                subjectSyncId: subject.syncId,
                 subjectName: subject.name,
                 startTime: start,
                 endTime: end,
@@ -762,13 +765,14 @@ struct ManageMaterialsUseCase {
         color: Int? = nil,
         note: String? = nil
     ) async throws {
-        guard try await subjectRepository.getSubjectById(subjectId) != nil else {
+        guard let subject = try await subjectRepository.getSubjectById(subjectId) else {
             throw ValidationError(message: "科目を選択してください")
         }
         try await materialRepository.insertMaterial(
             Material(
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                 subjectId: subjectId,
+                subjectSyncId: subject.syncId,
                 totalPages: totalPages,
                 currentPage: 0,
                 color: color,

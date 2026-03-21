@@ -47,6 +47,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private var cancellables = Set<AnyCancellable>()
 
     private static let maxChunkBytes = 500_000
+    private static let maxSyncRetries = 3
 
     @Published private(set) var status = SyncStatus()
 
@@ -87,21 +88,35 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         status.isSyncing = true
         status.errorMessage = nil
         do {
-            let local = try await persistence.exportData()
-            let merged: AppData
-            if let remotePayload = try await loadSnapshot(userId: session.localId) {
-                let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
-                merged = merge(local: local, remote: remote)
-            } else {
-                merged = local
+            for _ in 0..<Self.maxSyncRetries {
+                let remotePayload = try await loadSnapshot(userId: session.localId)
+                let local = try await persistence.exportData()
+                let localChangeToken = persistence.changeToken
+                let merged: AppData
+                if let remotePayload {
+                    let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
+                    merged = merge(local: local, remote: remote)
+                } else {
+                    merged = local
+                }
+                let synced = markSynced(merged, at: Date().epochMilliseconds)
+                let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
+                try await saveSnapshot(
+                    userId: session.localId,
+                    payload: payload,
+                    updatedAt: synced.exportDate,
+                    expectedVersion: lastLoadedVersion
+                )
+                guard persistence.changeToken == localChangeToken else {
+                    continue
+                }
+                let useCase = ExportImportDataUseCase(repository: persistence)
+                _ = try await useCase.importJSON(payload, currentPreferences: preferencesRepository.loadPreferences())
+                UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
+                status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
+                return
             }
-            let synced = markSynced(merged, at: Date().epochMilliseconds)
-            let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
-            let useCase = ExportImportDataUseCase(repository: persistence)
-            _ = try await useCase.importJSON(payload, currentPreferences: preferencesRepository.loadPreferences())
-            try await saveSnapshot(userId: session.localId, payload: payload, updatedAt: synced.exportDate, expectedVersion: lastLoadedVersion)
-            UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
-            status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
+            throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
         } catch {
             status.isSyncing = false
             status.errorMessage = error.localizedDescription
@@ -116,11 +131,25 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         status.isSyncing = true
         status.errorMessage = nil
         do {
-            let local = markSynced(try await persistence.exportData(), at: Date().epochMilliseconds)
-            let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
-            try await saveSnapshot(userId: session.localId, payload: payload, updatedAt: local.exportDate, expectedVersion: nil)
-            UserDefaults.standard.set(local.exportDate, forKey: lastSyncKey)
-            status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: local.exportDate)
+            for _ in 0..<Self.maxSyncRetries {
+                _ = try await loadSnapshot(userId: session.localId)
+                let local = markSynced(try await persistence.exportData(), at: Date().epochMilliseconds)
+                let localChangeToken = persistence.changeToken
+                let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
+                try await saveSnapshot(
+                    userId: session.localId,
+                    payload: payload,
+                    updatedAt: local.exportDate,
+                    expectedVersion: lastLoadedVersion
+                )
+                guard persistence.changeToken == localChangeToken else {
+                    continue
+                }
+                UserDefaults.standard.set(local.exportDate, forKey: lastSyncKey)
+                status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: local.exportDate)
+                return
+            }
+            throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
         } catch {
             status.isSyncing = false
             status.errorMessage = error.localizedDescription
@@ -180,7 +209,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         let chunks = Self.splitPayloadIntoChunks(payload)
         let newChunkCount = chunks.count
 
-        let _ = try await db.runTransaction { transaction, errorPointer -> Any? in
+        let result = try await db.runTransaction { transaction, errorPointer -> Any? in
             let manifestSnap: DocumentSnapshot
             do {
                 manifestSnap = try transaction.getDocument(manifestRef)
@@ -225,7 +254,10 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 transaction.deleteDocument(chunkRef)
             }
 
-            return nil
+            return NSNumber(value: newVersion)
+        }
+        if let version = result as? NSNumber {
+            lastLoadedVersion = version.int64Value
         }
     }
 

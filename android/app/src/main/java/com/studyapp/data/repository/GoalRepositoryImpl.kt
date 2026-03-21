@@ -8,6 +8,7 @@ import com.studyapp.domain.model.GoalType
 import com.studyapp.domain.repository.GoalRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
+import com.studyapp.sync.AppDataWriteLock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.DayOfWeek
@@ -17,7 +18,8 @@ import javax.inject.Singleton
 @Singleton
 class GoalRepositoryImpl @Inject constructor(
     private val goalDao: GoalDao,
-    private val clock: Clock
+    private val clock: Clock,
+    private val writeLock: AppDataWriteLock
 ) : GoalRepository {
 
     companion object {
@@ -54,7 +56,9 @@ class GoalRepositoryImpl @Inject constructor(
 
     override suspend fun insertGoal(goal: Goal): Result<Long> {
         return try {
-            val id = goalDao.insertGoal(goal.toEntity())
+            val id = writeLock.withLock {
+                goalDao.insertGoal(goal.toEntity())
+            }
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert goal: ${goal.type}", e)
@@ -64,7 +68,9 @@ class GoalRepositoryImpl @Inject constructor(
 
     override suspend fun updateGoal(goal: Goal): Result<Unit> {
         return try {
-            goalDao.updateGoal(goal.copy(updatedAt = clock.currentTimeMillis()).toEntity())
+            writeLock.withLock {
+                goalDao.updateGoal(goal.copy(updatedAt = clock.currentTimeMillis()).toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update goal: ${goal.id}", e)
@@ -75,7 +81,9 @@ class GoalRepositoryImpl @Inject constructor(
     override suspend fun deleteGoal(goal: Goal): Result<Unit> {
         return try {
             val now = clock.currentTimeMillis()
-            goalDao.updateGoal(goal.copy(isActive = false, deletedAt = now, updatedAt = now).toEntity())
+            writeLock.withLock {
+                goalDao.updateGoal(goal.copy(isActive = false, deletedAt = now, updatedAt = now).toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete goal: ${goal.id}", e)

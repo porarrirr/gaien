@@ -108,8 +108,15 @@ class PlanViewModel @Inject constructor(
                 endDate = endDate,
                 createdAt = System.currentTimeMillis()
             )
+            val subjectSyncIds = _uiState.value.subjects.associate { it.id to it.syncId }
+            val itemsWithSyncMetadata = items.map { item ->
+                item.copy(
+                    planSyncId = plan.syncId,
+                    subjectSyncId = subjectSyncIds[item.subjectId] ?: item.subjectSyncId
+                )
+            }
             
-            when (val result = managePlansUseCase.createPlan(plan, items)) {
+            when (val result = managePlansUseCase.createPlan(plan, itemsWithSyncMetadata)) {
                 is Result.Success -> {
                     _uiState.update { it.copy(isLoading = false, error = null) }
                 }
@@ -126,12 +133,15 @@ class PlanViewModel @Inject constructor(
     fun addPlanItem(subjectId: Long, dayOfWeek: DayOfWeek, targetMinutes: Int, timeSlot: String?) {
         viewModelScope.launch {
             val plan = _uiState.value.activePlan ?: return@launch
+            val subjectSyncId = _uiState.value.subjects.firstOrNull { it.id == subjectId }?.syncId
             
             _uiState.update { it.copy(isLoading = true) }
             
             val item = PlanItem(
                 planId = plan.id,
+                planSyncId = plan.syncId,
                 subjectId = subjectId,
+                subjectSyncId = subjectSyncId,
                 dayOfWeek = dayOfWeek,
                 targetMinutes = targetMinutes,
                 timeSlot = timeSlot
@@ -154,8 +164,14 @@ class PlanViewModel @Inject constructor(
     fun updatePlanItem(item: PlanItem) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
+            val activePlan = _uiState.value.activePlan
+            val subjectSyncId = _uiState.value.subjects.firstOrNull { it.id == item.subjectId }?.syncId
+            val updatedItem = item.copy(
+                planSyncId = item.planSyncId ?: activePlan?.syncId,
+                subjectSyncId = subjectSyncId ?: item.subjectSyncId
+            )
             
-            when (val result = managePlansUseCase.updatePlanItem(item)) {
+            when (val result = managePlansUseCase.updatePlanItem(updatedItem)) {
                 is Result.Success -> {
                     _uiState.update { it.copy(isLoading = false, error = null) }
                 }

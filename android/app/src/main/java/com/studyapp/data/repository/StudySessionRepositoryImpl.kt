@@ -8,6 +8,7 @@ import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
+import com.studyapp.sync.AppDataWriteLock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.ZoneId
@@ -17,7 +18,8 @@ import javax.inject.Singleton
 @Singleton
 class StudySessionRepositoryImpl @Inject constructor(
     private val studySessionDao: StudySessionDao,
-    private val clock: Clock
+    private val clock: Clock,
+    private val writeLock: AppDataWriteLock
 ) : StudySessionRepository {
 
     companion object {
@@ -100,7 +102,9 @@ class StudySessionRepositoryImpl @Inject constructor(
 
     override suspend fun insertSession(session: StudySession): Result<Long> {
         return try {
-            val id = studySessionDao.insertSession(session.toEntity())
+            val id = writeLock.withLock {
+                studySessionDao.insertSession(session.toEntity())
+            }
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert session", e)
@@ -110,7 +114,9 @@ class StudySessionRepositoryImpl @Inject constructor(
 
     override suspend fun updateSession(session: StudySession): Result<Unit> {
         return try {
-            studySessionDao.updateSession(session.copy(updatedAt = System.currentTimeMillis()).toEntity())
+            writeLock.withLock {
+                studySessionDao.updateSession(session.copy(updatedAt = System.currentTimeMillis()).toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update session: ${session.id}", e)
@@ -121,7 +127,9 @@ class StudySessionRepositoryImpl @Inject constructor(
     override suspend fun deleteSession(session: StudySession): Result<Unit> {
         return try {
             val now = System.currentTimeMillis()
-            studySessionDao.updateSession(session.copy(deletedAt = now, updatedAt = now).toEntity())
+            writeLock.withLock {
+                studySessionDao.updateSession(session.copy(deletedAt = now, updatedAt = now).toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete session: ${session.id}", e)

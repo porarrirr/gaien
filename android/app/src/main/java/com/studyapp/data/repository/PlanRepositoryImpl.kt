@@ -12,6 +12,7 @@ import com.studyapp.domain.model.WeeklyPlanSummary
 import com.studyapp.domain.repository.PlanRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
+import com.studyapp.sync.AppDataWriteLock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
@@ -22,7 +23,8 @@ import javax.inject.Singleton
 @Singleton
 class PlanRepositoryImpl @Inject constructor(
     private val planDao: PlanDao,
-    private val clock: Clock
+    private val clock: Clock,
+    private val writeLock: AppDataWriteLock
 ) : PlanRepository {
 
     companion object {
@@ -85,7 +87,9 @@ class PlanRepositoryImpl @Inject constructor(
                 )
             }
 
-            val id = planDao.createPlanWithItems(entity, itemEntities)
+            val id = writeLock.withLock {
+                planDao.createPlanWithItems(entity, itemEntities)
+            }
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create plan: ${plan.name}", e)
@@ -95,20 +99,22 @@ class PlanRepositoryImpl @Inject constructor(
 
     override suspend fun updatePlan(plan: StudyPlan): Result<Unit> {
         return try {
-            planDao.updatePlan(
-                PlanEntity(
-                    id = plan.id,
-                    syncId = plan.syncId,
-                    name = plan.name,
-                    startDate = plan.startDate,
-                    endDate = plan.endDate,
-                    isActive = plan.isActive,
-                    createdAt = plan.createdAt,
-                    updatedAt = clock.currentTimeMillis(),
-                    deletedAt = plan.deletedAt,
-                    lastSyncedAt = plan.lastSyncedAt
+            writeLock.withLock {
+                planDao.updatePlan(
+                    PlanEntity(
+                        id = plan.id,
+                        syncId = plan.syncId,
+                        name = plan.name,
+                        startDate = plan.startDate,
+                        endDate = plan.endDate,
+                        isActive = plan.isActive,
+                        createdAt = plan.createdAt,
+                        updatedAt = clock.currentTimeMillis(),
+                        deletedAt = plan.deletedAt,
+                        lastSyncedAt = plan.lastSyncedAt
+                    )
                 )
-            )
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update plan: ${plan.id}", e)
@@ -119,20 +125,22 @@ class PlanRepositoryImpl @Inject constructor(
     override suspend fun deletePlan(plan: StudyPlan): Result<Unit> {
         return try {
             val now = clock.currentTimeMillis()
-            planDao.updatePlan(
-                PlanEntity(
-                    id = plan.id,
-                    syncId = plan.syncId,
-                    name = plan.name,
-                    startDate = plan.startDate,
-                    endDate = plan.endDate,
-                    isActive = false,
-                    createdAt = plan.createdAt,
-                    updatedAt = now,
-                    deletedAt = now,
-                    lastSyncedAt = plan.lastSyncedAt
+            writeLock.withLock {
+                planDao.updatePlan(
+                    PlanEntity(
+                        id = plan.id,
+                        syncId = plan.syncId,
+                        name = plan.name,
+                        startDate = plan.startDate,
+                        endDate = plan.endDate,
+                        isActive = false,
+                        createdAt = plan.createdAt,
+                        updatedAt = now,
+                        deletedAt = now,
+                        lastSyncedAt = plan.lastSyncedAt
+                    )
                 )
-            )
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete plan: ${plan.id}", e)
@@ -142,23 +150,25 @@ class PlanRepositoryImpl @Inject constructor(
 
     override suspend fun addPlanItem(item: PlanItem): Result<Long> {
         return try {
-            val id = planDao.insertPlanItem(
-                PlanItemEntity(
-                    syncId = item.syncId,
-                    planId = item.planId,
-                    planSyncId = item.planSyncId,
-                    subjectId = item.subjectId,
-                    subjectSyncId = item.subjectSyncId,
-                    dayOfWeek = item.dayOfWeek.value,
-                    targetMinutes = item.targetMinutes,
-                    actualMinutes = item.actualMinutes,
-                    timeSlot = item.timeSlot,
-                    createdAt = item.createdAt,
-                    updatedAt = item.updatedAt,
-                    deletedAt = item.deletedAt,
-                    lastSyncedAt = item.lastSyncedAt
+            val id = writeLock.withLock {
+                planDao.insertPlanItem(
+                    PlanItemEntity(
+                        syncId = item.syncId,
+                        planId = item.planId,
+                        planSyncId = item.planSyncId,
+                        subjectId = item.subjectId,
+                        subjectSyncId = item.subjectSyncId,
+                        dayOfWeek = item.dayOfWeek.value,
+                        targetMinutes = item.targetMinutes,
+                        actualMinutes = item.actualMinutes,
+                        timeSlot = item.timeSlot,
+                        createdAt = item.createdAt,
+                        updatedAt = item.updatedAt,
+                        deletedAt = item.deletedAt,
+                        lastSyncedAt = item.lastSyncedAt
+                    )
                 )
-            )
+            }
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to add plan item", e)
@@ -168,24 +178,26 @@ class PlanRepositoryImpl @Inject constructor(
 
     override suspend fun updatePlanItem(item: PlanItem): Result<Unit> {
         return try {
-            planDao.updatePlanItem(
-                PlanItemEntity(
-                    id = item.id,
-                    syncId = item.syncId,
-                    planId = item.planId,
-                    planSyncId = item.planSyncId,
-                    subjectId = item.subjectId,
-                    subjectSyncId = item.subjectSyncId,
-                    dayOfWeek = item.dayOfWeek.value,
-                    targetMinutes = item.targetMinutes,
-                    actualMinutes = item.actualMinutes,
-                    timeSlot = item.timeSlot,
-                    createdAt = item.createdAt,
-                    updatedAt = clock.currentTimeMillis(),
-                    deletedAt = item.deletedAt,
-                    lastSyncedAt = item.lastSyncedAt
+            writeLock.withLock {
+                planDao.updatePlanItem(
+                    PlanItemEntity(
+                        id = item.id,
+                        syncId = item.syncId,
+                        planId = item.planId,
+                        planSyncId = item.planSyncId,
+                        subjectId = item.subjectId,
+                        subjectSyncId = item.subjectSyncId,
+                        dayOfWeek = item.dayOfWeek.value,
+                        targetMinutes = item.targetMinutes,
+                        actualMinutes = item.actualMinutes,
+                        timeSlot = item.timeSlot,
+                        createdAt = item.createdAt,
+                        updatedAt = clock.currentTimeMillis(),
+                        deletedAt = item.deletedAt,
+                        lastSyncedAt = item.lastSyncedAt
+                    )
                 )
-            )
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update plan item: ${item.id}", e)
@@ -196,24 +208,26 @@ class PlanRepositoryImpl @Inject constructor(
     override suspend fun deletePlanItem(item: PlanItem): Result<Unit> {
         return try {
             val now = clock.currentTimeMillis()
-            planDao.updatePlanItem(
-                PlanItemEntity(
-                    id = item.id,
-                    syncId = item.syncId,
-                    planId = item.planId,
-                    planSyncId = item.planSyncId,
-                    subjectId = item.subjectId,
-                    subjectSyncId = item.subjectSyncId,
-                    dayOfWeek = item.dayOfWeek.value,
-                    targetMinutes = item.targetMinutes,
-                    actualMinutes = item.actualMinutes,
-                    timeSlot = item.timeSlot,
-                    createdAt = item.createdAt,
-                    updatedAt = now,
-                    deletedAt = now,
-                    lastSyncedAt = item.lastSyncedAt
+            writeLock.withLock {
+                planDao.updatePlanItem(
+                    PlanItemEntity(
+                        id = item.id,
+                        syncId = item.syncId,
+                        planId = item.planId,
+                        planSyncId = item.planSyncId,
+                        subjectId = item.subjectId,
+                        subjectSyncId = item.subjectSyncId,
+                        dayOfWeek = item.dayOfWeek.value,
+                        targetMinutes = item.targetMinutes,
+                        actualMinutes = item.actualMinutes,
+                        timeSlot = item.timeSlot,
+                        createdAt = item.createdAt,
+                        updatedAt = now,
+                        deletedAt = now,
+                        lastSyncedAt = item.lastSyncedAt
+                    )
                 )
-            )
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete plan item: ${item.id}", e)

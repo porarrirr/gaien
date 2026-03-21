@@ -75,10 +75,12 @@ class MaterialsViewModel @Inject constructor(
     
     fun addMaterial(name: String, subjectId: Long, totalPages: Int) {
         viewModelScope.launch {
+            val subjectSyncId = _uiState.value.subjects.firstOrNull { it.id == subjectId }?.syncId
             manageMaterialsUseCase.addMaterial(
                 Material(
                     name = name,
                     subjectId = subjectId,
+                    subjectSyncId = subjectSyncId,
                     totalPages = totalPages
                 )
             ).onError { error ->
@@ -89,7 +91,8 @@ class MaterialsViewModel @Inject constructor(
     
     fun updateMaterial(material: Material) {
         viewModelScope.launch {
-            manageMaterialsUseCase.updateMaterial(material)
+            val subjectSyncId = _uiState.value.subjects.firstOrNull { it.id == material.subjectId }?.syncId
+            manageMaterialsUseCase.updateMaterial(material.copy(subjectSyncId = subjectSyncId))
                 .onError { error ->
                     _uiState.update { it.copy(error = error.message ?: "教材の更新に失敗しました") }
                 }

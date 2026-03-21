@@ -7,6 +7,7 @@ import com.studyapp.domain.model.Exam
 import com.studyapp.domain.repository.ExamRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
+import com.studyapp.sync.AppDataWriteLock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Instant
@@ -17,7 +18,8 @@ import javax.inject.Singleton
 @Singleton
 class ExamRepositoryImpl @Inject constructor(
     private val examDao: ExamDao,
-    private val clock: Clock
+    private val clock: Clock,
+    private val writeLock: AppDataWriteLock
 ) : ExamRepository {
 
     companion object {
@@ -49,7 +51,9 @@ class ExamRepositoryImpl @Inject constructor(
 
     override suspend fun insertExam(exam: Exam): Result<Long> {
         return try {
-            val id = examDao.insertExam(exam.toEntity())
+            val id = writeLock.withLock {
+                examDao.insertExam(exam.toEntity())
+            }
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert exam: ${exam.name}", e)
@@ -59,7 +63,9 @@ class ExamRepositoryImpl @Inject constructor(
 
     override suspend fun updateExam(exam: Exam): Result<Unit> {
         return try {
-            examDao.updateExam(exam.copy(updatedAt = clock.currentTimeMillis()).toEntity())
+            writeLock.withLock {
+                examDao.updateExam(exam.copy(updatedAt = clock.currentTimeMillis()).toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update exam: ${exam.id}", e)
@@ -70,7 +76,9 @@ class ExamRepositoryImpl @Inject constructor(
     override suspend fun deleteExam(exam: Exam): Result<Unit> {
         return try {
             val now = clock.currentTimeMillis()
-            examDao.updateExam(exam.copy(deletedAt = now, updatedAt = now).toEntity())
+            writeLock.withLock {
+                examDao.updateExam(exam.copy(deletedAt = now, updatedAt = now).toEntity())
+            }
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete exam: ${exam.id}", e)

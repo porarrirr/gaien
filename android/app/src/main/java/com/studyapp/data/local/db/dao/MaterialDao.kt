@@ -41,4 +41,7 @@ interface MaterialDao {
 
     @Query("UPDATE materials SET currentPage = :currentPage, updatedAt = :updatedAt WHERE id = :materialId")
     suspend fun updateProgress(materialId: Long, currentPage: Int, updatedAt: Long)
+
+    @Query("DELETE FROM materials")
+    suspend fun deleteAllMaterialsForImport()
 }

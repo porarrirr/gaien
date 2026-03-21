@@ -29,9 +29,12 @@ interface PlanDao {
     
     @Delete
     suspend fun deletePlan(plan: PlanEntity)
-    
+
     @Query("UPDATE study_plans SET isActive = 0 WHERE deletedAt IS NULL")
     suspend fun deactivateAllPlans()
+
+    @Query("DELETE FROM study_plans")
+    suspend fun deleteAllPlansForImport()
     
     @Query("SELECT * FROM plan_items WHERE planId = :planId AND deletedAt IS NULL")
     fun getPlanItems(planId: Long): Flow<List<PlanItemEntity>>
@@ -53,9 +56,12 @@ interface PlanDao {
     
     @Delete
     suspend fun deletePlanItem(item: PlanItemEntity)
-    
+
     @Query("DELETE FROM plan_items WHERE planId = :planId")
     suspend fun deletePlanItems(planId: Long)
+
+    @Query("DELETE FROM plan_items")
+    suspend fun deleteAllPlanItemsForImport()
     
     @Transaction
     suspend fun createPlanWithItems(plan: PlanEntity, items: List<PlanItemEntity>): Long {
