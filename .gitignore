@@ -9,3 +9,7 @@ ios/DerivedData/
 *.xcworkspace/xcuserdata/
 *.xcuserdatad/
 *.xcuserstate
+
+# Firebase app config files
+android/app/google-services.json
+ios/StudyApp/Resources/GoogleService-Info.plist
