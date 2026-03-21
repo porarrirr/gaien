@@ -17,7 +17,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             .appendingPathComponent("studyapp-store.json")
 
         let model = Self.makeManagedObjectModel()
-        container = NSPersistentContainer(name: "StudyAppStore", managedObjectModel: model)
+        let persistentContainer = NSPersistentContainer(name: "StudyAppStore", managedObjectModel: model)
         let storeURL = (fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fileManager.temporaryDirectory)
             .appendingPathComponent("StudyApp.sqlite")
         let description = NSPersistentStoreDescription(url: storeURL)
@@ -25,13 +25,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         description.shouldInferMappingModelAutomatically = true
         description.setOption(FileProtectionType.completeUntilFirstUserAuthentication as NSObject,
                               forKey: NSPersistentStoreFileProtectionKey)
-        container.persistentStoreDescriptions = [description]
-        container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        persistentContainer.persistentStoreDescriptions = [description]
+        persistentContainer.viewContext.automaticallyMergesChangesFromParent = true
+        persistentContainer.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        self.container = persistentContainer
 
         loadTask = Task {
             try await withCheckedThrowingContinuation { continuation in
-                container.loadPersistentStores { _, error in
+                persistentContainer.loadPersistentStores { _, error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
