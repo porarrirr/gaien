@@ -187,7 +187,7 @@ final class GoogleBooksService: BookSearchRepository {
                 await self.lookupStore.cacheBooks([], for: normalizedTitle, ttl: Self.cacheTTL)
                 return []
             }
-            let books = items.compactMap { item in
+            let books: [BookInfo] = items.compactMap { item in
                 guard let volumeInfo = item["volumeInfo"] as? [String: Any] else {
                     return nil
                 }
