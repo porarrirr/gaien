@@ -573,6 +573,7 @@ protocol AppDataRepository {
     func migrateLegacySnapshotIfNeeded(preferencesRepository: AppPreferencesRepository) async throws
 }
 
+@MainActor
 protocol AuthRepository {
     var session: AuthSession? { get }
     func signIn(email: String, password: String) async throws
@@ -580,6 +581,7 @@ protocol AuthRepository {
     func signOut() async throws
 }
 
+@MainActor
 protocol SyncRepository {
     var status: SyncStatus { get }
     func syncNow() async throws

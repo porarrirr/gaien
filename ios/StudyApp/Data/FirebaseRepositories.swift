@@ -10,7 +10,15 @@ final class FirebaseAuthRepository: ObservableObject, AuthRepository {
     private let auth: Auth
     private var stateDidChangeHandle: AuthStateDidChangeListenerHandle?
 
-    init(auth: Auth = Auth.auth()) {
+    init() {
+        self.auth = Auth.auth()
+        self.session = self.auth.currentUser.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
+        self.stateDidChangeHandle = self.auth.addStateDidChangeListener { [weak self] _, user in
+            self?.session = user.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
+        }
+    }
+
+    init(auth: Auth) {
         self.auth = auth
         self.session = auth.currentUser.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
         self.stateDidChangeHandle = auth.addStateDidChangeListener { [weak self] _, user in
@@ -53,7 +61,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
     init(
         authRepository: FirebaseAuthRepository,
-        firestore: Firestore = Firestore.firestore(),
+        firestore: Firestore,
         persistence: PersistenceController,
         preferencesRepository: UserDefaultsPreferencesRepository
     ) {
@@ -79,6 +87,19 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    convenience init(
+        authRepository: FirebaseAuthRepository,
+        persistence: PersistenceController,
+        preferencesRepository: UserDefaultsPreferencesRepository
+    ) {
+        self.init(
+            authRepository: authRepository,
+            firestore: Firestore.firestore(),
+            persistence: persistence,
+            preferencesRepository: preferencesRepository
+        )
     }
 
     func syncNow() async throws {

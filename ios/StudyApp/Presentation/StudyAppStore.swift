@@ -19,13 +19,30 @@ final class StudyAppContainer: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
+    init() {
+        let persistence = PersistenceController.shared
+        let preferencesRepository = UserDefaultsPreferencesRepository()
+        let googleBooksService = GoogleBooksService()
+        let reminderScheduler = ReminderScheduler()
+        let authRepository = FirebaseAuthRepository()
+
+        self.init(
+            persistence: persistence,
+            preferencesRepository: preferencesRepository,
+            googleBooksService: googleBooksService,
+            reminderScheduler: reminderScheduler,
+            authRepository: authRepository,
+            syncRepository: nil
+        )
+    }
+
     init(
-        persistence: PersistenceController = .shared,
-        preferencesRepository: UserDefaultsPreferencesRepository = UserDefaultsPreferencesRepository(),
-        googleBooksService: GoogleBooksService = GoogleBooksService(),
-        reminderScheduler: ReminderScheduler = ReminderScheduler(),
-        authRepository: FirebaseAuthRepository = FirebaseAuthRepository(),
-        syncRepository: FirebaseSyncRepository? = nil
+        persistence: PersistenceController,
+        preferencesRepository: UserDefaultsPreferencesRepository,
+        googleBooksService: GoogleBooksService,
+        reminderScheduler: ReminderScheduler,
+        authRepository: FirebaseAuthRepository,
+        syncRepository: FirebaseSyncRepository?
     ) {
         self.persistence = persistence
         self.preferencesRepository = preferencesRepository

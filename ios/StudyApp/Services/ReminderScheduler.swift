@@ -7,7 +7,11 @@ final class ReminderScheduler {
 
     private let center: UNUserNotificationCenter
 
-    init(center: UNUserNotificationCenter = .current()) {
+    init() {
+        self.center = .current()
+    }
+
+    init(center: UNUserNotificationCenter) {
         self.center = center
     }
 
