@@ -188,15 +188,19 @@ struct MaterialsScreen: View {
             }
         }
         .sheet(isPresented: $isShowingScanner) {
-            BarcodeScannerSheet { code in
-                isbn = code
-                viewModel.app.logger.log(category: .barcode, message: "Barcode scanned", details: "isbn=\(code)")
-                viewModel.searchBook(isbn: code)
-                isShowingScanner = false
-            } onFailure: { message in
-                scannerMessage = message
-                isShowingScanner = false
-            } logger: viewModel.app.logger
+            BarcodeScannerSheet(
+                onScanned: { code in
+                    isbn = code
+                    viewModel.app.logger.log(category: .barcode, message: "Barcode scanned", details: "isbn=\(code)")
+                    viewModel.searchBook(isbn: code)
+                    isShowingScanner = false
+                },
+                onFailure: { message in
+                    scannerMessage = message
+                    isShowingScanner = false
+                },
+                logger: viewModel.app.logger
+            )
         }
         .alert("バーコード読み取り", isPresented: Binding(get: { scannerMessage != nil }, set: { if !$0 { scannerMessage = nil } })) {
             Button("OK", role: .cancel) {
