@@ -45,7 +45,9 @@ class TimerViewModelTest {
     private val isRunningFlow = MutableStateFlow(false)
     private val isBoundFlow = MutableStateFlow(false)
     private val currentSubjectIdFlow = MutableStateFlow<Long?>(null)
+    private val currentSubjectSyncIdFlow = MutableStateFlow<String?>(null)
     private val currentMaterialIdFlow = MutableStateFlow<Long?>(null)
+    private val currentMaterialSyncIdFlow = MutableStateFlow<String?>(null)
     
     @Before
     fun setup() {
@@ -65,7 +67,9 @@ class TimerViewModelTest {
         every { timerServiceManager.isRunning } returns isRunningFlow
         every { timerServiceManager.isBound } returns isBoundFlow
         every { timerServiceManager.currentSubjectId } returns currentSubjectIdFlow
+        every { timerServiceManager.currentSubjectSyncId } returns currentSubjectSyncIdFlow
         every { timerServiceManager.currentMaterialId } returns currentMaterialIdFlow
+        every { timerServiceManager.currentMaterialSyncId } returns currentMaterialSyncIdFlow
         every { timerServiceManager.bind() } just runs
         every { timerServiceManager.unbind() } just runs
         
@@ -233,11 +237,18 @@ class TimerViewModelTest {
         
         viewModel.selectMaterial(material, subject)
         
-        every { timerServiceManager.startTimer(1L, 1L) } just runs
+        every { timerServiceManager.startTimer(1L, subject.syncId, 1L, material.syncId) } just runs
         
         viewModel.startTimer()
         
-        verify { timerServiceManager.startTimer(subjectId = 1L, materialId = 1L) }
+        verify {
+            timerServiceManager.startTimer(
+                subjectId = 1L,
+                subjectSyncId = subject.syncId,
+                materialId = 1L,
+                materialSyncId = material.syncId
+            )
+        }
     }
     
     @Test
@@ -254,7 +265,7 @@ class TimerViewModelTest {
         
         viewModel.startTimer()
         
-        verify(exactly = 0) { timerServiceManager.startTimer(any(), any()) }
+        verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any()) }
     }
     
     @Test
@@ -263,7 +274,7 @@ class TimerViewModelTest {
         
         viewModel.startTimer()
         
-        verify(exactly = 0) { timerServiceManager.startTimer(any(), any()) }
+        verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any()) }
     }
     
     @Test

@@ -301,10 +301,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             when (val deleteResult = exportImportDataUseCase.deleteAllData()) {
                 is Result.Success -> {
+                    syncRepository.clearLocalSyncState()
                     _uiState.update {
                         it.copy(
                             totalSessions = 0,
-                            totalStudyTime = 0L
+                            totalStudyTime = 0L,
+                            lastSyncAt = null,
+                            syncError = null
                         )
                     }
                 }

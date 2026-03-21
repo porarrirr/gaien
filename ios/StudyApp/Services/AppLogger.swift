@@ -45,6 +45,14 @@ struct DebugLogEntry: Identifiable, Codable, Equatable {
 
 @MainActor
 final class AppLogger: ObservableObject {
+    static var isDebugToolsEnabled: Bool {
+#if DEBUG
+        true
+#else
+        false
+#endif
+    }
+
     private let fileManager: FileManager
     private let fileURL: URL
     private let encoder = JSONEncoder()
@@ -65,13 +73,16 @@ final class AppLogger: ObservableObject {
         decoder.dateDecodingStrategy = .iso8601
         encoder.dateEncodingStrategy = .iso8601
 
-        do {
-            try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        } catch {
-            print("[StudyApp] Failed to create debug log directory: \(error.localizedDescription)")
+        if Self.isDebugToolsEnabled {
+            do {
+                try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+            } catch {
+                print("[StudyApp] Failed to create debug log directory: \(error.localizedDescription)")
+            }
+            loadEntries()
+        } else {
+            entries = []
         }
-
-        loadEntries()
     }
 
     func log(
@@ -85,8 +96,8 @@ final class AppLogger: ObservableObject {
             category: category,
             level: level,
             message: message,
-            details: details,
-            errorDescription: error.map { ($0 as? LocalizedError)?.errorDescription ?? $0.localizedDescription }
+            details: Self.redact(details),
+            errorDescription: error.map { Self.redact(($0 as? LocalizedError)?.errorDescription ?? $0.localizedDescription) }
         )
         entries.insert(entry, at: 0)
         if entries.count > maxEntries {
@@ -126,6 +137,10 @@ final class AppLogger: ObservableObject {
     }
 
     private func loadEntries() {
+        guard Self.isDebugToolsEnabled else {
+            entries = []
+            return
+        }
         guard fileManager.fileExists(atPath: fileURL.path) else {
             entries = []
             return
@@ -141,11 +156,32 @@ final class AppLogger: ObservableObject {
     }
 
     private func persistEntries() {
+        guard Self.isDebugToolsEnabled else { return }
         do {
             let data = try encoder.encode(entries)
             try data.write(to: fileURL, options: .atomic)
         } catch {
             print("[StudyApp] Failed to persist debug logs: \(error.localizedDescription)")
         }
+    }
+
+    private static func redact(_ value: String?) -> String? {
+        guard var redacted = value, !redacted.isEmpty else { return value }
+
+        let replacements = [
+            (#"email=[^\s]+"#, "email=<redacted>"),
+            (#"uid=[^\s]+"#, "uid=<redacted>"),
+            (#"userId=[^\s]+"#, "userId=<redacted>"),
+            (#"localId=[^\s]+"#, "localId=<redacted>")
+        ]
+
+        for (pattern, replacement) in replacements {
+            redacted = redacted.replacingOccurrences(
+                of: pattern,
+                with: replacement,
+                options: .regularExpression
+            )
+        }
+        return redacted
     }
 }

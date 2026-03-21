@@ -586,6 +586,7 @@ protocol SyncRepository {
     var status: SyncStatus { get }
     func syncNow() async throws
     func importLocalDataToCloud() async throws
+    func clearLocalSyncState() async
 }
 
 struct Clock {

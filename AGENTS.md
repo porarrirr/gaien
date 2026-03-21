@@ -179,8 +179,19 @@ Both platforms should implement the same features:
 
 - **Android**: Room database (`StudyDatabase`)
 - **iOS**: Core Data with `PersistenceController`
+- **Cloud sync**: Firebase Authentication + Cloud Firestore are used for opt-in cloud sync.
 
-Both use local storage only (no remote backend).
+Local storage remains the source of truth on device, and signed-in users can opt into Firebase-backed sync.
+
+## Firebase Sync Notes
+
+- Firebase project alias: `genshitekiapp`
+- Firestore rules live in `firestore.rules`
+- Firebase CLI config lives in `firebase.json` and `.firebaserc`
+- Mobile app config files are intentionally **not** committed:
+  - `android/app/google-services.json`
+  - `ios/StudyApp/Resources/GoogleService-Info.plist`
+- A fresh clone or CI environment must provision those files separately before running Firebase-backed builds
 
 ## Color Scheme
 

@@ -78,15 +78,17 @@ class TimerServiceManagerImpl @Inject constructor(
         }
     }
     
-    override fun startTimer(subjectId: Long, materialId: Long?) {
+    override fun startTimer(subjectId: Long, subjectSyncId: String?, materialId: Long?, materialSyncId: String?) {
         val service = timerService
         if (service != null) {
-            service.startTimer(subjectId, materialId)
+            service.startTimer(subjectId, subjectSyncId, materialId, materialSyncId)
         } else {
             val intent = Intent(context, TimerService::class.java).apply {
                 action = TimerService.ACTION_START
                 putExtra("subjectId", subjectId)
+                putExtra("subjectSyncId", subjectSyncId)
                 putExtra("materialId", materialId ?: -1)
+                putExtra("materialSyncId", materialSyncId)
             }
             context.startForegroundService(intent)
         }
@@ -135,8 +137,14 @@ class TimerServiceManagerImpl @Inject constructor(
     override val currentSubjectId: Flow<Long?>
         get() = _timerState.asStateFlow().map { it.subjectId }.distinctUntilChanged()
 
+    override val currentSubjectSyncId: Flow<String?>
+        get() = _timerState.asStateFlow().map { it.subjectSyncId }.distinctUntilChanged()
+
     override val currentMaterialId: Flow<Long?>
         get() = _timerState.asStateFlow().map { it.materialId }.distinctUntilChanged()
+
+    override val currentMaterialSyncId: Flow<String?>
+        get() = _timerState.asStateFlow().map { it.materialSyncId }.distinctUntilChanged()
 
     private fun connectToService(service: TimerService) {
         timerService = service

@@ -186,7 +186,7 @@ struct SettingsScreen: View {
                 Label("アプリ情報", systemImage: "info.circle.fill")
             }
 
-            if isDebugLogUnlocked {
+            if AppLogger.isDebugToolsEnabled && isDebugLogUnlocked {
                 Section {
                     Button {
                         viewModel.refreshDebugLogs()

@@ -30,8 +30,16 @@ interface MaterialRepository {
      * 
      * @param id 教材ID
      * @return 教材情報（存在しない場合はnull）、またはエラー
-     */
+    */
     suspend fun getMaterialById(id: Long): Result<Material?>
+
+    /**
+     * 指定syncIdの教材を取得します。
+     *
+     * @param syncId 教材syncId
+     * @return 教材情報（存在しない場合はnull）、またはエラー
+     */
+    suspend fun getMaterialBySyncId(syncId: String): Result<Material?>
 
     /**
      * 教材を追加します。

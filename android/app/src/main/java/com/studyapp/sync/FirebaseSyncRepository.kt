@@ -48,6 +48,7 @@ class FirebaseSyncRepository @Inject constructor(
                 var lastConflict: Throwable? = null
                 repeat(MAX_SYNC_ATTEMPTS) { attempt ->
                     val local = exportLocalData()
+                    ensureLocalSyncOwnership(session, local)
                     val remoteSnapshot = loadSnapshot(session.localId)
                     val merged = remoteSnapshot.payload?.let { remotePayload ->
                         merge(local, AppData.fromJson(JSONObject(remotePayload)))
@@ -67,6 +68,7 @@ class FirebaseSyncRepository @Inject constructor(
                             is Result.Success -> Unit
                         }
                         syncPreferences.setLastSyncAt(now)
+                        syncPreferences.setLocalSyncOwnerUserId(session.localId)
                         _status.value = SyncStatus(true, session.email, false, now, null)
                         return@withLock
                     } catch (t: Throwable) {
@@ -92,9 +94,11 @@ class FirebaseSyncRepository @Inject constructor(
             val session = requireSession()
             setSyncing(true)
             writeLock.withLock {
+                val local = exportLocalData()
+                ensureLocalSyncOwnership(session, local)
                 val remoteSnapshot = loadSnapshot(session.localId)
                 val now = System.currentTimeMillis()
-                val payload = markSynced(exportLocalData(), now).toJson().toString()
+                val payload = markSynced(local, now).toJson().toString()
                 saveSnapshot(
                     userId = session.localId,
                     payload = payload,
@@ -106,6 +110,7 @@ class FirebaseSyncRepository @Inject constructor(
                     is Result.Success -> Unit
                 }
                 syncPreferences.setLastSyncAt(now)
+                syncPreferences.setLocalSyncOwnerUserId(session.localId)
                 _status.value = SyncStatus(true, session.email, false, now, null)
             }
         } catch (t: Throwable) {
@@ -113,6 +118,11 @@ class FirebaseSyncRepository @Inject constructor(
             _status.value = _status.value.copy(isSyncing = false, errorMessage = mapped.message)
             throw mapped
         }
+    }
+
+    override suspend fun clearLocalSyncState() {
+        syncPreferences.clearLocalSyncState()
+        _status.value = _status.value.copy(lastSyncAt = null, errorMessage = null)
     }
 
     private suspend fun exportLocalData(): AppData {
@@ -161,7 +171,7 @@ class FirebaseSyncRepository @Inject constructor(
         expectedVersion: Long
     ): Long {
         val manifestRef = manifestDocument(userId)
-        val chunks = payload.chunked(SNAPSHOT_CHUNK_SIZE)
+        val chunks = splitPayloadIntoChunks(payload)
 
         return firebaseFirestore.runTransaction { transaction ->
             val manifestSnapshot = transaction.get(manifestRef)
@@ -268,6 +278,14 @@ class FirebaseSyncRepository @Inject constructor(
         )
     }
 
+    private fun ensureLocalSyncOwnership(session: AuthSession, localData: AppData) {
+        val localSyncOwnerUserId = syncPreferences.getLocalSyncOwnerUserId()
+        if (localSyncOwnerUserId == null || localSyncOwnerUserId == session.localId || localData.isEmpty()) {
+            return
+        }
+        throw IllegalStateException(ACCOUNT_SWITCH_MESSAGE)
+    }
+
     private fun requireSession(): AuthSession {
         check(firebaseAuth.currentUser != null) { "Sign in is required before syncing." }
         val session = authRepository.session.value ?: error("Sign in is required before syncing.")
@@ -333,6 +351,37 @@ class FirebaseSyncRepository @Inject constructor(
         return false
     }
 
+    private fun splitPayloadIntoChunks(payload: String): List<String> {
+        val utf8 = payload.toByteArray(Charsets.UTF_8)
+        if (utf8.isEmpty()) {
+            return listOf("")
+        }
+
+        val chunks = mutableListOf<String>()
+        var start = 0
+        while (start < utf8.size) {
+            var end = minOf(start + SNAPSHOT_CHUNK_BYTES, utf8.size)
+            while (end < utf8.size && end > start && (utf8[end].toInt() and 0xC0) == 0x80) {
+                end -= 1
+            }
+            if (end <= start) {
+                end = minOf(start + SNAPSHOT_CHUNK_BYTES, utf8.size)
+            }
+            chunks += utf8.copyOfRange(start, end).toString(Charsets.UTF_8)
+            start = end
+        }
+        return chunks
+    }
+
+    private fun AppData.isEmpty(): Boolean {
+        return subjects.isEmpty() &&
+            materials.isEmpty() &&
+            sessions.isEmpty() &&
+            goals.isEmpty() &&
+            exams.isEmpty() &&
+            plans.isEmpty()
+    }
+
     private data class RemoteSnapshot(
         val payload: String? = null,
         val version: Long = 0L,
@@ -344,6 +393,8 @@ class FirebaseSyncRepository @Inject constructor(
     private companion object {
         const val MAX_SYNC_ATTEMPTS = 3
         const val SNAPSHOT_FORMAT = "chunked-v2"
-        const val SNAPSHOT_CHUNK_SIZE = 200_000
+        const val SNAPSHOT_CHUNK_BYTES = 200_000
+        const val ACCOUNT_SWITCH_MESSAGE =
+            "この端末のローカルデータは別の同期アカウントに紐づいています。全データを削除してから再度同期してください。"
     }
 }

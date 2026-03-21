@@ -27,6 +27,9 @@ interface MaterialDao {
     @Query("SELECT * FROM materials WHERE id = :id")
     suspend fun getMaterialById(id: Long): MaterialEntity?
 
+    @Query("SELECT * FROM materials WHERE syncId = :syncId LIMIT 1")
+    suspend fun getMaterialBySyncId(syncId: String): MaterialEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMaterial(material: MaterialEntity): Long
 

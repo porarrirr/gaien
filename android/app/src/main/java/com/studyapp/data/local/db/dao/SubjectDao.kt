@@ -15,6 +15,9 @@ interface SubjectDao {
     @Query("SELECT * FROM subjects WHERE id = :id")
     suspend fun getSubjectById(id: Long): SubjectEntity?
 
+    @Query("SELECT * FROM subjects WHERE syncId = :syncId LIMIT 1")
+    suspend fun getSubjectBySyncId(syncId: String): SubjectEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubject(subject: SubjectEntity): Long
 

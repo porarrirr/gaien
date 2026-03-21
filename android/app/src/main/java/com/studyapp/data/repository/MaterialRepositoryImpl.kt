@@ -45,6 +45,16 @@ class MaterialRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getMaterialBySyncId(syncId: String): Result<Material?> {
+        return try {
+            val material = materialDao.getMaterialBySyncId(syncId)?.toDomainSimple()
+            Result.Success(material)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get material by syncId: $syncId", e)
+            Result.Error(e, "Failed to get material")
+        }
+    }
+
     override suspend fun insertMaterial(material: Material): Result<Long> {
         return try {
             val id = writeLock.withLock {

@@ -34,23 +34,23 @@ final class FirebaseAuthRepository: ObservableObject, AuthRepository {
     }
 
     func signIn(email: String, password: String) async throws {
-        logger?.log(category: .auth, message: "Firebase sign-in started", details: "email=\(email)")
+        logger?.log(category: .auth, message: "Firebase sign-in started", details: "emailProvided=\(!email.isEmpty)")
         let result = try await auth.signIn(withEmail: email, password: password)
         let token = try await result.user.getIDToken()
         session = AuthSession(localId: result.user.uid, email: result.user.email ?? email, idToken: token, refreshToken: "")
-        logger?.log(category: .auth, message: "Firebase sign-in succeeded", details: "uid=\(result.user.uid) email=\(result.user.email ?? email)")
+        logger?.log(category: .auth, message: "Firebase sign-in succeeded", details: "emailVerified=\(result.user.isEmailVerified)")
     }
 
     func signUp(email: String, password: String) async throws {
-        logger?.log(category: .auth, message: "Firebase sign-up started", details: "email=\(email)")
+        logger?.log(category: .auth, message: "Firebase sign-up started", details: "emailProvided=\(!email.isEmpty)")
         let result = try await auth.createUser(withEmail: email, password: password)
         let token = try await result.user.getIDToken()
         session = AuthSession(localId: result.user.uid, email: result.user.email ?? email, idToken: token, refreshToken: "")
-        logger?.log(category: .auth, message: "Firebase sign-up succeeded", details: "uid=\(result.user.uid) email=\(result.user.email ?? email)")
+        logger?.log(category: .auth, message: "Firebase sign-up succeeded", details: "emailVerified=\(result.user.isEmailVerified)")
     }
 
     func signOut() async throws {
-        logger?.log(category: .auth, message: "Firebase sign-out started", details: "uid=\(auth.currentUser?.uid ?? "-")")
+        logger?.log(category: .auth, message: "Firebase sign-out started")
         try auth.signOut()
         session = nil
         logger?.log(category: .auth, message: "Firebase sign-out succeeded")
@@ -67,7 +67,7 @@ final class FirebaseAuthRepository: ObservableObject, AuthRepository {
         logger?.log(
             category: .auth,
             message: "Firebase auth state changed",
-            details: "uid=\(user?.uid ?? "-") email=\(user?.email ?? "-") authenticated=\(user != nil)"
+            details: "authenticated=\(user != nil)"
         )
     }
 }
@@ -80,12 +80,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private let preferencesRepository: UserDefaultsPreferencesRepository
     private let logger: AppLogger
     private let lastSyncKey = "studyapp.sync.lastSyncAt"
+    private let localSyncOwnerKey = "studyapp.sync.localOwnerUserId"
     private var lastLoadedVersion: Int64 = 0
     private var cancellables = Set<AnyCancellable>()
 
-    private static let maxChunkBytes = 500_000
+    private static let maxChunkBytes = 200_000
     private static let maxSyncRetries = 3
     private static let alreadySyncingMessage = "同期はすでに実行中です。完了までお待ちください。"
+    private static let accountSwitchMessage = "この端末のローカルデータは別の同期アカウントに紐づいています。全データを削除してから再度同期してください。"
 
     @Published private(set) var status = SyncStatus()
 
@@ -121,7 +123,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 self.logger.log(
                     category: .sync,
                     message: "Sync auth session updated",
-                    details: "authenticated=\(session != nil) uid=\(session?.localId ?? "-") email=\(session?.email ?? "-")"
+                    details: "authenticated=\(session != nil)"
                 )
             }
             .store(in: &cancellables)
@@ -148,20 +150,21 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             throw ValidationError(message: "同期するにはサインインが必要です")
         }
         try beginSyncOperation(named: "syncNow", session: session)
-        logger.log(category: .sync, message: "syncNow started", details: "uid=\(session.localId) email=\(session.email)")
+        logger.log(category: .sync, message: "syncNow started")
         defer {
             endSyncOperation()
             logger.log(
                 category: .sync,
                 message: "syncNow finished",
-                details: "uid=\(session.localId) error=\(status.errorMessage ?? "-") lastSyncAt=\(status.lastSyncAt.map(String.init) ?? "-")"
+                details: "error=\(status.errorMessage ?? "-") lastSyncAt=\(status.lastSyncAt.map(String.init) ?? "-")"
             )
         }
         do {
             for attempt in 0..<Self.maxSyncRetries {
                 logger.log(category: .sync, message: "syncNow attempt started", details: "attempt=\(attempt + 1)")
-                let remotePayload = try await loadSnapshot(userId: session.localId)
                 let local = try await persistence.exportData()
+                try ensureLocalSyncOwnership(session: session, local: local)
+                let remotePayload = try await loadSnapshot(userId: session.localId)
                 let localChangeToken = persistence.changeToken
                 let merged: AppData
                 if let remotePayload {
@@ -216,6 +219,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     throw ValidationError(message: "同期後のローカル反映に失敗しました")
                 }
                 UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
+                UserDefaults.standard.set(session.localId, forKey: localSyncOwnerKey)
                 status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
                 logger.log(category: .sync, message: "syncNow succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(synced.exportDate)")
                 return
@@ -234,19 +238,21 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             throw ValidationError(message: "同期するにはサインインが必要です")
         }
         try beginSyncOperation(named: "importLocalDataToCloud", session: session)
-        logger.log(category: .sync, message: "importLocalDataToCloud started", details: "uid=\(session.localId) email=\(session.email)")
+        logger.log(category: .sync, message: "importLocalDataToCloud started")
         defer {
             endSyncOperation()
             logger.log(
                 category: .sync,
                 message: "importLocalDataToCloud finished",
-                details: "uid=\(session.localId) error=\(status.errorMessage ?? "-") lastSyncAt=\(status.lastSyncAt.map(String.init) ?? "-")"
+                details: "error=\(status.errorMessage ?? "-") lastSyncAt=\(status.lastSyncAt.map(String.init) ?? "-")"
             )
         }
         do {
             for attempt in 0..<Self.maxSyncRetries {
                 _ = try await loadSnapshot(userId: session.localId)
-                let local = markSynced(try await persistence.exportData(), at: Date().epochMilliseconds)
+                let localData = try await persistence.exportData()
+                try ensureLocalSyncOwnership(session: session, local: localData)
+                let local = markSynced(localData, at: Date().epochMilliseconds)
                 let localChangeToken = persistence.changeToken
                 let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
                 logger.log(
@@ -270,6 +276,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     continue
                 }
                 UserDefaults.standard.set(local.exportDate, forKey: lastSyncKey)
+                UserDefaults.standard.set(session.localId, forKey: localSyncOwnerKey)
                 status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: local.exportDate)
                 logger.log(category: .sync, message: "importLocalDataToCloud succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(local.exportDate)")
                 return
@@ -280,6 +287,13 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             logger.log(category: .sync, level: .error, message: "importLocalDataToCloud failed", details: "uid=\(session.localId)", error: error)
             throw error
         }
+    }
+
+    func clearLocalSyncState() async {
+        UserDefaults.standard.removeObject(forKey: lastSyncKey)
+        UserDefaults.standard.removeObject(forKey: localSyncOwnerKey)
+        status.lastSyncAt = nil
+        status.errorMessage = nil
     }
 
     private func beginSyncOperation(named operation: String, session: AuthSession) throws {
@@ -298,6 +312,15 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
     private func endSyncOperation() {
         status.isSyncing = false
+    }
+
+    private func ensureLocalSyncOwnership(session: AuthSession, local: AppData) throws {
+        let localSyncOwnerUserId = UserDefaults.standard.string(forKey: localSyncOwnerKey)
+        if localSyncOwnerUserId == nil || localSyncOwnerUserId == session.localId || local.isEmpty {
+            return
+        }
+        logger.log(category: .sync, level: .warning, message: "Sync blocked due to account mismatch")
+        throw ValidationError(message: Self.accountSwitchMessage)
     }
 
     // MARK: - Chunked snapshot I/O (backward-compatible with legacy payload format)
@@ -509,5 +532,16 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             },
             exportDate: timestamp
         )
+    }
+}
+
+private extension AppData {
+    var isEmpty: Bool {
+        subjects.isEmpty &&
+        materials.isEmpty &&
+        sessions.isEmpty &&
+        goals.isEmpty &&
+        exams.isEmpty &&
+        plans.isEmpty
     }
 }

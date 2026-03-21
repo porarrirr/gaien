@@ -73,7 +73,11 @@ class TimerService : Service() {
     private fun restoreTimerState() {
         serviceScope.launch {
             val persistedState = timerStateStore.timerState.first()
-            if (persistedState.subjectId == null && persistedState.elapsedTime <= 0L) {
+            if (
+                persistedState.subjectId == null &&
+                persistedState.subjectSyncId == null &&
+                persistedState.elapsedTime <= 0L
+            ) {
                 return@launch
             }
 
@@ -82,7 +86,7 @@ class TimerService : Service() {
             )
             _timerState.value = restoredState
 
-            if (restoredState.isRunning && restoredState.subjectId != null) {
+            if (restoredState.isRunning && (restoredState.subjectId != null || restoredState.subjectSyncId != null)) {
                 startTicker()
                 tryStartForeground(restoredState)
             }
@@ -104,9 +108,11 @@ class TimerService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 val subjectId = intent.getLongExtra("subjectId", -1).takeIf { it > 0 }
+                val subjectSyncId = intent.getStringExtra("subjectSyncId")
                 val materialId = intent.getLongExtra("materialId", -1).takeIf { it > 0 }
+                val materialSyncId = intent.getStringExtra("materialSyncId")
                 if (subjectId != null) {
-                    startTimer(subjectId, materialId)
+                    startTimer(subjectId, subjectSyncId, materialId, materialSyncId)
                 }
             }
             ACTION_PAUSE -> pauseTimer()
@@ -198,13 +204,15 @@ class TimerService : Service() {
         return builder.build()
     }
     
-    fun startTimer(subjectId: Long, materialId: Long?) {
+    fun startTimer(subjectId: Long, subjectSyncId: String?, materialId: Long?, materialSyncId: String?) {
         val currentState = _timerState.value
         if (currentState.isRunning) return
 
         val updatedState = currentState.copy(
             subjectId = subjectId,
+            subjectSyncId = subjectSyncId,
             materialId = materialId,
+            materialSyncId = materialSyncId,
             isRunning = true,
             startTime = System.currentTimeMillis() - currentState.elapsedTime
         )
@@ -224,18 +232,28 @@ class TimerService : Service() {
     }
     
     fun stopTimer(): Pair<Long, Long?> {
-        val stoppedTimer = clearTimerState()
+        val stoppedTimer = runBlocking { clearTimerStateAndStopService() }
         return Pair(stoppedTimer.elapsed, stoppedTimer.materialId)
     }
 
     private suspend fun stopTimerAndPersist() {
-        val stoppedTimer = clearTimerState()
-        val subjectId = stoppedTimer.subjectId ?: return
+        val stoppedTimer = clearTimerStateAndStopService()
+        if (stoppedTimer.subjectId == null && stoppedTimer.subjectSyncId.isNullOrBlank()) {
+            return
+        }
         if (stoppedTimer.elapsed <= 0L) {
             return
         }
 
-        when (val result = saveStudySessionUseCase(subjectId, stoppedTimer.materialId, stoppedTimer.elapsed)) {
+        when (
+            val result = saveStudySessionUseCase(
+                subjectId = stoppedTimer.subjectId,
+                subjectSyncId = stoppedTimer.subjectSyncId,
+                materialId = stoppedTimer.materialId,
+                materialSyncId = stoppedTimer.materialSyncId,
+                duration = stoppedTimer.elapsed
+            )
+        ) {
             is Result.Error -> {
                 Log.e(TAG, "Failed to save session from timer notification", result.exception)
             }
@@ -243,17 +261,19 @@ class TimerService : Service() {
         }
     }
 
-    private fun clearTimerState(): StoppedTimer {
+    private suspend fun clearTimerStateAndStopService(): StoppedTimer {
         timerJob?.cancel()
         val currentState = _timerState.value
         val stoppedTimer = StoppedTimer(
             subjectId = currentState.subjectId,
+            subjectSyncId = currentState.subjectSyncId,
             materialId = currentState.materialId,
+            materialSyncId = currentState.materialSyncId,
             elapsed = currentElapsedTime(currentState)
         )
         _timerState.value = TimerState()
         
-        clearPersistedTimerState()
+        timerStateStore.clearTimerState()
         
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -268,12 +288,6 @@ class TimerService : Service() {
     private fun persistTimerState(state: TimerState = _timerState.value) {
         serviceScope.launch {
             timerStateStore.updateTimerState(state)
-        }
-    }
-    
-    private fun clearPersistedTimerState() {
-        serviceScope.launch {
-            timerStateStore.clearTimerState()
         }
     }
     
@@ -345,7 +359,9 @@ class TimerService : Service() {
 
     private data class StoppedTimer(
         val subjectId: Long?,
+        val subjectSyncId: String?,
         val materialId: Long?,
+        val materialSyncId: String?,
         val elapsed: Long
     )
 }

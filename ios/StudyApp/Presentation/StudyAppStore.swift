@@ -803,6 +803,7 @@ final class SettingsViewModel: ScreenViewModel {
     func deleteAllData() {
         perform {
             try await self.app.persistence.deleteAllData()
+            await self.app.syncRepository.clearLocalSyncState()
             self.app.updateActiveTimer(nil)
             self.summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
             self.app.logger.log(category: .app, level: .warning, message: "All local data deleted")
@@ -813,9 +814,10 @@ final class SettingsViewModel: ScreenViewModel {
     func signInToSync() {
         perform {
             let password = self.syncPassword
+            let email = self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines)
             defer { self.syncPassword = "" }
-            self.app.logger.log(category: .auth, message: "Sign in requested", details: "email=\(self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines)) passwordLength=\(password.count)")
-            try await self.app.authRepository.signIn(email: self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines), password: password)
+            self.app.logger.log(category: .auth, message: "Sign in requested", details: "emailProvided=\(!email.isEmpty) passwordLength=\(password.count)")
+            try await self.app.authRepository.signIn(email: email, password: password)
             self.app.refreshSyncStatus()
             self.debugLogEntries = self.app.logger.recentEntries()
         }
@@ -824,9 +826,10 @@ final class SettingsViewModel: ScreenViewModel {
     func createSyncAccount() {
         perform {
             let password = self.syncPassword
+            let email = self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines)
             defer { self.syncPassword = "" }
-            self.app.logger.log(category: .auth, message: "Sign up requested", details: "email=\(self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines)) passwordLength=\(password.count)")
-            try await self.app.authRepository.signUp(email: self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines), password: password)
+            self.app.logger.log(category: .auth, message: "Sign up requested", details: "emailProvided=\(!email.isEmpty) passwordLength=\(password.count)")
+            try await self.app.authRepository.signUp(email: email, password: password)
             self.app.refreshSyncStatus()
             self.debugLogEntries = self.app.logger.recentEntries()
         }
@@ -835,7 +838,7 @@ final class SettingsViewModel: ScreenViewModel {
     func signOutOfSync() {
         perform {
             try await self.app.authRepository.signOut()
-            self.app.logger.log(category: .auth, message: "Sign out completed", details: "email=\(self.app.syncStatus.email ?? "-")")
+            self.app.logger.log(category: .auth, message: "Sign out completed")
             self.debugLogEntries = self.app.logger.recentEntries()
         }
     }
@@ -871,6 +874,7 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func exportDebugLogs() {
+        guard AppLogger.isDebugToolsEnabled else { return }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("studyapp_debug_logs_\(Int(Date().timeIntervalSince1970)).txt")
         do {
             try app.logger.exportText().write(to: url, atomically: true, encoding: .utf8)
@@ -883,6 +887,7 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func copyDebugLogs() {
+        guard AppLogger.isDebugToolsEnabled else { return }
         #if canImport(UIKit)
         UIPasteboard.general.string = app.logger.exportText()
         app.logger.log(category: .app, message: "Debug logs copied to clipboard", details: "entryCount=\(app.logger.recentEntries().count)")

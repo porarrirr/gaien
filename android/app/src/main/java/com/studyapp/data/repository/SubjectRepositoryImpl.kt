@@ -39,6 +39,16 @@ class SubjectRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getSubjectBySyncId(syncId: String): Result<Subject?> {
+        return try {
+            val subject = subjectDao.getSubjectBySyncId(syncId)?.toDomain()
+            Result.Success(subject)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get subject by syncId: $syncId", e)
+            Result.Error(e, "Failed to get subject")
+        }
+    }
+
     override suspend fun insertSubject(subject: Subject): Result<Long> {
         return try {
             val id = writeLock.withLock {

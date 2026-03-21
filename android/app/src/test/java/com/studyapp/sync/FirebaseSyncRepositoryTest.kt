@@ -10,7 +10,9 @@ import com.studyapp.domain.usecase.AppData
 import com.studyapp.domain.usecase.ExportImportDataUseCase
 import io.mockk.coEvery
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.runs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -67,6 +69,9 @@ class FirebaseSyncRepositoryTest {
             firebaseFirestore = mockk(relaxed = true),
             syncPreferences = mockk<SyncPreferences> {
                 every { getLastSyncAt() } returns null
+                every { getLocalSyncOwnerUserId() } returns null
+                every { setLocalSyncOwnerUserId(any()) } just runs
+                every { clearLocalSyncState() } just runs
             },
             exportImportDataUseCase = mockk(relaxed = true),
             writeLock = AppDataWriteLock()
@@ -117,6 +122,10 @@ class FirebaseSyncRepositoryTest {
         }
         val syncPreferences = mockk<SyncPreferences> {
             every { getLastSyncAt() } returns null
+            every { getLocalSyncOwnerUserId() } returns null
+            every { setLastSyncAt(any()) } just runs
+            every { setLocalSyncOwnerUserId(any()) } just runs
+            every { clearLocalSyncState() } just runs
         }
 
         return FirebaseSyncRepository(

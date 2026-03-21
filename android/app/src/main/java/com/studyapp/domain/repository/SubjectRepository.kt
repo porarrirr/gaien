@@ -22,8 +22,16 @@ interface SubjectRepository {
      * 
      * @param id 科目ID
      * @return 科目情報（存在しない場合はnull）、またはエラー
-     */
+    */
     suspend fun getSubjectById(id: Long): Result<Subject?>
+
+    /**
+     * 指定syncIdの科目を取得します。
+     *
+     * @param syncId 科目syncId
+     * @return 科目情報（存在しない場合はnull）、またはエラー
+     */
+    suspend fun getSubjectBySyncId(syncId: String): Result<Subject?>
 
     /**
      * 科目を追加します。

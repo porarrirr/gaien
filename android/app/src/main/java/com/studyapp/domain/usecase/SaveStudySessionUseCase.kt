@@ -1,6 +1,7 @@
 package com.studyapp.domain.usecase
 
 import android.util.Log
+import com.studyapp.domain.model.Subject
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.repository.SubjectRepository
@@ -20,8 +21,27 @@ class SaveStudySessionUseCase @Inject constructor(
         materialId: Long?,
         duration: Long
     ): Result<Long> {
+        return invoke(
+            subjectId = subjectId,
+            subjectSyncId = null,
+            materialId = materialId,
+            materialSyncId = null,
+            duration = duration
+        )
+    }
+
+    suspend operator fun invoke(
+        subjectId: Long?,
+        subjectSyncId: String?,
+        materialId: Long?,
+        materialSyncId: String?,
+        duration: Long
+    ): Result<Long> {
         return try {
-            Log.d(TAG, "Saving study session: subjectId=$subjectId, materialId=$materialId, duration=$duration")
+            Log.d(
+                TAG,
+                "Saving study session: subjectId=$subjectId, subjectSyncId=$subjectSyncId, materialId=$materialId, materialSyncId=$materialSyncId, duration=$duration"
+            )
             
             if (duration <= 0) {
                 Log.w(TAG, "Invalid duration: $duration")
@@ -29,18 +49,18 @@ class SaveStudySessionUseCase @Inject constructor(
             }
             
             val currentTime = clock.currentTimeMillis()
-            val subject = subjectRepository.getSubjectById(subjectId).getOrNull()
+            val subject = resolveSubject(subjectId, subjectSyncId)
                 ?: return Result.Error(
                     NoSuchElementException("Subject not found"),
                     "科目が見つかりません"
                 )
-            val material = materialId?.let { materialRepository.getMaterialById(it).getOrNull() }
+            val material = resolveMaterial(materialId, materialSyncId)
             
             val session = StudySession(
-                materialId = materialId,
+                materialId = material?.id,
                 materialSyncId = material?.syncId,
                 materialName = material?.name.orEmpty(),
-                subjectId = subjectId,
+                subjectId = subject.id,
                 subjectSyncId = subject.syncId,
                 subjectName = subject.name,
                 startTime = currentTime - duration,
@@ -59,6 +79,15 @@ class SaveStudySessionUseCase @Inject constructor(
             Result.Error(e, "学習記録の保存に失敗しました")
         }
     }
+
+    private suspend fun resolveSubject(subjectId: Long?, subjectSyncId: String?): Subject? {
+        return subjectId?.let { subjectRepository.getSubjectById(it).getOrNull() }
+            ?: subjectSyncId?.let { subjectRepository.getSubjectBySyncId(it).getOrNull() }
+    }
+
+    private suspend fun resolveMaterial(materialId: Long?, materialSyncId: String?) =
+        materialId?.let { materialRepository.getMaterialById(it).getOrNull() }
+            ?: materialSyncId?.let { materialRepository.getMaterialBySyncId(it).getOrNull() }
     
     companion object {
         private const val TAG = "SaveStudySessionUseCase"
