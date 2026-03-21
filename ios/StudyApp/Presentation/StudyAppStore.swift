@@ -263,6 +263,9 @@ final class MaterialsViewModel: ScreenViewModel {
     @Published private(set) var materials: [Material] = []
     @Published var bookSearchResult: BookInfo?
     @Published var isShowingBookResult = false
+    @Published private(set) var isSearchingBook = false
+
+    private var lastRequestedIsbn = ""
 
     func load() async {
         do {
@@ -280,9 +283,23 @@ final class MaterialsViewModel: ScreenViewModel {
     }
 
     func searchBook(isbn: String) {
+        let normalizedIsbn = isbn
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: " ", with: "")
+
+        guard !normalizedIsbn.isEmpty else {
+            app.present("ISBNを入力してください")
+            return
+        }
+        guard !(isSearchingBook && lastRequestedIsbn == normalizedIsbn) else { return }
+
+        isSearchingBook = true
+        lastRequestedIsbn = normalizedIsbn
         perform {
+            defer { self.isSearchingBook = false }
             let useCase = ManageMaterialsUseCase(materialRepository: self.app.persistence, subjectRepository: self.app.persistence, bookSearchRepository: self.app.googleBooksService)
-            self.bookSearchResult = try await useCase.searchBook(isbn: isbn)
+            self.bookSearchResult = try await useCase.searchBook(isbn: normalizedIsbn)
             self.isShowingBookResult = self.bookSearchResult != nil
         }
     }

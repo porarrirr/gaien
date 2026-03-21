@@ -411,7 +411,7 @@ struct SubjectStudyData: Identifiable, Hashable {
     var color: Int
 }
 
-struct BookInfo: Codable, Hashable {
+struct BookInfo: Codable, Hashable, Sendable {
     var title: String
     var authors: [String]
     var publisher: String?

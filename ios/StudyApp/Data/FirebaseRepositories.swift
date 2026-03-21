@@ -14,15 +14,10 @@ final class FirebaseAuthRepository: ObservableObject, AuthRepository {
     init(logger: AppLogger? = nil) {
         self.auth = Auth.auth()
         self.logger = logger
-        self.session = self.auth.currentUser.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
+        self.session = self.auth.currentUser.map(Self.makeSession(from:))
         self.stateDidChangeHandle = self.auth.addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor [weak self] in
-                self?.session = user.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
-                self?.logger?.log(
-                    category: .auth,
-                    message: "Firebase auth state changed",
-                    details: "uid=\(user?.uid ?? "-") email=\(user?.email ?? "-") authenticated=\(user != nil)"
-                )
+                self?.applyAuthStateChange(user)
             }
         }
     }
@@ -30,15 +25,10 @@ final class FirebaseAuthRepository: ObservableObject, AuthRepository {
     init(auth: Auth, logger: AppLogger? = nil) {
         self.auth = auth
         self.logger = logger
-        self.session = auth.currentUser.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
+        self.session = auth.currentUser.map(Self.makeSession(from:))
         self.stateDidChangeHandle = auth.addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor [weak self] in
-                self?.session = user.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
-                self?.logger?.log(
-                    category: .auth,
-                    message: "Firebase auth state changed",
-                    details: "uid=\(user?.uid ?? "-") email=\(user?.email ?? "-") authenticated=\(user != nil)"
-                )
+                self?.applyAuthStateChange(user)
             }
         }
     }
@@ -64,6 +54,21 @@ final class FirebaseAuthRepository: ObservableObject, AuthRepository {
         try auth.signOut()
         session = nil
         logger?.log(category: .auth, message: "Firebase sign-out succeeded")
+    }
+
+    private static func makeSession(from user: User) -> AuthSession {
+        AuthSession(localId: user.uid, email: user.email ?? "", idToken: "", refreshToken: "")
+    }
+
+    private func applyAuthStateChange(_ user: User?) {
+        let nextSession = user.map(Self.makeSession(from:))
+        guard session != nextSession else { return }
+        session = nextSession
+        logger?.log(
+            category: .auth,
+            message: "Firebase auth state changed",
+            details: "uid=\(user?.uid ?? "-") email=\(user?.email ?? "-") authenticated=\(user != nil)"
+        )
     }
 }
 
@@ -102,6 +107,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         )
 
         authRepository.$session
+            .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] session in
                 guard let self else { return }
