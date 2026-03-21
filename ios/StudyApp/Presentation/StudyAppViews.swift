@@ -719,6 +719,12 @@ private struct CalendarScreen: View {
                 }
                 .padding(.horizontal, AppSpacing.md)
 
+                HStack {
+                    Spacer()
+                    CalendarHeatmapLegend(hasData: !viewModel.monthStudyMap.isEmpty)
+                }
+                .padding(.horizontal, AppSpacing.md)
+
                 // Calendar grid
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
                     ForEach(0..<(firstWeekday + daysInMonth), id: \.self) { index in

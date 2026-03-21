@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -63,6 +64,7 @@ fun CalendarScreen(
                 year = uiState.currentYear,
                 month = uiState.currentMonth,
                 studyData = uiState.studyDataByDate,
+                maxStudyMinutes = uiState.studyDataByDate.values.maxOrNull() ?: 0L,
                 selectedDate = uiState.selectedDate,
                 onDateSelect = { viewModel.selectDate(it) }
             )
@@ -117,6 +119,7 @@ private fun CalendarGrid(
     year: Int,
     month: Int,
     studyData: Map<Int, Long>,
+    maxStudyMinutes: Long,
     selectedDate: Date?,
     onDateSelect: (Date) -> Unit
 ) {
@@ -152,7 +155,7 @@ private fun CalendarGrid(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp)
+                .padding(horizontal = 12.dp)
         ) {
             for (row in 0 until weekRows) {
                 Row(modifier = Modifier.fillMaxWidth()) {
@@ -187,6 +190,7 @@ private fun CalendarGrid(
                                 DayCell(
                                     day = dayNumber,
                                     studyMinutes = studyMinutes,
+                                    maxStudyMinutes = maxStudyMinutes,
                                     isSelected = isSelected,
                                     isToday = isToday,
                                     onClick = {
@@ -201,6 +205,13 @@ private fun CalendarGrid(
                 }
             }
         }
+
+        HeatmapLegend(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            maxStudyMinutes = maxStudyMinutes
+        )
     }
 }
 
@@ -208,43 +219,111 @@ private fun CalendarGrid(
 private fun DayCell(
     day: Int,
     studyMinutes: Long,
+    maxStudyMinutes: Long,
     isSelected: Boolean,
     isToday: Boolean,
     onClick: () -> Unit
 ) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val heatmapColor = when {
+    val shape = RoundedCornerShape(6.dp)
+    val level = heatmapLevel(studyMinutes = studyMinutes, maxStudyMinutes = maxStudyMinutes)
+    val heatmapColor = heatmapCellColor(level)
+    val outlineColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
-        studyMinutes > 120 -> MaterialTheme.colorScheme.primaryContainer
-        studyMinutes in 61..120 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
-        studyMinutes in 31..60 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-        studyMinutes in 1..30 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        else -> MaterialTheme.colorScheme.surface
+        isToday -> MaterialTheme.colorScheme.outline
+        else -> Color.Transparent
+    }
+    val textColor = when {
+        isSelected -> MaterialTheme.colorScheme.onPrimary
+        level >= 3 -> Color.White
+        studyMinutes > 0 -> MaterialTheme.colorScheme.onSurface
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .padding(2.dp)
+            .padding(3.dp)
             .testTag("calendar_day_$day")
-            .then(
-                if (isToday) Modifier.border(2.dp, primaryColor, CircleShape)
-                else Modifier
+            .clip(shape)
+            .background(if (isSelected) MaterialTheme.colorScheme.primary else heatmapColor)
+            .border(
+                width = if (isSelected || isToday) 2.dp else 1.dp,
+                color = if (isSelected || isToday) outlineColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                shape = shape
             )
-            .clip(CircleShape)
-            .background(heatmapColor)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+            .clickable(onClick = onClick)
     ) {
         Text(
             text = day.toString(),
-            color = when {
-                isSelected -> MaterialTheme.colorScheme.onPrimary
-                else -> MaterialTheme.colorScheme.onSurface
-            },
-            fontSize = 14.sp,
-            fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
+            color = textColor,
+            fontSize = 12.sp,
+            fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Medium,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 6.dp, top = 5.dp)
         )
+    }
+}
+
+@Composable
+private fun HeatmapLegend(
+    modifier: Modifier = Modifier,
+    maxStudyMinutes: Long
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "少",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        (0..4).forEach { level ->
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 2.dp)
+                    .size(12.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(heatmapCellColor(if (maxStudyMinutes == 0L) 0 else level))
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(3.dp)
+                    )
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "多",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun heatmapCellColor(level: Int): Color {
+    val palette = listOf(
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        Color(0xFFDDEEDB),
+        Color(0xFF9BD58A),
+        Color(0xFF5AAD5A),
+        Color(0xFF2E7D32)
+    )
+    return palette[level.coerceIn(0, palette.lastIndex)]
+}
+
+private fun heatmapLevel(studyMinutes: Long, maxStudyMinutes: Long): Int {
+    if (studyMinutes <= 0 || maxStudyMinutes <= 0) return 0
+    val ratio = studyMinutes.toFloat() / maxStudyMinutes.toFloat()
+    return when {
+        ratio >= 0.75f -> 4
+        ratio >= 0.5f -> 3
+        ratio >= 0.25f -> 2
+        else -> 1
     }
 }
 
