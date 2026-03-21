@@ -22,14 +22,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -54,6 +52,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.Material
 import com.studyapp.presentation.scanner.BarcodeScannerScreen
 import com.studyapp.R
+import com.studyapp.presentation.components.AnimatedProgressBar
+import com.studyapp.presentation.components.EmptyState
+import com.studyapp.presentation.components.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,15 +96,15 @@ fun MaterialsScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 actions = {
                     IconButton(onClick = { showScanner = true }) {
                         Icon(
                             Icons.Default.QrCodeScanner,
                             contentDescription = stringResource(R.string.materials_scan_barcode),
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     TextButton(onClick = onNavigateToSubjects) {
@@ -111,12 +112,12 @@ fun MaterialsScreen(
                             Icons.Default.Category,
                             contentDescription = null,
                             modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = stringResource(R.string.materials_nav_subjects),
-                            color = MaterialTheme.colorScheme.onPrimary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -134,51 +135,18 @@ fun MaterialsScreen(
     ) { paddingValues ->
         when {
             uiState.isLoading -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.common_loading),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                LoadingState(
+                    modifier = Modifier.padding(paddingValues),
+                    message = stringResource(R.string.common_loading)
+                )
             }
             uiState.materials.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Book,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = stringResource(R.string.materials_empty_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = stringResource(R.string.materials_empty_message),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                EmptyState(
+                    icon = Icons.Default.Book,
+                    title = stringResource(R.string.materials_empty_title),
+                    description = stringResource(R.string.materials_empty_message),
+                    modifier = Modifier.padding(paddingValues)
+                )
             }
             else -> {
                 LazyColumn(
@@ -288,9 +256,9 @@ private fun MaterialCard(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showProgressEdit by remember { mutableStateOf(false) }
     
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         onClick = { showProgressEdit = true }
     ) {
         Column(
@@ -348,9 +316,23 @@ private fun MaterialCard(
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                LinearProgressIndicator(
-                    progress = { material.progress },
-                    modifier = Modifier.fillMaxWidth()
+                val progressColor = when {
+                    material.progress < 0.3f -> MaterialTheme.colorScheme.error
+                    material.progress < 0.7f -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.primary
+                }
+                AnimatedProgressBar(
+                    progress = material.progress,
+                    modifier = Modifier.fillMaxWidth(),
+                    height = 10.dp,
+                    progressColor = progressColor
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "タップで進捗更新",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

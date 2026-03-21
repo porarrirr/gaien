@@ -17,16 +17,32 @@ import com.studyapp.presentation.MainScreen
 import com.studyapp.presentation.onboarding.OnboardingScreen
 import com.studyapp.presentation.onboarding.OnboardingUiState
 import com.studyapp.presentation.onboarding.OnboardingViewModel
+import com.studyapp.presentation.settings.ColorTheme
+import com.studyapp.presentation.settings.ThemeMode
+import com.studyapp.presentation.settings.ThemePreferences
 import com.studyapp.presentation.theme.StudyAppTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var themePreferences: ThemePreferences
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            StudyAppTheme {
+            val colorTheme by themePreferences.getPrimaryColor()
+                .collectAsState(initial = ColorTheme.GREEN)
+            val themeMode by themePreferences.getThemeMode()
+                .collectAsState(initial = ThemeMode.SYSTEM)
+
+            StudyAppTheme(
+                colorTheme = colorTheme,
+                themeMode = themeMode
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

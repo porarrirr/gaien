@@ -15,6 +15,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.model.Subject
+import com.studyapp.presentation.components.EmptyState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -37,15 +43,15 @@ fun HistoryScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 actions = {
                     IconButton(onClick = { showFilterDialog = true }) {
                         Icon(
                             Icons.Default.FilterList,
                             contentDescription = "フィルタ",
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -53,36 +59,21 @@ fun HistoryScreen(
         }
     ) { paddingValues ->
         if (uiState.sessions.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Default.History,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "学習履歴がありません",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "タイマーで学習を記録しましょう",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            EmptyState(
+                icon = Icons.Default.History,
+                title = "学習履歴がありません",
+                description = "タイマーで学習を記録しましょう",
+                modifier = Modifier.padding(paddingValues)
+            )
+        } else {
+            val dateKeyFormat = remember { SimpleDateFormat("yyyyMMdd", Locale.JAPANESE) }
+            val dateHeaderFormat = remember { SimpleDateFormat("M月d日 (E)", Locale.JAPANESE) }
+            val groupedSessions = remember(uiState.sessions) {
+                uiState.sessions.groupBy { session ->
+                    dateKeyFormat.format(Date(session.startTime))
                 }
             }
-        } else {
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -90,13 +81,29 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.sessions, key = { it.id }) { session ->
-                    SessionCard(
-                        session = session,
-                        subject = uiState.subjects.find { it.id == session.subjectId },
-                        onEdit = { editingSession = session },
-                        onDelete = { viewModel.deleteSession(session) }
-                    )
+                groupedSessions.forEach { (dateKey, sessionsForDate) ->
+                    item(key = "header_$dateKey") {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = dateHeaderFormat.format(Date(sessionsForDate.first().startTime)),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                    items(sessionsForDate, key = { it.id }) { session ->
+                        SessionCard(
+                            session = session,
+                            subject = uiState.subjects.find { it.id == session.subjectId },
+                            onEdit = { editingSession = session },
+                            onDelete = { viewModel.deleteSession(session) }
+                        )
+                    }
                 }
             }
         }
@@ -137,10 +144,10 @@ private fun SessionCard(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val dateFormat = SimpleDateFormat("M月d日", Locale.JAPANESE)
     val timeFormat = SimpleDateFormat("HH:mm", Locale.JAPANESE)
-    
-    Card(
+
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -152,65 +159,59 @@ private fun SessionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = subject?.name ?: "不明な科目",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (session.materialName.isNotBlank()) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "- ${session.materialName}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = dateFormat.format(Date(session.startTime)),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    subject?.let {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(it.color))
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "${timeFormat.format(Date(session.startTime))} - ${timeFormat.format(Date(session.endTime))}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
-                }
-                
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
                     Text(
-                        text = session.durationFormatted,
+                        text = subject?.name ?: "不明な科目",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        fontWeight = FontWeight.Bold
                     )
                 }
-                
-                Row {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, contentDescription = "編集")
-                    }
-                    IconButton(onClick = { showDeleteConfirm = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "削除")
-                    }
+                Text(
+                    text = session.durationFormatted,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = dateFormat.format(Date(session.startTime)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "${timeFormat.format(Date(session.startTime))} - ${timeFormat.format(Date(session.endTime))}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (session.materialName.isNotBlank()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "・${session.materialName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
-            
+
             if (!session.note.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -219,9 +220,37 @@ Row(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "編集",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                IconButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "削除",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
     }
-    
+
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },

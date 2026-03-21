@@ -1,5 +1,6 @@
 package com.studyapp.presentation.timer
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -22,13 +24,15 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -40,6 +44,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,6 +54,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.Subject
+import com.studyapp.presentation.components.CircularProgressRing
+import com.studyapp.presentation.components.PulsingEffect
+import com.studyapp.presentation.components.SectionHeader
 import com.studyapp.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,26 +67,26 @@ fun TimerScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showManualInputDialog by remember { mutableStateOf(false) }
     var showMaterialPicker by remember { mutableStateOf(false) }
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         text = stringResource(R.string.timer_screen_title),
                         fontWeight = FontWeight.Bold
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 actions = {
                     IconButton(onClick = { showManualInputDialog = true }) {
                         Icon(
                             Icons.Default.Edit,
                             contentDescription = stringResource(R.string.timer_manual_input_title),
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -133,16 +142,30 @@ fun TimerScreen(
                         selectedSubject = uiState.selectedSubject,
                         onClick = { showMaterialPicker = true }
                     )
-                    
-                    Spacer(modifier = Modifier.height(32.dp))
-                    
-                    TimerDisplay(
-                        time = uiState.elapsedTime,
-                        isRunning = uiState.isRunning
-                    )
-                    
-                    Spacer(modifier = Modifier.height(48.dp))
-                    
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Large CircularProgressRing with PulsingEffect
+                    val elapsedMinutes = uiState.elapsedTime / 60000f
+                    val cycleProgress = (elapsedMinutes % 60f) / 60f
+
+                    PulsingEffect(isPulsing = uiState.isRunning) {
+                        CircularProgressRing(
+                            progress = if (uiState.elapsedTime > 0) cycleProgress else 0f,
+                            size = 280.dp,
+                            strokeWidth = 14.dp,
+                            showPercentage = false,
+                            centerContent = {
+                                TimerDisplay(
+                                    time = uiState.elapsedTime,
+                                    isRunning = uiState.isRunning
+                                )
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(36.dp))
+
                     TimerControls(
                         isRunning = uiState.isRunning,
                         elapsedTime = uiState.elapsedTime,
@@ -150,9 +173,9 @@ fun TimerScreen(
                         onPause = { viewModel.pauseTimer() },
                         onStop = { viewModel.stopTimer() }
                     )
-                    
+
                     Spacer(modifier = Modifier.weight(1f))
-                    
+
                     val recentMaterials = uiState.recentMaterials
                     if (recentMaterials.isNotEmpty()) {
                         RecentMaterialsSection(
@@ -166,7 +189,7 @@ fun TimerScreen(
             }
         }
     }
-    
+
     if (showManualInputDialog) {
         ManualInputDialog(
             subjects = uiState.subjects,
@@ -178,7 +201,7 @@ fun TimerScreen(
             }
         )
     }
-    
+
     if (showMaterialPicker) {
         MaterialPickerDialog(
             subjects = uiState.subjects,
@@ -199,36 +222,52 @@ private fun MaterialSelector(
     selectedSubject: Subject?,
     onClick: () -> Unit
 ) {
-    OutlinedCard(
+    val borderColor = selectedSubject?.let { Color(it.color) }
+        ?: MaterialTheme.colorScheme.outline
+
+    ElevatedCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = selectedSubject?.name ?: stringResource(R.string.timer_select_subject),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                if (selectedMaterial != null) {
-                    Text(
-                        text = selectedMaterial.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Icon(
-                Icons.Default.ArrowDropDown,
-                contentDescription = stringResource(R.string.timer_dropdown)
+            // Colored left border strip matching the selected subject
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(64.dp)
+                    .background(borderColor)
             )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = selectedSubject?.name ?: stringResource(R.string.timer_select_subject),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (selectedMaterial != null) {
+                        Text(
+                            text = selectedMaterial.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    Icons.Default.ArrowDropDown,
+                    contentDescription = stringResource(R.string.timer_dropdown)
+                )
+            }
         }
     }
 }
@@ -242,26 +281,26 @@ private fun TimerDisplay(
         val hours = time / 3600000
         val minutes = (time % 3600000) / 60000
         val seconds = (time % 60000) / 1000
-        
+
         when {
             hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
             else -> String.format("%02d:%02d", minutes, seconds)
         }
     }
-    
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = timeText,
-            fontSize = 72.sp,
+            fontSize = 48.sp,
             fontWeight = FontWeight.Light,
             color = if (isRunning) MaterialTheme.colorScheme.primary
                    else MaterialTheme.colorScheme.onSurface
         )
-        
+
         if (isRunning) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = stringResource(R.string.timer_studying),
                 style = MaterialTheme.typography.bodyMedium,
@@ -280,44 +319,45 @@ private fun TimerControls(
     onStop: () -> Unit
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         if (isRunning) {
-            FloatingActionButton(
+            LargeFloatingActionButton(
                 onClick = onPause,
                 containerColor = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(72.dp)
+                modifier = Modifier.size(80.dp)
             ) {
                 Icon(
                     Icons.Default.Pause,
                     contentDescription = stringResource(R.string.timer_pause),
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             }
         } else {
-            FloatingActionButton(
+            LargeFloatingActionButton(
                 onClick = onStart,
                 containerColor = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(72.dp)
+                modifier = Modifier.size(80.dp)
             ) {
                 Icon(
                     Icons.Default.PlayArrow,
                     contentDescription = stringResource(R.string.timer_start),
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             }
         }
-        
+
         if (elapsedTime > 0) {
-            FloatingActionButton(
+            LargeFloatingActionButton(
                 onClick = onStop,
                 containerColor = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(72.dp)
+                modifier = Modifier.size(80.dp)
             ) {
                 Icon(
                     Icons.Default.Stop,
                     contentDescription = stringResource(R.string.timer_stop),
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             }
         }
@@ -330,16 +370,14 @@ private fun RecentMaterialsSection(
     onSelect: (Material, Subject) -> Unit
 ) {
     val displayMaterials = remember(materials) { materials.take(5) }
-    
+
     Column {
-        Text(
-            text = stringResource(R.string.timer_recent_materials_title),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        SectionHeader(
+            title = stringResource(R.string.timer_recent_materials_title)
         )
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -350,8 +388,9 @@ private fun RecentMaterialsSection(
                     leadingIcon = {
                         Box(
                             modifier = Modifier
-                                .size(12.dp)
-                                .padding(2.dp)
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(subject.color))
                         )
                     }
                 )

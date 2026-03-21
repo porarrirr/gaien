@@ -26,8 +26,14 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,8 +82,8 @@ fun SettingsScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -95,7 +101,7 @@ fun SettingsScreen(
                 onThemeModeChange = { viewModel.setThemeMode(it) }
             )
             
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             
             NotificationSection(
                 reminderEnabled = uiState.reminderEnabled,
@@ -120,7 +126,7 @@ fun SettingsScreen(
                 }
             )
             
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             SyncSection(
                 syncAuthenticated = uiState.syncAuthenticated,
@@ -139,7 +145,7 @@ fun SettingsScreen(
                 onImportLocal = viewModel::importLocalDataToCloud
             )
 
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             
             DataSection(
                 totalSessions = uiState.totalSessions,
@@ -149,7 +155,7 @@ fun SettingsScreen(
                 onDeleteData = { showDeleteDataDialog = true }
             )
             
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             
             AboutSection(
                 context = context
@@ -228,7 +234,7 @@ private fun SyncSection(
             ) {
                 if (syncAuthenticated) {
                     Text("接続中: ${syncAccountEmail ?: "-"}")
-                    Text("最終同期: ${lastSyncAt?.let { Date(it).toString() } ?: "未同期"}")
+                    Text("最終同期: ${lastSyncAt?.let { SimpleDateFormat("M/d HH:mm", Locale.JAPANESE).format(Date(it)) } ?: "未同期"}")
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -268,6 +274,7 @@ private fun SyncSection(
                         onValueChange = onSyncPasswordChange,
                         label = { Text("パスワード") },
                         singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Row(
@@ -351,7 +358,8 @@ private fun ThemeSection(
                             leadingIcon = {
                                 Box(
                                     modifier = Modifier
-                                        .size(12.dp)
+                                        .size(28.dp)
+                                        .clip(CircleShape)
                                         .background(androidx.compose.ui.graphics.Color(theme.colorValue))
                                 )
                             }
@@ -443,7 +451,7 @@ private fun NotificationSection(
                 }
                 
                 if (reminderEnabled) {
-                    Divider()
+                    HorizontalDivider()
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

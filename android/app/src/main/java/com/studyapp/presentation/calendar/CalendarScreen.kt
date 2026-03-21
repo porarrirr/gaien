@@ -1,12 +1,9 @@
 package com.studyapp.presentation.calendar
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -44,8 +41,8 @@ fun CalendarScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -54,7 +51,6 @@ fun CalendarScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
         ) {
             CalendarHeader(
                 year = uiState.currentYear,
@@ -100,17 +96,17 @@ private fun CalendarHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onPrevious) {
+        FilledTonalIconButton(onClick = onPrevious) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "前月")
         }
         
         Text(
             text = "${year}年 ${monthNames[month - 1]}",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
         
-        IconButton(onClick = onNext) {
+        FilledTonalIconButton(onClick = onNext) {
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "翌月")
         }
     }
@@ -134,10 +130,12 @@ private fun CalendarGrid(
     
     val weekDays = listOf("日", "月", "火", "水", "木", "金", "土")
     
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("calendar_grid")
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
             weekDays.forEach { day ->
                 Text(
                     text = day,
@@ -151,54 +149,55 @@ private fun CalendarGrid(
             }
         }
         
-        BoxWithConstraints(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp)
         ) {
-            val cellSize = maxWidth / 7
-            val gridHeight = cellSize * weekRows
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(7),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(gridHeight)
-                    .testTag("calendar_grid"),
-                userScrollEnabled = false
-            ) {
-                items(firstDayOfWeek) {
-                    Box(modifier = Modifier.aspectRatio(1f))
-                }
-                
-                items(daysInMonth) { day ->
-                    val studyMinutes = studyData[day + 1] ?: 0L
-                    val isSelected = selectedDate?.let {
-                        val cal = Calendar.getInstance()
-                        cal.time = it
-                        cal.get(Calendar.YEAR) == year &&
-                            cal.get(Calendar.MONTH) == month - 1 &&
-                            cal.get(Calendar.DAY_OF_MONTH) == day + 1
-                    } ?: false
-                    
-                    val isToday = run {
-                        val today = Calendar.getInstance()
-                        today.get(Calendar.YEAR) == year &&
-                            today.get(Calendar.MONTH) == month - 1 &&
-                            today.get(Calendar.DAY_OF_MONTH) == day + 1
-                    }
-                    
-                    DayCell(
-                        day = day + 1,
-                        studyMinutes = studyMinutes,
-                        isSelected = isSelected,
-                        isToday = isToday,
-                        onClick = {
-                            val cal = Calendar.getInstance()
-                            cal.set(year, month - 1, day + 1)
-                            onDateSelect(cal.time)
+            for (row in 0 until weekRows) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    for (col in 0 until 7) {
+                        val cellIndex = row * 7 + col
+                        val dayNumber = cellIndex - firstDayOfWeek + 1
+                        
+                        if (cellIndex < firstDayOfWeek || dayNumber > daysInMonth) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                            )
+                        } else {
+                            val studyMinutes = studyData[dayNumber] ?: 0L
+                            val isSelected = selectedDate?.let {
+                                val cal = Calendar.getInstance()
+                                cal.time = it
+                                cal.get(Calendar.YEAR) == year &&
+                                    cal.get(Calendar.MONTH) == month - 1 &&
+                                    cal.get(Calendar.DAY_OF_MONTH) == dayNumber
+                            } ?: false
+                            
+                            val isToday = run {
+                                val today = Calendar.getInstance()
+                                today.get(Calendar.YEAR) == year &&
+                                    today.get(Calendar.MONTH) == month - 1 &&
+                                    today.get(Calendar.DAY_OF_MONTH) == dayNumber
+                            }
+                            
+                            Box(modifier = Modifier.weight(1f)) {
+                                DayCell(
+                                    day = dayNumber,
+                                    studyMinutes = studyMinutes,
+                                    isSelected = isSelected,
+                                    isToday = isToday,
+                                    onClick = {
+                                        val cal = Calendar.getInstance()
+                                        cal.set(year, month - 1, dayNumber)
+                                        onDateSelect(cal.time)
+                                    }
+                                )
+                            }
                         }
-                    )
+                    }
                 }
             }
         }
@@ -213,11 +212,13 @@ private fun DayCell(
     isToday: Boolean,
     onClick: () -> Unit
 ) {
-    val backgroundColor = when {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val heatmapColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
-        studyMinutes > 180 -> MaterialTheme.colorScheme.primaryContainer
-        studyMinutes > 60 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-        studyMinutes > 0 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        studyMinutes > 120 -> MaterialTheme.colorScheme.primaryContainer
+        studyMinutes in 61..120 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
+        studyMinutes in 31..60 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        studyMinutes in 1..30 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         else -> MaterialTheme.colorScheme.surface
     }
     
@@ -226,15 +227,13 @@ private fun DayCell(
             .aspectRatio(1f)
             .padding(2.dp)
             .testTag("calendar_day_$day")
-            .clip(CircleShape)
-            .background(backgroundColor)
-            .clickable(onClick = onClick)
             .then(
-                if (isToday && !isSelected) {
-                    Modifier
-                        .padding(1.dp)
-                } else Modifier
-            ),
+                if (isToday) Modifier.border(2.dp, primaryColor, CircleShape)
+                else Modifier
+            )
+            .clip(CircleShape)
+            .background(heatmapColor)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -256,11 +255,11 @@ private fun SelectedDateSection(
 ) {
     val dateFormat = SimpleDateFormat("M月d日 (E)", Locale.JAPANESE)
     
-    Card(
+    ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier

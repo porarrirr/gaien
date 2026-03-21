@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.PlanItem
 import com.studyapp.domain.model.PlanItemWithSubject
 import com.studyapp.domain.model.Subject
+import com.studyapp.presentation.components.EmptyState
 import java.text.SimpleDateFormat
 import java.time.DayOfWeek
 import java.util.*
@@ -38,6 +39,7 @@ fun PlanScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var showAddItemDialog by remember { mutableStateOf(false) }
     var selectedDay by remember { mutableStateOf<DayOfWeek?>(null) }
+    var showDeletePlanDialog by remember { mutableStateOf(false) }
     
     Scaffold(
         topBar = {
@@ -49,8 +51,8 @@ fun PlanScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 actions = {
                     if (uiState.activePlan != null) {
@@ -58,14 +60,14 @@ fun PlanScreen(
                             Icon(
                                 Icons.Default.Add,
                                 contentDescription = "追加",
-                                tint = MaterialTheme.colorScheme.onPrimary
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(onClick = { viewModel.deletePlan() }) {
+                        IconButton(onClick = { showDeletePlanDialog = true }) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "削除",
-                                tint = MaterialTheme.colorScheme.onPrimary
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -131,57 +133,42 @@ fun PlanScreen(
             }
         )
     }
+    
+    if (showDeletePlanDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeletePlanDialog = false },
+            title = { Text("計画を削除") },
+            text = { Text("この学習計画を削除してもよろしいですか？\nこの操作は取り消せません。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deletePlan()
+                        showDeletePlanDialog = false
+                    }
+                ) {
+                    Text("削除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeletePlanDialog = false }) {
+                    Text("キャンセル")
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun EmptyPlanState(
     onCreatePlan: () -> Unit
 ) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                Icons.Default.EventNote,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Text(
-                text = "学習計画がありません",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "1週間の学習スケジュールを作成して\n効率的に学習しましょう",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Button(
-                onClick = onCreatePlan,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("計画を作成")
-            }
-        }
-    }
+    EmptyState(
+        icon = Icons.Default.EventNote,
+        title = "学習計画がありません",
+        description = "1週間の学習スケジュールを作成して\n効率的に学習しましょう",
+        actionLabel = "計画を作成",
+        onAction = onCreatePlan
+    )
 }
 
 @Composable

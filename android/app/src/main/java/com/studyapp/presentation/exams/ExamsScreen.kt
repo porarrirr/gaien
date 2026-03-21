@@ -14,6 +14,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.Exam
+import com.studyapp.presentation.components.EmptyState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -39,8 +42,8 @@ fun ExamsScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
@@ -54,35 +57,12 @@ fun ExamsScreen(
         }
     ) { paddingValues ->
         if (uiState.exams.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Default.Event,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "テスト予定がありません",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "＋ボタンで追加してください",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            EmptyState(
+                icon = Icons.Default.Event,
+                title = "テスト予定がありません",
+                description = "＋ボタンで追加してください",
+                modifier = Modifier.padding(paddingValues)
+            )
         } else {
             LazyColumn(
                 modifier = Modifier
@@ -134,55 +114,90 @@ private fun ExamCard(
     val dateFormat = SimpleDateFormat("yyyy年M月d日", Locale.JAPANESE)
     val examDateMillis = exam.date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val daysRemaining = exam.getDaysRemaining(LocalDate.now())
-    
-    Card(
+
+    val urgencyColor = when {
+        daysRemaining < 0 -> MaterialTheme.colorScheme.surfaceVariant
+        daysRemaining <= 7 -> MaterialTheme.colorScheme.error
+        daysRemaining <= 30 -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+    }
+    val urgencyContentColor = when {
+        daysRemaining < 0 -> MaterialTheme.colorScheme.onSurfaceVariant
+        daysRemaining <= 7 -> MaterialTheme.colorScheme.onError
+        daysRemaining <= 30 -> MaterialTheme.colorScheme.onTertiary
+        else -> MaterialTheme.colorScheme.onPrimary
+    }
+
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = if (daysRemaining < 0) MaterialTheme.colorScheme.surfaceVariant
+                            else MaterialTheme.colorScheme.surface
+        )
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .height(IntrinsicSize.Min)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            if (daysRemaining >= 0) {
+                val stripColor = when {
+                    daysRemaining < 7 -> MaterialTheme.colorScheme.error
+                    daysRemaining < 30 -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.primary
+                }
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(stripColor)
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = exam.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = dateFormat.format(Date(examDateMillis)),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                
-                Column(
-                    horizontalAlignment = Alignment.End
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (daysRemaining < 0) "終了"
-                               else if (daysRemaining == 0L) "今日"
-                               else "あと${daysRemaining}日",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = when {
-                            daysRemaining < 0 -> MaterialTheme.colorScheme.onSurfaceVariant
-                            daysRemaining == 0L -> MaterialTheme.colorScheme.error
-                            daysRemaining <= 7 -> MaterialTheme.colorScheme.error
-                            daysRemaining <= 14 -> MaterialTheme.colorScheme.tertiary
-                            else -> MaterialTheme.colorScheme.primary
-                        }
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = exam.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = dateFormat.format(Date(examDateMillis)),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Surface(
+                        color = urgencyColor,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = if (daysRemaining < 0) "終了"
+                                   else if (daysRemaining == 0L) "今日"
+                                   else "あと${daysRemaining}日",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = urgencyContentColor
+                        )
+                    }
                 }
-                
-                Row {
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, contentDescription = "編集")
                     }
@@ -190,19 +205,18 @@ private fun ExamCard(
                         Icon(Icons.Default.Delete, contentDescription = "削除")
                     }
                 }
-            }
-            
-            if (!exam.note.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = exam.note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+                if (!exam.note.isNullOrBlank()) {
+                    Text(
+                        text = exam.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
-    
+
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },

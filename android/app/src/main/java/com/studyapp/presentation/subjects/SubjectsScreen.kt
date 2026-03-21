@@ -1,10 +1,13 @@
 package com.studyapp.presentation.subjects
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,10 +27,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -47,6 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
@@ -54,8 +57,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.studyapp.domain.model.Subject
+
 import com.studyapp.R
+import com.studyapp.domain.model.Subject
+import com.studyapp.presentation.components.EmptyState
+import com.studyapp.presentation.components.ErrorState
+import com.studyapp.presentation.components.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,8 +83,8 @@ fun SubjectsScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
@@ -92,70 +99,31 @@ fun SubjectsScreen(
     ) { paddingValues ->
         when {
             uiState.isLoading -> {
-                Column(
+                LoadingState(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.common_loading),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                    message = stringResource(R.string.common_loading)
+                )
             }
             uiState.error != null -> {
-                Column(
+                ErrorState(
+                    message = uiState.error ?: stringResource(R.string.common_error),
+                    onRetry = { viewModel.clearError() },
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = uiState.error ?: stringResource(R.string.common_error),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { viewModel.clearError() }) {
-                        Text(stringResource(R.string.common_ok))
-                    }
-                }
+                        .padding(paddingValues)
+                )
             }
             uiState.subjects.isEmpty() -> {
-                Box(
+                EmptyState(
+                    icon = Icons.Default.Category,
+                    title = stringResource(R.string.subjects_empty_title),
+                    description = stringResource(R.string.subjects_empty_message),
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Category,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = stringResource(R.string.subjects_empty_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = stringResource(R.string.subjects_empty_message),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                        .padding(paddingValues)
+                )
             }
             else -> {
                 LazyColumn(
@@ -217,14 +185,20 @@ private fun SubjectCard(
         }
     }
     
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .drawBehind {
+                    drawRect(
+                        color = subjectColor,
+                        size = Size(8.dp.toPx(), size.height)
+                    )
+                }
+                .padding(start = 20.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -297,6 +271,7 @@ private fun SubjectCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AddEditSubjectDialog(
     subject: Subject? = null,
@@ -337,9 +312,10 @@ private fun AddEditSubjectDialog(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     colorOptions.forEach { color ->
                         val displayColor = remember(color) {
@@ -349,20 +325,21 @@ private fun AddEditSubjectDialog(
                                 Color.Gray
                             }
                         }
+                        val isColorSelected = selectedColor == color
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
+                                .then(
+                                    if (isColorSelected) {
+                                        Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                    } else Modifier
+                                )
                                 .clip(CircleShape)
                                 .background(displayColor)
-                                .clickable { selectedColor = color }
-                                .then(
-                                    if (selectedColor == color) {
-                                        Modifier.padding(4.dp)
-                                    } else Modifier
-                                ),
+                                .clickable { selectedColor = color },
                             contentAlignment = Alignment.Center
                         ) {
-                            if (selectedColor == color) {
+                            if (isColorSelected) {
                                 Icon(
                                     Icons.Default.Check,
                                     contentDescription = null,

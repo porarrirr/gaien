@@ -46,8 +46,8 @@ fun ReportsScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -61,7 +61,8 @@ fun ReportsScreen(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.primary,
-                edgePadding = 16.dp
+                edgePadding = 16.dp,
+                divider = {}
             ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
@@ -116,9 +117,9 @@ private fun OverviewSection(uiState: ReportsUiState) {
     Spacer(modifier = Modifier.height(16.dp))
     
     if (uiState.dailyData.isNotEmpty()) {
-        Card(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -133,9 +134,9 @@ private fun OverviewSection(uiState: ReportsUiState) {
                         BarChartData(
                             label = data.dateLabel.substringBefore(" "),
                             value = data.minutes.toFloat(),
-                            color = if (data.minutes >= 120) Color(0xFF4CAF50)
-                                   else if (data.minutes >= 60) Color(0xFF2196F3)
-                                   else Color(0xFFFF9800)
+                            color = if (data.minutes >= 120) MaterialTheme.colorScheme.primary
+                                   else if (data.minutes >= 60) MaterialTheme.colorScheme.secondary
+                                   else MaterialTheme.colorScheme.tertiary
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -148,9 +149,9 @@ private fun OverviewSection(uiState: ReportsUiState) {
     Spacer(modifier = Modifier.height(16.dp))
     
     if (uiState.subjectBreakdown.isNotEmpty()) {
-        Card(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 PieChart(
@@ -180,9 +181,9 @@ private fun SummaryStatsCard(
     averageTime: Long,
     streak: Int
 ) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         )
@@ -217,14 +218,14 @@ private fun SummaryStatsCard(
                     icon = Icons.Default.TrendingUp,
                     label = "1日平均",
                     value = "${averageTime}分",
-                    color = Color(0xFF2196F3)
+                    color = MaterialTheme.colorScheme.secondary
                 )
                 
                 StatItem(
                     icon = Icons.Default.LocalFireDepartment,
                     label = "連続学習",
                     value = "${streak}日",
-                    color = Color(0xFFFF9800)
+                    color = MaterialTheme.colorScheme.tertiary
                 )
             }
         }
@@ -297,7 +298,7 @@ private fun QuickStatsRow(uiState: ReportsUiState) {
             value = uiState.dailyData.lastOrNull()?.minutes?.toString() ?: "0",
             unit = "分",
             modifier = Modifier.weight(1f),
-            color = Color(0xFF4CAF50)
+            color = MaterialTheme.colorScheme.primary
         )
         
         QuickStatCard(
@@ -305,7 +306,7 @@ private fun QuickStatsRow(uiState: ReportsUiState) {
             value = uiState.weeklyData.lastOrNull()?.let { "${it.hours}h${it.minutes}m" } ?: "0分",
             unit = "",
             modifier = Modifier.weight(1f),
-            color = Color(0xFF2196F3)
+            color = MaterialTheme.colorScheme.secondary
         )
         
         QuickStatCard(
@@ -313,7 +314,7 @@ private fun QuickStatsRow(uiState: ReportsUiState) {
             value = "${uiState.monthlyData.lastOrNull()?.totalHours ?: 0}",
             unit = "時間",
             modifier = Modifier.weight(1f),
-            color = Color(0xFFFF9800)
+            color = MaterialTheme.colorScheme.tertiary
         )
     }
 }
@@ -326,9 +327,9 @@ private fun QuickStatCard(
     modifier: Modifier = Modifier,
     color: Color
 ) {
-    Card(
+    ElevatedCard(
         modifier = modifier,
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -366,9 +367,9 @@ private fun QuickStatCard(
 
 @Composable
 private fun DailyReportSection(uiState: ReportsUiState) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -388,7 +389,7 @@ private fun DailyReportSection(uiState: ReportsUiState) {
                             color = when {
                                 data.minutes >= 180 -> Color(0xFF1B5E20)
                                 data.minutes >= 120 -> Color(0xFF388E3C)
-                                data.minutes >= 60 -> Color(0xFF4CAF50)
+                                data.minutes >= 60 -> MaterialTheme.colorScheme.primary
                                 data.minutes >= 30 -> Color(0xFF81C784)
                                 else -> Color(0xFFC8E6C9)
                             }
@@ -403,9 +404,9 @@ private fun DailyReportSection(uiState: ReportsUiState) {
     
     Spacer(modifier = Modifier.height(16.dp))
     
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -426,7 +427,7 @@ private fun DailyReportSection(uiState: ReportsUiState) {
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    lineColor = Color(0xFF4CAF50),
+                    lineColor = MaterialTheme.colorScheme.primary,
                     showDots = true,
                     curvedLines = true
                 )
@@ -436,9 +437,9 @@ private fun DailyReportSection(uiState: ReportsUiState) {
     
     Spacer(modifier = Modifier.height(16.dp))
     
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -479,9 +480,9 @@ private fun DailyReportSection(uiState: ReportsUiState) {
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(
                                         when {
-                                            data.minutes >= 120 -> Color(0xFF4CAF50)
-                                            data.minutes >= 60 -> Color(0xFF2196F3)
-                                            else -> Color(0xFFFF9800)
+                                            data.minutes >= 120 -> MaterialTheme.colorScheme.primary
+                                            data.minutes >= 60 -> MaterialTheme.colorScheme.secondary
+                                            else -> MaterialTheme.colorScheme.tertiary
                                         }
                                     )
                             )
@@ -503,9 +504,9 @@ private fun DailyReportSection(uiState: ReportsUiState) {
 
 @Composable
 private fun WeeklyReportSection(uiState: ReportsUiState) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -522,7 +523,7 @@ private fun WeeklyReportSection(uiState: ReportsUiState) {
                         BarChartData(
                             label = data.weekLabel,
                             value = (data.hours * 60 + data.minutes).toFloat(),
-                            color = Color(0xFF2196F3)
+                            color = MaterialTheme.colorScheme.secondary
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -534,9 +535,9 @@ private fun WeeklyReportSection(uiState: ReportsUiState) {
     
     Spacer(modifier = Modifier.height(16.dp))
     
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -557,7 +558,7 @@ private fun WeeklyReportSection(uiState: ReportsUiState) {
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    lineColor = Color(0xFF2196F3)
+                    lineColor = MaterialTheme.colorScheme.secondary
                 )
             }
         }
@@ -565,9 +566,9 @@ private fun WeeklyReportSection(uiState: ReportsUiState) {
     
     Spacer(modifier = Modifier.height(16.dp))
     
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -593,7 +594,7 @@ private fun WeeklyReportSection(uiState: ReportsUiState) {
                         text = "${data.hours}時間${data.minutes}分",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2196F3)
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
             }
@@ -603,9 +604,9 @@ private fun WeeklyReportSection(uiState: ReportsUiState) {
 
 @Composable
 private fun MonthlyReportSection(uiState: ReportsUiState) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -622,7 +623,7 @@ private fun MonthlyReportSection(uiState: ReportsUiState) {
                         BarChartData(
                             label = data.monthLabel,
                             value = data.totalHours.toFloat(),
-                            color = Color(0xFFFF9800)
+                            color = MaterialTheme.colorScheme.tertiary
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -634,9 +635,9 @@ private fun MonthlyReportSection(uiState: ReportsUiState) {
     
     Spacer(modifier = Modifier.height(16.dp))
     
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -657,7 +658,7 @@ private fun MonthlyReportSection(uiState: ReportsUiState) {
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    lineColor = Color(0xFFFF9800)
+                    lineColor = MaterialTheme.colorScheme.tertiary
                 )
             }
         }
@@ -672,9 +673,9 @@ private fun MonthlyReportSection(uiState: ReportsUiState) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Card(
+        ElevatedCard(
             modifier = Modifier.weight(1f),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -689,14 +690,14 @@ private fun MonthlyReportSection(uiState: ReportsUiState) {
                     text = "${totalHours}時間",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFF9800)
+                    color = MaterialTheme.colorScheme.tertiary
                 )
             }
         }
         
-        Card(
+        ElevatedCard(
             modifier = Modifier.weight(1f),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -711,7 +712,7 @@ private fun MonthlyReportSection(uiState: ReportsUiState) {
                     text = "${averageMonthly}時間",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF2196F3)
+                    color = MaterialTheme.colorScheme.secondary
                 )
             }
         }
@@ -721,9 +722,9 @@ private fun MonthlyReportSection(uiState: ReportsUiState) {
 @Composable
 private fun SubjectReportSection(uiState: ReportsUiState) {
     if (uiState.subjectBreakdown.isEmpty()) {
-        Card(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -746,9 +747,9 @@ private fun SubjectReportSection(uiState: ReportsUiState) {
             }
         }
     } else {
-        Card(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 PieChart(
@@ -767,9 +768,9 @@ private fun SubjectReportSection(uiState: ReportsUiState) {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        Card(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -795,9 +796,9 @@ private fun SubjectReportSection(uiState: ReportsUiState) {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        Card(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
