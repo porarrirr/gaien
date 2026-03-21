@@ -19,7 +19,7 @@ final class StudyAppContainer: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init() {
+    convenience init() {
         let persistence = PersistenceController.shared
         let preferencesRepository = UserDefaultsPreferencesRepository()
         let googleBooksService = GoogleBooksService()
