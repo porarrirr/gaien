@@ -571,7 +571,7 @@ struct CalendarDayCell: View {
 
                 Text("\(day)")
                     .font(.system(size: 14, weight: isToday ? .bold : .regular))
-                    .foregroundStyle(isToday ? .tint : AppColors.textPrimary)
+                    .foregroundStyle(isToday ? Color.accentColor : AppColors.textPrimary)
             }
         }
         .aspectRatio(1, contentMode: .fit)

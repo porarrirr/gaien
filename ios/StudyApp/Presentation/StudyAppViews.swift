@@ -428,6 +428,20 @@ private struct TimerScreen: View {
         _viewModel = StateObject(wrappedValue: TimerViewModel(app: app))
     }
 
+    private var selectedSubjectBinding: Binding<Int64> {
+        Binding(
+            get: { viewModel.selectedSubjectId ?? 0 },
+            set: { viewModel.selectedSubjectId = $0 }
+        )
+    }
+
+    private var selectedMaterialBinding: Binding<Int64> {
+        Binding(
+            get: { viewModel.selectedMaterialId ?? 0 },
+            set: { viewModel.selectedMaterialId = $0 == 0 ? nil : $0 }
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
@@ -437,7 +451,7 @@ private struct TimerScreen: View {
                         HStack {
                             Image(systemName: "book.fill")
                                 .foregroundStyle(.tint)
-                            Picker("科目", selection: Binding(get: { viewModel.selectedSubjectId ?? 0 }, set: { viewModel.selectedSubjectId = $0 })) {
+                            Picker("科目", selection: selectedSubjectBinding) {
                                 ForEach(viewModel.subjects) { subject in
                                     Text(subject.name).tag(subject.id)
                                 }
@@ -451,7 +465,7 @@ private struct TimerScreen: View {
                         HStack {
                             Image(systemName: "doc.fill")
                                 .foregroundStyle(.tint)
-                            Picker("教材", selection: Binding(get: { viewModel.selectedMaterialId ?? 0 }, set: { viewModel.selectedMaterialId = $0 == 0 ? nil : $0 })) {
+                            Picker("教材", selection: selectedMaterialBinding) {
                                 Text("なし").tag(Int64(0))
                                 ForEach(viewModel.materialsForSelectedSubject()) { material in
                                     Text(material.name).tag(material.id)
