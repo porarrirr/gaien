@@ -92,12 +92,16 @@ final class AppLogger: ObservableObject {
         details: String? = nil,
         error: Error? = nil
     ) {
+        let redactedErrorDescription = error.flatMap { currentError in
+            Self.redact((currentError as? LocalizedError)?.errorDescription ?? currentError.localizedDescription)
+        }
+
         let entry = DebugLogEntry(
             category: category,
             level: level,
             message: message,
             details: Self.redact(details),
-            errorDescription: error.map { Self.redact(($0 as? LocalizedError)?.errorDescription ?? $0.localizedDescription) }
+            errorDescription: redactedErrorDescription
         )
         entries.insert(entry, at: 0)
         if entries.count > maxEntries {
