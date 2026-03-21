@@ -41,9 +41,9 @@ class FirebaseSyncRepository @Inject constructor(
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
 
     override suspend fun syncNow() {
-        val session = requireSession()
-        setSyncing(true)
         try {
+            val session = requireSession()
+            setSyncing(true)
             writeLock.withLock {
                 var lastConflict: Throwable? = null
                 repeat(MAX_SYNC_ATTEMPTS) { attempt ->
@@ -81,15 +81,16 @@ class FirebaseSyncRepository @Inject constructor(
                 throw lastConflict ?: IllegalStateException("Sync failed after repeated remote conflicts.")
             }
         } catch (t: Throwable) {
-            _status.value = _status.value.copy(isSyncing = false, errorMessage = t.message)
-            throw t
+            val mapped = mapSyncFailure(t)
+            _status.value = _status.value.copy(isSyncing = false, errorMessage = mapped.message)
+            throw mapped
         }
     }
 
     override suspend fun importLocalDataToCloud() {
-        val session = requireSession()
-        setSyncing(true)
         try {
+            val session = requireSession()
+            setSyncing(true)
             writeLock.withLock {
                 val remoteSnapshot = loadSnapshot(session.localId)
                 val now = System.currentTimeMillis()
@@ -108,8 +109,9 @@ class FirebaseSyncRepository @Inject constructor(
                 _status.value = SyncStatus(true, session.email, false, now, null)
             }
         } catch (t: Throwable) {
-            _status.value = _status.value.copy(isSyncing = false, errorMessage = t.message)
-            throw t
+            val mapped = mapSyncFailure(t)
+            _status.value = _status.value.copy(isSyncing = false, errorMessage = mapped.message)
+            throw mapped
         }
     }
 
@@ -297,6 +299,38 @@ class FirebaseSyncRepository @Inject constructor(
     private fun isConcurrentSnapshotUpdate(throwable: Throwable): Boolean {
         return throwable is ConcurrentSnapshotUpdateException ||
             throwable.cause is ConcurrentSnapshotUpdateException
+    }
+
+    private fun mapSyncFailure(throwable: Throwable): Throwable {
+        return when {
+            isSignInRequired(throwable) -> IllegalStateException("同期するには先にサインインしてください。", throwable)
+            isPermissionDenied(throwable) -> {
+                IllegalStateException(
+                    "クラウド同期に失敗しました。Firestoreルールが未反映か、このアカウントに十分な権限がありません。",
+                    throwable
+                )
+            }
+            else -> throwable
+        }
+    }
+
+    private fun isSignInRequired(throwable: Throwable): Boolean {
+        return throwable.message == "Sign in is required before syncing."
+    }
+
+    private fun isPermissionDenied(throwable: Throwable): Boolean {
+        var current: Throwable? = throwable
+        while (current != null) {
+            val message = current.message.orEmpty()
+            if (
+                message.contains("PERMISSION_DENIED", ignoreCase = true) ||
+                message.contains("Missing or insufficient permissions", ignoreCase = true)
+            ) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
     }
 
     private data class RemoteSnapshot(

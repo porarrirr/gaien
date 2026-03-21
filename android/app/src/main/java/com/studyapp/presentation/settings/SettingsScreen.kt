@@ -305,6 +305,12 @@ private fun SyncSection(
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
+
+                Text(
+                    text = "権限エラーが続く場合は、Firebase側のFirestoreルール反映状況も確認してください。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
