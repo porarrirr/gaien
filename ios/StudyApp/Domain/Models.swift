@@ -577,7 +577,7 @@ protocol AuthRepository {
     var session: AuthSession? { get }
     func signIn(email: String, password: String) async throws
     func signUp(email: String, password: String) async throws
-    func signOut() async
+    func signOut() async throws
 }
 
 protocol SyncRepository {

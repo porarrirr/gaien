@@ -1,3 +1,4 @@
+import Combine
 import FirebaseAuth
 import FirebaseCore
 import FirebaseFirestore
@@ -29,21 +30,25 @@ final class FirebaseAuthRepository: ObservableObject, AuthRepository {
         session = AuthSession(localId: result.user.uid, email: result.user.email ?? email, idToken: token, refreshToken: "")
     }
 
-    func signOut() async {
-        try? auth.signOut()
+    func signOut() async throws {
+        try auth.signOut()
         session = nil
     }
 }
 
 @MainActor
-final class FirebaseSyncRepository: SyncRepository {
+final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private let authRepository: FirebaseAuthRepository
     private let firestore: Firestore
     private let persistence: PersistenceController
     private let preferencesRepository: UserDefaultsPreferencesRepository
     private let lastSyncKey = "studyapp.sync.lastSyncAt"
+    private var lastLoadedVersion: Int64 = 0
+    private var cancellables = Set<AnyCancellable>()
 
-    private(set) var status = SyncStatus()
+    private static let maxChunkBytes = 500_000
+
+    @Published private(set) var status = SyncStatus()
 
     init(
         authRepository: FirebaseAuthRepository,
@@ -60,6 +65,19 @@ final class FirebaseSyncRepository: SyncRepository {
             email: authRepository.session?.email,
             lastSyncAt: UserDefaults.standard.object(forKey: lastSyncKey) as? Int64
         )
+
+        authRepository.$session
+            .receive(on: RunLoop.main)
+            .sink { [weak self] session in
+                guard let self else { return }
+                self.status.isAuthenticated = session != nil
+                self.status.email = session?.email
+                if session == nil {
+                    self.status.isSyncing = false
+                    self.status.errorMessage = nil
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func syncNow() async throws {
@@ -67,22 +85,28 @@ final class FirebaseSyncRepository: SyncRepository {
             throw ValidationError(message: "同期するにはサインインが必要です")
         }
         status.isSyncing = true
-        defer { status.isSyncing = false }
-        let useCase = ExportImportDataUseCase(repository: persistence)
-        let local = try await persistence.exportData()
-        let merged: AppData
-        if let remotePayload = try await loadSnapshot(userId: session.localId) {
-            let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
-            merged = merge(local: local, remote: remote)
-        } else {
-            merged = local
+        status.errorMessage = nil
+        do {
+            let local = try await persistence.exportData()
+            let merged: AppData
+            if let remotePayload = try await loadSnapshot(userId: session.localId) {
+                let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
+                merged = merge(local: local, remote: remote)
+            } else {
+                merged = local
+            }
+            let synced = markSynced(merged, at: Date().epochMilliseconds)
+            let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
+            let useCase = ExportImportDataUseCase(repository: persistence)
+            _ = try await useCase.importJSON(payload, currentPreferences: preferencesRepository.loadPreferences())
+            try await saveSnapshot(userId: session.localId, payload: payload, updatedAt: synced.exportDate, expectedVersion: lastLoadedVersion)
+            UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
+            status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
+        } catch {
+            status.isSyncing = false
+            status.errorMessage = error.localizedDescription
+            throw error
         }
-        let synced = markSynced(merged, at: Date().epochMilliseconds)
-        let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
-        _ = try await useCase.importJSON(payload, currentPreferences: preferencesRepository.loadPreferences())
-        try await saveSnapshot(userId: session.localId, payload: payload, updatedAt: synced.exportDate)
-        UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
-        status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
     }
 
     func importLocalDataToCloud() async throws {
@@ -90,35 +114,142 @@ final class FirebaseSyncRepository: SyncRepository {
             throw ValidationError(message: "同期するにはサインインが必要です")
         }
         status.isSyncing = true
-        defer { status.isSyncing = false }
-        let local = markSynced(try await persistence.exportData(), at: Date().epochMilliseconds)
-        let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
-        try await saveSnapshot(userId: session.localId, payload: payload, updatedAt: local.exportDate)
-        UserDefaults.standard.set(local.exportDate, forKey: lastSyncKey)
-        status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: local.exportDate)
+        status.errorMessage = nil
+        do {
+            let local = markSynced(try await persistence.exportData(), at: Date().epochMilliseconds)
+            let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
+            try await saveSnapshot(userId: session.localId, payload: payload, updatedAt: local.exportDate, expectedVersion: nil)
+            UserDefaults.standard.set(local.exportDate, forKey: lastSyncKey)
+            status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: local.exportDate)
+        } catch {
+            status.isSyncing = false
+            status.errorMessage = error.localizedDescription
+            throw error
+        }
     }
+
+    // MARK: - Chunked snapshot I/O (backward-compatible with legacy payload format)
 
     private func loadSnapshot(userId: String) async throws -> String? {
-        let snapshot = try await firestore
-            .collection("users")
-            .document(userId)
-            .collection("sync")
-            .document("default")
-            .getDocument()
-        return snapshot.data()?["payload"] as? String
+        let manifestRef = firestore
+            .collection("users").document(userId)
+            .collection("sync").document("default")
+        let snapshot = try await manifestRef.getDocument()
+        guard let data = snapshot.data() else {
+            lastLoadedVersion = 0
+            return nil
+        }
+
+        // Legacy format: direct payload field
+        if let payload = data["payload"] as? String {
+            lastLoadedVersion = data["version"] as? Int64 ?? 0
+            return payload
+        }
+
+        // Chunked-v2 format
+        guard let format = data["format"] as? String, format == "chunked-v2",
+              let version = data["version"] as? Int64,
+              let chunkCount = data["chunkCount"] as? Int,
+              chunkCount > 0 else {
+            lastLoadedVersion = data["version"] as? Int64 ?? 0
+            return nil
+        }
+
+        lastLoadedVersion = version
+        let chunksCol = manifestRef.collection("chunks")
+
+        var parts = [String]()
+        for i in 0..<chunkCount {
+            let chunkId = String(format: "%06d", i)
+            let chunkSnap = try await chunksCol.document(chunkId).getDocument()
+            guard let chunkData = chunkSnap.data(),
+                  let chunkVersion = chunkData["version"] as? Int64,
+                  chunkVersion == version,
+                  let payloadPart = chunkData["payloadPart"] as? String else {
+                throw ValidationError(message: "同期データの読み込みに失敗しました")
+            }
+            parts.append(payloadPart)
+        }
+        return parts.joined()
     }
 
-    private func saveSnapshot(userId: String, payload: String, updatedAt: Int64) async throws {
-        try await firestore
-            .collection("users")
-            .document(userId)
-            .collection("sync")
-            .document("default")
-            .setData([
-                "payload": payload,
-                "updatedAt": updatedAt
-            ])
+    private func saveSnapshot(userId: String, payload: String, updatedAt: Int64, expectedVersion: Int64?) async throws {
+        let db = firestore
+        let manifestRef = db.collection("users").document(userId)
+            .collection("sync").document("default")
+        let chunks = Self.splitPayloadIntoChunks(payload)
+        let newChunkCount = chunks.count
+
+        let _ = try await db.runTransaction { transaction, errorPointer -> Any? in
+            let manifestSnap: DocumentSnapshot
+            do {
+                manifestSnap = try transaction.getDocument(manifestRef)
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
+            }
+
+            let currentData = manifestSnap.data() ?? [:]
+            let currentVersion: Int64 = currentData["version"] as? Int64 ?? 0
+            let oldChunkCount = currentData["chunkCount"] as? Int ?? 0
+
+            if let expected = expectedVersion, currentVersion != expected {
+                errorPointer?.pointee = NSError(
+                    domain: "StudyApp", code: 409,
+                    userInfo: [NSLocalizedDescriptionKey: "同期の競合が発生しました。再試行してください。"])
+                return nil
+            }
+
+            let newVersion = currentVersion + 1
+
+            transaction.setData([
+                "format": "chunked-v2",
+                "version": newVersion,
+                "updatedAt": updatedAt,
+                "chunkCount": newChunkCount
+            ], forDocument: manifestRef)
+
+            let chunksCol = manifestRef.collection("chunks")
+            for (i, part) in chunks.enumerated() {
+                let chunkRef = chunksCol.document(String(format: "%06d", i))
+                transaction.setData([
+                    "version": newVersion,
+                    "index": i,
+                    "payloadPart": part
+                ], forDocument: chunkRef)
+            }
+
+            // Remove stale chunks if count shrank
+            for i in newChunkCount..<oldChunkCount {
+                let chunkRef = chunksCol.document(String(format: "%06d", i))
+                transaction.deleteDocument(chunkRef)
+            }
+
+            return nil
+        }
     }
+
+    private static func splitPayloadIntoChunks(_ payload: String) -> [String] {
+        let utf8 = Array(payload.utf8)
+        guard !utf8.isEmpty else { return [""] }
+        var chunks = [String]()
+        var start = 0
+        while start < utf8.count {
+            var end = min(start + maxChunkBytes, utf8.count)
+            // Avoid splitting in the middle of a multi-byte UTF-8 character
+            while end < utf8.count && end > start && (utf8[end] & 0xC0) == 0x80 {
+                end -= 1
+            }
+            if end <= start { end = min(start + maxChunkBytes, utf8.count) }
+            if let chunk = String(bytes: utf8[start..<end], encoding: .utf8) {
+                chunks.append(chunk)
+            }
+            start = end
+        }
+        return chunks
+    }
+
+    // MARK: - Merge helpers
 
     private func merge(local: AppData, remote: AppData) -> AppData {
         AppData(

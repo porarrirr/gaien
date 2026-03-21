@@ -1,7 +1,8 @@
 import CoreData
 import Foundation
 
-actor PersistenceController: SubjectRepository, MaterialRepository, StudySessionRepository, GoalRepository, ExamRepository, PlanRepository, AppDataRepository {
+@MainActor
+final class PersistenceController: SubjectRepository, MaterialRepository, StudySessionRepository, GoalRepository, ExamRepository, PlanRepository, AppDataRepository {
     static let shared = PersistenceController()
 
     private let container: NSPersistentContainer
@@ -646,26 +647,199 @@ actor PersistenceController: SubjectRepository, MaterialRepository, StudySession
     }
 
     private func replaceData(with appData: AppData) async throws {
-        try await deleteAllData()
+        let ctx = container.viewContext
+
+        // Delete all existing records in-memory (not yet committed)
+        for entityName in Self.entityNames {
+            let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
+            let records = try ctx.fetch(request)
+            records.forEach { ctx.delete($0) }
+        }
+
+        var nextId: Int64 = 1
+        let now = Date().epochMilliseconds
+
+        // ID remap tables: syncId → freshLocalId, oldId → freshLocalId
+        var subjectSyncMap: [String: Int64] = [:]
+        var subjectOldMap:  [Int64: Int64]   = [:]
+        var materialSyncMap: [String: Int64] = [:]
+        var materialOldMap:  [Int64: Int64]   = [:]
+        var planSyncMap: [String: Int64] = [:]
+        var planOldMap:  [Int64: Int64]   = [:]
+
+        // --- Subjects ---
         for subject in appData.subjects {
-            _ = try await insertSubject(subject)
+            let localId = nextId; nextId += 1
+            subjectSyncMap[subject.syncId] = localId
+            if subject.id > 0 { subjectOldMap[subject.id] = localId }
+
+            let r = NSEntityDescription.insertNewObject(forEntityName: "SubjectRecord", into: ctx)
+            r.setValue(localId, forKey: "id")
+            r.setValue(subject.syncId, forKey: "syncId")
+            r.setValue(subject.name, forKey: "name")
+            r.setValue(Int64(subject.color), forKey: "color")
+            r.setValue(subject.icon?.rawValue, forKey: "icon")
+            r.setValue(subject.createdAt == 0 ? now : subject.createdAt, forKey: "createdAt")
+            r.setValue(subject.updatedAt == 0 ? now : subject.updatedAt, forKey: "updatedAt")
+            r.setValue(subject.deletedAt, forKey: "deletedAt")
+            r.setValue(subject.lastSyncedAt, forKey: "lastSyncedAt")
         }
+
+        // --- Materials ---
         for material in appData.materials {
-            _ = try await insertMaterial(material)
+            let localId = nextId; nextId += 1
+            materialSyncMap[material.syncId] = localId
+            if material.id > 0 { materialOldMap[material.id] = localId }
+
+            let subjectId: Int64 = Self.resolveFK(
+                syncId: material.subjectSyncId, syncMap: subjectSyncMap,
+                oldId: material.subjectId, oldMap: subjectOldMap)
+
+            let r = NSEntityDescription.insertNewObject(forEntityName: "MaterialRecord", into: ctx)
+            r.setValue(localId, forKey: "id")
+            r.setValue(material.syncId, forKey: "syncId")
+            r.setValue(material.name, forKey: "name")
+            r.setValue(subjectId, forKey: "subjectId")
+            r.setValue(material.subjectSyncId, forKey: "subjectSyncId")
+            r.setValue(Int64(material.totalPages), forKey: "totalPages")
+            r.setValue(Int64(material.currentPage), forKey: "currentPage")
+            r.setValue(material.color.map(Int64.init), forKey: "color")
+            r.setValue(material.note, forKey: "note")
+            r.setValue(material.createdAt == 0 ? now : material.createdAt, forKey: "createdAt")
+            r.setValue(material.updatedAt == 0 ? now : material.updatedAt, forKey: "updatedAt")
+            r.setValue(material.deletedAt, forKey: "deletedAt")
+            r.setValue(material.lastSyncedAt, forKey: "lastSyncedAt")
         }
+
+        // --- Sessions ---
         for session in appData.sessions {
-            _ = try await insertSession(session)
+            let localId = nextId; nextId += 1
+
+            let subjectId = Self.resolveFK(
+                syncId: session.subjectSyncId, syncMap: subjectSyncMap,
+                oldId: session.subjectId, oldMap: subjectOldMap)
+            let materialId = Self.resolveOptFK(
+                syncId: session.materialSyncId, syncMap: materialSyncMap,
+                oldId: session.materialId, oldMap: materialOldMap)
+
+            let duration = max(session.endTime - session.startTime, 0)
+            let endTime = session.startTime + duration
+            let date = Date(epochMilliseconds: session.startTime).epochDay
+
+            let r = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: ctx)
+            r.setValue(localId, forKey: "id")
+            r.setValue(session.syncId, forKey: "syncId")
+            r.setValue(materialId, forKey: "materialId")
+            r.setValue(session.materialSyncId, forKey: "materialSyncId")
+            r.setValue(session.materialName, forKey: "materialName")
+            r.setValue(subjectId, forKey: "subjectId")
+            r.setValue(session.subjectSyncId, forKey: "subjectSyncId")
+            r.setValue(session.subjectName, forKey: "subjectName")
+            r.setValue(session.startTime, forKey: "startTime")
+            r.setValue(endTime, forKey: "endTime")
+            r.setValue(duration, forKey: "duration")
+            r.setValue(date, forKey: "date")
+            r.setValue(session.note, forKey: "note")
+            r.setValue(session.createdAt == 0 ? now : session.createdAt, forKey: "createdAt")
+            r.setValue(session.updatedAt == 0 ? now : session.updatedAt, forKey: "updatedAt")
+            r.setValue(session.deletedAt, forKey: "deletedAt")
+            r.setValue(session.lastSyncedAt, forKey: "lastSyncedAt")
         }
+
+        // --- Goals ---
         for goal in appData.goals {
-            _ = try await insertGoal(goal)
+            let localId = nextId; nextId += 1
+            let r = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: ctx)
+            r.setValue(localId, forKey: "id")
+            r.setValue(goal.syncId, forKey: "syncId")
+            r.setValue(goal.type.rawValue, forKey: "type")
+            r.setValue(Int64(goal.targetMinutes), forKey: "targetMinutes")
+            r.setValue(goal.weekStartDay.rawValue, forKey: "weekStartDay")
+            r.setValue(goal.isActive, forKey: "isActive")
+            r.setValue(goal.createdAt == 0 ? now : goal.createdAt, forKey: "createdAt")
+            r.setValue(goal.updatedAt == 0 ? now : goal.updatedAt, forKey: "updatedAt")
+            r.setValue(goal.deletedAt, forKey: "deletedAt")
+            r.setValue(goal.lastSyncedAt, forKey: "lastSyncedAt")
         }
+
+        // --- Exams ---
         for exam in appData.exams {
-            _ = try await insertExam(exam)
+            let localId = nextId; nextId += 1
+            let r = NSEntityDescription.insertNewObject(forEntityName: "ExamRecord", into: ctx)
+            r.setValue(localId, forKey: "id")
+            r.setValue(exam.syncId, forKey: "syncId")
+            r.setValue(exam.name, forKey: "name")
+            r.setValue(exam.date, forKey: "date")
+            r.setValue(exam.note, forKey: "note")
+            r.setValue(exam.createdAt == 0 ? now : exam.createdAt, forKey: "createdAt")
+            r.setValue(exam.updatedAt == 0 ? now : exam.updatedAt, forKey: "updatedAt")
+            r.setValue(exam.deletedAt, forKey: "deletedAt")
+            r.setValue(exam.lastSyncedAt, forKey: "lastSyncedAt")
         }
-        for planData in appData.plans.sorted(by: { $0.plan.isActive && !$1.plan.isActive }) {
-            _ = try await createPlan(planData.plan, items: planData.items)
+
+        // --- Plans & PlanItems (preserve isActive as-is; no deactivation side-effects) ---
+        for planData in appData.plans {
+            let plan = planData.plan
+            let localPlanId = nextId; nextId += 1
+            planSyncMap[plan.syncId] = localPlanId
+            if plan.id > 0 { planOldMap[plan.id] = localPlanId }
+
+            let pr = NSEntityDescription.insertNewObject(forEntityName: "StudyPlanRecord", into: ctx)
+            pr.setValue(localPlanId, forKey: "id")
+            pr.setValue(plan.syncId, forKey: "syncId")
+            pr.setValue(plan.name, forKey: "name")
+            pr.setValue(plan.startDate, forKey: "startDate")
+            pr.setValue(plan.endDate, forKey: "endDate")
+            pr.setValue(plan.isActive, forKey: "isActive")
+            pr.setValue(plan.createdAt == 0 ? now : plan.createdAt, forKey: "createdAt")
+            pr.setValue(plan.updatedAt == 0 ? now : plan.updatedAt, forKey: "updatedAt")
+            pr.setValue(plan.deletedAt, forKey: "deletedAt")
+            pr.setValue(plan.lastSyncedAt, forKey: "lastSyncedAt")
+
+            for item in planData.items {
+                let localItemId = nextId; nextId += 1
+                let itemSubjectId = Self.resolveFK(
+                    syncId: item.subjectSyncId, syncMap: subjectSyncMap,
+                    oldId: item.subjectId, oldMap: subjectOldMap)
+
+                let ir = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: ctx)
+                ir.setValue(localItemId, forKey: "id")
+                ir.setValue(item.syncId, forKey: "syncId")
+                ir.setValue(localPlanId, forKey: "planId")
+                ir.setValue(item.planSyncId ?? plan.syncId, forKey: "planSyncId")
+                ir.setValue(itemSubjectId, forKey: "subjectId")
+                ir.setValue(item.subjectSyncId, forKey: "subjectSyncId")
+                ir.setValue(item.dayOfWeek.rawValue, forKey: "dayOfWeek")
+                ir.setValue(Int64(item.targetMinutes), forKey: "targetMinutes")
+                ir.setValue(Int64(item.actualMinutes), forKey: "actualMinutes")
+                ir.setValue(item.timeSlot, forKey: "timeSlot")
+                ir.setValue(item.createdAt == 0 ? now : item.createdAt, forKey: "createdAt")
+                ir.setValue(item.updatedAt == 0 ? now : item.updatedAt, forKey: "updatedAt")
+                ir.setValue(item.deletedAt, forKey: "deletedAt")
+                ir.setValue(item.lastSyncedAt, forKey: "lastSyncedAt")
+            }
         }
+
+        // Commit atomically; rollback on failure preserves original data
+        do {
+            try saveContext()
+        } catch {
+            ctx.rollback()
+            throw error
+        }
+
         try await recalculatePlanActualMinutes()
+    }
+
+    private static func resolveFK(syncId: String?, syncMap: [String: Int64], oldId: Int64, oldMap: [Int64: Int64]) -> Int64 {
+        if let sid = syncId, let mapped = syncMap[sid] { return mapped }
+        if let mapped = oldMap[oldId] { return mapped }
+        return oldId
+    }
+
+    private static func resolveOptFK(syncId: String?, syncMap: [String: Int64], oldId: Int64?, oldMap: [Int64: Int64]) -> Int64? {
+        guard let oid = oldId else { return nil }
+        return resolveFK(syncId: syncId, syncMap: syncMap, oldId: oid, oldMap: oldMap)
     }
 
     private func recalculatePlanActualMinutes() async throws {

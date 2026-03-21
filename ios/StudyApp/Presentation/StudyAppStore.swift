@@ -17,6 +17,8 @@ final class StudyAppContainer: ObservableObject {
     let authRepository: FirebaseAuthRepository
     let syncRepository: FirebaseSyncRepository
 
+    private var cancellables = Set<AnyCancellable>()
+
     init(
         persistence: PersistenceController = .shared,
         preferencesRepository: UserDefaultsPreferencesRepository = UserDefaultsPreferencesRepository(),
@@ -37,6 +39,13 @@ final class StudyAppContainer: ObservableObject {
         )
         self.preferences = preferencesRepository.loadPreferences()
         self.syncStatus = self.syncRepository.status
+
+        self.syncRepository.$status
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newStatus in
+                self?.syncStatus = newStatus
+            }
+            .store(in: &cancellables)
 
         Task {
             await load()
@@ -127,7 +136,6 @@ final class StudyAppContainer: ObservableObject {
 
     func refreshSyncStatus() {
         syncStatus = syncRepository.status
-        objectWillChange.send()
     }
 
     func present(_ error: Error) {
@@ -604,10 +612,13 @@ final class PlanViewModel: ScreenViewModel {
                 guard let activePlan = self.activePlan else {
                     throw ValidationError(message: "アクティブなプランがありません")
                 }
+                let subjectSyncId = self.subjects.first(where: { $0.id == item.subjectId })?.syncId
                 _ = try await self.app.persistence.insertPlanItem(
                     PlanItem(
                         planId: activePlan.id,
+                        planSyncId: activePlan.syncId,
                         subjectId: item.subjectId,
+                        subjectSyncId: subjectSyncId,
                         dayOfWeek: item.dayOfWeek,
                         targetMinutes: item.targetMinutes,
                         actualMinutes: item.actualMinutes,
@@ -742,9 +753,8 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func signOutOfSync() {
-        Task {
-            await app.authRepository.signOut()
-            app.refreshSyncStatus()
+        perform {
+            try await self.app.authRepository.signOut()
         }
     }
 
