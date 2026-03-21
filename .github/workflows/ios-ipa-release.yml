@@ -1,6 +1,9 @@
-name: iOS Unsigned IPA Release
+name: iOS IPA Release
 
 on:
+  release:
+    types:
+      - published
   push:
     tags:
       - "v*"
@@ -14,18 +17,46 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ios-ipa-release-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  build-unsigned-ipa:
+  build-ipa:
     runs-on: macos-latest
     env:
       IOS_GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST }}
       IOS_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST_B64 }}
 
     steps:
+      - name: Resolve tag and ref
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            TAG_NAME="${{ github.event.release.tag_name }}"
+            CHECKOUT_REF="${{ github.event.release.tag_name }}"
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ inputs.tag }}"
+            CHECKOUT_REF="${{ inputs.tag }}"
+          else
+            TAG_NAME="${{ github.ref_name }}"
+            CHECKOUT_REF="${{ github.ref }}"
+          fi
+
+          if [ -z "$TAG_NAME" ]; then
+            echo "Unable to resolve a tag for this run."
+            exit 1
+          fi
+
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_ENV"
+          echo "checkout_ref=$CHECKOUT_REF" >> "$GITHUB_ENV"
+
       - name: Checkout source
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ env.checkout_ref }}
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -54,7 +85,17 @@ jobs:
             exit 1
           fi
 
-      - name: Build unsigned iOS app
+      - name: Resolve Swift packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project ios/StudyApp.xcodeproj \
+            -scheme StudyApp
+
+      - name: Build unsigned IPA
         shell: bash
         run: |
           set -euo pipefail
@@ -75,7 +116,6 @@ jobs:
             clean build
 
           APP_PATH="$DERIVED_DATA_PATH/Build/Products/Release-iphoneos/StudyApp.app"
-
           if [ ! -d "$APP_PATH" ]; then
             echo "Expected app bundle was not found at: $APP_PATH"
             exit 1
@@ -84,29 +124,34 @@ jobs:
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/StudyApp.app"
 
-      - name: Package unsigned IPA
+          IPA_NAME="StudyApp-${tag_name}-unsigned.ipa"
+          (
+            cd "$RUNNER_TEMP"
+            /usr/bin/zip -qry "$IPA_NAME" Payload
+          )
+
+          mv "$RUNNER_TEMP/$IPA_NAME" "$GITHUB_WORKSPACE/$IPA_NAME"
+
+          echo "ipa_name=$IPA_NAME" >> "$GITHUB_ENV"
+          echo "ipa_path=$GITHUB_WORKSPACE/$IPA_NAME" >> "$GITHUB_ENV"
+
+      - name: Remove Firebase iOS config from workspace
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
-
-          TAG_NAME="${{ inputs.tag || github.ref_name }}"
-          IPA_NAME="StudyApp-${TAG_NAME}-unsigned.ipa"
-
-          cd "$RUNNER_TEMP"
-          /usr/bin/zip -qry "$IPA_NAME" Payload
-
-          mv "$IPA_NAME" "$GITHUB_WORKSPACE/$IPA_NAME"
-          echo "ipa_name=$IPA_NAME" >> "$GITHUB_ENV"
+          rm -f ios/StudyApp/Resources/GoogleService-Info.plist
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: unsigned-ipa
-          path: ${{ env.ipa_name }}
+          name: ios-ipa
+          path: ${{ env.ipa_path }}
 
       - name: Attach IPA to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          files: ${{ env.ipa_name }}
+          tag_name: ${{ env.tag_name }}
+          files: ${{ env.ipa_path }}
           generate_release_notes: true
+          overwrite_files: true
