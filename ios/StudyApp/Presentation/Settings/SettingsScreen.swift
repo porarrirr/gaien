@@ -129,6 +129,15 @@ struct SettingsScreen: View {
                     isShowingDeleteConfirmation = true
                 }
             }
+
+            Section("アプリ情報") {
+                HStack {
+                    Text("バージョン")
+                    Spacer()
+                    Text(appVersionDescription)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .navigationTitle("設定")
         .confirmationDialog("エクスポート形式", isPresented: $isShowingExportOptions, titleVisibility: .visible) {
@@ -160,5 +169,12 @@ struct SettingsScreen: View {
     private func reminderDate(hour: Int, minute: Int) -> Date {
         let now = Date()
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: now) ?? now
+    }
+
+    private var appVersionDescription: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "-"
+        let build = info?["CFBundleVersion"] as? String ?? "-"
+        return "\(version) (\(build))"
     }
 }
