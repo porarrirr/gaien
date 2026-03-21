@@ -9,6 +9,7 @@ import android.os.StrictMode
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.studyapp.services.ReminderWorker
+import com.studyapp.sync.AutoSyncManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -17,6 +18,9 @@ class StudyApp : Application(), Configuration.Provider {
     
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
+
+    @Inject
+    lateinit var autoSyncManager: AutoSyncManager
     
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -27,6 +31,7 @@ class StudyApp : Application(), Configuration.Provider {
         super.onCreate()
         createNotificationChannels()
         setupStrictMode()
+        autoSyncManager.start()
     }
     
     private fun createNotificationChannels() {

@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Root
 
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var app = StudyAppContainer()
 
     private var errorBinding: Binding<Bool> {
@@ -30,6 +31,10 @@ struct RootView: View {
             }
         } message: {
             Text(app.errorMessage ?? "")
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            app.handleSceneDidBecomeActive()
         }
     }
 }

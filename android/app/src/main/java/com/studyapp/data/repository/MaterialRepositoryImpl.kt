@@ -8,6 +8,7 @@ import com.studyapp.domain.model.Material
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AppDataWriteLock
+import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -16,7 +17,8 @@ import javax.inject.Singleton
 @Singleton
 class MaterialRepositoryImpl @Inject constructor(
     private val materialDao: MaterialDao,
-    private val writeLock: AppDataWriteLock
+    private val writeLock: AppDataWriteLock,
+    private val syncChangeNotifier: SyncChangeNotifier
 ) : MaterialRepository {
 
     companion object {
@@ -60,6 +62,7 @@ class MaterialRepositoryImpl @Inject constructor(
             val id = writeLock.withLock {
                 materialDao.insertMaterial(material.toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert material: ${material.name}", e)
@@ -72,6 +75,7 @@ class MaterialRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 materialDao.updateMaterial(material.copy(updatedAt = System.currentTimeMillis()).toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update material: ${material.id}", e)
@@ -85,6 +89,7 @@ class MaterialRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 materialDao.updateMaterial(material.copy(deletedAt = now, updatedAt = now).toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete material: ${material.id}", e)
@@ -97,6 +102,7 @@ class MaterialRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 materialDao.updateProgress(id, page, System.currentTimeMillis())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update progress for material: $id", e)

@@ -13,6 +13,7 @@ import com.studyapp.domain.repository.PlanRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AppDataWriteLock
+import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
@@ -24,7 +25,8 @@ import javax.inject.Singleton
 class PlanRepositoryImpl @Inject constructor(
     private val planDao: PlanDao,
     private val clock: Clock,
-    private val writeLock: AppDataWriteLock
+    private val writeLock: AppDataWriteLock,
+    private val syncChangeNotifier: SyncChangeNotifier
 ) : PlanRepository {
 
     companion object {
@@ -90,6 +92,7 @@ class PlanRepositoryImpl @Inject constructor(
             val id = writeLock.withLock {
                 planDao.createPlanWithItems(entity, itemEntities)
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create plan: ${plan.name}", e)
@@ -115,6 +118,7 @@ class PlanRepositoryImpl @Inject constructor(
                     )
                 )
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update plan: ${plan.id}", e)
@@ -141,6 +145,7 @@ class PlanRepositoryImpl @Inject constructor(
                     )
                 )
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete plan: ${plan.id}", e)
@@ -169,6 +174,7 @@ class PlanRepositoryImpl @Inject constructor(
                     )
                 )
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to add plan item", e)
@@ -198,6 +204,7 @@ class PlanRepositoryImpl @Inject constructor(
                     )
                 )
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update plan item: ${item.id}", e)
@@ -228,6 +235,7 @@ class PlanRepositoryImpl @Inject constructor(
                     )
                 )
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete plan item: ${item.id}", e)

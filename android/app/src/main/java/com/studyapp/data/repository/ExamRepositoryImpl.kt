@@ -8,6 +8,7 @@ import com.studyapp.domain.repository.ExamRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AppDataWriteLock
+import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Instant
@@ -19,7 +20,8 @@ import javax.inject.Singleton
 class ExamRepositoryImpl @Inject constructor(
     private val examDao: ExamDao,
     private val clock: Clock,
-    private val writeLock: AppDataWriteLock
+    private val writeLock: AppDataWriteLock,
+    private val syncChangeNotifier: SyncChangeNotifier
 ) : ExamRepository {
 
     companion object {
@@ -54,6 +56,7 @@ class ExamRepositoryImpl @Inject constructor(
             val id = writeLock.withLock {
                 examDao.insertExam(exam.toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert exam: ${exam.name}", e)
@@ -66,6 +69,7 @@ class ExamRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 examDao.updateExam(exam.copy(updatedAt = clock.currentTimeMillis()).toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update exam: ${exam.id}", e)
@@ -79,6 +83,7 @@ class ExamRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 examDao.updateExam(exam.copy(deletedAt = now, updatedAt = now).toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete exam: ${exam.id}", e)

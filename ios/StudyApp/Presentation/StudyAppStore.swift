@@ -22,6 +22,11 @@ final class StudyAppContainer: ObservableObject {
     let syncRepository: FirebaseSyncRepository
 
     private var cancellables = Set<AnyCancellable>()
+    private var autoSyncDelayTask: Task<Void, Never>?
+    private var lastAutoSyncDataVersion: Int?
+    private let autoSyncBlockedKey = "studyapp.sync.autoSyncBlockedUntilLocalChange"
+    private var pendingAutoSyncRequest: (reason: String, dataVersion: Int)?
+    private var isAutoSyncRunning = false
 
     convenience init() {
         let persistence = PersistenceController.shared
@@ -86,7 +91,8 @@ final class StudyAppContainer: ObservableObject {
             syncStatus = syncRepository.status
             isLoaded = true
             logger.log(category: .app, message: "Initial app load completed", details: "isLoaded=true")
-            bumpDataVersion()
+            bumpDataVersion(shouldScheduleAutoSync: false)
+            scheduleAutoSync(reason: "app-load")
         } catch {
             isLoaded = true
             present(error)
@@ -154,8 +160,11 @@ final class StudyAppContainer: ObservableObject {
         savePreferences { $0.activeTimer = timer }
     }
 
-    func bumpDataVersion() {
+    func bumpDataVersion(shouldScheduleAutoSync: Bool = true) {
         dataVersion += 1
+        if shouldScheduleAutoSync {
+            scheduleAutoSync(reason: "data-version-\(dataVersion)")
+        }
     }
 
     func clearError() {
@@ -166,6 +175,73 @@ final class StudyAppContainer: ObservableObject {
         syncStatus = syncRepository.status
     }
 
+    func handleSceneDidBecomeActive() {
+        scheduleAutoSync(reason: "scene-active")
+    }
+
+    func scheduleAutoSync(reason: String) {
+        guard syncRepository.status.isAuthenticated else { return }
+
+        if isAutoSyncBlockedUntilLocalChange {
+            if reason.hasPrefix("data-version-") {
+                isAutoSyncBlockedUntilLocalChange = false
+            } else {
+                logger.log(category: .sync, message: "Auto sync skipped", details: "reason=\(reason) blocked=true")
+                return
+            }
+        }
+
+        let currentVersion = dataVersion
+        if lastAutoSyncDataVersion == currentVersion, reason != "scene-active", reason != "app-load" {
+            return
+        }
+
+        pendingAutoSyncRequest = (reason, currentVersion)
+        autoSyncDelayTask?.cancel()
+        autoSyncDelayTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await self.runQueuedAutoSync()
+        }
+    }
+
+    private func runQueuedAutoSync() async {
+        guard !isAutoSyncRunning else { return }
+
+        while let request = pendingAutoSyncRequest {
+            guard syncRepository.status.isAuthenticated else {
+                pendingAutoSyncRequest = nil
+                return
+            }
+            guard !syncRepository.status.isSyncing else { return }
+
+            pendingAutoSyncRequest = nil
+            isAutoSyncRunning = true
+            do {
+                logger.log(category: .sync, message: "Auto sync started", details: "reason=\(request.reason) dataVersion=\(request.dataVersion)")
+                try await syncRepository.syncNow()
+                refreshSyncStatus()
+                lastAutoSyncDataVersion = request.dataVersion
+                logger.log(category: .sync, message: "Auto sync completed", details: "reason=\(request.reason) dataVersion=\(request.dataVersion)")
+            } catch {
+                logger.log(category: .sync, level: .warning, message: "Auto sync failed", details: "reason=\(request.reason)", error: error)
+            }
+            isAutoSyncRunning = false
+        }
+    }
+
+    func recordManualSyncApplied() {
+        lastAutoSyncDataVersion = dataVersion
+        isAutoSyncBlockedUntilLocalChange = false
+    }
+
+    func blockAutoSyncUntilLocalChange() {
+        autoSyncDelayTask?.cancel()
+        autoSyncDelayTask = nil
+        pendingAutoSyncRequest = nil
+        isAutoSyncBlockedUntilLocalChange = true
+    }
+
     func present(_ error: Error) {
         logger.log(category: .ui, level: .error, message: "Presented error to user", error: error)
         errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -174,6 +250,11 @@ final class StudyAppContainer: ObservableObject {
     func present(_ message: String) {
         logger.log(category: .ui, level: .warning, message: "Presented message to user", details: message)
         errorMessage = message
+    }
+
+    private var isAutoSyncBlockedUntilLocalChange: Bool {
+        get { UserDefaults.standard.bool(forKey: autoSyncBlockedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: autoSyncBlockedKey) }
     }
 }
 
@@ -803,11 +884,16 @@ final class SettingsViewModel: ScreenViewModel {
     func deleteAllData() {
         perform {
             try await self.app.persistence.deleteAllData()
-            await self.app.syncRepository.clearLocalSyncState()
+            if self.app.syncStatus.isAuthenticated {
+                try await self.app.syncRepository.importLocalDataToCloud()
+            } else {
+                await self.app.syncRepository.clearLocalSyncState()
+            }
             self.app.updateActiveTimer(nil)
             self.summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
             self.app.logger.log(category: .app, level: .warning, message: "All local data deleted")
-            self.app.bumpDataVersion()
+            self.app.bumpDataVersion(shouldScheduleAutoSync: false)
+            self.app.recordManualSyncApplied()
         }
     }
 
@@ -819,6 +905,7 @@ final class SettingsViewModel: ScreenViewModel {
             self.app.logger.log(category: .auth, message: "Sign in requested", details: "emailProvided=\(!email.isEmpty) passwordLength=\(password.count)")
             try await self.app.authRepository.signIn(email: email, password: password)
             self.app.refreshSyncStatus()
+            self.app.scheduleAutoSync(reason: "sign-in")
             self.debugLogEntries = self.app.logger.recentEntries()
         }
     }
@@ -831,6 +918,7 @@ final class SettingsViewModel: ScreenViewModel {
             self.app.logger.log(category: .auth, message: "Sign up requested", details: "emailProvided=\(!email.isEmpty) passwordLength=\(password.count)")
             try await self.app.authRepository.signUp(email: email, password: password)
             self.app.refreshSyncStatus()
+            self.app.scheduleAutoSync(reason: "sign-up")
             self.debugLogEntries = self.app.logger.recentEntries()
         }
     }
@@ -853,7 +941,8 @@ final class SettingsViewModel: ScreenViewModel {
             self.app.refreshSyncStatus()
             self.summary = try await GetSettingsSummaryUseCase(sessionRepository: self.app.persistence).execute()
             self.debugLogEntries = self.app.logger.recentEntries()
-            self.app.bumpDataVersion()
+            self.app.bumpDataVersion(shouldScheduleAutoSync: false)
+            self.app.recordManualSyncApplied()
         }
     }
 
@@ -865,6 +954,7 @@ final class SettingsViewModel: ScreenViewModel {
         perform {
             try await self.app.syncRepository.importLocalDataToCloud()
             self.app.refreshSyncStatus()
+            self.app.recordManualSyncApplied()
             self.debugLogEntries = self.app.logger.recentEntries()
         }
     }

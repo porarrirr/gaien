@@ -12,6 +12,7 @@ import com.studyapp.domain.util.Result
 import com.studyapp.services.ReminderWorker
 import com.studyapp.sync.AuthRepository
 import com.studyapp.sync.SyncRepository
+import com.studyapp.sync.SyncChangeNotifier
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
@@ -54,6 +55,7 @@ class SettingsViewModel @Inject constructor(
     private val exportImportDataUseCase: ExportImportDataUseCase,
     private val authRepository: AuthRepository,
     private val syncRepository: SyncRepository,
+    private val syncChangeNotifier: SyncChangeNotifier,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
     
@@ -218,6 +220,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 syncRepository.syncNow()
+                syncChangeNotifier.resumeAutoSync()
                 loadStatistics()
             }.onFailure {
                 _uiState.update { state -> state.copy(syncError = it.message) }
@@ -229,6 +232,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 syncRepository.importLocalDataToCloud()
+                syncChangeNotifier.resumeAutoSync()
             }.onFailure {
                 _uiState.update { state -> state.copy(syncError = it.message) }
             }
@@ -288,7 +292,10 @@ class SettingsViewModel @Inject constructor(
                 }
 
                 when (val importResult = exportImportDataUseCase.importFromJson(content)) {
-                    is Result.Success -> loadStatistics()
+                    is Result.Success -> {
+                        syncChangeNotifier.notifyLocalDataChanged()
+                        loadStatistics()
+                    }
                     is Result.Error -> Log.e(TAG, "Failed to import data", importResult.exception)
                 }
             } catch (e: Exception) {
@@ -301,7 +308,16 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             when (val deleteResult = exportImportDataUseCase.deleteAllData()) {
                 is Result.Success -> {
-                    syncRepository.clearLocalSyncState()
+                    runCatching {
+                        if (authRepository.session.value != null) {
+                            syncRepository.importLocalDataToCloud()
+                        } else {
+                            syncRepository.clearLocalSyncState()
+                        }
+                        syncChangeNotifier.resumeAutoSync()
+                    }.onFailure {
+                        _uiState.update { state -> state.copy(syncError = it.message) }
+                    }
                     _uiState.update {
                         it.copy(
                             totalSessions = 0,

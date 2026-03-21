@@ -9,6 +9,7 @@ import com.studyapp.domain.repository.GoalRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AppDataWriteLock
+import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.DayOfWeek
@@ -19,7 +20,8 @@ import javax.inject.Singleton
 class GoalRepositoryImpl @Inject constructor(
     private val goalDao: GoalDao,
     private val clock: Clock,
-    private val writeLock: AppDataWriteLock
+    private val writeLock: AppDataWriteLock,
+    private val syncChangeNotifier: SyncChangeNotifier
 ) : GoalRepository {
 
     companion object {
@@ -59,6 +61,7 @@ class GoalRepositoryImpl @Inject constructor(
             val id = writeLock.withLock {
                 goalDao.insertGoal(goal.toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert goal: ${goal.type}", e)
@@ -71,6 +74,7 @@ class GoalRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 goalDao.updateGoal(goal.copy(updatedAt = clock.currentTimeMillis()).toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update goal: ${goal.id}", e)
@@ -84,6 +88,7 @@ class GoalRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 goalDao.updateGoal(goal.copy(isActive = false, deletedAt = now, updatedAt = now).toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete goal: ${goal.id}", e)

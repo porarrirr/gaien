@@ -9,6 +9,7 @@ import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AppDataWriteLock
+import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.ZoneId
@@ -19,7 +20,8 @@ import javax.inject.Singleton
 class StudySessionRepositoryImpl @Inject constructor(
     private val studySessionDao: StudySessionDao,
     private val clock: Clock,
-    private val writeLock: AppDataWriteLock
+    private val writeLock: AppDataWriteLock,
+    private val syncChangeNotifier: SyncChangeNotifier
 ) : StudySessionRepository {
 
     companion object {
@@ -105,6 +107,7 @@ class StudySessionRepositoryImpl @Inject constructor(
             val id = writeLock.withLock {
                 studySessionDao.insertSession(session.toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert session", e)
@@ -117,6 +120,7 @@ class StudySessionRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 studySessionDao.updateSession(session.copy(updatedAt = System.currentTimeMillis()).toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update session: ${session.id}", e)
@@ -130,6 +134,7 @@ class StudySessionRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 studySessionDao.updateSession(session.copy(deletedAt = now, updatedAt = now).toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete session: ${session.id}", e)

@@ -8,6 +8,7 @@ import com.studyapp.domain.model.SubjectIcon
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AppDataWriteLock
+import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -16,7 +17,8 @@ import javax.inject.Singleton
 @Singleton
 class SubjectRepositoryImpl @Inject constructor(
     private val subjectDao: SubjectDao,
-    private val writeLock: AppDataWriteLock
+    private val writeLock: AppDataWriteLock,
+    private val syncChangeNotifier: SyncChangeNotifier
 ) : SubjectRepository {
 
     companion object {
@@ -54,6 +56,7 @@ class SubjectRepositoryImpl @Inject constructor(
             val id = writeLock.withLock {
                 subjectDao.insertSubject(subject.toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(id)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert subject: ${subject.name}", e)
@@ -66,6 +69,7 @@ class SubjectRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 subjectDao.updateSubject(subject.toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update subject: ${subject.id}", e)
@@ -79,6 +83,7 @@ class SubjectRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 subjectDao.updateSubject(subject.copy(deletedAt = now, updatedAt = now).toEntity())
             }
+            syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete subject: ${subject.id}", e)

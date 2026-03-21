@@ -42,8 +42,17 @@ class SyncPreferences @Inject constructor(
         }.apply()
     }
 
+    fun isAutoSyncBlockedUntilLocalChange(): Boolean {
+        return preferences.getBoolean(KEY_AUTO_SYNC_BLOCKED_UNTIL_LOCAL_CHANGE, false)
+    }
+
+    fun setAutoSyncBlockedUntilLocalChange(blocked: Boolean) {
+        preferences.edit().putBoolean(KEY_AUTO_SYNC_BLOCKED_UNTIL_LOCAL_CHANGE, blocked).apply()
+    }
+
     companion object {
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
         private const val KEY_LOCAL_SYNC_OWNER_USER_ID = "local_sync_owner_user_id"
+        private const val KEY_AUTO_SYNC_BLOCKED_UNTIL_LOCAL_CHANGE = "auto_sync_blocked_until_local_change"
     }
 }
