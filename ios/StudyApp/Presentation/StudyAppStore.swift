@@ -1,5 +1,8 @@
 import Combine
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @MainActor
 final class StudyAppContainer: ObservableObject {
@@ -852,6 +855,14 @@ final class SettingsViewModel: ScreenViewModel {
         } catch {
             app.present(error)
         }
+    }
+
+    func copyDebugLogs() {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = app.logger.exportText()
+        app.logger.log(category: .app, message: "Debug logs copied to clipboard", details: "entryCount=\(app.logger.recentEntries().count)")
+        debugLogEntries = app.logger.recentEntries()
+        #endif
     }
 
     func clearDebugLogs() {

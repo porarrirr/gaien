@@ -10,6 +10,7 @@ struct SettingsScreen: View {
     @State private var isShowingDebugLogs = false
     @State private var versionTapCount = 0
     @State private var isDebugLogUnlocked = false
+    @State private var copyConfirmationMessage: String?
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: SettingsViewModel(app: app))
@@ -200,6 +201,13 @@ struct SettingsScreen: View {
                         Label("デバッグログを共有", systemImage: "square.and.arrow.up")
                     }
 
+                    Button {
+                        viewModel.copyDebugLogs()
+                        copyConfirmationMessage = "デバッグログをコピーしました"
+                    } label: {
+                        Label("デバッグログをコピー", systemImage: "doc.on.doc")
+                    }
+
                     Button("デバッグログをクリア", role: .destructive) {
                         viewModel.clearDebugLogs()
                     }
@@ -225,6 +233,13 @@ struct SettingsScreen: View {
             NavigationStack {
                 DebugLogSheet(viewModel: viewModel)
             }
+        }
+        .alert("デバッグログ", isPresented: Binding(get: { copyConfirmationMessage != nil }, set: { if !$0 { copyConfirmationMessage = nil } })) {
+            Button("OK", role: .cancel) {
+                copyConfirmationMessage = nil
+            }
+        } message: {
+            Text(copyConfirmationMessage ?? "")
         }
         .confirmationDialog("エクスポート形式", isPresented: $isShowingExportOptions, titleVisibility: .visible) {
             Button("JSON") {
@@ -268,6 +283,7 @@ struct SettingsScreen: View {
 private struct DebugLogSheet: View {
     @ObservedObject var viewModel: SettingsViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var copyConfirmationMessage: String?
 
     var body: some View {
         List {
@@ -318,10 +334,23 @@ private struct DebugLogSheet: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
+                Button("コピー") {
+                    viewModel.copyDebugLogs()
+                    copyConfirmationMessage = "デバッグログをコピーしました"
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("更新") {
                     viewModel.refreshDebugLogs()
                 }
             }
+        }
+        .alert("デバッグログ", isPresented: Binding(get: { copyConfirmationMessage != nil }, set: { if !$0 { copyConfirmationMessage = nil } })) {
+            Button("OK", role: .cancel) {
+                copyConfirmationMessage = nil
+            }
+        } message: {
+            Text(copyConfirmationMessage ?? "")
         }
         .onAppear {
             viewModel.refreshDebugLogs()
