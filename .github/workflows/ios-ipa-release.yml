@@ -27,6 +27,12 @@ jobs:
     env:
       IOS_GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST }}
       IOS_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST_B64 }}
+      BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+      P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+      BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      BUNDLE_ID: com.studyapp.ios
 
     steps:
       - name: Resolve tag and ref
@@ -69,10 +75,19 @@ jobs:
           set -euo pipefail
 
           CONFIG_PATH="ios/StudyApp/Resources/GoogleService-Info.plist"
+          export CONFIG_PATH
           mkdir -p "$(dirname "$CONFIG_PATH")"
 
           if [ -n "${IOS_GOOGLE_SERVICE_INFO_PLIST_B64:-}" ]; then
-            echo "$IOS_GOOGLE_SERVICE_INFO_PLIST_B64" | base64 --decode > "$CONFIG_PATH"
+            python3 - <<'PY'
+            import base64
+            import os
+            from pathlib import Path
+
+            Path(os.environ["CONFIG_PATH"]).write_bytes(
+                base64.b64decode(os.environ["IOS_GOOGLE_SERVICE_INFO_PLIST_B64"])
+            )
+            PY
           elif [ -n "${IOS_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
             printf '%s' "$IOS_GOOGLE_SERVICE_INFO_PLIST" > "$CONFIG_PATH"
           else
@@ -95,7 +110,161 @@ jobs:
             -project ios/StudyApp.xcodeproj \
             -scheme StudyApp
 
+      - name: Install signing assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          has_cert=0
+          has_p12_password=0
+          has_profile=0
+          has_keychain_password=0
+          has_team_id=0
+
+          [ -n "${BUILD_CERTIFICATE_BASE64:-}" ] && has_cert=1
+          [ -n "${P12_PASSWORD:-}" ] && has_p12_password=1
+          [ -n "${BUILD_PROVISION_PROFILE_BASE64:-}" ] && has_profile=1
+          [ -n "${KEYCHAIN_PASSWORD:-}" ] && has_keychain_password=1
+          [ -n "${APPLE_TEAM_ID:-}" ] && has_team_id=1
+
+          provided_count=$((has_cert + has_p12_password + has_profile + has_keychain_password + has_team_id))
+
+          if [ "$provided_count" -eq 0 ]; then
+            echo "No signing secrets detected. Falling back to unsigned IPA packaging."
+            echo "signing_ready=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if [ "$provided_count" -ne 5 ]; then
+            echo "Incomplete signing configuration. Required secrets: BUILD_CERTIFICATE_BASE64, P12_PASSWORD, BUILD_PROVISION_PROFILE_BASE64, KEYCHAIN_PASSWORD, APPLE_TEAM_ID."
+            exit 1
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/build_certificate.p12"
+          PROFILE_PATH="$RUNNER_TEMP/build_pp.mobileprovision"
+          PROFILE_PLIST_PATH="$RUNNER_TEMP/build_pp.plist"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          INSTALLED_PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          export CERTIFICATE_PATH PROFILE_PATH
+
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          Path(os.environ["CERTIFICATE_PATH"]).write_bytes(
+              base64.b64decode(os.environ["BUILD_CERTIFICATE_BASE64"])
+          )
+          Path(os.environ["PROFILE_PATH"]).write_bytes(
+              base64.b64decode(os.environ["BUILD_PROVISION_PROFILE_BASE64"])
+          )
+          PY
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST_PATH"
+
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PROFILE_PLIST_PATH")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$PROFILE_PLIST_PATH")
+          PROFILE_TEAM_ID=$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$PROFILE_PLIST_PATH")
+          APP_ID=$(/usr/libexec/PlistBuddy -c 'Print Entitlements:application-identifier' "$PROFILE_PLIST_PATH")
+
+          if [ "$PROFILE_TEAM_ID" != "$APPLE_TEAM_ID" ]; then
+            echo "APPLE_TEAM_ID does not match the provisioning profile TeamIdentifier."
+            exit 1
+          fi
+
+          case "$APP_ID" in
+            "$APPLE_TEAM_ID.$BUNDLE_ID"|"$APPLE_TEAM_ID.*")
+              ;;
+            *)
+              echo "Provisioning profile application-identifier ($APP_ID) does not match bundle id $BUNDLE_ID."
+              exit 1
+              ;;
+          esac
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          mkdir -p "$INSTALLED_PROFILE_DIR"
+          cp "$PROFILE_PATH" "$INSTALLED_PROFILE_DIR/$PROFILE_UUID.mobileprovision"
+
+          {
+            echo "signing_ready=true"
+            echo "keychain_path=$KEYCHAIN_PATH"
+            echo "profile_uuid=$PROFILE_UUID"
+            echo "profile_name=$PROFILE_NAME"
+            echo "archive_path=$RUNNER_TEMP/StudyApp.xcarchive"
+            echo "export_path=$RUNNER_TEMP/ipa-export"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed IPA
+        if: env.signing_ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          EXPORT_OPTIONS_PLIST="$RUNNER_TEMP/ExportOptions.plist"
+
+          cat > "$EXPORT_OPTIONS_PLIST" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>ad-hoc</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key>
+              <string>${profile_name}</string>
+            </dict>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>thinning</key>
+            <string>&lt;none&gt;</string>
+          </dict>
+          </plist>
+          EOF
+
+          rm -rf "$archive_path" "$export_path"
+
+          xcodebuild \
+            -project ios/StudyApp.xcodeproj \
+            -scheme StudyApp \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            -archivePath "$archive_path" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="$profile_name" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $keychain_path" \
+            clean archive
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$archive_path" \
+            -exportPath "$export_path" \
+            -exportOptionsPlist "$EXPORT_OPTIONS_PLIST"
+
+          IPA_SOURCE_PATH="$export_path/StudyApp.ipa"
+          if [ ! -f "$IPA_SOURCE_PATH" ]; then
+            echo "Expected signed IPA was not found at: $IPA_SOURCE_PATH"
+            exit 1
+          fi
+
+          IPA_NAME="StudyApp-${tag_name}.ipa"
+          cp "$IPA_SOURCE_PATH" "$GITHUB_WORKSPACE/$IPA_NAME"
+
+          echo "ipa_name=$IPA_NAME" >> "$GITHUB_ENV"
+          echo "ipa_path=$GITHUB_WORKSPACE/$IPA_NAME" >> "$GITHUB_ENV"
+
       - name: Build unsigned IPA
+        if: env.signing_ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -122,6 +291,7 @@ jobs:
           fi
 
           mkdir -p "$RUNNER_TEMP/Payload"
+          rm -rf "$RUNNER_TEMP/Payload/StudyApp.app"
           cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/StudyApp.app"
 
           IPA_NAME="StudyApp-${tag_name}-unsigned.ipa"
@@ -135,6 +305,26 @@ jobs:
           echo "ipa_name=$IPA_NAME" >> "$GITHUB_ENV"
           echo "ipa_path=$GITHUB_WORKSPACE/$IPA_NAME" >> "$GITHUB_ENV"
 
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: ${{ env.ipa_path }}
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$tag_name" >/dev/null 2>&1; then
+            gh release upload "$tag_name" "$ipa_path" --clobber
+          else
+            gh release create "$tag_name" "$ipa_path" --generate-notes --title "$tag_name"
+          fi
+
       - name: Remove Firebase iOS config from workspace
         if: always()
         shell: bash
@@ -142,16 +332,16 @@ jobs:
           set -euo pipefail
           rm -f ios/StudyApp/Resources/GoogleService-Info.plist
 
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-ipa
-          path: ${{ env.ipa_path }}
+      - name: Clean up signing assets
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Attach IPA to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.tag_name }}
-          files: ${{ env.ipa_path }}
-          generate_release_notes: true
-          overwrite_files: true
+          if [ -n "${keychain_path:-}" ] && [ -f "${keychain_path:-}" ]; then
+            security delete-keychain "$keychain_path" || true
+          fi
+
+          if [ -n "${profile_uuid:-}" ]; then
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$profile_uuid.mobileprovision"
+          fi
