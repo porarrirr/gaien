@@ -25,6 +25,7 @@
 		A10000000000000000000015 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000002 /* FirebaseCore */; };
 		A10000000000000000000016 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000003 /* FirebaseAuth */; };
 		A10000000000000000000017 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000004 /* FirebaseFirestore */; };
+		A10000000000000000000019 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* AppLogger.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 		B10000000000000000000004 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* FirebaseRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseRepositories.swift; sourceTree = "<group>"; };
+		B10000000000000000000017 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		B10000000000000000000006 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		B10000000000000000000007 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000000000000000000008 /* StudyAppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppStore.swift; sourceTree = "<group>"; };
@@ -165,6 +167,7 @@
 		D10000000000000000000007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				B10000000000000000000017 /* AppLogger.swift */,
 				B10000000000000000000006 /* ReminderScheduler.swift */,
 			);
 			path = Services;
@@ -290,6 +293,7 @@
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,
 				A10000000000000000000018 /* FirebaseRepositories.swift in Sources */,
 				A10000000000000000000005 /* ReminderScheduler.swift in Sources */,
+				A10000000000000000000019 /* AppLogger.swift in Sources */,
 				A10000000000000000000006 /* Theme.swift in Sources */,
 				A10000000000000000000007 /* StudyAppStore.swift in Sources */,
 				A10000000000000000000008 /* StudyAppViews.swift in Sources */,
@@ -332,6 +336,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -358,6 +363,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

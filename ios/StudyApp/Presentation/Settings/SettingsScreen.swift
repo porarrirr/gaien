@@ -7,6 +7,9 @@ struct SettingsScreen: View {
     @State private var isShowingExportOptions = false
     @State private var isShowingDeleteConfirmation = false
     @State private var isShowingAuthSheet = false
+    @State private var isShowingDebugLogs = false
+    @State private var versionTapCount = 0
+    @State private var isDebugLogUnlocked = false
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: SettingsViewModel(app: app))
@@ -171,14 +174,56 @@ struct SettingsScreen: View {
                     Text(appVersionDescription)
                         .foregroundStyle(.secondary)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    versionTapCount += 1
+                    if versionTapCount >= 5 {
+                        isDebugLogUnlocked = true
+                    }
+                }
             } header: {
                 Label("アプリ情報", systemImage: "info.circle.fill")
+            }
+
+            if isDebugLogUnlocked {
+                Section {
+                    Button {
+                        viewModel.refreshDebugLogs()
+                        isShowingDebugLogs = true
+                    } label: {
+                        Label("デバッグログを開く", systemImage: "ladybug.fill")
+                    }
+
+                    Button {
+                        viewModel.exportDebugLogs()
+                    } label: {
+                        Label("デバッグログを共有", systemImage: "square.and.arrow.up")
+                    }
+
+                    Button("デバッグログをクリア", role: .destructive) {
+                        viewModel.clearDebugLogs()
+                    }
+
+                    HStack {
+                        Text("保存件数")
+                        Spacer()
+                        Text("\(viewModel.debugLogEntries.count)件")
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Label("デバッグログ", systemImage: "ladybug.fill")
+                }
             }
         }
         .navigationTitle("設定")
         .sheet(isPresented: $isShowingAuthSheet) {
             NavigationStack {
                 AuthSheet(viewModel: viewModel, isPresented: $isShowingAuthSheet)
+            }
+        }
+        .sheet(isPresented: $isShowingDebugLogs) {
+            NavigationStack {
+                DebugLogSheet(viewModel: viewModel)
             }
         }
         .confirmationDialog("エクスポート形式", isPresented: $isShowingExportOptions, titleVisibility: .visible) {
@@ -217,6 +262,83 @@ struct SettingsScreen: View {
         let version = info?["CFBundleShortVersionString"] as? String ?? "-"
         let build = info?["CFBundleVersion"] as? String ?? "-"
         return "\(version) (\(build))"
+    }
+}
+
+private struct DebugLogSheet: View {
+    @ObservedObject var viewModel: SettingsViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List {
+            if viewModel.debugLogEntries.isEmpty {
+                Text("ログはまだありません")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(viewModel.debugLogEntries) { entry in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(entry.timestamp.formatted(date: .abbreviated, time: .standard))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(entry.level.rawValue.uppercased())
+                                .font(.caption.bold())
+                                .foregroundStyle(color(for: entry.level))
+                        }
+                        Text(entry.message)
+                            .font(.headline)
+                        Text(entry.category.rawValue)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let details = entry.details, !details.isEmpty {
+                            Text(details)
+                                .font(.caption)
+                                .textSelection(.enabled)
+                        }
+                        if let errorDescription = entry.errorDescription, !errorDescription.isEmpty {
+                            Text(errorDescription)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .navigationTitle("デバッグログ")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("閉じる") { dismiss() }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("共有") {
+                    viewModel.exportDebugLogs()
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("更新") {
+                    viewModel.refreshDebugLogs()
+                }
+            }
+        }
+        .onAppear {
+            viewModel.refreshDebugLogs()
+        }
+    }
+
+    private func color(for level: DebugLogLevel) -> Color {
+        switch level {
+        case .debug:
+            return .secondary
+        case .info:
+            return .blue
+        case .warning:
+            return .orange
+        case .error:
+            return .red
+        }
     }
 }
 

@@ -13,6 +13,7 @@ final class StudyAppContainer: ObservableObject {
     let preferencesRepository: UserDefaultsPreferencesRepository
     let googleBooksService: GoogleBooksService
     let reminderScheduler: ReminderScheduler
+    let logger: AppLogger
     let clock = Clock()
     let authRepository: FirebaseAuthRepository
     let syncRepository: FirebaseSyncRepository
@@ -24,13 +25,15 @@ final class StudyAppContainer: ObservableObject {
         let preferencesRepository = UserDefaultsPreferencesRepository()
         let googleBooksService = GoogleBooksService()
         let reminderScheduler = ReminderScheduler()
-        let authRepository = FirebaseAuthRepository()
+        let logger = AppLogger()
+        let authRepository = FirebaseAuthRepository(logger: logger)
 
         self.init(
             persistence: persistence,
             preferencesRepository: preferencesRepository,
             googleBooksService: googleBooksService,
             reminderScheduler: reminderScheduler,
+            logger: logger,
             authRepository: authRepository,
             syncRepository: nil
         )
@@ -41,6 +44,7 @@ final class StudyAppContainer: ObservableObject {
         preferencesRepository: UserDefaultsPreferencesRepository,
         googleBooksService: GoogleBooksService,
         reminderScheduler: ReminderScheduler,
+        logger: AppLogger,
         authRepository: FirebaseAuthRepository,
         syncRepository: FirebaseSyncRepository?
     ) {
@@ -48,11 +52,13 @@ final class StudyAppContainer: ObservableObject {
         self.preferencesRepository = preferencesRepository
         self.googleBooksService = googleBooksService
         self.reminderScheduler = reminderScheduler
+        self.logger = logger
         self.authRepository = authRepository
         self.syncRepository = syncRepository ?? FirebaseSyncRepository(
             authRepository: authRepository,
             persistence: persistence,
-            preferencesRepository: preferencesRepository
+            preferencesRepository: preferencesRepository,
+            logger: logger
         )
         self.preferences = preferencesRepository.loadPreferences()
         self.syncStatus = self.syncRepository.status
@@ -65,6 +71,7 @@ final class StudyAppContainer: ObservableObject {
             .store(in: &cancellables)
 
         Task {
+            logger.log(category: .app, message: "StudyAppContainer initialized")
             await load()
         }
     }
@@ -75,6 +82,7 @@ final class StudyAppContainer: ObservableObject {
             preferences = preferencesRepository.loadPreferences()
             syncStatus = syncRepository.status
             isLoaded = true
+            logger.log(category: .app, message: "Initial app load completed", details: "isLoaded=true")
             bumpDataVersion()
         } catch {
             isLoaded = true
@@ -156,10 +164,12 @@ final class StudyAppContainer: ObservableObject {
     }
 
     func present(_ error: Error) {
+        logger.log(category: .ui, level: .error, message: "Presented error to user", error: error)
         errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
     }
 
     func present(_ message: String) {
+        logger.log(category: .ui, level: .warning, message: "Presented message to user", details: message)
         errorMessage = message
     }
 }
@@ -733,6 +743,7 @@ final class ReportsViewModel: ScreenViewModel {
 final class SettingsViewModel: ScreenViewModel {
     @Published private(set) var exportURL: URL?
     @Published private(set) var summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
+    @Published private(set) var debugLogEntries: [DebugLogEntry] = []
     @Published var syncEmail = ""
     @Published var syncPassword = ""
 
@@ -741,6 +752,7 @@ final class SettingsViewModel: ScreenViewModel {
             let useCase = GetSettingsSummaryUseCase(sessionRepository: app.persistence)
             summary = try await useCase.execute()
             app.refreshSyncStatus()
+            debugLogEntries = app.logger.recentEntries()
         } catch {
             app.present(error)
         }
@@ -752,6 +764,7 @@ final class SettingsViewModel: ScreenViewModel {
             let contents = try await (format == .json ? useCase.exportJSON() : useCase.exportCSV())
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("studyapp_backup_\(Int(Date().timeIntervalSince1970)).\(format.rawValue)")
             try contents.write(to: url, atomically: true, encoding: .utf8)
+            self.app.logger.log(category: .app, message: "Export completed", details: "format=\(format.rawValue) url=\(url.lastPathComponent)")
             self.exportURL = url
         }
     }
@@ -762,6 +775,7 @@ final class SettingsViewModel: ScreenViewModel {
             let useCase = ExportImportDataUseCase(repository: self.app.persistence)
             let preferences = try await useCase.importJSON(contents, currentPreferences: self.app.preferences)
             self.app.savePreferences { $0 = preferences }
+            self.app.logger.log(category: .app, message: "Backup import completed", details: "file=\(url.lastPathComponent)")
             self.app.bumpDataVersion()
         }
     }
@@ -771,6 +785,7 @@ final class SettingsViewModel: ScreenViewModel {
             try await self.app.persistence.deleteAllData()
             self.app.updateActiveTimer(nil)
             self.summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
+            self.app.logger.log(category: .app, level: .warning, message: "All local data deleted")
             self.app.bumpDataVersion()
         }
     }
@@ -779,8 +794,10 @@ final class SettingsViewModel: ScreenViewModel {
         perform {
             let password = self.syncPassword
             defer { self.syncPassword = "" }
+            self.app.logger.log(category: .auth, message: "Sign in requested", details: "email=\(self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines)) passwordLength=\(password.count)")
             try await self.app.authRepository.signIn(email: self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines), password: password)
             self.app.refreshSyncStatus()
+            self.debugLogEntries = self.app.logger.recentEntries()
         }
     }
 
@@ -788,14 +805,18 @@ final class SettingsViewModel: ScreenViewModel {
         perform {
             let password = self.syncPassword
             defer { self.syncPassword = "" }
+            self.app.logger.log(category: .auth, message: "Sign up requested", details: "email=\(self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines)) passwordLength=\(password.count)")
             try await self.app.authRepository.signUp(email: self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines), password: password)
             self.app.refreshSyncStatus()
+            self.debugLogEntries = self.app.logger.recentEntries()
         }
     }
 
     func signOutOfSync() {
         perform {
             try await self.app.authRepository.signOut()
+            self.app.logger.log(category: .auth, message: "Sign out completed", details: "email=\(self.app.syncStatus.email ?? "-")")
+            self.debugLogEntries = self.app.logger.recentEntries()
         }
     }
 
@@ -804,6 +825,7 @@ final class SettingsViewModel: ScreenViewModel {
             try await self.app.syncRepository.syncNow()
             self.app.refreshSyncStatus()
             self.summary = try await GetSettingsSummaryUseCase(sessionRepository: self.app.persistence).execute()
+            self.debugLogEntries = self.app.logger.recentEntries()
             self.app.bumpDataVersion()
         }
     }
@@ -812,6 +834,29 @@ final class SettingsViewModel: ScreenViewModel {
         perform {
             try await self.app.syncRepository.importLocalDataToCloud()
             self.app.refreshSyncStatus()
+            self.debugLogEntries = self.app.logger.recentEntries()
         }
+    }
+
+    func refreshDebugLogs() {
+        debugLogEntries = app.logger.recentEntries()
+    }
+
+    func exportDebugLogs() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("studyapp_debug_logs_\(Int(Date().timeIntervalSince1970)).txt")
+        do {
+            try app.logger.exportText().write(to: url, atomically: true, encoding: .utf8)
+            app.logger.log(category: .app, message: "Debug logs exported", details: "file=\(url.lastPathComponent)")
+            exportURL = url
+            debugLogEntries = app.logger.recentEntries()
+        } catch {
+            app.present(error)
+        }
+    }
+
+    func clearDebugLogs() {
+        app.logger.clear()
+        app.logger.log(category: .app, level: .warning, message: "Debug logs cleared")
+        debugLogEntries = app.logger.recentEntries()
     }
 }

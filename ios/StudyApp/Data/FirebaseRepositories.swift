@@ -8,39 +8,62 @@ import Foundation
 final class FirebaseAuthRepository: ObservableObject, AuthRepository {
     @Published private(set) var session: AuthSession?
     private let auth: Auth
+    private let logger: AppLogger?
     private var stateDidChangeHandle: AuthStateDidChangeListenerHandle?
 
-    init() {
+    init(logger: AppLogger? = nil) {
         self.auth = Auth.auth()
+        self.logger = logger
         self.session = self.auth.currentUser.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
         self.stateDidChangeHandle = self.auth.addStateDidChangeListener { [weak self] _, user in
-            self?.session = user.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
+            Task { @MainActor [weak self] in
+                self?.session = user.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
+                self?.logger?.log(
+                    category: .auth,
+                    message: "Firebase auth state changed",
+                    details: "uid=\(user?.uid ?? "-") email=\(user?.email ?? "-") authenticated=\(user != nil)"
+                )
+            }
         }
     }
 
-    init(auth: Auth) {
+    init(auth: Auth, logger: AppLogger? = nil) {
         self.auth = auth
+        self.logger = logger
         self.session = auth.currentUser.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
         self.stateDidChangeHandle = auth.addStateDidChangeListener { [weak self] _, user in
-            self?.session = user.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
+            Task { @MainActor [weak self] in
+                self?.session = user.map { AuthSession(localId: $0.uid, email: $0.email ?? "", idToken: "", refreshToken: "") }
+                self?.logger?.log(
+                    category: .auth,
+                    message: "Firebase auth state changed",
+                    details: "uid=\(user?.uid ?? "-") email=\(user?.email ?? "-") authenticated=\(user != nil)"
+                )
+            }
         }
     }
 
     func signIn(email: String, password: String) async throws {
+        logger?.log(category: .auth, message: "Firebase sign-in started", details: "email=\(email)")
         let result = try await auth.signIn(withEmail: email, password: password)
         let token = try await result.user.getIDToken()
         session = AuthSession(localId: result.user.uid, email: result.user.email ?? email, idToken: token, refreshToken: "")
+        logger?.log(category: .auth, message: "Firebase sign-in succeeded", details: "uid=\(result.user.uid) email=\(result.user.email ?? email)")
     }
 
     func signUp(email: String, password: String) async throws {
+        logger?.log(category: .auth, message: "Firebase sign-up started", details: "email=\(email)")
         let result = try await auth.createUser(withEmail: email, password: password)
         let token = try await result.user.getIDToken()
         session = AuthSession(localId: result.user.uid, email: result.user.email ?? email, idToken: token, refreshToken: "")
+        logger?.log(category: .auth, message: "Firebase sign-up succeeded", details: "uid=\(result.user.uid) email=\(result.user.email ?? email)")
     }
 
     func signOut() async throws {
+        logger?.log(category: .auth, message: "Firebase sign-out started", details: "uid=\(auth.currentUser?.uid ?? "-")")
         try auth.signOut()
         session = nil
+        logger?.log(category: .auth, message: "Firebase sign-out succeeded")
     }
 }
 
@@ -50,6 +73,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private let firestore: Firestore
     private let persistence: PersistenceController
     private let preferencesRepository: UserDefaultsPreferencesRepository
+    private let logger: AppLogger
     private let lastSyncKey = "studyapp.sync.lastSyncAt"
     private var lastLoadedVersion: Int64 = 0
     private var cancellables = Set<AnyCancellable>()
@@ -63,12 +87,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         authRepository: FirebaseAuthRepository,
         firestore: Firestore,
         persistence: PersistenceController,
-        preferencesRepository: UserDefaultsPreferencesRepository
+        preferencesRepository: UserDefaultsPreferencesRepository,
+        logger: AppLogger
     ) {
         self.authRepository = authRepository
         self.firestore = firestore
         self.persistence = persistence
         self.preferencesRepository = preferencesRepository
+        self.logger = logger
         self.status = SyncStatus(
             isAuthenticated: authRepository.session != nil,
             email: authRepository.session?.email,
@@ -85,6 +111,11 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     self.status.isSyncing = false
                     self.status.errorMessage = nil
                 }
+                self.logger.log(
+                    category: .sync,
+                    message: "Sync auth session updated",
+                    details: "authenticated=\(session != nil) uid=\(session?.localId ?? "-") email=\(session?.email ?? "-")"
+                )
             }
             .store(in: &cancellables)
     }
@@ -92,88 +123,156 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     convenience init(
         authRepository: FirebaseAuthRepository,
         persistence: PersistenceController,
-        preferencesRepository: UserDefaultsPreferencesRepository
+        preferencesRepository: UserDefaultsPreferencesRepository,
+        logger: AppLogger
     ) {
         self.init(
             authRepository: authRepository,
             firestore: Firestore.firestore(),
             persistence: persistence,
-            preferencesRepository: preferencesRepository
+            preferencesRepository: preferencesRepository,
+            logger: logger
         )
     }
 
     func syncNow() async throws {
         guard let session = authRepository.session else {
+            logger.log(category: .sync, level: .warning, message: "syncNow rejected", details: "reason=unauthenticated")
             throw ValidationError(message: "同期するにはサインインが必要です")
         }
         status.isSyncing = true
         status.errorMessage = nil
+        logger.log(category: .sync, message: "syncNow started", details: "uid=\(session.localId) email=\(session.email)")
+        defer {
+            status.isSyncing = false
+            logger.log(
+                category: .sync,
+                message: "syncNow finished",
+                details: "uid=\(session.localId) error=\(status.errorMessage ?? "-") lastSyncAt=\(status.lastSyncAt.map(String.init) ?? "-")"
+            )
+        }
         do {
-            for _ in 0..<Self.maxSyncRetries {
+            for attempt in 0..<Self.maxSyncRetries {
+                logger.log(category: .sync, message: "syncNow attempt started", details: "attempt=\(attempt + 1)")
                 let remotePayload = try await loadSnapshot(userId: session.localId)
                 let local = try await persistence.exportData()
                 let localChangeToken = persistence.changeToken
                 let merged: AppData
                 if let remotePayload {
-                    let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
-                    merged = merge(local: local, remote: remote)
+                    logger.log(
+                        category: .sync,
+                        message: "Remote snapshot loaded",
+                        details: "payloadBytes=\(remotePayload.lengthOfBytes(using: .utf8)) localSubjects=\(local.subjects.count) localMaterials=\(local.materials.count) localSessions=\(local.sessions.count)"
+                    )
+                    do {
+                        let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
+                        logger.log(
+                            category: .sync,
+                            message: "Remote snapshot decoded",
+                            details: "remoteSubjects=\(remote.subjects.count) remoteMaterials=\(remote.materials.count) remoteSessions=\(remote.sessions.count) remoteGoals=\(remote.goals.count) remoteExams=\(remote.exams.count) remotePlans=\(remote.plans.count)"
+                        )
+                        merged = merge(local: local, remote: remote)
+                    } catch {
+                        logger.log(category: .sync, level: .error, message: "Remote snapshot decode failed", details: "attempt=\(attempt + 1)", error: error)
+                        throw ValidationError(message: "クラウド同期データの読み込みに失敗しました")
+                    }
                 } else {
+                    logger.log(category: .sync, message: "No remote snapshot found", details: "uid=\(session.localId)")
                     merged = local
                 }
                 let synced = markSynced(merged, at: Date().epochMilliseconds)
                 let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
-                try await saveSnapshot(
-                    userId: session.localId,
-                    payload: payload,
-                    updatedAt: synced.exportDate,
-                    expectedVersion: lastLoadedVersion
+                logger.log(
+                    category: .sync,
+                    message: "Prepared merged payload",
+                    details: "attempt=\(attempt + 1) payloadBytes=\(payload.lengthOfBytes(using: .utf8)) mergedSubjects=\(synced.subjects.count) mergedMaterials=\(synced.materials.count) mergedSessions=\(synced.sessions.count)"
                 )
+                do {
+                    try await saveSnapshot(
+                        userId: session.localId,
+                        payload: payload,
+                        updatedAt: synced.exportDate,
+                        expectedVersion: lastLoadedVersion
+                    )
+                } catch {
+                    logger.log(category: .sync, level: .error, message: "Remote snapshot save failed", details: "attempt=\(attempt + 1)", error: error)
+                    throw error
+                }
                 guard persistence.changeToken == localChangeToken else {
+                    logger.log(category: .sync, level: .warning, message: "Local change detected during sync", details: "attempt=\(attempt + 1)")
                     continue
                 }
-                let useCase = ExportImportDataUseCase(repository: persistence)
-                _ = try await useCase.importJSON(payload, currentPreferences: preferencesRepository.loadPreferences())
+                do {
+                    let useCase = ExportImportDataUseCase(repository: persistence)
+                    _ = try await useCase.importJSON(payload, currentPreferences: preferencesRepository.loadPreferences())
+                } catch {
+                    logger.log(category: .sync, level: .error, message: "Merged snapshot import failed", details: "attempt=\(attempt + 1)", error: error)
+                    throw ValidationError(message: "同期後のローカル反映に失敗しました")
+                }
                 UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
                 status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
+                logger.log(category: .sync, message: "syncNow succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(synced.exportDate)")
                 return
             }
             throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
         } catch {
-            status.isSyncing = false
             status.errorMessage = error.localizedDescription
+            logger.log(category: .sync, level: .error, message: "syncNow failed", details: "uid=\(session.localId)", error: error)
             throw error
         }
     }
 
     func importLocalDataToCloud() async throws {
         guard let session = authRepository.session else {
+            logger.log(category: .sync, level: .warning, message: "importLocalDataToCloud rejected", details: "reason=unauthenticated")
             throw ValidationError(message: "同期するにはサインインが必要です")
         }
         status.isSyncing = true
         status.errorMessage = nil
+        logger.log(category: .sync, message: "importLocalDataToCloud started", details: "uid=\(session.localId) email=\(session.email)")
+        defer {
+            status.isSyncing = false
+            logger.log(
+                category: .sync,
+                message: "importLocalDataToCloud finished",
+                details: "uid=\(session.localId) error=\(status.errorMessage ?? "-") lastSyncAt=\(status.lastSyncAt.map(String.init) ?? "-")"
+            )
+        }
         do {
-            for _ in 0..<Self.maxSyncRetries {
+            for attempt in 0..<Self.maxSyncRetries {
                 _ = try await loadSnapshot(userId: session.localId)
                 let local = markSynced(try await persistence.exportData(), at: Date().epochMilliseconds)
                 let localChangeToken = persistence.changeToken
                 let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
-                try await saveSnapshot(
-                    userId: session.localId,
-                    payload: payload,
-                    updatedAt: local.exportDate,
-                    expectedVersion: lastLoadedVersion
+                logger.log(
+                    category: .sync,
+                    message: "Prepared local upload payload",
+                    details: "attempt=\(attempt + 1) payloadBytes=\(payload.lengthOfBytes(using: .utf8)) subjects=\(local.subjects.count) materials=\(local.materials.count) sessions=\(local.sessions.count)"
                 )
+                do {
+                    try await saveSnapshot(
+                        userId: session.localId,
+                        payload: payload,
+                        updatedAt: local.exportDate,
+                        expectedVersion: lastLoadedVersion
+                    )
+                } catch {
+                    logger.log(category: .sync, level: .error, message: "Local upload save failed", details: "attempt=\(attempt + 1)", error: error)
+                    throw error
+                }
                 guard persistence.changeToken == localChangeToken else {
+                    logger.log(category: .sync, level: .warning, message: "Local change detected during upload", details: "attempt=\(attempt + 1)")
                     continue
                 }
                 UserDefaults.standard.set(local.exportDate, forKey: lastSyncKey)
                 status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: local.exportDate)
+                logger.log(category: .sync, message: "importLocalDataToCloud succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(local.exportDate)")
                 return
             }
             throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
         } catch {
-            status.isSyncing = false
             status.errorMessage = error.localizedDescription
+            logger.log(category: .sync, level: .error, message: "importLocalDataToCloud failed", details: "uid=\(session.localId)", error: error)
             throw error
         }
     }
@@ -187,23 +286,27 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         let snapshot = try await manifestRef.getDocument()
         guard let data = snapshot.data() else {
             lastLoadedVersion = 0
+            logger.log(category: .sync, message: "No sync manifest found", details: "uid=\(userId)")
             return nil
         }
 
         // Legacy format: direct payload field
         if let payload = data["payload"] as? String {
-            lastLoadedVersion = data["version"] as? Int64 ?? 0
+            lastLoadedVersion = readInteger(data["version"]) ?? 0
+            logger.log(category: .sync, message: "Loaded legacy sync payload", details: "uid=\(userId) version=\(lastLoadedVersion) payloadBytes=\(payload.lengthOfBytes(using: .utf8))")
             return payload
         }
 
         // Chunked-v2 format
         guard let format = data["format"] as? String, format == "chunked-v2",
-              let version = data["version"] as? Int64,
-              let chunkCount = data["chunkCount"] as? Int,
-              chunkCount > 0 else {
-            lastLoadedVersion = data["version"] as? Int64 ?? 0
+              let version = readInteger(data["version"]),
+              let chunkCountInt64 = readInteger(data["chunkCount"]),
+              chunkCountInt64 > 0 else {
+            lastLoadedVersion = readInteger(data["version"]) ?? 0
+            logger.log(category: .sync, level: .warning, message: "Sync manifest format was unreadable", details: "uid=\(userId) version=\(lastLoadedVersion)")
             return nil
         }
+        let chunkCount = Int(chunkCountInt64)
 
         lastLoadedVersion = version
         let chunksCol = manifestRef.collection("chunks")
@@ -213,13 +316,15 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             let chunkId = String(format: "%06d", i)
             let chunkSnap = try await chunksCol.document(chunkId).getDocument()
             guard let chunkData = chunkSnap.data(),
-                  let chunkVersion = chunkData["version"] as? Int64,
+                  let chunkVersion = readInteger(chunkData["version"]),
                   chunkVersion == version,
                   let payloadPart = chunkData["payloadPart"] as? String else {
+                logger.log(category: .sync, level: .error, message: "Chunk read failed", details: "uid=\(userId) version=\(version) chunkIndex=\(i)")
                 throw ValidationError(message: "同期データの読み込みに失敗しました")
             }
             parts.append(payloadPart)
         }
+        logger.log(category: .sync, message: "Loaded chunked sync payload", details: "uid=\(userId) version=\(version) chunkCount=\(chunkCount)")
         return parts.joined()
     }
 
@@ -240,8 +345,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             }
 
             let currentData = manifestSnap.data() ?? [:]
-            let currentVersion: Int64 = currentData["version"] as? Int64 ?? 0
-            let oldChunkCount = currentData["chunkCount"] as? Int ?? 0
+            let currentVersion: Int64 = self.readInteger(currentData["version"]) ?? 0
+            let oldChunkCount = Int(self.readInteger(currentData["chunkCount"]) ?? 0)
 
             if let expected = expectedVersion, currentVersion != expected {
                 errorPointer?.pointee = NSError(
@@ -279,6 +384,22 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         }
         if let version = result as? NSNumber {
             lastLoadedVersion = version.int64Value
+            logger.log(category: .sync, message: "Saved sync manifest", details: "uid=\(userId) version=\(lastLoadedVersion) chunkCount=\(newChunkCount) payloadBytes=\(payload.lengthOfBytes(using: .utf8)) updatedAt=\(updatedAt)")
+        }
+    }
+
+    private func readInteger(_ value: Any?) -> Int64? {
+        switch value {
+        case let intValue as Int:
+            return Int64(intValue)
+        case let int64Value as Int64:
+            return int64Value
+        case let number as NSNumber:
+            return number.int64Value
+        case let string as String:
+            return Int64(string)
+        default:
+            return nil
         }
     }
 

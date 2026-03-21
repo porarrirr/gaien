@@ -1,5 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if canImport(AVFoundation)
+import AVFoundation
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -15,6 +18,7 @@ struct MaterialsScreen: View {
     @State private var isbn = ""
     @State private var isShowingScanner = false
     @State private var isShowingIsbnSearch = false
+    @State private var scannerMessage: String?
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: MaterialsViewModel(app: app))
@@ -70,7 +74,7 @@ struct MaterialsScreen: View {
                 }
 
                 Button {
-                    isShowingScanner = true
+                    openBarcodeScanner()
                 } label: {
                     Image(systemName: "barcode.viewfinder")
                 }
@@ -186,9 +190,20 @@ struct MaterialsScreen: View {
         .sheet(isPresented: $isShowingScanner) {
             BarcodeScannerSheet { code in
                 isbn = code
+                viewModel.app.logger.log(category: .barcode, message: "Barcode scanned", details: "isbn=\(code)")
                 viewModel.searchBook(isbn: code)
                 isShowingScanner = false
+            } onFailure: { message in
+                scannerMessage = message
+                isShowingScanner = false
+            } logger: viewModel.app.logger
+        }
+        .alert("バーコード読み取り", isPresented: Binding(get: { scannerMessage != nil }, set: { if !$0 { scannerMessage = nil } })) {
+            Button("OK", role: .cancel) {
+                scannerMessage = nil
             }
+        } message: {
+            Text(scannerMessage ?? "")
         }
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
@@ -196,6 +211,38 @@ struct MaterialsScreen: View {
                 materialDraft.subjectId = viewModel.subjects.first?.id ?? 0
             }
         }
+    }
+
+    private func openBarcodeScanner() {
+        #if canImport(AVFoundation)
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            viewModel.app.logger.log(category: .barcode, message: "Camera permission already authorized")
+            isShowingScanner = true
+        case .notDetermined:
+            viewModel.app.logger.log(category: .barcode, message: "Requesting camera permission")
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self.viewModel.app.logger.log(category: .barcode, message: "Camera permission granted")
+                        self.isShowingScanner = true
+                    } else {
+                        self.viewModel.app.logger.log(category: .barcode, level: .warning, message: "Camera permission denied by user")
+                        self.scannerMessage = "カメラへのアクセスが許可されていません。設定アプリでカメラを許可してください。"
+                    }
+                }
+            }
+        case .denied, .restricted:
+            viewModel.app.logger.log(category: .barcode, level: .warning, message: "Camera permission unavailable", details: "status=\(AVCaptureDevice.authorizationStatus(for: .video).rawValue)")
+            scannerMessage = "カメラへのアクセスが許可されていません。設定アプリでカメラを許可してください。"
+        @unknown default:
+            viewModel.app.logger.log(category: .barcode, level: .warning, message: "Unknown camera authorization status")
+            scannerMessage = "この端末ではバーコード読み取りを開始できませんでした。"
+        }
+        #else
+        viewModel.app.logger.log(category: .barcode, level: .warning, message: "AVFoundation unavailable for barcode scanner")
+        scannerMessage = "この端末ではバーコード読み取りを利用できません。"
+        #endif
     }
 }
 
@@ -436,14 +483,20 @@ private struct MaterialDraft {
 
 private struct BarcodeScannerSheet: View {
     let onScanned: (String) -> Void
+    let onFailure: (String) -> Void
+    let logger: AppLogger
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            BarcodeScannerView { code in
+            BarcodeScannerView(onScanned: { code in
                 onScanned(code)
                 dismiss()
-            }
+            }, onFailure: { message in
+                logger.log(category: .barcode, level: .warning, message: "Scanner reported failure", details: message)
+                onFailure(message)
+                dismiss()
+            }, logger: logger)
             .navigationTitle("バーコード")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -456,16 +509,24 @@ private struct BarcodeScannerSheet: View {
 
 private struct BarcodeScannerView: View {
     let onScanned: (String) -> Void
+    let onFailure: (String) -> Void
+    let logger: AppLogger
 
     var body: some View {
         #if canImport(VisionKit)
         if #available(iOS 16.0, *), DataScannerViewController.isSupported, DataScannerViewController.isAvailable {
-            ScannerRepresentable(onScanned: onScanned)
+            ScannerRepresentable(onScanned: onScanned, onFailure: onFailure, logger: logger)
         } else {
             scannerUnavailableState
+                .onAppear {
+                    logger.log(category: .barcode, level: .warning, message: "VisionKit scanner unavailable", details: "supported=\(DataScannerViewController.isSupported) available=\(DataScannerViewController.isAvailable)")
+                }
         }
         #else
         scannerUnavailableState
+            .onAppear {
+                logger.log(category: .barcode, level: .warning, message: "VisionKit unavailable for barcode scanner")
+            }
         #endif
     }
 
@@ -482,9 +543,11 @@ private struct BarcodeScannerView: View {
 @available(iOS 16.0, *)
 private struct ScannerRepresentable: UIViewControllerRepresentable {
     let onScanned: (String) -> Void
+    let onFailure: (String) -> Void
+    let logger: AppLogger
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onScanned: onScanned)
+        Coordinator(onScanned: onScanned, onFailure: onFailure, logger: logger)
     }
 
     func makeUIViewController(context: Context) -> DataScannerViewController {
@@ -498,26 +561,59 @@ private struct ScannerRepresentable: UIViewControllerRepresentable {
             isHighlightingEnabled: true
         )
         controller.delegate = context.coordinator
-        do {
-            try controller.startScanning()
-        } catch {
-            print("[StudyApp] Failed to start barcode scanner: \(error.localizedDescription)")
-        }
+        context.coordinator.attach(controller)
         return controller
     }
 
-    func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {
+        context.coordinator.attach(uiViewController)
+    }
+
+    static func dismantleUIViewController(_ uiViewController: DataScannerViewController, coordinator: Coordinator) {
+        coordinator.stopScanning()
+    }
 
     final class Coordinator: NSObject, DataScannerViewControllerDelegate {
         let onScanned: (String) -> Void
+        let onFailure: (String) -> Void
+        let logger: AppLogger
+        weak var controller: DataScannerViewController?
+        private var hasCompletedScan = false
+        private var hasStartedScanning = false
 
-        init(onScanned: @escaping (String) -> Void) {
+        init(onScanned: @escaping (String) -> Void, onFailure: @escaping (String) -> Void, logger: AppLogger) {
             self.onScanned = onScanned
+            self.onFailure = onFailure
+            self.logger = logger
+        }
+
+        func attach(_ controller: DataScannerViewController) {
+            self.controller = controller
+            guard !hasStartedScanning else { return }
+            do {
+                try controller.startScanning()
+                hasStartedScanning = true
+                logger.log(category: .barcode, message: "Barcode scanner started")
+            } catch {
+                logger.log(category: .barcode, level: .error, message: "Failed to start barcode scanner", error: error)
+                onFailure("バーコードスキャナの起動に失敗しました。")
+            }
+        }
+
+        func stopScanning() {
+            guard hasStartedScanning else { return }
+            controller?.stopScanning()
+            hasStartedScanning = false
+            logger.log(category: .barcode, message: "Barcode scanner stopped")
         }
 
         func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
+            guard !hasCompletedScan else { return }
             guard let first = addedItems.first else { return }
             if case .barcode(let barcode) = first, let payload = barcode.payloadStringValue {
+                hasCompletedScan = true
+                logger.log(category: .barcode, message: "Recognized barcode payload", details: "payload=\(payload)")
+                stopScanning()
                 onScanned(payload)
             }
         }
