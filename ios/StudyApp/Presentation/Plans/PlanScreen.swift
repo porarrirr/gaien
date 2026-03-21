@@ -14,14 +14,14 @@ struct PlanScreen: View {
         Group {
             if let activePlan = viewModel.activePlan {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        PlanHeaderCard(
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        PlanHeaderCardNew(
                             plan: activePlan,
                             totalTargetMinutes: viewModel.totalTargetMinutes,
                             completionRate: viewModel.completionRate
                         )
 
-                        DaySelector(
+                        DaySelectorNew(
                             selectedDay: Binding(
                                 get: { viewModel.selectedDay ?? .monday },
                                 set: { viewModel.selectedDay = $0 }
@@ -29,7 +29,7 @@ struct PlanScreen: View {
                         )
 
                         let selectedDay = viewModel.selectedDay ?? .monday
-                        DayScheduleSection(
+                        DayScheduleSectionNew(
                             day: selectedDay,
                             items: viewModel.weeklySchedule[selectedDay] ?? [],
                             onEdit: { item in
@@ -40,14 +40,19 @@ struct PlanScreen: View {
                             }
                         )
                     }
-                    .padding()
+                    .padding(AppSpacing.md)
                 }
             } else {
-                EmptyPlanState(
-                    onCreate: { isShowingCreatePlan = true }
+                EmptyStateView(
+                    icon: "calendar.badge.plus",
+                    title: "学習計画がありません",
+                    description: "1週間の学習計画を作成して、Android と同じ計画運用フローにそろえます。",
+                    buttonTitle: "計画を作成",
+                    onAction: { isShowingCreatePlan = true }
                 )
             }
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("計画")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -124,134 +129,120 @@ struct PlanScreen: View {
     }
 }
 
-private struct EmptyPlanState: View {
-    let onCreate: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "calendar.badge.plus")
-                .font(.system(size: 52))
-                .foregroundStyle(.secondary)
-            Text("学習計画がありません")
-                .font(.title3.bold())
-            Text("1週間の学習計画を作成して、Android と同じ計画運用フローにそろえます。")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-            Button("計画を作成", action: onCreate)
-                .buttonStyle(.borderedProminent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-}
-
-private struct PlanHeaderCard: View {
+private struct PlanHeaderCardNew: View {
     let plan: StudyPlan
     let totalTargetMinutes: Int
     let completionRate: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
                     Text(plan.name)
                         .font(.title2.bold())
                     Text("\(plan.startDateValue.formatted(date: .abbreviated, time: .omitted)) - \(plan.endDateValue.formatted(date: .abbreviated, time: .omitted))")
-                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
                 }
                 Spacer()
-                ZStack {
-                    Circle()
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 8)
-                    Circle()
-                        .trim(from: 0, to: completionRate)
-                        .stroke(.tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Text("\(Int(completionRate * 100))%")
-                        .font(.headline)
-                }
-                .frame(width: 72, height: 72)
+                ProgressRing(
+                    progress: completionRate,
+                    size: 72,
+                    lineWidth: 8
+                )
             }
 
             Text("目標: \(totalTargetMinutes / 60)時間\(totalTargetMinutes % 60)分 / 週")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColors.textSecondary)
         }
-        .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .cardStyle()
     }
 }
 
-private struct DaySelector: View {
+private struct DaySelectorNew: View {
     @Binding var selectedDay: StudyWeekday
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: AppSpacing.sm) {
                 ForEach(StudyWeekday.allCases) { day in
-                    Button(day.japaneseShortTitle) {
-                        selectedDay = day
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            selectedDay = day
+                        }
+                    } label: {
+                        Text(day.japaneseShortTitle)
+                            .font(.subheadline.bold())
+                            .foregroundStyle(selectedDay == day ? .white : AppColors.textPrimary)
+                            .frame(width: 44, height: 44)
+                            .background(
+                                selectedDay == day
+                                    ? AnyShapeStyle(.tint)
+                                    : AnyShapeStyle(AppColors.cardBackground),
+                                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            )
+                            .shadow(color: selectedDay == day ? .tint.opacity(0.3) : .clear, radius: 4, y: 2)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(selectedDay == day ? .accentColor : .gray.opacity(0.3))
+                    .buttonStyle(.plain)
                 }
             }
         }
     }
 }
 
-private struct DayScheduleSection: View {
+private struct DayScheduleSectionNew: View {
     let day: StudyWeekday
     let items: [PlanItemWithSubject]
     let onEdit: (PlanItem) -> Void
     let onDelete: (PlanItem) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack {
                 Text("\(day.japaneseTitle)")
                     .font(.headline)
                 Spacer()
                 Text("合計 \(items.reduce(0) { $0 + $1.item.targetMinutes })分")
-                    .foregroundStyle(.secondary)
+                    .font(.caption.bold())
+                    .foregroundStyle(AppColors.textSecondary)
             }
 
             if items.isEmpty {
-                Text("予定なし")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                HStack {
+                    Image(systemName: "moon.zzz")
+                        .foregroundStyle(.tertiary)
+                    Text("予定なし")
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .cardStyle()
             } else {
                 ForEach(items) { wrapped in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Circle()
-                                .fill(Color(hex: wrapped.subject.color))
-                                .frame(width: 10, height: 10)
+                    HStack(spacing: AppSpacing.md) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(hex: wrapped.subject.color))
+                            .frame(width: 4, height: 44)
+
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(wrapped.subject.name)
-                                .font(.headline)
-                            Spacer()
-                            Text("\(wrapped.item.targetMinutes)分")
-                                .foregroundStyle(.tint)
-                        }
-                        if let timeSlot = wrapped.item.timeSlot, !timeSlot.isEmpty {
-                            Text(timeSlot)
-                                .foregroundStyle(.secondary)
-                        }
-                        HStack {
-                            Button("編集") {
-                                onEdit(wrapped.item)
+                                .font(.subheadline.bold())
+                            if let timeSlot = wrapped.item.timeSlot, !timeSlot.isEmpty {
+                                Text(timeSlot)
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textSecondary)
                             }
-                            .buttonStyle(.bordered)
-                            Button("削除", role: .destructive) {
-                                onDelete(wrapped.item)
-                            }
-                            .buttonStyle(.bordered)
                         }
+                        Spacer()
+                        Text("\(wrapped.item.targetMinutes)分")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.tint)
                     }
-                    .padding()
-                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                    .cardStyle()
+                    .contextMenu {
+                        Button { onEdit(wrapped.item) } label: { Label("編集", systemImage: "pencil") }
+                        Button(role: .destructive) { onDelete(wrapped.item) } label: { Label("削除", systemImage: "trash") }
+                    }
                 }
             }
         }

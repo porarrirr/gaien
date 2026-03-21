@@ -11,61 +11,93 @@ struct HistoryScreen: View {
         _viewModel = StateObject(wrappedValue: HistoryViewModel(app: app))
     }
 
+    private var groupedSessions: [(String, [StudySession])] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy年M月d日"
+        let grouped = Dictionary(grouping: viewModel.filteredSessions) { session -> String in
+            formatter.string(from: session.startDate)
+        }
+        return grouped.sorted { $0.key > $1.key }
+    }
+
     var body: some View {
         Group {
             if viewModel.filteredSessions.isEmpty {
-                EmptyHistoryState()
+                EmptyStateView(
+                    icon: "clock.arrow.circlepath",
+                    title: "学習履歴がありません",
+                    description: "タイマーや手動入力で記録した学習履歴がここに表示されます。"
+                )
             } else {
-                List {
-                    ForEach(viewModel.filteredSessions) { session in
-                        HistorySessionCard(
-                            session: session,
-                            onEdit: {
-                                editingSession = session
-                                durationDraft = "\(session.durationMinutes)"
-                                noteDraft = session.note ?? ""
-                            },
-                            onDelete: {
-                                viewModel.deleteSession(session)
+                ScrollView {
+                    LazyVStack(spacing: AppSpacing.md) {
+                        ForEach(groupedSessions, id: \.0) { dateLabel, sessions in
+                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                SectionHeaderView(title: dateLabel, icon: "calendar")
+                                    .padding(.horizontal, AppSpacing.md)
+
+                                ForEach(sessions) { session in
+                                    HistorySessionCardNew(session: session)
+                                        .padding(.horizontal, AppSpacing.md)
+                                        .contextMenu {
+                                            Button {
+                                                editingSession = session
+                                                durationDraft = "\(session.durationMinutes)"
+                                                noteDraft = session.note ?? ""
+                                            } label: {
+                                                Label("編集", systemImage: "pencil")
+                                            }
+                                            Button(role: .destructive) {
+                                                viewModel.deleteSession(session)
+                                            } label: {
+                                                Label("削除", systemImage: "trash")
+                                            }
+                                        }
+                                }
                             }
-                        )
+                        }
                     }
+                    .padding(.vertical, AppSpacing.md)
                 }
-                .listStyle(.plain)
             }
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("履歴")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    isShowingFilter = true
+                Menu {
+                    Button("すべて") {
+                        viewModel.setFilter(nil)
+                    }
+                    ForEach(viewModel.subjects) { subject in
+                        Button {
+                            viewModel.setFilter(subject.id)
+                        } label: {
+                            Label(subject.name, systemImage: "circle.fill")
+                        }
+                    }
                 } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                }
-            }
-        }
-        .confirmationDialog("科目で絞り込む", isPresented: $isShowingFilter, titleVisibility: .visible) {
-            Button("すべて") {
-                viewModel.setFilter(nil)
-            }
-            ForEach(viewModel.subjects) { subject in
-                Button(subject.name) {
-                    viewModel.setFilter(subject.id)
+                    Image(systemName: viewModel.filterSubjectId != nil ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                 }
             }
         }
         .sheet(item: $editingSession) { session in
             NavigationStack {
                 Form {
-                    Text(session.subjectName)
-                        .font(.headline)
-                    if !session.materialName.isEmpty {
-                        Text(session.materialName)
-                            .foregroundStyle(.secondary)
+                    Section {
+                        Text(session.subjectName)
+                            .font(.headline)
+                        if !session.materialName.isEmpty {
+                            Text(session.materialName)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    TextField("学習時間（分）", text: $durationDraft)
-                        .keyboardType(.numberPad)
-                    TextField("メモ", text: $noteDraft, axis: .vertical)
+                    Section("記録") {
+                        TextField("学習時間（分）", text: $durationDraft)
+                            .keyboardType(.numberPad)
+                        TextField("メモ", text: $noteDraft, axis: .vertical)
+                    }
                 }
                 .navigationTitle("履歴を編集")
                 .toolbar {
@@ -93,71 +125,45 @@ struct HistoryScreen: View {
     }
 }
 
-private struct EmptyHistoryState: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 52))
-                .foregroundStyle(.secondary)
-            Text("学習履歴がありません")
-                .font(.title3.bold())
-            Text("タイマーや手動入力で記録した学習履歴がここに表示されます。")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-}
-
-private struct HistorySessionCard: View {
+private struct HistorySessionCardNew: View {
     let session: StudySession
-    let onEdit: () -> Void
-    let onDelete: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(session.subjectName)
-                        .font(.headline)
-                    if !session.materialName.isEmpty {
-                        Text(session.materialName)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(historyDateLabel(session))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+        HStack(spacing: AppSpacing.md) {
+            Circle()
+                .fill(.tint.opacity(0.12))
+                .frame(width: 44, height: 44)
+                .overlay {
+                    Image(systemName: "book.fill")
+                        .foregroundStyle(.tint)
                 }
-                Spacer()
-                Text(session.durationFormatted)
-                    .font(.headline)
-                    .foregroundStyle(.tint)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.subjectName)
+                    .font(.subheadline.bold())
+                if !session.materialName.isEmpty {
+                    Text(session.materialName)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                Text(historyTimeLabel(session))
+                    .font(.caption2)
+                    .foregroundStyle(AppColors.textSecondary)
             }
 
-            if let note = session.note, !note.isEmpty {
-                Text(note)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+            Spacer()
 
-            HStack {
-                Button("編集", action: onEdit)
-                    .buttonStyle(.bordered)
-                Button("削除", role: .destructive, action: onDelete)
-                    .buttonStyle(.bordered)
-            }
+            Text(session.durationFormatted)
+                .font(.headline)
+                .foregroundStyle(.tint)
         }
-        .padding(.vertical, 6)
+        .cardStyle()
     }
 
-    private func historyDateLabel(_ session: StudySession) -> String {
-        let dayFormatter = DateFormatter()
-        dayFormatter.locale = Locale(identifier: "ja_JP")
-        dayFormatter.dateFormat = "M月d日"
-        let timeFormatter = DateFormatter()
-        timeFormatter.locale = Locale(identifier: "ja_JP")
-        timeFormatter.dateFormat = "HH:mm"
-        return "\(dayFormatter.string(from: session.startDate)) \(timeFormatter.string(from: session.startDate)) - \(timeFormatter.string(from: session.endDate))"
+    private func historyTimeLabel(_ session: StudySession) -> String {
+        let tf = DateFormatter()
+        tf.locale = Locale(identifier: "ja_JP")
+        tf.dateFormat = "HH:mm"
+        return "\(tf.string(from: session.startDate)) - \(tf.string(from: session.endDate))"
     }
 }

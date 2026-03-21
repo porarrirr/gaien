@@ -14,6 +14,7 @@ struct MaterialsScreen: View {
     @State private var progressMaterial: Material?
     @State private var isbn = ""
     @State private var isShowingScanner = false
+    @State private var isShowingIsbnSearch = false
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: MaterialsViewModel(app: app))
@@ -22,30 +23,43 @@ struct MaterialsScreen: View {
     var body: some View {
         Group {
             if viewModel.materials.isEmpty {
-                EmptyMaterialsState()
+                EmptyStateView(
+                    icon: "book.closed",
+                    title: "教材がありません",
+                    description: "教材を追加するか、ISBN から検索して登録できます。",
+                    buttonTitle: viewModel.subjects.isEmpty ? "先に科目を作成" : nil,
+                    onAction: viewModel.subjects.isEmpty ? nil : nil
+                )
             } else {
-                List {
-                    ForEach(viewModel.materials) { material in
-                        let subjectName = viewModel.subjects.first(where: { $0.id == material.subjectId })?.name ?? ""
-                        MaterialCard(
-                            material: material,
-                            subjectName: subjectName,
-                            onEdit: {
-                                editingMaterial = material
-                                materialDraft = MaterialDraft(material: material)
-                            },
-                            onDelete: {
-                                viewModel.deleteMaterial(material)
-                            },
-                            onUpdateProgress: {
-                                progressMaterial = material
-                            }
-                        )
+                ScrollView {
+                    LazyVStack(spacing: AppSpacing.sm) {
+                        ForEach(viewModel.materials) { material in
+                            let subject = viewModel.subjects.first(where: { $0.id == material.subjectId })
+                            let subjectName = subject?.name ?? ""
+                            let subjectColor = subject?.color ?? 0x4CAF50
+                            MaterialCardNew(
+                                material: material,
+                                subjectName: subjectName,
+                                subjectColor: subjectColor,
+                                onEdit: {
+                                    editingMaterial = material
+                                    materialDraft = MaterialDraft(material: material)
+                                },
+                                onDelete: {
+                                    viewModel.deleteMaterial(material)
+                                },
+                                onUpdateProgress: {
+                                    progressMaterial = material
+                                }
+                            )
+                            .padding(.horizontal, AppSpacing.md)
+                        }
                     }
+                    .padding(.vertical, AppSpacing.md)
                 }
-                .listStyle(.plain)
             }
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("教材")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -61,32 +75,59 @@ struct MaterialsScreen: View {
                     Image(systemName: "barcode.viewfinder")
                 }
 
-                Button {
-                    materialDraft = MaterialDraft(subjectId: viewModel.subjects.first?.id ?? 0)
-                    editingMaterial = Material(id: -1, name: "", subjectId: materialDraft.subjectId, totalPages: 0)
+                Menu {
+                    Button {
+                        materialDraft = MaterialDraft(subjectId: viewModel.subjects.first?.id ?? 0)
+                        editingMaterial = Material(id: -1, name: "", subjectId: materialDraft.subjectId, totalPages: 0)
+                    } label: {
+                        Label("教材を追加", systemImage: "plus")
+                    }
+                    Button {
+                        isShowingIsbnSearch = true
+                    } label: {
+                        Label("ISBN検索", systemImage: "magnifyingglass")
+                    }
                 } label: {
                     Image(systemName: "plus")
                 }
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if !viewModel.subjects.isEmpty {
-                IsbnSearchBar(
-                    isbn: $isbn,
-                    onSearch: { viewModel.searchBook(isbn: isbn) }
-                )
-                .padding()
-                .background(.bar)
-            } else {
+            if viewModel.subjects.isEmpty {
                 NavigationLink {
                     SubjectsScreen(app: viewModel.app)
                 } label: {
                     Text("先に科目を作成")
+                        .font(.headline)
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(.tint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(.borderedProminent)
                 .padding()
                 .background(.bar)
+            }
+        }
+        .sheet(isPresented: $isShowingIsbnSearch) {
+            NavigationStack {
+                Form {
+                    Section("ISBN検索") {
+                        TextField("ISBN", text: $isbn)
+                            .keyboardType(.numberPad)
+                    }
+                }
+                .navigationTitle("ISBN検索")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("閉じる") { isShowingIsbnSearch = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("検索") {
+                            viewModel.searchBook(isbn: isbn)
+                            isShowingIsbnSearch = false
+                        }
+                    }
+                }
             }
         }
         .sheet(item: $editingMaterial) { material in
@@ -158,87 +199,71 @@ struct MaterialsScreen: View {
     }
 }
 
-private struct MaterialCard: View {
+private struct MaterialCardNew: View {
     let material: Material
     let subjectName: String
+    let subjectColor: Int
     let onEdit: () -> Void
     let onDelete: () -> Void
     let onUpdateProgress: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(alignment: .top) {
+                // Subject color accent
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color(hex: subjectColor))
+                    .frame(width: 4, height: 44)
+
+                VStack(alignment: .leading, spacing: 2) {
                     Text(material.name)
                         .font(.headline)
                     Text(subjectName)
-                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
                 }
+
                 Spacer()
-                Button(action: onEdit) {
-                    Image(systemName: "pencil")
-                }
-                Button(role: .destructive, action: onDelete) {
-                    Image(systemName: "trash")
+
+                Menu {
+                    Button { onEdit() } label: { Label("編集", systemImage: "pencil") }
+                    if material.totalPages > 0 {
+                        Button { onUpdateProgress() } label: { Label("進捗を更新", systemImage: "chart.line.uptrend.xyaxis") }
+                    }
+                    Button(role: .destructive) { onDelete() } label: { Label("削除", systemImage: "trash") }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .foregroundStyle(AppColors.textSecondary)
+                        .frame(width: 32, height: 32)
                 }
             }
 
             if material.totalPages > 0 {
-                ProgressView(value: material.progress)
+                AnimatedProgressBar(
+                    value: Double(material.currentPage),
+                    total: Double(material.totalPages),
+                    height: 8,
+                    barColor: Color(hex: subjectColor)
+                )
                 HStack {
                     Text("\(material.currentPage)/\(material.totalPages)ページ")
-                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
                     Spacer()
                     Text("\(material.progressPercent)%")
-                        .foregroundStyle(.tint)
+                        .font(.caption.bold())
+                        .foregroundStyle(Color(hex: subjectColor))
                 }
-                Button("進捗を更新", action: onUpdateProgress)
-                    .buttonStyle(.bordered)
             }
 
             if let note = material.note, !note.isEmpty {
                 Text(note)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(2)
             }
         }
-        .padding(.vertical, 4)
-    }
-}
-
-private struct EmptyMaterialsState: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "book.closed")
-                .font(.system(size: 52))
-                .foregroundStyle(.secondary)
-            Text("教材がありません")
-                .font(.title3.bold())
-            Text("教材を追加するか、ISBN から検索して登録できます。")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-}
-
-private struct IsbnSearchBar: View {
-    @Binding var isbn: String
-    let onSearch: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("ISBN検索")
-                .font(.headline)
-            HStack {
-                TextField("ISBN", text: $isbn)
-                    .textFieldStyle(.roundedBorder)
-                    .keyboardType(.numberPad)
-                Button("検索", action: onSearch)
-                    .buttonStyle(.borderedProminent)
-            }
-        }
+        .cardStyle()
     }
 }
 
@@ -293,12 +318,24 @@ private struct ProgressEditorSheet: View {
 
     var body: some View {
         Form {
-            Text(material.name)
-            TextField("現在ページ", text: $currentPage)
-                .keyboardType(.numberPad)
-            if material.totalPages > 0 {
-                Text("総ページ数: \(material.totalPages)")
-                    .foregroundStyle(.secondary)
+            Section {
+                Text(material.name)
+                    .font(.headline)
+            }
+            Section("進捗") {
+                TextField("現在ページ", text: $currentPage)
+                    .keyboardType(.numberPad)
+                if material.totalPages > 0 {
+                    Text("総ページ数: \(material.totalPages)")
+                        .foregroundStyle(.secondary)
+                    if let page = Int(currentPage), material.totalPages > 0 {
+                        AnimatedProgressBar(
+                            value: Double(page),
+                            total: Double(material.totalPages),
+                            height: 8
+                        )
+                    }
+                }
             }
         }
         .navigationTitle("進捗を更新")
@@ -433,13 +470,11 @@ private struct BarcodeScannerView: View {
     }
 
     private var scannerUnavailableState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "barcode.viewfinder")
-                .font(.system(size: 40))
-            Text("バーコードを利用できません")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "barcode.viewfinder",
+            title: "バーコードを利用できません",
+            description: "この端末ではバーコードスキャンを利用できません。"
+        )
     }
 }
 

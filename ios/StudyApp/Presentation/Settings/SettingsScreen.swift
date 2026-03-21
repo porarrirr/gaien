@@ -6,6 +6,7 @@ struct SettingsScreen: View {
     @State private var isImporting = false
     @State private var isShowingExportOptions = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var isShowingAuthSheet = false
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: SettingsViewModel(app: app))
@@ -13,7 +14,8 @@ struct SettingsScreen: View {
 
     var body: some View {
         Form {
-            Section("テーマ設定") {
+            // Theme Settings
+            Section {
                 Picker("テーマ", selection: Binding(get: { viewModel.app.preferences.selectedThemeMode }, set: { viewModel.app.setThemeMode($0) })) {
                     ForEach(ThemeMode.allCases) { mode in
                         Text(mode.title).tag(mode)
@@ -24,9 +26,12 @@ struct SettingsScreen: View {
                         Text(theme.title).tag(theme)
                     }
                 }
+            } header: {
+                Label("テーマ設定", systemImage: "paintbrush.fill")
             }
 
-            Section("通知") {
+            // Notifications
+            Section {
                 Toggle("毎日のリマインダー", isOn: Binding(get: { viewModel.app.preferences.reminderEnabled }, set: { enabled in
                     Task { await viewModel.app.setReminderEnabled(enabled) }
                 }))
@@ -47,9 +52,12 @@ struct SettingsScreen: View {
                     displayedComponents: .hourAndMinute
                 )
                 .disabled(!viewModel.app.preferences.reminderEnabled)
+            } header: {
+                Label("通知", systemImage: "bell.fill")
             }
 
-            Section("データ概要") {
+            // Data Summary
+            Section {
                 HStack {
                     Text("学習記録数")
                     Spacer()
@@ -62,11 +70,16 @@ struct SettingsScreen: View {
                     Text("\(viewModel.summary.totalStudyMinutes / 60)時間\(viewModel.summary.totalStudyMinutes % 60)分")
                         .foregroundStyle(.secondary)
                 }
+            } header: {
+                Label("データ概要", systemImage: "chart.pie.fill")
             }
 
-            Section("クラウド同期") {
+            // Cloud Sync
+            Section {
                 if viewModel.app.syncStatus.isAuthenticated {
                     HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(AppColors.success)
                         Text("接続中")
                         Spacer()
                         Text(viewModel.app.syncStatus.email ?? "-")
@@ -90,56 +103,84 @@ struct SettingsScreen: View {
                         viewModel.signOutOfSync()
                     }
                 } else {
-                    TextField("メールアドレス", text: $viewModel.syncEmail)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                    SecureField("パスワード", text: $viewModel.syncPassword)
-                    Button("サインイン") {
-                        viewModel.signInToSync()
+                    Button {
+                        isShowingAuthSheet = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "person.circle.fill")
+                                .foregroundStyle(.tint)
+                            Text("サインイン / アカウント作成")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.tertiary)
+                        }
                     }
-                    .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
-                    Button("アカウント作成") {
-                        viewModel.createSyncAccount()
-                    }
-                    .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
                 }
                 if let error = viewModel.app.syncStatus.errorMessage {
                     Text(error)
                         .font(.footnote)
                         .foregroundStyle(.red)
                 }
+            } header: {
+                Label("クラウド同期", systemImage: "icloud.fill")
             }
 
-            Section("バックアップ") {
-                Button("エクスポート") {
+            // Backup
+            Section {
+                Button {
                     isShowingExportOptions = true
+                } label: {
+                    Label("エクスポート", systemImage: "square.and.arrow.up")
                 }
-                Button("インポート") {
+                Button {
                     isImporting = true
+                } label: {
+                    Label("インポート", systemImage: "square.and.arrow.down")
                 }
                 if let url = viewModel.exportURL {
                     ShareLink(item: url) {
                         Label("直近のファイルを共有", systemImage: "square.and.arrow.up")
                     }
                 }
+            } header: {
+                Label("バックアップ", systemImage: "externaldrive.fill")
             }
 
-            Section("危険な操作") {
-                Button("全データを削除", role: .destructive) {
+            // Danger Zone
+            Section {
+                Button(role: .destructive) {
                     isShowingDeleteConfirmation = true
+                } label: {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(AppColors.danger)
+                        Text("全データを削除")
+                            .foregroundStyle(AppColors.danger)
+                    }
                 }
+            } header: {
+                Label("危険な操作", systemImage: "exclamationmark.shield.fill")
+                    .foregroundStyle(AppColors.danger)
             }
 
-            Section("アプリ情報") {
+            // App Info
+            Section {
                 HStack {
                     Text("バージョン")
                     Spacer()
                     Text(appVersionDescription)
                         .foregroundStyle(.secondary)
                 }
+            } header: {
+                Label("アプリ情報", systemImage: "info.circle.fill")
             }
         }
         .navigationTitle("設定")
+        .sheet(isPresented: $isShowingAuthSheet) {
+            NavigationStack {
+                AuthSheet(viewModel: viewModel, isPresented: $isShowingAuthSheet)
+            }
+        }
         .confirmationDialog("エクスポート形式", isPresented: $isShowingExportOptions, titleVisibility: .visible) {
             Button("JSON") {
                 viewModel.export(format: .json)
@@ -176,5 +217,54 @@ struct SettingsScreen: View {
         let version = info?["CFBundleShortVersionString"] as? String ?? "-"
         let build = info?["CFBundleVersion"] as? String ?? "-"
         return "\(version) (\(build))"
+    }
+}
+
+private struct AuthSheet: View {
+    @ObservedObject var viewModel: SettingsViewModel
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("メールアドレス", text: $viewModel.syncEmail)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.emailAddress)
+                SecureField("パスワード", text: $viewModel.syncPassword)
+            }
+
+            Section {
+                Button {
+                    viewModel.signInToSync()
+                    isPresented = false
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("サインイン")
+                            .font(.headline)
+                        Spacer()
+                    }
+                }
+                .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
+
+                Button {
+                    viewModel.createSyncAccount()
+                    isPresented = false
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("アカウント作成")
+                        Spacer()
+                    }
+                }
+                .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
+            }
+        }
+        .navigationTitle("クラウド同期")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("閉じる") { isPresented = false }
+            }
+        }
     }
 }
