@@ -32,7 +32,7 @@ struct RootView: View {
         } message: {
             Text(app.errorMessage ?? "")
         }
-        .onChange(of: scenePhase) { _, newPhase in
+        .onChange(of: scenePhase) { newPhase in
             guard newPhase == .active else { return }
             app.handleSceneDidBecomeActive()
         }
