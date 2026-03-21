@@ -85,6 +85,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
     private static let maxChunkBytes = 500_000
     private static let maxSyncRetries = 3
+    private static let alreadySyncingMessage = "同期はすでに実行中です。完了までお待ちください。"
 
     @Published private(set) var status = SyncStatus()
 
@@ -146,11 +147,10 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             logger.log(category: .sync, level: .warning, message: "syncNow rejected", details: "reason=unauthenticated")
             throw ValidationError(message: "同期するにはサインインが必要です")
         }
-        status.isSyncing = true
-        status.errorMessage = nil
+        try beginSyncOperation(named: "syncNow", session: session)
         logger.log(category: .sync, message: "syncNow started", details: "uid=\(session.localId) email=\(session.email)")
         defer {
-            status.isSyncing = false
+            endSyncOperation()
             logger.log(
                 category: .sync,
                 message: "syncNow finished",
@@ -233,11 +233,10 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             logger.log(category: .sync, level: .warning, message: "importLocalDataToCloud rejected", details: "reason=unauthenticated")
             throw ValidationError(message: "同期するにはサインインが必要です")
         }
-        status.isSyncing = true
-        status.errorMessage = nil
+        try beginSyncOperation(named: "importLocalDataToCloud", session: session)
         logger.log(category: .sync, message: "importLocalDataToCloud started", details: "uid=\(session.localId) email=\(session.email)")
         defer {
-            status.isSyncing = false
+            endSyncOperation()
             logger.log(
                 category: .sync,
                 message: "importLocalDataToCloud finished",
@@ -281,6 +280,24 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             logger.log(category: .sync, level: .error, message: "importLocalDataToCloud failed", details: "uid=\(session.localId)", error: error)
             throw error
         }
+    }
+
+    private func beginSyncOperation(named operation: String, session: AuthSession) throws {
+        guard !status.isSyncing else {
+            logger.log(
+                category: .sync,
+                level: .warning,
+                message: "\(operation) rejected",
+                details: "reason=already-syncing uid=\(session.localId)"
+            )
+            throw ValidationError(message: Self.alreadySyncingMessage)
+        }
+        status.isSyncing = true
+        status.errorMessage = nil
+    }
+
+    private func endSyncOperation() {
+        status.isSyncing = false
     }
 
     // MARK: - Chunked snapshot I/O (backward-compatible with legacy payload format)

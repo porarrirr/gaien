@@ -841,6 +841,10 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func syncNow() {
+        guard !app.syncStatus.isSyncing else {
+            app.logger.log(category: .sync, level: .warning, message: "syncNow ignored in view model", details: "reason=already-syncing")
+            return
+        }
         perform {
             try await self.app.syncRepository.syncNow()
             self.app.refreshSyncStatus()
@@ -851,6 +855,10 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func importLocalDataToCloud() {
+        guard !app.syncStatus.isSyncing else {
+            app.logger.log(category: .sync, level: .warning, message: "importLocalDataToCloud ignored in view model", details: "reason=already-syncing")
+            return
+        }
         perform {
             try await self.app.syncRepository.importLocalDataToCloud()
             self.app.refreshSyncStatus()
