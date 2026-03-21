@@ -561,7 +561,7 @@ struct CalendarDayCell: View {
 
                 if isToday {
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(.tint, lineWidth: 2)
+                        .stroke(Color.accentColor, lineWidth: 2)
                 }
 
                 if isSelected {

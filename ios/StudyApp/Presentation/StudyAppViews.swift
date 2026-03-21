@@ -473,7 +473,7 @@ private struct TimerScreen: View {
                             progress: timerProgress,
                             size: 260,
                             lineWidth: 16,
-                            ringColor: viewModel.isRunning ? .tint : Color.secondary.opacity(0.4),
+                            ringColor: viewModel.isRunning ? Color.accentColor : Color.secondary.opacity(0.4),
                             showPercentage: false
                         )
                         .scaleEffect(pulseTimer && viewModel.isRunning ? 1.02 : 1.0)

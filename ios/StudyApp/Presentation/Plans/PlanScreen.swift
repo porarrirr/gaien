@@ -167,6 +167,10 @@ private struct DaySelectorNew: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: AppSpacing.sm) {
                 ForEach(StudyWeekday.allCases) { day in
+                    let isSelected = selectedDay == day
+                    let backgroundColor = isSelected ? Color.accentColor : AppColors.cardBackground
+                    let shadowColor = isSelected ? Color.accentColor.opacity(0.3) : .clear
+
                     Button {
                         withAnimation(.spring(response: 0.3)) {
                             selectedDay = day
@@ -174,15 +178,10 @@ private struct DaySelectorNew: View {
                     } label: {
                         Text(day.japaneseShortTitle)
                             .font(.subheadline.bold())
-                            .foregroundStyle(selectedDay == day ? .white : AppColors.textPrimary)
+                            .foregroundStyle(isSelected ? .white : AppColors.textPrimary)
                             .frame(width: 44, height: 44)
-                            .background(
-                                selectedDay == day
-                                    ? AnyShapeStyle(.tint)
-                                    : AnyShapeStyle(AppColors.cardBackground),
-                                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            )
-                            .shadow(color: selectedDay == day ? .tint.opacity(0.3) : .clear, radius: 4, y: 2)
+                            .background(backgroundColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .shadow(color: shadowColor, radius: 4, y: 2)
                     }
                     .buttonStyle(.plain)
                 }
