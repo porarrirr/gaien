@@ -103,7 +103,7 @@ final class WidgetSnapshotSync {
             daySessions.reduce(0) { $0 + $1.durationMinutes }
         }
 
-        return (6 downTo 0).compactMap { offset in
+        return stride(from: 6, through: 0, by: -1).compactMap { offset in
             guard let date = Calendar.current.date(byAdding: .day, value: -offset, to: referenceDate) else {
                 return nil
             }
