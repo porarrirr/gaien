@@ -4,10 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,10 +20,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
+import com.studyapp.domain.model.StudySession
+
 import kotlin.math.ceil
 import java.text.SimpleDateFormat
 import java.util.*
@@ -31,7 +38,16 @@ fun CalendarScreen(
     viewModel: CalendarViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    
+    val snackbarHostState = remember { SnackbarHostState() }
+    var editingSession by remember { mutableStateOf<StudySession?>(null) }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { error ->
+            snackbarHostState.showSnackbar(error)
+            viewModel.clearError()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -46,7 +62,8 @@ fun CalendarScreen(
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -59,7 +76,7 @@ fun CalendarScreen(
                 onPrevious = { viewModel.previousMonth() },
                 onNext = { viewModel.nextMonth() }
             )
-            
+
             CalendarGrid(
                 year = uiState.currentYear,
                 month = uiState.currentMonth,
@@ -68,14 +85,28 @@ fun CalendarScreen(
                 selectedDate = uiState.selectedDate,
                 onDateSelect = { viewModel.selectDate(it) }
             )
-            
+
             if (uiState.selectedDate != null) {
-                SelectedDateSection(
+                DayDetailPanel(
                     date = uiState.selectedDate!!,
-                    totalMinutes = uiState.selectedDateMinutes
+                    sessions = uiState.selectedDateSessions,
+                    totalMinutes = uiState.selectedDateMinutes,
+                    isLoading = uiState.isDetailLoading,
+                    updatingSessionId = uiState.updatingSessionId,
+                    onEditMemo = { session -> editingSession = session },
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
+    }
+
+    if (editingSession != null) {
+        MemoEditBottomSheet(
+            session = editingSession!!,
+            isUpdating = uiState.updatingSessionId == editingSession!!.id,
+            onSave = { session, note -> viewModel.updateSessionNote(session, note) },
+            onDismiss = { editingSession = null }
+        )
     }
 }
 
@@ -328,47 +359,390 @@ private fun heatmapLevel(studyMinutes: Long, maxStudyMinutes: Long): Int {
 }
 
 @Composable
-private fun SelectedDateSection(
+private fun DayDetailPanel(
     date: Date,
-    totalMinutes: Long
+    sessions: List<StudySession>,
+    totalMinutes: Long,
+    isLoading: Boolean,
+    updatingSessionId: Long?,
+    onEditMemo: (StudySession) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val dateFormat = SimpleDateFormat("M月d日 (E)", Locale.JAPANESE)
-    
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
+    val dateFormat = remember { SimpleDateFormat("M月d日 (E)", Locale.JAPANESE) }
+
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item(key = "header") {
+            DayDetailHeader(
+                dateText = dateFormat.format(date),
+                totalMinutes = totalMinutes,
+                sessionCount = sessions.size
+            )
+        }
+
+        when {
+            isLoading -> {
+                item(key = "loading") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp),
+                            strokeWidth = 3.dp
+                        )
+                    }
+                }
+            }
+            sessions.isEmpty() -> {
+                item(key = "empty") {
+                    EmptySessionsPlaceholder()
+                }
+            }
+            else -> {
+                items(sessions, key = { it.id }) { session ->
+                    SessionCard(
+                        session = session,
+                        isUpdating = updatingSessionId == session.id,
+                        onEditMemo = { onEditMemo(session) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayDetailHeader(
+    dateText: String,
+    totalMinutes: Long,
+    sessionCount: Int
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = dateText,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SummaryChip(
+                label = "学習時間",
+                value = formatDurationCompact(totalMinutes),
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            SummaryChip(
+                label = "セッション",
+                value = "${sessionCount}回",
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 12.dp),
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
+    }
+}
+
+@Composable
+private fun SummaryChip(
+    label: String,
+    value: String,
+    containerColor: Color,
+    contentColor: Color
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = contentColor.copy(alpha = 0.7f)
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = contentColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptySessionsPlaceholder() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        ),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Text("📚", fontSize = 36.sp)
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = dateFormat.format(date),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                text = "この日の記録はありません",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "タイマーから学習を記録しましょう",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionCard(
+    session: StudySession,
+    isUpdating: Boolean,
+    onEditMemo: () -> Unit
+) {
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val startText = remember(session.startTime) { timeFormat.format(Date(session.startTime)) }
+    val endText = remember(session.endTime) { timeFormat.format(Date(session.endTime)) }
+
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
             Row(
-                verticalAlignment = Alignment.Bottom
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = totalMinutes.toString(),
-                    fontSize = 48.sp,
+                    text = session.subjectName.ifEmpty { "未設定" },
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = formatDurationCompact(session.durationMinutes),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            if (session.materialName.isNotEmpty()) {
                 Text(
-                    text = "分",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    text = session.materialName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
+
+            Text(
+                text = "$startText – $endText",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 10.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = !isUpdating, onClick = onEditMemo)
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isUpdating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "保存中…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    val hasNote = !session.note.isNullOrBlank()
+                    Text(
+                        text = if (hasNote) session.note!! else "メモはまだありません",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (hasNote)
+                            MaterialTheme.colorScheme.onSurface
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "メモを編集",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MemoEditBottomSheet(
+    session: StudySession,
+    isUpdating: Boolean,
+    onSave: (StudySession, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var memoText by remember(session.id) { mutableStateOf(session.note ?: "") }
+    var hasSaved by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isUpdating, hasSaved) {
+        if (hasSaved && !isUpdating) {
+            onDismiss()
+        }
+    }
+
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val timeRange = remember(session.startTime, session.endTime) {
+        "${timeFormat.format(Date(session.startTime))} – ${timeFormat.format(Date(session.endTime))}"
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = "メモを編集",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = buildString {
+                    append(session.subjectName.ifEmpty { "未設定" })
+                    if (session.materialName.isNotEmpty()) append(" · ${session.materialName}")
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = timeRange,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            OutlinedTextField(
+                value = memoText,
+                onValueChange = { memoText = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp),
+                placeholder = { Text("学習の振り返りやメモを入力…") },
+                shape = RoundedCornerShape(12.dp),
+                enabled = !isUpdating,
+                maxLines = 8
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    enabled = !isUpdating,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("キャンセル")
+                }
+                Button(
+                    onClick = {
+                        onSave(session, memoText)
+                        hasSaved = true
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = !isUpdating,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (isUpdating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("保存")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatDurationCompact(minutes: Long): String {
+    val h = minutes / 60
+    val m = minutes % 60
+    return when {
+        h > 0 && m > 0 -> "${h}時間${m}分"
+        h > 0 -> "${h}時間"
+        else -> "${m}分"
     }
 }

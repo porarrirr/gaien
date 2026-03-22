@@ -643,6 +643,8 @@ private struct ManualEntrySheet: View {
 private struct CalendarScreen: View {
     @StateObject private var viewModel: CalendarViewModel
     @State private var selectedDay: Int? = nil
+    @State private var editingSession: StudySession? = nil
+    @State private var noteText: String = ""
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: CalendarViewModel(app: app))
@@ -751,20 +753,53 @@ private struct CalendarScreen: View {
 
                 // Selected day detail
                 if let day = selectedDay {
-                    let minutes = viewModel.monthStudyMap[day] ?? 0
+                    let sessions = viewModel.sessions(for: day)
+                    let totalMins = viewModel.totalMinutes(for: day)
+
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                        SectionHeaderView(title: "\(displayMonth)月\(day)日の学習", icon: "clock.fill")
-                        if minutes > 0 {
-                            HStack {
-                                StatCard(icon: "clock.fill", value: "\(minutes)", label: "分")
-                                StatCard(icon: "flame.fill", value: Goal.format(minutes: minutes), label: "学習時間", iconColor: AppColors.warning)
+                        // Header with date, total, and count badge
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(displayMonth)月\(day)日")
+                                    .font(.title3.bold())
+                                    .foregroundStyle(AppColors.textPrimary)
+                                if totalMins > 0 {
+                                    Text("合計 \(Goal.format(minutes: totalMins)) · \(sessions.count)セッション")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.tint)
+                                }
                             }
+                            Spacer()
+                            if !sessions.isEmpty {
+                                Text("\(sessions.count)")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.white)
+                                    .frame(width: 22, height: 22)
+                                    .background(.tint, in: Circle())
+                            }
+                        }
+
+                        if sessions.isEmpty {
+                            // Empty state
+                            VStack(spacing: AppSpacing.sm) {
+                                Image(systemName: "book.closed")
+                                    .font(.system(size: 32))
+                                    .foregroundStyle(.tertiary)
+                                Text("この日の記録はありません")
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppColors.textSecondary)
+                                Text("タイマーから学習を記録しましょう")
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textSecondary.opacity(0.7))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, AppSpacing.lg)
+                            .cardStyle()
                         } else {
-                            Text("この日の記録はありません")
-                                .font(.subheadline)
-                                .foregroundStyle(AppColors.textSecondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .cardStyle()
+                            // Per-session cards with time ranges and memos
+                            ForEach(sessions) { session in
+                                sessionCard(session)
+                            }
                         }
                     }
                     .padding(.horizontal, AppSpacing.md)
@@ -790,7 +825,61 @@ private struct CalendarScreen: View {
         .task(id: viewModel.app.dataVersion) { await viewModel.load() }
         .onChange(of: viewModel.displayedMonth) { _ in
             selectedDay = nil
+            editingSession = nil
             Task { await viewModel.load() }
+        }
+        .sheet(item: $editingSession) { session in
+            NavigationView {
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(session.subjectName.isEmpty ? "未設定" : session.subjectName)
+                                .font(.headline)
+                            if !session.materialName.isEmpty {
+                                Text(session.materialName)
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppColors.textSecondary)
+                            }
+                        }
+                        Spacer()
+                        Text("\(timeString(from: session.startTime)) – \(timeString(from: session.endTime))")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+
+                    TextEditor(text: $noteText)
+                        .frame(minHeight: 150)
+                        .scrollContentBackground(.hidden)
+                        .padding(AppSpacing.sm)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(.systemGray6))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color(.separator), lineWidth: 1)
+                        )
+
+                    Spacer()
+                }
+                .padding()
+                .navigationTitle("メモを編集")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("キャンセル") {
+                            editingSession = nil
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("保存") {
+                            viewModel.updateSessionNote(session, note: noteText.isEmpty ? nil : noteText)
+                            editingSession = nil
+                        }
+                        .bold()
+                    }
+                }
+            }
         }
     }
 
@@ -798,6 +887,70 @@ private struct CalendarScreen: View {
         if let next = calendar.date(byAdding: .month, value: value, to: viewModel.displayedMonth) {
             viewModel.displayedMonth = next
         }
+    }
+
+    private func sessionCard(_ session: StudySession) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            // Subject + Duration badge
+            HStack {
+                Text(session.subjectName.isEmpty ? "未設定" : session.subjectName)
+                    .font(.headline)
+                    .foregroundStyle(AppColors.textPrimary)
+                Spacer()
+                Text(Goal.format(minutes: session.durationMinutes))
+                    .font(.caption.bold())
+                    .foregroundStyle(.tint)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+            }
+
+            // Material name
+            if !session.materialName.isEmpty {
+                Text(session.materialName)
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+
+            // Time range
+            Text("\(timeString(from: session.startTime)) – \(timeString(from: session.endTime))")
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textSecondary)
+
+            Divider()
+
+            // Memo section – tappable to edit
+            Button {
+                noteText = session.note ?? ""
+                editingSession = session
+            } label: {
+                HStack {
+                    if let note = session.note, !note.isEmpty {
+                        Text(note)
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.textPrimary)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                    } else {
+                        Text("メモはまだありません")
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.textSecondary.opacity(0.7))
+                    }
+                    Spacer()
+                    Image(systemName: "square.and.pencil")
+                        .font(.subheadline)
+                        .foregroundStyle(.tint)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .cardStyle()
+    }
+
+    private func timeString(from millis: Int64) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: Date(epochMilliseconds: millis))
     }
 }
 

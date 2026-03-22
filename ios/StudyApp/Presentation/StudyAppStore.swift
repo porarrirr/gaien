@@ -806,22 +806,47 @@ final class PlanViewModel: ScreenViewModel {
 @MainActor
 final class CalendarViewModel: ScreenViewModel {
     @Published private(set) var monthStudyMap: [Int: Int] = [:]
+    @Published private(set) var daySessionsMap: [Int: [StudySession]] = [:]
     @Published var displayedMonth = Date()
 
     func load() async {
         do {
-            let sessions = try await app.persistence.getAllSessions()
             let monthInterval = Calendar.current.dateInterval(of: .month, for: displayedMonth)
             let start = monthInterval?.start ?? displayedMonth.startOfDay
             let end = monthInterval?.end ?? displayedMonth
-            monthStudyMap = sessions.reduce(into: [:]) { result, session in
-                let sessionDate = session.startDate
-                guard sessionDate >= start && sessionDate < end else { return }
-                let day = Calendar.current.component(.day, from: sessionDate)
+            let sessions = try await app.persistence.getSessionsBetweenDates(
+                start: start.epochMilliseconds,
+                end: end.epochMilliseconds
+            )
+            let sortedSessions = sessions.sorted { $0.startTime < $1.startTime }
+
+            monthStudyMap = sortedSessions.reduce(into: [:]) { result, session in
+                let day = Calendar.current.component(.day, from: session.startDate)
                 result[day, default: 0] += session.durationMinutes
+            }
+            daySessionsMap = Dictionary(grouping: sortedSessions) { session in
+                Calendar.current.component(.day, from: session.startDate)
             }
         } catch {
             app.present(error)
+        }
+    }
+
+    func sessions(for day: Int) -> [StudySession] {
+        daySessionsMap[day] ?? []
+    }
+
+    func totalMinutes(for day: Int) -> Int {
+        sessions(for: day).reduce(0) { $0 + $1.durationMinutes }
+    }
+
+    func updateSessionNote(_ session: StudySession, note: String?) {
+        perform {
+            var updated = session
+            updated.note = note?.nilIfBlank
+            try await self.app.persistence.updateSession(updated)
+            await self.load()
+            self.app.bumpDataVersion()
         }
     }
 }
