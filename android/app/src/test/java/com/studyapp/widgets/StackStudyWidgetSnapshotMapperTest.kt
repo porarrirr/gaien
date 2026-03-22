@@ -40,13 +40,13 @@ class StackStudyWidgetSnapshotMapperTest {
             )
         )
 
-        val weeklyGoal = cards[0] as StackStudyWidgetCard.WeeklyGoal
-        val exam = cards[1] as StackStudyWidgetCard.ExamCountdown
+        val weeklyGoal = cards[0] as StackStudyWidgetCard.TextCard
+        val exam = cards[1] as StackStudyWidgetCard.TextCard
         val activity = cards[2] as StackStudyWidgetCard.WeeklyActivity
 
-        assertTrue(weeklyGoal.emptyState)
+        assertEquals(StackStudyWidgetCard.ValueStyle.COMPACT, weeklyGoal.valueStyle)
         assertEquals("予定なし", exam.value)
-        assertTrue(activity.bars.isEmpty())
+        assertTrue(activity.lines.isNotEmpty())
     }
 
     private fun sampleSnapshot(): StudyWidgetSnapshot {

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_stack_card_background"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/widget_item_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_item_value"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:ellipsize="end"
+            android:gravity="start"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_item_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/widget_item_progress_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <View android:id="@+id/widget_progress_segment_1" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <Space android:layout_width="4dp" android:layout_height="1dp" />
+            <View android:id="@+id/widget_progress_segment_2" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <Space android:layout_width="4dp" android:layout_height="1dp" />
+            <View android:id="@+id/widget_progress_segment_3" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <Space android:layout_width="4dp" android:layout_height="1dp" />
+            <View android:id="@+id/widget_progress_segment_4" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <Space android:layout_width="4dp" android:layout_height="1dp" />
+            <View android:id="@+id/widget_progress_segment_5" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <Space android:layout_width="4dp" android:layout_height="1dp" />
+            <View android:id="@+id/widget_progress_segment_6" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <Space android:layout_width="4dp" android:layout_height="1dp" />
+            <View android:id="@+id/widget_progress_segment_7" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <Space android:layout_width="4dp" android:layout_height="1dp" />
+            <View android:id="@+id/widget_progress_segment_8" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <Space android:layout_width="4dp" android:layout_height="1dp" />
+            <View android:id="@+id/widget_progress_segment_9" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <Space android:layout_width="4dp" android:layout_height="1dp" />
+            <View android:id="@+id/widget_progress_segment_10" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_item_extra_one"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/widget_item_extra_two"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/widget_item_caption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="12sp"
+            android:visibility="gone" />
+    </LinearLayout>
+</FrameLayout>

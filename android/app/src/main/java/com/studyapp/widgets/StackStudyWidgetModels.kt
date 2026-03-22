@@ -26,58 +26,32 @@ enum class StudyWidgetCardType(val displayName: String) {
 sealed interface StackStudyWidgetCard {
     val type: StudyWidgetCardType
 
-    data class Today(
+    data class TextCard(
+        override val type: StudyWidgetCardType,
         val title: String,
         val value: String,
-        val progress: Float,
-        val caption: String
-    ) : StackStudyWidgetCard {
-        override val type: StudyWidgetCardType = StudyWidgetCardType.TODAY
-    }
-
-    data class WeeklyGoal(
-        val title: String,
-        val value: String,
-        val progress: Float,
-        val caption: String,
-        val emptyState: Boolean
-    ) : StackStudyWidgetCard {
-        override val type: StudyWidgetCardType = StudyWidgetCardType.WEEKLY_GOAL
-    }
-
-    data class Streak(
-        val title: String,
-        val value: String,
-        val body: String,
-        val caption: String
-    ) : StackStudyWidgetCard {
-        override val type: StudyWidgetCardType = StudyWidgetCardType.STREAK
-    }
-
-    data class ExamCountdown(
-        val title: String,
-        val value: String,
+        val body: String?,
+        val caption: String?,
+        val extraLines: List<String> = emptyList(),
+        val progress: Float? = null,
+        val valueStyle: ValueStyle = ValueStyle.HERO,
         val valueColor: Int,
-        val body: String,
-        val extraLines: List<String>
-    ) : StackStudyWidgetCard {
-        override val type: StudyWidgetCardType = StudyWidgetCardType.EXAM_COUNTDOWN
-    }
+        val bodyMaxLines: Int = 1
+    ) : StackStudyWidgetCard
 
     data class WeeklyActivity(
+        override val type: StudyWidgetCardType = StudyWidgetCardType.WEEKLY_ACTIVITY,
         val title: String,
         val total: String,
-        val bars: List<ActivityBar>
-    ) : StackStudyWidgetCard {
-        override val type: StudyWidgetCardType = StudyWidgetCardType.WEEKLY_ACTIVITY
+        val lines: List<String>,
+        val caption: String?
+    ) : StackStudyWidgetCard
+
+    enum class ValueStyle {
+        HERO,
+        COMPACT
     }
 }
-
-data class ActivityBar(
-    val dayLabel: String,
-    val heightDp: Int,
-    val highlightToday: Boolean
-)
 
 @Singleton
 class StackStudyWidgetSnapshotMapper @Inject constructor() {
@@ -97,96 +71,110 @@ class StackStudyWidgetSnapshotMapper @Inject constructor() {
         }
     }
 
-    private fun StudyWidgetSnapshot.toTodayCard(): StackStudyWidgetCard.Today {
+    private fun StudyWidgetSnapshot.toTodayCard(): StackStudyWidgetCard.TextCard {
         val caption = if (todaySessionCount > 0) {
             "${todaySessionCount}件のセッション"
         } else {
             "タップして学習を始める"
         }
-        return StackStudyWidgetCard.Today(
+        return StackStudyWidgetCard.TextCard(
+            type = StudyWidgetCardType.TODAY,
             title = "今日の学習",
             value = todayStudyMinutes.toDurationText(),
+            body = null,
+            caption = caption,
             progress = todayProgress,
-            caption = caption
+            valueStyle = StackStudyWidgetCard.ValueStyle.HERO,
+            valueColor = WIDGET_TEXT_PRIMARY_COLOR
         )
     }
 
-    private fun StudyWidgetSnapshot.toWeeklyGoalCard(): StackStudyWidgetCard.WeeklyGoal {
+    private fun StudyWidgetSnapshot.toWeeklyGoalCard(): StackStudyWidgetCard.TextCard {
         val goalMinutes = weeklyGoalMinutes
         return if (goalMinutes == null || goalMinutes <= 0) {
-            StackStudyWidgetCard.WeeklyGoal(
+            StackStudyWidgetCard.TextCard(
+                type = StudyWidgetCardType.WEEKLY_GOAL,
                 title = "週間目標",
                 value = "未設定",
-                progress = 0f,
-                caption = "目標を設定してください",
-                emptyState = true
+                body = "目標を設定してください",
+                caption = "設定画面から追加できます",
+                progress = null,
+                valueStyle = StackStudyWidgetCard.ValueStyle.COMPACT,
+                valueColor = WIDGET_TEXT_PRIMARY_COLOR,
+                bodyMaxLines = 2
             )
         } else {
-            StackStudyWidgetCard.WeeklyGoal(
+            StackStudyWidgetCard.TextCard(
+                type = StudyWidgetCardType.WEEKLY_GOAL,
                 title = "週間目標",
                 value = "${(weeklyProgress * 100f).toInt()}%",
-                progress = weeklyProgress,
+                body = "${weeklyStudyMinutes.toDurationText()} 学習済み",
                 caption = "${weeklyStudyMinutes.toDurationText()} / ${goalMinutes.toLong().toDurationText()}",
-                emptyState = false
+                progress = weeklyProgress,
+                valueStyle = StackStudyWidgetCard.ValueStyle.HERO,
+                valueColor = WIDGET_TEXT_PRIMARY_COLOR
             )
         }
     }
 
-    private fun StudyWidgetSnapshot.toStreakCard(): StackStudyWidgetCard.Streak {
-        return StackStudyWidgetCard.Streak(
+    private fun StudyWidgetSnapshot.toStreakCard(): StackStudyWidgetCard.TextCard {
+        return StackStudyWidgetCard.TextCard(
+            type = StudyWidgetCardType.STREAK,
             title = "連続学習",
             value = "${streakDays}日",
             body = if (streakDays > 0) "今日も継続中" else "今日の学習でスタート",
-            caption = "最長 ${bestStreak}日"
+            caption = "最長 ${bestStreak}日",
+            valueStyle = StackStudyWidgetCard.ValueStyle.HERO,
+            valueColor = WIDGET_TEXT_PRIMARY_COLOR
         )
     }
 
-    private fun StudyWidgetSnapshot.toExamCountdownCard(): StackStudyWidgetCard.ExamCountdown {
+    private fun StudyWidgetSnapshot.toExamCountdownCard(): StackStudyWidgetCard.TextCard {
         val nextExam = upcomingExams.firstOrNull()
         return if (nextExam == null) {
-            StackStudyWidgetCard.ExamCountdown(
+            StackStudyWidgetCard.TextCard(
+                type = StudyWidgetCardType.EXAM_COUNTDOWN,
                 title = "試験カウントダウン",
                 value = "予定なし",
-                valueColor = WIDGET_TEXT_PRIMARY_COLOR,
                 body = "今後の試験はありません",
-                extraLines = emptyList()
+                caption = "ウィジェットに表示できる試験がありません",
+                progress = null,
+                valueStyle = StackStudyWidgetCard.ValueStyle.COMPACT,
+                valueColor = WIDGET_TEXT_PRIMARY_COLOR,
+                bodyMaxLines = 2
             )
         } else {
-            StackStudyWidgetCard.ExamCountdown(
+            StackStudyWidgetCard.TextCard(
+                type = StudyWidgetCardType.EXAM_COUNTDOWN,
                 title = "試験カウントダウン",
                 value = examDaysText(nextExam.daysRemaining),
-                valueColor = examColorInt(nextExam.daysRemaining),
                 body = nextExam.name,
+                caption = if (upcomingExams.size > 1) "次の予定も表示中" else null,
                 extraLines = upcomingExams.drop(1).take(2).map { exam ->
                     "${exam.name} ${examDaysText(exam.daysRemaining)}"
-                }
+                },
+                progress = null,
+                valueStyle = StackStudyWidgetCard.ValueStyle.HERO,
+                valueColor = examColorInt(nextExam.daysRemaining),
+                bodyMaxLines = 1
             )
         }
     }
 
     private fun StudyWidgetSnapshot.toWeeklyActivityCard(): StackStudyWidgetCard.WeeklyActivity {
-        val maxMinutes = weekActivity.maxOfOrNull { it.minutes }?.coerceAtLeast(1L) ?: 1L
-        val bars = weekActivity.map { summary ->
-            val ratio = if (maxMinutes == 0L) 0f else {
-                (summary.minutes.toFloat() / maxMinutes.toFloat()).coerceIn(0f, 1f)
-            }
-            val minHeight = 10
-            val maxHeight = 54
-            val height = if (summary.minutes == 0L) {
-                minHeight
-            } else {
-                (minHeight + ((maxHeight - minHeight) * ratio)).toInt().coerceAtMost(maxHeight)
-            }
-            ActivityBar(
-                dayLabel = summary.dayLabel,
-                heightDp = height,
-                highlightToday = summary.isToday
-            )
+        val lines = weekActivity.map { summary ->
+            val prefix = if (summary.isToday) "今日" else summary.dayLabel
+            "$prefix ${summary.minutes.toDurationText()}"
         }
         return StackStudyWidgetCard.WeeklyActivity(
             title = "今週の推移",
             total = weekTotalMinutes.toDurationText(),
-            bars = bars
+            lines = lines.ifEmpty { listOf("学習記録はまだありません") },
+            caption = if (weekActivity.any { it.minutes > 0L }) {
+                "直近7日間の記録"
+            } else {
+                "記録が増えるとここに表示されます"
+            }
         )
     }
 

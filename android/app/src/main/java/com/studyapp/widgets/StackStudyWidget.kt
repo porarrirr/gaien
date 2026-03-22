@@ -45,9 +45,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.MainActivity
@@ -173,10 +171,7 @@ private class StackStudyWidgetRemoteViewsFactory(
     override fun getViewAt(position: Int): RemoteViews? {
         val card = cards.getOrNull(position) ?: return null
         val views = when (card) {
-            is StackStudyWidgetCard.Today -> buildTodayCard(context, card)
-            is StackStudyWidgetCard.WeeklyGoal -> buildWeeklyGoalCard(context, card)
-            is StackStudyWidgetCard.Streak -> buildStreakCard(context, card)
-            is StackStudyWidgetCard.ExamCountdown -> buildExamCountdownCard(context, card)
+            is StackStudyWidgetCard.TextCard -> buildTextCard(context, card)
             is StackStudyWidgetCard.WeeklyActivity -> buildWeeklyActivityCard(context, card)
         }
         val fillInIntent = Intent().apply {
@@ -190,7 +185,7 @@ private class StackStudyWidgetRemoteViewsFactory(
         return RemoteViews(context.packageName, R.layout.widget_loading)
     }
 
-    override fun getViewTypeCount(): Int = StudyWidgetCardType.entries.size
+    override fun getViewTypeCount(): Int = 2
 
     override fun getItemId(position: Int): Long {
         return cards.getOrNull(position)?.type?.ordinal?.toLong() ?: position.toLong()
@@ -413,7 +408,7 @@ private fun WidgetSelectionRow(
                 Text(
                     text = item.type.displayName,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                 )
                 Text(
                     text = "ホーム画面でスワイプ表示します",
@@ -450,50 +445,50 @@ private fun <T> MutableList<T>.swap(fromIndex: Int, toIndex: Int) {
     this[toIndex] = fromItem
 }
 
-private fun buildTodayCard(context: Context, card: StackStudyWidgetCard.Today): RemoteViews {
-    return RemoteViews(context.packageName, R.layout.widget_stack_item_today).apply {
-        setTextViewText(R.id.widget_item_title, card.title)
-        setTextViewText(R.id.widget_item_value, card.value)
-        setTextViewText(R.id.widget_item_caption, card.caption)
-        applySegmentedProgress(this, card.progress)
-    }
-}
-
-private fun buildWeeklyGoalCard(context: Context, card: StackStudyWidgetCard.WeeklyGoal): RemoteViews {
-    return RemoteViews(context.packageName, R.layout.widget_stack_item_weekly_goal).apply {
-        setTextViewText(R.id.widget_item_title, card.title)
-        setTextViewText(R.id.widget_item_value, card.value)
-        setTextViewText(R.id.widget_item_caption, card.caption)
-        setViewVisibility(R.id.widget_item_progress_row, if (card.emptyState) View.GONE else View.VISIBLE)
-        applySegmentedProgress(this, card.progress)
-    }
-}
-
-private fun buildStreakCard(context: Context, card: StackStudyWidgetCard.Streak): RemoteViews {
-    return RemoteViews(context.packageName, R.layout.widget_stack_item_streak).apply {
-        setTextViewText(R.id.widget_item_title, card.title)
-        setTextViewText(R.id.widget_item_value, card.value)
-        setTextViewText(R.id.widget_item_body, card.body)
-        setTextViewText(R.id.widget_item_caption, card.caption)
-    }
-}
-
-private fun buildExamCountdownCard(context: Context, card: StackStudyWidgetCard.ExamCountdown): RemoteViews {
-    return RemoteViews(context.packageName, R.layout.widget_stack_item_exam_countdown).apply {
+private fun buildTextCard(context: Context, card: StackStudyWidgetCard.TextCard): RemoteViews {
+    return RemoteViews(context.packageName, R.layout.widget_stack_item_text).apply {
         setTextViewText(R.id.widget_item_title, card.title)
         setTextViewText(R.id.widget_item_value, card.value)
         setTextColor(R.id.widget_item_value, card.valueColor)
-        setTextViewText(R.id.widget_item_body, card.body)
+        setFloat(
+            R.id.widget_item_value,
+            "setTextSize",
+            if (card.valueStyle == StackStudyWidgetCard.ValueStyle.HERO) 28f else 20f
+        )
+
+        if (card.body.isNullOrBlank()) {
+            setViewVisibility(R.id.widget_item_body, View.GONE)
+            setTextViewText(R.id.widget_item_body, "")
+        } else {
+            setViewVisibility(R.id.widget_item_body, View.VISIBLE)
+            setTextViewText(R.id.widget_item_body, card.body)
+            setInt(R.id.widget_item_body, "setMaxLines", card.bodyMaxLines)
+        }
+
+        if (card.caption.isNullOrBlank()) {
+            setViewVisibility(R.id.widget_item_caption, View.GONE)
+            setTextViewText(R.id.widget_item_caption, "")
+        } else {
+            setViewVisibility(R.id.widget_item_caption, View.VISIBLE)
+            setTextViewText(R.id.widget_item_caption, card.caption)
+        }
+
+        if (card.progress == null) {
+            setViewVisibility(R.id.widget_item_progress_row, View.GONE)
+        } else {
+            setViewVisibility(R.id.widget_item_progress_row, View.VISIBLE)
+            applySegmentedProgress(this, card.progress)
+        }
 
         val extraIds = listOf(R.id.widget_item_extra_one, R.id.widget_item_extra_two)
-        extraIds.forEachIndexed { index, viewId ->
-            val line = card.extraLines.getOrNull(index)
-            if (line == null) {
-                setViewVisibility(viewId, View.GONE)
-            } else {
-                setViewVisibility(viewId, View.VISIBLE)
-                setTextViewText(viewId, line)
-            }
+        extraIds.forEach { viewId ->
+            setViewVisibility(viewId, View.GONE)
+            setTextViewText(viewId, "")
+        }
+        card.extraLines.take(extraIds.size).forEachIndexed { index, line ->
+            val viewId = extraIds[index]
+            setViewVisibility(viewId, View.VISIBLE)
+            setTextViewText(viewId, line)
         }
     }
 }
@@ -503,37 +498,31 @@ private fun buildWeeklyActivityCard(context: Context, card: StackStudyWidgetCard
         setTextViewText(R.id.widget_item_title, card.title)
         setTextViewText(R.id.widget_item_total, card.total)
 
-        val barViewIds = listOf(
-            R.id.widget_day_bar_1,
-            R.id.widget_day_bar_2,
-            R.id.widget_day_bar_3,
-            R.id.widget_day_bar_4,
-            R.id.widget_day_bar_5,
-            R.id.widget_day_bar_6,
-            R.id.widget_day_bar_7
+        val lineIds = listOf(
+            R.id.widget_item_line_one,
+            R.id.widget_item_line_two,
+            R.id.widget_item_line_three,
+            R.id.widget_item_line_four,
+            R.id.widget_item_line_five,
+            R.id.widget_item_line_six,
+            R.id.widget_item_line_seven
         )
-        val labelViewIds = listOf(
-            R.id.widget_day_label_1,
-            R.id.widget_day_label_2,
-            R.id.widget_day_label_3,
-            R.id.widget_day_label_4,
-            R.id.widget_day_label_5,
-            R.id.widget_day_label_6,
-            R.id.widget_day_label_7
-        )
-        card.bars.forEachIndexed { index, bar ->
-            val barViewId = barViewIds[index]
-            val labelViewId = labelViewIds[index]
-            val barHeightPx = (bar.heightDp * context.resources.displayMetrics.density).toInt()
-            setInt(barViewId, "setHeight", barHeightPx)
-            setInt(barViewId, "setMinimumHeight", barHeightPx)
-            setTextViewText(labelViewId, bar.dayLabel)
-            val barColor = if (bar.highlightToday) {
-                ContextCompat.getColor(context, R.color.widget_secondary)
-            } else {
-                ContextCompat.getColor(context, R.color.widget_primary)
-            }
-            setInt(barViewId, "setBackgroundColor", barColor)
+        lineIds.forEach { viewId ->
+            setViewVisibility(viewId, View.GONE)
+            setTextViewText(viewId, "")
+        }
+        card.lines.take(lineIds.size).forEachIndexed { index, line ->
+            val viewId = lineIds[index]
+            setViewVisibility(viewId, View.VISIBLE)
+            setTextViewText(viewId, line)
+        }
+
+        if (card.caption.isNullOrBlank()) {
+            setViewVisibility(R.id.widget_item_caption, View.GONE)
+            setTextViewText(R.id.widget_item_caption, "")
+        } else {
+            setViewVisibility(R.id.widget_item_caption, View.VISIBLE)
+            setTextViewText(R.id.widget_item_caption, card.caption)
         }
     }
 }
