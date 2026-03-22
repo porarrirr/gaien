@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
@@ -119,7 +120,12 @@ class StackStudyWidgetReceiver : AppWidgetProvider() {
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
 
-            return RemoteViews(context.packageName, R.layout.widget_stack_root).apply {
+            val layoutResId = StackStudyWidgetHostCompatibility.resolveCollectionLayout(
+                manufacturer = Build.MANUFACTURER,
+                brand = Build.BRAND
+            )
+
+            return RemoteViews(context.packageName, layoutResId).apply {
                 setRemoteAdapter(R.id.stack_widget_view, intent)
                 setEmptyView(R.id.stack_widget_view, R.id.stack_widget_empty)
 
@@ -548,6 +554,26 @@ private fun applySegmentedProgress(views: RemoteViews, progress: Float) {
             R.color.widget_progress_background
         }
         views.setInt(viewId, "setBackgroundResource", colorRes)
+    }
+}
+
+internal object StackStudyWidgetHostCompatibility {
+    private val listFallbackManufacturers = setOf("xiaomi", "redmi", "poco")
+
+    fun resolveCollectionLayout(
+        manufacturer: String?,
+        brand: String?
+    ): Int {
+        val normalizedManufacturer = manufacturer?.trim()?.lowercase().orEmpty()
+        val normalizedBrand = brand?.trim()?.lowercase().orEmpty()
+        val needsListFallback = normalizedManufacturer in listFallbackManufacturers ||
+            normalizedBrand in listFallbackManufacturers
+
+        return if (needsListFallback) {
+            R.layout.widget_stack_root_list
+        } else {
+            R.layout.widget_stack_root
+        }
     }
 }
 
