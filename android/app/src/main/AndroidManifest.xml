@@ -32,6 +32,66 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".widgets.TodayStudyWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_today_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_study_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.WeeklyGoalWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_weekly_goal_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/weekly_goal_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.StudyStreakWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_streak_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/study_streak_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.ExamCountdownWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_exam_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/exam_countdown_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.WeeklyActivityWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_weekly_activity_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/weekly_activity_widget_info" />
+        </receiver>
+
         <service
             android:name=".presentation.timer.TimerService"
             android:enabled="true"

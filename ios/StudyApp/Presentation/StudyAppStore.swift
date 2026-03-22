@@ -21,6 +21,7 @@ final class StudyAppContainer: ObservableObject {
     let authRepository: FirebaseAuthRepository
     let syncRepository: FirebaseSyncRepository
 
+    private lazy var widgetSnapshotSync = WidgetSnapshotSync(container: self)
     private var cancellables = Set<AnyCancellable>()
     private var autoSyncDelayTask: Task<Void, Never>?
     private var lastAutoSyncDataVersion: Int?
@@ -104,6 +105,7 @@ final class StudyAppContainer: ObservableObject {
         update(&next)
         preferences = next
         preferencesRepository.savePreferences(next)
+        widgetSnapshotSync.scheduleRefresh(reason: "preferences")
         objectWillChange.send()
     }
 
@@ -162,6 +164,7 @@ final class StudyAppContainer: ObservableObject {
 
     func bumpDataVersion(shouldScheduleAutoSync: Bool = true) {
         dataVersion += 1
+        widgetSnapshotSync.scheduleRefresh(reason: "data-version-\(dataVersion)")
         if shouldScheduleAutoSync {
             scheduleAutoSync(reason: "data-version-\(dataVersion)")
         }

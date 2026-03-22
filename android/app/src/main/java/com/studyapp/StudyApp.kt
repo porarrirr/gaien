@@ -10,6 +10,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.studyapp.services.ReminderWorker
 import com.studyapp.sync.AutoSyncManager
+import com.studyapp.widgets.StudyWidgetRefreshManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -21,6 +22,9 @@ class StudyApp : Application(), Configuration.Provider {
 
     @Inject
     lateinit var autoSyncManager: AutoSyncManager
+
+    @Inject
+    lateinit var studyWidgetRefreshManager: StudyWidgetRefreshManager
     
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -32,6 +36,7 @@ class StudyApp : Application(), Configuration.Provider {
         createNotificationChannels()
         setupStrictMode()
         autoSyncManager.start()
+        studyWidgetRefreshManager.start()
     }
     
     private fun createNotificationChannels() {

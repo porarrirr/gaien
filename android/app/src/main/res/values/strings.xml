@@ -289,6 +289,16 @@
     <string name="widget_today_study">今日の学習</string>
     <string name="widget_weekly_goal">週間目標</string>
     <string name="widget_minutes">分</string>
+    <string name="widget_today_name">今日の学習ウィジェット</string>
+    <string name="widget_today_description">今日の学習時間とセッション数を表示します</string>
+    <string name="widget_weekly_goal_name">週間目標ウィジェット</string>
+    <string name="widget_weekly_goal_description">週間目標の達成率を表示します</string>
+    <string name="widget_streak_name">連続学習ウィジェット</string>
+    <string name="widget_streak_description">現在の連続学習日数と最長記録を表示します</string>
+    <string name="widget_exam_name">試験カウントダウンウィジェット</string>
+    <string name="widget_exam_description">次の試験までの日数を表示します</string>
+    <string name="widget_weekly_activity_name">週間アクティビティウィジェット</string>
+    <string name="widget_weekly_activity_description">直近7日間の学習推移を表示します</string>
     <string name="loading">読み込み中...</string>
     
     <!-- Home Screen -->
