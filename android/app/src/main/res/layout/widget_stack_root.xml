@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/widget_background">
+
+    <StackView
+        android:id="@+id/stack_widget_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:animateFirstView="false" />
+
+    <TextView
+        android:id="@+id/stack_widget_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:padding="16dp"
+        android:text="@string/loading"
+        android:textColor="@color/widget_text_secondary"
+        android:textSize="14sp"
+        android:visibility="gone" />
+</FrameLayout>

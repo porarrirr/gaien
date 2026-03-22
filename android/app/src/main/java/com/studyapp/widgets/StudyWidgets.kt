@@ -47,6 +47,7 @@ object StudyWidgets {
         allWidgets.forEach { widget ->
             widget.updateAll(context)
         }
+        StackStudyWidgetReceiver.updateAll(context)
     }
 }
 
@@ -353,7 +354,7 @@ private fun DayBar(
     }
 }
 
-private fun examDaysText(daysRemaining: Long): String {
+internal fun examDaysText(daysRemaining: Long): String {
     return when {
         daysRemaining <= 0L -> "今日"
         else -> "あと${daysRemaining}日"

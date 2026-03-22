@@ -52,6 +52,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.checkout_ref }}
+          fetch-depth: 0
+
+      - name: Verify tag exists
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! git rev-parse "refs/tags/$tag_name" >/dev/null 2>&1; then
+            echo "Git tag was not found in the checked out repository: $tag_name"
+            exit 1
+          fi
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1

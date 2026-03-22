@@ -32,6 +32,15 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".widgets.StackStudyWidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/Theme.StudyApp">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".widgets.TodayStudyWidgetReceiver"
             android:exported="false"
@@ -91,6 +100,23 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/weekly_activity_widget_info" />
         </receiver>
+
+        <receiver
+            android:name=".widgets.StackStudyWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_stack_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/stack_study_widget_info" />
+        </receiver>
+
+        <service
+            android:name=".widgets.StackStudyWidgetRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
 
         <service
             android:name=".presentation.timer.TimerService"

@@ -123,6 +123,8 @@ class StudyWidgetSnapshotBuilder @Inject constructor(
 @InstallIn(SingletonComponent::class)
 interface StudyWidgetEntryPoint {
     fun snapshotBuilder(): StudyWidgetSnapshotBuilder
+    fun stackWidgetConfigStore(): StackStudyWidgetConfigStore
+    fun stackStudyWidgetSnapshotMapper(): StackStudyWidgetSnapshotMapper
 }
 
 suspend fun loadStudyWidgetSnapshot(context: Context): StudyWidgetSnapshot {

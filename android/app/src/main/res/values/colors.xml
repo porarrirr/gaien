@@ -33,6 +33,7 @@
     
     <color name="widget_background">#FFFFFFFF</color>
     <color name="widget_primary">#FF4CAF50</color>
+    <color name="widget_secondary">#FF2196F3</color>
     <color name="widget_text_primary">#DE000000</color>
     <color name="widget_text_secondary">#99000000</color>
     <color name="widget_text_tertiary">#61000000</color>
