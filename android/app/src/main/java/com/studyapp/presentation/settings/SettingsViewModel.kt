@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.studyapp.domain.model.AnkiTodayStats
+import com.studyapp.domain.repository.AnkiRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.usecase.ExportImportDataUseCase
 import com.studyapp.domain.util.Result
@@ -44,12 +46,15 @@ data class SettingsUiState(
     val syncAccountEmail: String? = null,
     val syncInProgress: Boolean = false,
     val lastSyncAt: Long? = null,
-    val syncError: String? = null
+    val syncError: String? = null,
+    val ankiStats: AnkiTodayStats = AnkiTodayStats(),
+    val isRefreshingAnkiStats: Boolean = true
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val studySessionRepository: StudySessionRepository,
+    private val ankiRepository: AnkiRepository,
     private val themePreferences: ThemePreferences,
     private val reminderPreferences: ReminderPreferences,
     private val exportImportDataUseCase: ExportImportDataUseCase,
@@ -67,6 +72,8 @@ class SettingsViewModel @Inject constructor(
         loadThemePreferences()
         loadReminderPreferences()
         observeSyncState()
+        observeAnkiState()
+        refreshAnkiStats()
     }
     
     private fun loadThemePreferences() {
@@ -238,6 +245,19 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    private fun observeAnkiState() {
+        viewModelScope.launch {
+            ankiRepository.observeTodayStats().collect { stats ->
+                _uiState.update {
+                    it.copy(
+                        ankiStats = stats,
+                        isRefreshingAnkiStats = false
+                    )
+                }
+            }
+        }
+    }
     
     fun exportData(context: Context, format: String) {
         viewModelScope.launch {
@@ -330,6 +350,17 @@ class SettingsViewModel @Inject constructor(
                 is Result.Error -> {
                     Log.e(TAG, "Failed to delete all study data", deleteResult.exception)
                 }
+            }
+        }
+    }
+
+    fun refreshAnkiStats() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshingAnkiStats = true) }
+            try {
+                ankiRepository.refreshTodayStats()
+            } finally {
+                _uiState.update { it.copy(isRefreshingAnkiStats = false) }
             }
         }
     }

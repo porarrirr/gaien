@@ -129,6 +129,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.google.guava:guava:33.3.1-android")
+    implementation("com.github.ankidroid:Anki-Android:api-v1.1.0")
     
     implementation("org.json:json:20231013")
     

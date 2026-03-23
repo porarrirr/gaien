@@ -139,6 +139,17 @@ object NetworkModule {
 @Module
 @InstallIn(SingletonComponent::class)
 interface RepositoryModule {
+    @Binds
+    @Singleton
+    fun bindAnkiRepository(impl: AnkiRepositoryImpl): AnkiRepository
+
+    @Binds
+    @Singleton
+    fun bindAnkiApiClient(impl: AnkiDroidApiClient): AnkiApiClient
+
+    @Binds
+    @Singleton
+    fun bindAppUsageStatsReader(impl: AndroidAppUsageStatsReader): AppUsageStatsReader
     
     @Binds
     @Singleton
