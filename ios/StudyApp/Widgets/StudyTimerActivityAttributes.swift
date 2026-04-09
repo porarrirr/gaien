@@ -2,7 +2,7 @@ import Foundation
 #if canImport(ActivityKit)
 import ActivityKit
 
-struct StudyTimerActivityAttributes: ActivityAttributes {
+struct StudyTimerActivityAttributes: ActivityAttributes, Hashable {
     public struct ContentState: Codable, Hashable {
         var isRunning: Bool
         var startedAt: Int64?
