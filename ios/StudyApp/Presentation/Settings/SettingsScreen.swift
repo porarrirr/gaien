@@ -346,7 +346,7 @@ struct SettingsScreen: View {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "-"
         let build = info?["CFBundleVersion"] as? String ?? "-"
-        return "\(version) (\(build))"
+        return "\(version) (\(build)) • \(liveActivityBuildLabel)"
     }
 
     private var liveActivitySettingsAvailable: Bool {
