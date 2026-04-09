@@ -60,6 +60,61 @@ struct SettingsScreen: View {
                 Label("通知", systemImage: "bell.fill")
             }
 
+            Section {
+                if liveActivitySettingsAvailable {
+                    Toggle(
+                        "ライブアクティビティを使用",
+                        isOn: Binding(
+                            get: { viewModel.app.preferences.liveActivityEnabled },
+                            set: { viewModel.app.setLiveActivityEnabled($0) }
+                        )
+                    )
+
+                    Picker(
+                        "表示プリセット",
+                        selection: Binding(
+                            get: { viewModel.app.preferences.liveActivityDisplayPreset },
+                            set: { viewModel.app.setLiveActivityDisplayPreset($0) }
+                        )
+                    ) {
+                        ForEach(LiveActivityDisplayPreset.allCases) { preset in
+                            Text(preset.title).tag(preset)
+                        }
+                    }
+                    .disabled(!viewModel.app.preferences.liveActivityEnabled)
+
+                    ForEach(LiveActivityDisplayPreset.allCases) { preset in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(preset.title)
+                                    .font(.subheadline.weight(.semibold))
+                                if preset == viewModel.app.preferences.liveActivityDisplayPreset {
+                                    Spacer()
+                                    Text("選択中")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.tint)
+                                }
+                            }
+                            Text(preset.settingsDescription)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("iOS 18以降で利用できます")
+                            .font(.subheadline.weight(.semibold))
+                        Text("この端末ではライブアクティビティ設定を変更できません。タイマー機能はそのまま利用できます。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+            } header: {
+                Label("Live Activity", systemImage: "bolt.badge.clock")
+            }
+
             // Data Summary
             Section {
                 HStack {
@@ -277,6 +332,13 @@ struct SettingsScreen: View {
         let version = info?["CFBundleShortVersionString"] as? String ?? "-"
         let build = info?["CFBundleVersion"] as? String ?? "-"
         return "\(version) (\(build))"
+    }
+
+    private var liveActivitySettingsAvailable: Bool {
+        if #available(iOS 18.0, *) {
+            return true
+        }
+        return false
     }
 }
 

@@ -22,8 +22,10 @@ final class StudyAppContainer: ObservableObject {
     let syncRepository: FirebaseSyncRepository
 
     private lazy var widgetSnapshotSync = WidgetSnapshotSync(container: self)
+    private lazy var liveActivityController = StudyLiveActivityController(persistence: persistence, logger: logger)
     private var cancellables = Set<AnyCancellable>()
     private var autoSyncDelayTask: Task<Void, Never>?
+    private var liveActivitySyncTask: Task<Void, Never>?
     private var lastAutoSyncDataVersion: Int?
     private let autoSyncBlockedKey = "studyapp.sync.autoSyncBlockedUntilLocalChange"
     private var pendingAutoSyncRequest: (reason: String, dataVersion: Int)?
@@ -94,6 +96,7 @@ final class StudyAppContainer: ObservableObject {
             logger.log(category: .app, message: "Initial app load completed", details: "isLoaded=true")
             bumpDataVersion(shouldScheduleAutoSync: false)
             scheduleAutoSync(reason: "app-load")
+            syncLiveActivity(reason: "app-load")
         } catch {
             isLoaded = true
             present(error)
@@ -101,11 +104,15 @@ final class StudyAppContainer: ObservableObject {
     }
 
     func savePreferences(_ update: (inout AppPreferences) -> Void) {
+        let previous = preferences
         var next = preferences
         update(&next)
         preferences = next
         preferencesRepository.savePreferences(next)
         widgetSnapshotSync.scheduleRefresh(reason: "preferences")
+        if shouldSyncLiveActivity(previous: previous, next: next) {
+            syncLiveActivity(reason: "preferences")
+        }
         objectWillChange.send()
     }
 
@@ -119,6 +126,14 @@ final class StudyAppContainer: ObservableObject {
 
     func setColorTheme(_ theme: ColorTheme) {
         savePreferences { $0.selectedColorTheme = theme }
+    }
+
+    func setLiveActivityEnabled(_ enabled: Bool) {
+        savePreferences { $0.liveActivityEnabled = enabled }
+    }
+
+    func setLiveActivityDisplayPreset(_ preset: LiveActivityDisplayPreset) {
+        savePreferences { $0.liveActivityDisplayPreset = preset }
     }
 
     func setReminderEnabled(_ enabled: Bool) async {
@@ -165,6 +180,9 @@ final class StudyAppContainer: ObservableObject {
     func bumpDataVersion(shouldScheduleAutoSync: Bool = true) {
         dataVersion += 1
         widgetSnapshotSync.scheduleRefresh(reason: "data-version-\(dataVersion)")
+        if preferences.activeTimer != nil {
+            syncLiveActivity(reason: "data-version-\(dataVersion)")
+        }
         if shouldScheduleAutoSync {
             scheduleAutoSync(reason: "data-version-\(dataVersion)")
         }
@@ -258,6 +276,22 @@ final class StudyAppContainer: ObservableObject {
     private var isAutoSyncBlockedUntilLocalChange: Bool {
         get { UserDefaults.standard.bool(forKey: autoSyncBlockedKey) }
         set { UserDefaults.standard.set(newValue, forKey: autoSyncBlockedKey) }
+    }
+
+    private func shouldSyncLiveActivity(previous: AppPreferences, next: AppPreferences) -> Bool {
+        previous.activeTimer != next.activeTimer ||
+        previous.liveActivityEnabled != next.liveActivityEnabled ||
+        previous.liveActivityDisplayPreset != next.liveActivityDisplayPreset
+    }
+
+    private func syncLiveActivity(reason: String) {
+        liveActivitySyncTask?.cancel()
+        let preferences = self.preferences
+        let activeTimer = preferences.activeTimer
+        liveActivitySyncTask = Task { [weak self] in
+            guard let self else { return }
+            await self.liveActivityController.sync(activeTimer: activeTimer, preferences: preferences, reason: reason)
+        }
     }
 }
 

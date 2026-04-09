@@ -158,6 +158,33 @@ enum ExportFormat: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum LiveActivityDisplayPreset: String, CaseIterable, Codable, Identifiable, Hashable {
+    case standard
+    case focus
+    case progress
+    case subjectDetail
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .standard: return "標準"
+        case .focus: return "集中"
+        case .progress: return "進捗"
+        case .subjectDetail: return "科目詳細"
+        }
+    }
+
+    var settingsDescription: String {
+        switch self {
+        case .standard: return "経過時間を大きく表示し、科目と教材を並べます。"
+        case .focus: return "経過時間を最優先で表示し、補助情報を最小にします。"
+        case .progress: return "経過時間に加えて今日の記録時間と目標を表示します。"
+        case .subjectDetail: return "科目名を主役にして教材と開始時刻を表示します。"
+        }
+    }
+}
+
 struct Subject: Identifiable, Codable, Hashable {
     var id: Int64 = 0
     var syncId: String = UUID().uuidString.lowercased()
@@ -442,7 +469,69 @@ struct AppPreferences: Codable, Equatable {
     var reminderMinute = 0
     var selectedColorTheme: ColorTheme = .green
     var selectedThemeMode: ThemeMode = .system
+    var liveActivityEnabled = true
+    var liveActivityDisplayPreset: LiveActivityDisplayPreset = .standard
     var activeTimer: TimerSnapshot?
+
+    private enum CodingKeys: String, CodingKey {
+        case onboardingCompleted
+        case reminderEnabled
+        case reminderHour
+        case reminderMinute
+        case selectedColorTheme
+        case selectedThemeMode
+        case liveActivityEnabled
+        case liveActivityDisplayPreset
+        case activeTimer
+    }
+
+    init(
+        onboardingCompleted: Bool = false,
+        reminderEnabled: Bool = false,
+        reminderHour: Int = 19,
+        reminderMinute: Int = 0,
+        selectedColorTheme: ColorTheme = .green,
+        selectedThemeMode: ThemeMode = .system,
+        liveActivityEnabled: Bool = true,
+        liveActivityDisplayPreset: LiveActivityDisplayPreset = .standard,
+        activeTimer: TimerSnapshot? = nil
+    ) {
+        self.onboardingCompleted = onboardingCompleted
+        self.reminderEnabled = reminderEnabled
+        self.reminderHour = reminderHour
+        self.reminderMinute = reminderMinute
+        self.selectedColorTheme = selectedColorTheme
+        self.selectedThemeMode = selectedThemeMode
+        self.liveActivityEnabled = liveActivityEnabled
+        self.liveActivityDisplayPreset = liveActivityDisplayPreset
+        self.activeTimer = activeTimer
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        onboardingCompleted = try container.decodeIfPresent(Bool.self, forKey: .onboardingCompleted) ?? false
+        reminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
+        reminderHour = try container.decodeIfPresent(Int.self, forKey: .reminderHour) ?? 19
+        reminderMinute = try container.decodeIfPresent(Int.self, forKey: .reminderMinute) ?? 0
+        selectedColorTheme = try container.decodeIfPresent(ColorTheme.self, forKey: .selectedColorTheme) ?? .green
+        selectedThemeMode = try container.decodeIfPresent(ThemeMode.self, forKey: .selectedThemeMode) ?? .system
+        liveActivityEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivityEnabled) ?? true
+        liveActivityDisplayPreset = try container.decodeIfPresent(LiveActivityDisplayPreset.self, forKey: .liveActivityDisplayPreset) ?? .standard
+        activeTimer = try container.decodeIfPresent(TimerSnapshot.self, forKey: .activeTimer)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(onboardingCompleted, forKey: .onboardingCompleted)
+        try container.encode(reminderEnabled, forKey: .reminderEnabled)
+        try container.encode(reminderHour, forKey: .reminderHour)
+        try container.encode(reminderMinute, forKey: .reminderMinute)
+        try container.encode(selectedColorTheme, forKey: .selectedColorTheme)
+        try container.encode(selectedThemeMode, forKey: .selectedThemeMode)
+        try container.encode(liveActivityEnabled, forKey: .liveActivityEnabled)
+        try container.encode(liveActivityDisplayPreset, forKey: .liveActivityDisplayPreset)
+        try container.encodeIfPresent(activeTimer, forKey: .activeTimer)
+    }
 }
 
 struct AuthSession: Codable, Equatable {

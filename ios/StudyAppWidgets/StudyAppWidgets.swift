@@ -338,7 +338,7 @@ private struct WidgetBackgroundModifier: ViewModifier {
     }
 }
 
-private enum WidgetPalette {
+enum WidgetPalette {
     static let background = Color(hex: 0xFFFFFF)
     static let primary = Color(hex: 0x4CAF50)
     static let secondary = Color(hex: 0x2196F3)
@@ -349,7 +349,7 @@ private enum WidgetPalette {
     static let textSecondary = Color.black.opacity(0.65)
 }
 
-private extension Color {
+extension Color {
     init(hex: Int) {
         self.init(
             .sRGB,

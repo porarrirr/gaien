@@ -1428,7 +1428,50 @@ private struct LegacySnapshot: Codable {
     var reminderMinute = 0
     var selectedColorTheme: ColorTheme = .green
     var selectedThemeMode: ThemeMode = .system
+    var liveActivityEnabled = true
+    var liveActivityDisplayPreset: LiveActivityDisplayPreset = .standard
     var activeTimer: LegacyTimerSnapshot?
+
+    private enum CodingKeys: String, CodingKey {
+        case subjects
+        case materials
+        case sessions
+        case goals
+        case exams
+        case plans
+        case planItems
+        case onboardingCompleted
+        case reminderEnabled
+        case reminderHour
+        case reminderMinute
+        case selectedColorTheme
+        case selectedThemeMode
+        case liveActivityEnabled
+        case liveActivityDisplayPreset
+        case activeTimer
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        subjects = try container.decodeIfPresent([LegacySubject].self, forKey: .subjects) ?? []
+        materials = try container.decodeIfPresent([LegacyMaterial].self, forKey: .materials) ?? []
+        sessions = try container.decodeIfPresent([LegacySession].self, forKey: .sessions) ?? []
+        goals = try container.decodeIfPresent([LegacyGoal].self, forKey: .goals) ?? []
+        exams = try container.decodeIfPresent([LegacyExam].self, forKey: .exams) ?? []
+        plans = try container.decodeIfPresent([LegacyPlan].self, forKey: .plans) ?? []
+        planItems = try container.decodeIfPresent([LegacyPlanItem].self, forKey: .planItems) ?? []
+        onboardingCompleted = try container.decodeIfPresent(Bool.self, forKey: .onboardingCompleted) ?? false
+        reminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
+        reminderHour = try container.decodeIfPresent(Int.self, forKey: .reminderHour) ?? 19
+        reminderMinute = try container.decodeIfPresent(Int.self, forKey: .reminderMinute) ?? 0
+        selectedColorTheme = try container.decodeIfPresent(ColorTheme.self, forKey: .selectedColorTheme) ?? .green
+        selectedThemeMode = try container.decodeIfPresent(ThemeMode.self, forKey: .selectedThemeMode) ?? .system
+        liveActivityEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivityEnabled) ?? true
+        liveActivityDisplayPreset = try container.decodeIfPresent(LiveActivityDisplayPreset.self, forKey: .liveActivityDisplayPreset) ?? .standard
+        activeTimer = try container.decodeIfPresent(LegacyTimerSnapshot.self, forKey: .activeTimer)
+    }
 
     var preferences: AppPreferences {
         AppPreferences(
@@ -1438,6 +1481,8 @@ private struct LegacySnapshot: Codable {
             reminderMinute: reminderMinute,
             selectedColorTheme: selectedColorTheme,
             selectedThemeMode: selectedThemeMode,
+            liveActivityEnabled: liveActivityEnabled,
+            liveActivityDisplayPreset: liveActivityDisplayPreset,
             activeTimer: activeTimer?.model
         )
     }

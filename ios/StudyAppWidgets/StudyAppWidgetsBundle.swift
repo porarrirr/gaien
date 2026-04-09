@@ -9,5 +9,8 @@ struct StudyAppWidgetsBundle: WidgetBundle {
         StudyStreakWidget()
         ExamCountdownWidget()
         WeeklyActivityWidget()
+        if #available(iOSApplicationExtension 18.0, *) {
+            StudyTimerLiveActivityWidget()
+        }
     }
 }

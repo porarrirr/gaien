@@ -26,12 +26,17 @@
 		A10000000000000000000016 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000003 /* FirebaseAuth */; };
 		A10000000000000000000017 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000004 /* FirebaseFirestore */; };
 		A10000000000000000000019 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* AppLogger.swift */; };
+		A10000000000000000000020 /* StudyLiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* StudyLiveActivityController.swift */; };
+		A10000000000000000000021 /* StudyTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* StudyTimerActivityAttributes.swift */; };
 		A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StudyAppWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A20000000000000000000002 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
 		A20000000000000000000003 /* WidgetSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* WidgetSnapshotSync.swift */; };
 		A20000000000000000000004 /* StudyAppWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* StudyAppWidgetsBundle.swift */; };
 		A20000000000000000000005 /* StudyAppWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006 /* StudyAppWidgets.swift */; };
 		A20000000000000000000006 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
+		A20000000000000000000007 /* StudyTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* StudyTimerActivityAttributes.swift */; };
+		A20000000000000000000008 /* StudyTimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* StudyTimerLiveActivity.swift */; };
+		A20000000000000000000009 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Models.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +47,7 @@
 		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* FirebaseRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseRepositories.swift; sourceTree = "<group>"; };
 		B10000000000000000000017 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		B10000000000000000000018 /* StudyLiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyLiveActivityController.swift; sourceTree = "<group>"; };
 		B10000000000000000000006 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		B10000000000000000000007 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000000000000000000008 /* StudyAppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppStore.swift; sourceTree = "<group>"; };
@@ -60,6 +66,8 @@
 		B20000000000000000000006 /* StudyAppWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppWidgets.swift; sourceTree = "<group>"; };
 		B20000000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B20000000000000000000008 /* StudyAppWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyAppWidgets.entitlements; sourceTree = "<group>"; };
+		B20000000000000000000009 /* StudyTimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerActivityAttributes.swift; sourceTree = "<group>"; };
+		B20000000000000000000010 /* StudyTimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerLiveActivity.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -218,6 +226,7 @@
 			children = (
 				B10000000000000000000017 /* AppLogger.swift */,
 				B10000000000000000000006 /* ReminderScheduler.swift */,
+				B10000000000000000000018 /* StudyLiveActivityController.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -235,6 +244,7 @@
 			children = (
 				B20000000000000000000002 /* WidgetSnapshotModels.swift */,
 				B20000000000000000000003 /* WidgetSnapshotSync.swift */,
+				B20000000000000000000009 /* StudyTimerActivityAttributes.swift */,
 			);
 			path = Widgets;
 			sourceTree = "<group>";
@@ -244,6 +254,7 @@
 			children = (
 				B20000000000000000000005 /* StudyAppWidgetsBundle.swift */,
 				B20000000000000000000006 /* StudyAppWidgets.swift */,
+				B20000000000000000000010 /* StudyTimerLiveActivity.swift */,
 				B20000000000000000000007 /* Info.plist */,
 				B20000000000000000000008 /* StudyAppWidgets.entitlements */,
 			);
@@ -395,6 +406,7 @@
 				A10000000000000000000018 /* FirebaseRepositories.swift in Sources */,
 				A10000000000000000000005 /* ReminderScheduler.swift in Sources */,
 				A10000000000000000000019 /* AppLogger.swift in Sources */,
+				A10000000000000000000020 /* StudyLiveActivityController.swift in Sources */,
 				A10000000000000000000006 /* Theme.swift in Sources */,
 				A10000000000000000000007 /* StudyAppStore.swift in Sources */,
 				A10000000000000000000008 /* StudyAppViews.swift in Sources */,
@@ -405,6 +417,7 @@
 				A10000000000000000000013 /* SettingsScreen.swift in Sources */,
 				A20000000000000000000002 /* WidgetSnapshotModels.swift in Sources */,
 				A20000000000000000000003 /* WidgetSnapshotSync.swift in Sources */,
+				A10000000000000000000021 /* StudyTimerActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -412,9 +425,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000000000000000000009 /* Models.swift in Sources */,
 				A20000000000000000000004 /* StudyAppWidgetsBundle.swift in Sources */,
 				A20000000000000000000005 /* StudyAppWidgets.swift in Sources */,
 				A20000000000000000000006 /* WidgetSnapshotModels.swift in Sources */,
+				A20000000000000000000007 /* StudyTimerActivityAttributes.swift in Sources */,
+				A20000000000000000000008 /* StudyTimerLiveActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -459,6 +475,7 @@
 				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -487,6 +504,7 @@
 				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
