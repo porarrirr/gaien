@@ -246,6 +246,12 @@ struct SettingsScreen: View {
                         isDebugLogUnlocked = true
                     }
                 }
+                HStack {
+                    Text("ビルド種別")
+                    Spacer()
+                    Text(liveActivityBuildLabel)
+                        .foregroundStyle(liveActivityFeatureIncludedInBuild ? .green : .orange)
+                }
             } header: {
                 Label("アプリ情報", systemImage: "info.circle.fill")
             }
@@ -356,6 +362,10 @@ struct SettingsScreen: View {
         #else
         return true
         #endif
+    }
+
+    private var liveActivityBuildLabel: String {
+        liveActivityFeatureIncludedInBuild ? "Live Activity ON" : "Live Activity OFF"
     }
 }
 

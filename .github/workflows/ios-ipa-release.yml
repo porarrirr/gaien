@@ -137,7 +137,13 @@ jobs:
             local archive_path="$RUNNER_TEMP/StudyApp-${variant_key}.xcarchive"
             local package_root="$RUNNER_TEMP/package-${variant_key}"
             local payload_path="$package_root/Payload"
-            local ipa_name="StudyApp-${tag_name}-${variant_key}-unsigned.ipa"
+            local asset_label
+            if [ "$live_activity_mode" = "on" ]; then
+              asset_label="with-live-activity"
+            else
+              asset_label="without-live-activity"
+            fi
+            local ipa_name="StudyApp-${tag_name}-${asset_label}-unsigned.ipa"
             local ipa_path="$ASSET_DIR/$ipa_name"
 
             rm -rf "$archive_path" "$package_root" "$ipa_path"
