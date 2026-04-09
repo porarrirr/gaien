@@ -61,7 +61,7 @@ struct SettingsScreen: View {
             }
 
             Section {
-                if liveActivitySettingsAvailable {
+                if liveActivityFeatureIncludedInBuild, liveActivitySettingsAvailable {
                     Toggle(
                         "ライブアクティビティを使用",
                         isOn: Binding(
@@ -101,11 +101,20 @@ struct SettingsScreen: View {
                         }
                         .padding(.vertical, 2)
                     }
-                } else {
+                } else if liveActivityFeatureIncludedInBuild {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("iOS 18以降で利用できます")
                             .font(.subheadline.weight(.semibold))
                         Text("この端末ではライブアクティビティ設定を変更できません。タイマー機能はそのまま利用できます。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("このビルドでは Live Activity を含めていません")
+                            .font(.subheadline.weight(.semibold))
+                        Text("署名切り分け用の検証版です。通常版では Live Activity を利用できます。")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -339,6 +348,14 @@ struct SettingsScreen: View {
             return true
         }
         return false
+    }
+
+    private var liveActivityFeatureIncludedInBuild: Bool {
+        #if LIVE_ACTIVITY_DISABLED
+        return false
+        #else
+        return true
+        #endif
     }
 }
 

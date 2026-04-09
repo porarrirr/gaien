@@ -123,79 +123,112 @@ jobs:
             -project ios/StudyApp.xcodeproj \
             -scheme StudyApp
 
-      - name: Archive unsigned app bundle
+      - name: Archive unsigned app bundles
         shell: bash
         run: |
           set -euo pipefail
 
-          ARCHIVE_PATH="$RUNNER_TEMP/StudyApp.xcarchive"
+          ASSET_DIR="$GITHUB_WORKSPACE/release-assets"
+          mkdir -p "$ASSET_DIR"
 
-          xcodebuild \
-            -project ios/StudyApp.xcodeproj \
-            -scheme StudyApp \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination generic/platform=iOS \
-            -archivePath "$ARCHIVE_PATH" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            MARKETING_VERSION="$marketing_version" \
-            CURRENT_PROJECT_VERSION="$build_version" \
-            SKIP_INSTALL=NO \
-            clean archive
+          build_variant() {
+            local variant_key="$1"
+            local live_activity_mode="$2"
+            local archive_path="$RUNNER_TEMP/StudyApp-${variant_key}.xcarchive"
+            local package_root="$RUNNER_TEMP/package-${variant_key}"
+            local payload_path="$package_root/Payload"
+            local ipa_name="StudyApp-${tag_name}-${variant_key}-unsigned.ipa"
+            local ipa_path="$ASSET_DIR/$ipa_name"
 
-          APP_PATH="$ARCHIVE_PATH/Products/Applications/StudyApp.app"
-          if [ ! -d "$APP_PATH" ]; then
-            echo "Expected app bundle was not found at: $APP_PATH"
-            exit 1
-          fi
+            rm -rf "$archive_path" "$package_root" "$ipa_path"
 
-          APP_INFO_PLIST="$APP_PATH/Info.plist"
-          ACTUAL_MARKETING_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_INFO_PLIST")
-          ACTUAL_BUILD_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_INFO_PLIST")
+            local -a build_args=(
+              -project ios/StudyApp.xcodeproj
+              -scheme StudyApp
+              -configuration Release
+              -sdk iphoneos
+              -destination generic/platform=iOS
+              -archivePath "$archive_path"
+              CODE_SIGNING_ALLOWED=NO
+              CODE_SIGNING_REQUIRED=NO
+              CODE_SIGN_IDENTITY=
+              DEVELOPMENT_TEAM=
+              MARKETING_VERSION="$marketing_version"
+              CURRENT_PROJECT_VERSION="$build_version"
+              SKIP_INSTALL=NO
+            )
 
-          if [ "$ACTUAL_MARKETING_VERSION" != "$marketing_version" ]; then
-            echo "Built app marketing version mismatch: expected $marketing_version got $ACTUAL_MARKETING_VERSION"
-            exit 1
-          fi
+            if [ "$live_activity_mode" = "off" ]; then
+              build_args+=(
+                SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) LIVE_ACTIVITY_DISABLED'
+                INFOPLIST_KEY_NSSupportsLiveActivities=NO
+              )
+            fi
 
-          if [ "$ACTUAL_BUILD_VERSION" != "$build_version" ]; then
-            echo "Built app build version mismatch: expected $build_version got $ACTUAL_BUILD_VERSION"
-            exit 1
-          fi
+            xcodebuild "${build_args[@]}" clean archive
 
-          echo "Archived StudyApp $ACTUAL_MARKETING_VERSION ($ACTUAL_BUILD_VERSION)"
+            local app_path="$archive_path/Products/Applications/StudyApp.app"
+            if [ ! -d "$app_path" ]; then
+              echo "Expected app bundle was not found at: $app_path"
+              exit 1
+            fi
 
-          PAYLOAD_PATH="$RUNNER_TEMP/Payload"
-          IPA_NAME="StudyApp-${tag_name}-unsigned.ipa"
-          IPA_PATH="$GITHUB_WORKSPACE/$IPA_NAME"
+            local app_info_plist="$app_path/Info.plist"
+            local actual_marketing_version
+            local actual_build_version
+            local actual_live_activity_value
+            actual_marketing_version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app_info_plist")
+            actual_build_version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$app_info_plist")
+            actual_live_activity_value=$(/usr/libexec/PlistBuddy -c "Print :NSSupportsLiveActivities" "$app_info_plist" 2>/dev/null || true)
 
-          rm -rf "$PAYLOAD_PATH"
-          mkdir -p "$PAYLOAD_PATH"
-          cp -R "$APP_PATH" "$PAYLOAD_PATH/StudyApp.app"
+            if [ "$actual_marketing_version" != "$marketing_version" ]; then
+              echo "Built app marketing version mismatch: expected $marketing_version got $actual_marketing_version"
+              exit 1
+            fi
 
-          (
-            cd "$RUNNER_TEMP"
-            /usr/bin/zip -qry "$IPA_PATH" Payload
-          )
+            if [ "$actual_build_version" != "$build_version" ]; then
+              echo "Built app build version mismatch: expected $build_version got $actual_build_version"
+              exit 1
+            fi
 
-          if [ ! -f "$IPA_PATH" ]; then
-            echo "Unsigned IPA was not created at: $IPA_PATH"
-            exit 1
-          fi
+            if [ "$live_activity_mode" = "on" ] && [ "$actual_live_activity_value" != "true" ]; then
+              echo "Live Activity enabled build is missing NSSupportsLiveActivities=true"
+              exit 1
+            fi
+
+            if [ "$live_activity_mode" = "off" ] && [ "$actual_live_activity_value" = "true" ]; then
+              echo "Live Activity disabled build still reports NSSupportsLiveActivities=true"
+              exit 1
+            fi
+
+            mkdir -p "$payload_path"
+            cp -R "$app_path" "$payload_path/StudyApp.app"
+
+            (
+              cd "$package_root"
+              /usr/bin/zip -qry "$ipa_path" Payload
+            )
+
+            if [ ! -f "$ipa_path" ]; then
+              echo "Unsigned IPA was not created at: $ipa_path"
+              exit 1
+            fi
+
+            echo "Archived ${variant_key} as $actual_marketing_version ($actual_build_version)"
+          }
+
+          build_variant "live-activity-on" "on"
+          build_variant "live-activity-off" "off"
 
           {
-            echo "ipa_name=$IPA_NAME"
-            echo "ipa_path=$IPA_PATH"
+            echo "asset_dir=$ASSET_DIR"
           } >> "$GITHUB_ENV"
 
-      - name: Upload workflow artifact
+      - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ios-unsigned-ipa
-          path: ${{ env.ipa_path }}
+          name: ios-unsigned-ipas
+          path: ${{ env.asset_dir }}/*.ipa
           if-no-files-found: error
 
       - name: Create or update GitHub Release
@@ -206,9 +239,9 @@ jobs:
           set -euo pipefail
 
           if gh release view "$tag_name" >/dev/null 2>&1; then
-            gh release upload "$tag_name" "$ipa_path" --clobber
+            gh release upload "$tag_name" "${asset_dir}"/*.ipa --clobber
           else
-            gh release create "$tag_name" "$ipa_path" --generate-notes --title "$tag_name"
+            gh release create "$tag_name" "${asset_dir}"/*.ipa --generate-notes --title "$tag_name"
           fi
 
       - name: Remove Firebase iOS config from workspace

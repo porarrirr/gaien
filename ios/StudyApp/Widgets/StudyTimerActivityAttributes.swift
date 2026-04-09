@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !LIVE_ACTIVITY_DISABLED
 import ActivityKit
 
 struct StudyTimerActivityAttributes: ActivityAttributes, Hashable {

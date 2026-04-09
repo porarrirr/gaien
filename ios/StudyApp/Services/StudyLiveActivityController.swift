@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !LIVE_ACTIVITY_DISABLED
 import ActivityKit
 #endif
 
@@ -14,7 +14,7 @@ final class StudyLiveActivityController {
     }
 
     func sync(activeTimer: TimerSnapshot?, preferences: AppPreferences, reason: String) async {
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !LIVE_ACTIVITY_DISABLED
         guard #available(iOS 18.0, *) else { return }
         guard !Task.isCancelled else { return }
 
@@ -49,7 +49,7 @@ final class StudyLiveActivityController {
 #endif
     }
 
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !LIVE_ACTIVITY_DISABLED
     @available(iOS 18.0, *)
     private func buildContext(
         activeTimer: TimerSnapshot,
@@ -157,7 +157,7 @@ final class StudyLiveActivityController {
 #endif
 }
 
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !LIVE_ACTIVITY_DISABLED
 @available(iOS 18.0, *)
 private struct StudyLiveActivityContext {
     let attributes: StudyTimerActivityAttributes

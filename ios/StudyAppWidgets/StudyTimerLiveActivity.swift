@@ -1,4 +1,4 @@
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !LIVE_ACTIVITY_DISABLED
 import ActivityKit
 import SwiftUI
 import WidgetKit
