@@ -186,8 +186,9 @@ struct ProgressRing: View {
                 .strokeBorder(trackColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
 
             Circle()
+                .inset(by: lineWidth / 2)
                 .trim(from: 0, to: min(animatedProgress, 1.0))
-                .strokeBorder(ringColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .stroke(ringColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
 
             if showPercentage {
