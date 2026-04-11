@@ -183,11 +183,11 @@ struct ProgressRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(trackColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .strokeBorder(trackColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
 
             Circle()
                 .trim(from: 0, to: min(animatedProgress, 1.0))
-                .stroke(ringColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .strokeBorder(ringColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
 
             if showPercentage {
@@ -197,6 +197,7 @@ struct ProgressRing: View {
             }
         }
         .frame(width: size, height: size)
+        .aspectRatio(1, contentMode: .fit)
         .onAppear {
             withAnimation(.easeOut(duration: 0.8)) {
                 animatedProgress = progress

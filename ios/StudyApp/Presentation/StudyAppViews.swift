@@ -427,7 +427,7 @@ private struct TimerScreen: View {
     @State private var showManualEntry = false
     @State private var manualMinutes = ""
     @State private var manualNote = ""
-    @State private var pulseTimer = false
+    @State private var ringScale: CGFloat = 1.0
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: TimerViewModel(app: app))
@@ -448,58 +448,24 @@ private struct TimerScreen: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: AppSpacing.lg) {
-                    // Subject / Material selectors
-                    VStack(spacing: AppSpacing.sm) {
-                        HStack {
-                            Image(systemName: "book.fill")
-                                .foregroundStyle(.tint)
-                            Picker("科目", selection: selectedSubjectBinding) {
-                                ForEach(viewModel.subjects) { subject in
-                                    Text(subject.name).tag(subject.id)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
-                        .padding(.horizontal, AppSpacing.md)
-                        .padding(.vertical, AppSpacing.sm)
-                        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        GeometryReader { geometry in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: AppSpacing.xl) {
+                    selectorSection
 
-                        HStack {
-                            Image(systemName: "doc.fill")
-                                .foregroundStyle(.tint)
-                            Picker("教材", selection: selectedMaterialBinding) {
-                                Text("なし").tag(Int64(0))
-                                ForEach(viewModel.materialsForSelectedSubject()) { material in
-                                    Text(material.name).tag(material.id)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
-                        .padding(.horizontal, AppSpacing.md)
-                        .padding(.vertical, AppSpacing.sm)
-                        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .padding(.horizontal, AppSpacing.md)
-
-                    Spacer().frame(height: AppSpacing.md)
-
-                    // Main Timer Ring
                     ZStack {
                         ProgressRing(
                             progress: timerProgress,
-                            size: 260,
+                            size: timerRingSize(for: geometry.size),
                             lineWidth: 16,
                             ringColor: viewModel.isRunning ? Color.accentColor : Color.secondary.opacity(0.4),
                             showPercentage: false
                         )
-                        .scaleEffect(pulseTimer && viewModel.isRunning ? 1.02 : 1.0)
+                        .scaleEffect(ringScale)
 
                         VStack(spacing: AppSpacing.xs) {
                             Text(durationString(milliseconds: viewModel.elapsedMilliseconds))
-                                .font(.system(size: 48, weight: .bold, design: .monospaced))
+                                .font(.system(size: 44, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(AppColors.textPrimary)
                             if viewModel.isRunning {
                                 Text("記録中")
@@ -508,66 +474,40 @@ private struct TimerScreen: View {
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 4)
                                     .background(.tint.opacity(0.12), in: Capsule())
+                                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                            }
+                        }
+                        .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .onChange(of: viewModel.isRunning) { running in
+                        if running {
+                            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                                ringScale = 1.02
+                            }
+                        } else {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                ringScale = 1.0
                             }
                         }
                     }
-                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: pulseTimer)
-                    .onChange(of: viewModel.isRunning) { running in
-                        pulseTimer = running
-                    }
 
-                    Spacer().frame(height: AppSpacing.md)
-
-                    // Control Buttons
-                    HStack(spacing: AppSpacing.xl) {
-                        // Stop Button
-                        Button {
-                            viewModel.stop()
-                        } label: {
-                            Image(systemName: "stop.fill")
-                                .font(.title2)
-                                .foregroundStyle(.white)
-                                .frame(width: 64, height: 64)
-                                .background(
-                                    Circle().fill(viewModel.elapsedMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3))
-                                )
-                        }
-                        .disabled(viewModel.elapsedMilliseconds == 0)
-
-                        // Play / Pause Button
-                        Button {
-                            viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
-                        } label: {
-                            Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
-                                .font(.system(size: 28))
-                                .foregroundStyle(.white)
-                                .frame(width: 80, height: 80)
-                                .background(
-                                    Circle().fill(Color.accentColor)
-                                )
-                                .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 4)
-                        }
-                    }
+                    controlButtonsSection
                 }
-                .padding(.vertical, AppSpacing.lg)
-            }
-
-            // Manual entry button at bottom
-            Button {
-                showManualEntry = true
-            } label: {
-                HStack {
-                    Image(systemName: "pencil.line")
-                    Text("手動入力")
-                }
-                .font(.subheadline.bold())
-                .foregroundStyle(.tint)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.top, AppSpacing.lg)
+                .padding(.bottom, AppSpacing.xl)
             }
-            .padding(.horizontal, AppSpacing.md)
-            .padding(.bottom, AppSpacing.sm)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    Divider()
+                    manualEntryButton
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, 12)
+                }
+                .background(AppColors.subtleBackground)
+            }
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("タイマー")
@@ -590,6 +530,95 @@ private struct TimerScreen: View {
     private var timerProgress: Double {
         let targetMs: Double = 60 * 60 * 1000
         return min(Double(viewModel.elapsedMilliseconds) / targetMs, 1.0)
+    }
+
+    private var selectorSection: some View {
+        VStack(spacing: AppSpacing.sm) {
+            selectionRow(icon: "book.fill", title: "科目") {
+                Picker("科目", selection: selectedSubjectBinding) {
+                    ForEach(viewModel.subjects) { subject in
+                        Text(subject.name).tag(subject.id)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            selectionRow(icon: "doc.fill", title: "教材") {
+                Picker("教材", selection: selectedMaterialBinding) {
+                    Text("なし").tag(Int64(0))
+                    ForEach(viewModel.materialsForSelectedSubject()) { material in
+                        Text(material.name).tag(material.id)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+        }
+    }
+
+    private var controlButtonsSection: some View {
+        HStack(spacing: AppSpacing.xl) {
+            Button {
+                viewModel.stop()
+            } label: {
+                Image(systemName: "stop.fill")
+                    .font(.title2)
+                    .foregroundStyle(.white)
+                    .frame(width: 64, height: 64)
+                    .background(
+                        Circle().fill(viewModel.elapsedMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3))
+                    )
+            }
+            .disabled(viewModel.elapsedMilliseconds == 0)
+
+            Button {
+                viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
+            } label: {
+                Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(.white)
+                    .frame(width: 80, height: 80)
+                    .background(
+                        Circle().fill(Color.accentColor)
+                    )
+                    .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 4)
+            }
+        }
+        .padding(.bottom, AppSpacing.sm)
+    }
+
+    private var manualEntryButton: some View {
+        Button {
+            showManualEntry = true
+        } label: {
+            HStack {
+                Image(systemName: "pencil.line")
+                Text("手動入力")
+            }
+            .font(.subheadline.bold())
+            .foregroundStyle(.tint)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private func selectionRow<Content: View>(icon: String, title: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundStyle(.tint)
+            content()
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, AppSpacing.sm)
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+    }
+
+    private func timerRingSize(for size: CGSize) -> CGFloat {
+        let widthLimited = min(size.width - (AppSpacing.md * 2), 300)
+        let heightLimited = min(max(size.height * 0.34, 220), 300)
+        return max(220, min(widthLimited, heightLimited))
     }
 }
 
