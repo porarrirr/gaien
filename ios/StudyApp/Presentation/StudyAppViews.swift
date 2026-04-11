@@ -465,7 +465,8 @@ private struct TimerScreen: View {
 
                         VStack(spacing: AppSpacing.xs) {
                             Text(durationString(milliseconds: viewModel.elapsedMilliseconds))
-                                .font(.system(size: 44, weight: .semibold, design: .monospaced))
+                                .font(.system(size: 48, weight: .bold, design: .rounded))
+                                .monospacedDigit()
                                 .foregroundStyle(AppColors.textPrimary)
                             if viewModel.isRunning {
                                 Text("記録中")
@@ -479,7 +480,6 @@ private struct TimerScreen: View {
                         }
                         .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
                     }
-                    .frame(maxWidth: .infinity)
                     .onChange(of: viewModel.isRunning) { running in
                         if running {
                             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
