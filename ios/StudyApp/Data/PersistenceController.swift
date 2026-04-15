@@ -99,6 +99,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try await ensureLoaded()
         guard let record = try fetchOne(entity: "SubjectRecord", id: subject.id) else { return }
         let subjectSyncId = record.value(forKey: "syncId") as? String ?? subject.syncId
+        if (record.value(forKey: "syncId") as? String)?.isEmpty != false {
+            record.setValue(subjectSyncId, forKey: "syncId")
+        }
         record.setValue(subject.name, forKey: "name")
         record.setValue(Int64(subject.color), forKey: "color")
         record.setValue(subject.icon?.rawValue, forKey: "icon")
@@ -195,6 +198,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let subjectName = subject?.name ?? ""
         let subjectSyncId = material.subjectSyncId ?? subject?.syncId
         let materialSyncId = record.value(forKey: "syncId") as? String
+        if (record.value(forKey: "syncId") as? String)?.isEmpty != false {
+            record.setValue(material.syncId, forKey: "syncId")
+        }
         record.setValue(material.name, forKey: "name")
         record.setValue(material.subjectId, forKey: "subjectId")
         record.setValue(subjectSyncId, forKey: "subjectSyncId")
@@ -673,6 +679,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private func replaceData(with appData: AppData) async throws {
         let ctx = container.viewContext
 
+        let existingSubjectIds = try existingIdMap(entity: "SubjectRecord")
+        let existingMaterialIds = try existingIdMap(entity: "MaterialRecord")
+        let existingSessionIds = try existingIdMap(entity: "StudySessionRecord")
+        let existingGoalIds = try existingIdMap(entity: "GoalRecord")
+        let existingExamIds = try existingIdMap(entity: "ExamRecord")
+        let existingPlanIds = try existingIdMap(entity: "StudyPlanRecord")
+        let existingPlanItemIds = try existingIdMap(entity: "PlanItemRecord")
+
         // Delete all existing records in-memory (not yet committed)
         for entityName in Self.entityNames {
             let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
@@ -680,8 +694,31 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             records.forEach { ctx.delete($0) }
         }
 
-        var nextId: Int64 = 1
+        var nextId = max(
+            appData.subjects.map(\.id).max() ?? 0,
+            appData.materials.map(\.id).max() ?? 0,
+            appData.sessions.map(\.id).max() ?? 0,
+            appData.goals.map(\.id).max() ?? 0,
+            appData.exams.map(\.id).max() ?? 0,
+            appData.plans.map(\.plan.id).max() ?? 0,
+            appData.plans.flatMap(\.items).map(\.id).max() ?? 0
+        ) + 1
+        var usedIds = Set<Int64>()
         let now = Date().epochMilliseconds
+
+        func allocateId(preferred: Int64) -> Int64 {
+            if preferred > 0, !usedIds.contains(preferred) {
+                usedIds.insert(preferred)
+                return preferred
+            }
+            while nextId <= 0 || usedIds.contains(nextId) {
+                nextId += 1
+            }
+            let allocated = nextId
+            usedIds.insert(allocated)
+            nextId += 1
+            return allocated
+        }
 
         // ID remap tables: syncId → freshLocalId, oldId → freshLocalId
         var subjectSyncMap: [String: Int64] = [:]
@@ -693,7 +730,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
         // --- Subjects ---
         for subject in appData.subjects {
-            let localId = nextId; nextId += 1
+            let localId = allocateId(preferred: existingSubjectIds[subject.syncId] ?? subject.id)
             subjectSyncMap[subject.syncId] = localId
             if subject.id > 0 { subjectOldMap[subject.id] = localId }
 
@@ -711,7 +748,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
         // --- Materials ---
         for material in appData.materials {
-            let localId = nextId; nextId += 1
+            let localId = allocateId(preferred: existingMaterialIds[material.syncId] ?? material.id)
             materialSyncMap[material.syncId] = localId
             if material.id > 0 { materialOldMap[material.id] = localId }
 
@@ -737,7 +774,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
         // --- Sessions ---
         for session in appData.sessions {
-            let localId = nextId; nextId += 1
+            let localId = allocateId(preferred: existingSessionIds[session.syncId] ?? session.id)
 
             let subjectId = Self.resolveFK(
                 syncId: session.subjectSyncId, syncMap: subjectSyncMap,
@@ -772,7 +809,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
         // --- Goals ---
         for goal in appData.goals {
-            let localId = nextId; nextId += 1
+            let localId = allocateId(preferred: existingGoalIds[goal.syncId] ?? goal.id)
             let r = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: ctx)
             r.setValue(localId, forKey: "id")
             r.setValue(goal.syncId, forKey: "syncId")
@@ -788,7 +825,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
         // --- Exams ---
         for exam in appData.exams {
-            let localId = nextId; nextId += 1
+            let localId = allocateId(preferred: existingExamIds[exam.syncId] ?? exam.id)
             let r = NSEntityDescription.insertNewObject(forEntityName: "ExamRecord", into: ctx)
             r.setValue(localId, forKey: "id")
             r.setValue(exam.syncId, forKey: "syncId")
@@ -804,7 +841,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         // --- Plans & PlanItems (preserve isActive as-is; no deactivation side-effects) ---
         for planData in appData.plans {
             let plan = planData.plan
-            let localPlanId = nextId; nextId += 1
+            let localPlanId = allocateId(preferred: existingPlanIds[plan.syncId] ?? plan.id)
             planSyncMap[plan.syncId] = localPlanId
             if plan.id > 0 { planOldMap[plan.id] = localPlanId }
 
@@ -821,7 +858,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             pr.setValue(plan.lastSyncedAt, forKey: "lastSyncedAt")
 
             for item in planData.items {
-                let localItemId = nextId; nextId += 1
+                let localItemId = allocateId(preferred: existingPlanItemIds[item.syncId] ?? item.id)
                 let itemSubjectId = Self.resolveFK(
                     syncId: item.subjectSyncId, syncMap: subjectSyncMap,
                     oldId: item.subjectId, oldMap: subjectOldMap)
@@ -985,6 +1022,18 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return try container.viewContext.fetch(request).first
     }
 
+    private func existingIdMap(entity: String) throws -> [String: Int64] {
+        let records = try fetch(entity: entity)
+        var result = [String: Int64]()
+        result.reserveCapacity(records.count)
+        for record in records {
+            guard let syncId = record.value(forKey: "syncId") as? String, !syncId.isEmpty else { continue }
+            guard let id = record.value(forKey: "id") as? Int64, id > 0 else { continue }
+            result[syncId] = id
+        }
+        return result
+    }
+
     private func saveContext() throws {
         if container.viewContext.hasChanges {
             try container.viewContext.save()
@@ -1129,7 +1178,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private static func subject(_ record: NSManagedObject) -> Subject {
         Subject(
             id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
+            syncId: record.value(forKey: "syncId") as? String ?? "",
             name: record.value(forKey: "name") as? String ?? "",
             color: Int(record.value(forKey: "color") as? Int64 ?? 0),
             icon: (record.value(forKey: "icon") as? String).flatMap(SubjectIcon.init(rawValue:)),
@@ -1143,7 +1192,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private static func material(_ record: NSManagedObject) -> Material {
         Material(
             id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
+            syncId: record.value(forKey: "syncId") as? String ?? "",
             name: record.value(forKey: "name") as? String ?? "",
             subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
             subjectSyncId: record.value(forKey: "subjectSyncId") as? String,
@@ -1161,7 +1210,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private static func session(_ record: NSManagedObject) -> StudySession {
         StudySession(
             id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
+            syncId: record.value(forKey: "syncId") as? String ?? "",
             materialId: record.value(forKey: "materialId") as? Int64,
             materialSyncId: record.value(forKey: "materialSyncId") as? String,
             materialName: record.value(forKey: "materialName") as? String ?? "",
@@ -1181,7 +1230,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private static func goal(_ record: NSManagedObject) -> Goal {
         Goal(
             id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
+            syncId: record.value(forKey: "syncId") as? String ?? "",
             type: GoalType(rawValue: record.value(forKey: "type") as? String ?? GoalType.daily.rawValue) ?? .daily,
             targetMinutes: Int(record.value(forKey: "targetMinutes") as? Int64 ?? 0),
             weekStartDay: StudyWeekday(rawValue: record.value(forKey: "weekStartDay") as? String ?? StudyWeekday.monday.rawValue) ?? .monday,
@@ -1196,7 +1245,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private static func exam(_ record: NSManagedObject) -> Exam {
         Exam(
             id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
+            syncId: record.value(forKey: "syncId") as? String ?? "",
             name: record.value(forKey: "name") as? String ?? "",
             date: record.value(forKey: "date") as? Int64 ?? 0,
             note: record.value(forKey: "note") as? String,
@@ -1210,7 +1259,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private static func plan(_ record: NSManagedObject) -> StudyPlan {
         StudyPlan(
             id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
+            syncId: record.value(forKey: "syncId") as? String ?? "",
             name: record.value(forKey: "name") as? String ?? "",
             startDate: record.value(forKey: "startDate") as? Int64 ?? 0,
             endDate: record.value(forKey: "endDate") as? Int64 ?? 0,
@@ -1225,7 +1274,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private static func planItem(_ record: NSManagedObject) -> PlanItem {
         PlanItem(
             id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? UUID().uuidString.lowercased(),
+            syncId: record.value(forKey: "syncId") as? String ?? "",
             planId: record.value(forKey: "planId") as? Int64 ?? 0,
             planSyncId: record.value(forKey: "planSyncId") as? String,
             subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
