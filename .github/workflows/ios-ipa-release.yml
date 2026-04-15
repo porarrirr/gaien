@@ -224,7 +224,6 @@ jobs:
           }
 
           build_variant "live-activity-on" "on"
-          build_variant "live-activity-off" "off"
 
           {
             echo "asset_dir=$ASSET_DIR"
