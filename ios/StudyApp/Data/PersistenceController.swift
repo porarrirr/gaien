@@ -694,7 +694,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             records.forEach { ctx.delete($0) }
         }
 
-        var nextId = max(
+        let maxImportedId = [
             appData.subjects.map(\.id).max() ?? 0,
             appData.materials.map(\.id).max() ?? 0,
             appData.sessions.map(\.id).max() ?? 0,
@@ -702,7 +702,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             appData.exams.map(\.id).max() ?? 0,
             appData.plans.map(\.plan.id).max() ?? 0,
             appData.plans.flatMap(\.items).map(\.id).max() ?? 0
-        ) + 1
+        ].max() ?? 0
+        var nextId = maxImportedId + 1
         var usedIds = Set<Int64>()
         let now = Date().epochMilliseconds
 
