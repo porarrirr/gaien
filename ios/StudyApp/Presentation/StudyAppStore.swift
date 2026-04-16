@@ -499,9 +499,10 @@ final class TimerViewModel: ScreenViewModel {
             subjects = try await subjectsTask
             materials = try await materialsTask
             let activeTimer = app.preferences.activeTimer
-            selectedSubjectId = selectedSubjectId ?? activeTimer?.subjectId ?? subjects.first?.id
-            selectedMaterialId = selectedMaterialId ?? activeTimer?.materialId
+            selectedSubjectId = resolveSelectedSubjectId(activeTimer: activeTimer)
+            selectedMaterialId = resolveSelectedMaterialId(activeTimer: activeTimer, subjectId: selectedSubjectId)
             elapsedMilliseconds = activeTimer?.elapsedTime() ?? 0
+            syncActiveTimerSelection()
             configureTicker()
         } catch {
             app.present(error)
@@ -554,6 +555,17 @@ final class TimerViewModel: ScreenViewModel {
         configureTicker()
     }
 
+    func handleSubjectSelectionChange() {
+        selectedSubjectId = resolveSelectedSubjectId(activeTimer: app.preferences.activeTimer)
+        selectedMaterialId = resolveSelectedMaterialId(activeTimer: app.preferences.activeTimer, subjectId: selectedSubjectId)
+        syncActiveTimerSelection()
+    }
+
+    func handleMaterialSelectionChange() {
+        selectedMaterialId = resolveSelectedMaterialId(activeTimer: app.preferences.activeTimer, subjectId: selectedSubjectId)
+        syncActiveTimerSelection()
+    }
+
     func stop(note: String? = nil) {
         perform {
             guard let timer = self.app.preferences.activeTimer else { return }
@@ -564,17 +576,19 @@ final class TimerViewModel: ScreenViewModel {
                 self.configureTicker()
                 return
             }
-            guard let subject = try await self.app.persistence.getSubjectById(timer.subjectId) else {
+            let subjectId = self.selectedSubjectId ?? timer.subjectId
+            guard let subject = try await self.app.persistence.getSubjectById(subjectId) else {
                 throw ValidationError(message: "科目を選択してください")
             }
             let materials = try await self.app.persistence.getAllMaterials()
-            let material = materials.first(where: { $0.id == timer.materialId })
+            let materialId = self.selectedMaterialId
+            let material = materials.first(where: { $0.id == materialId })
             let materialName = material?.name ?? ""
             let end = Date().epochMilliseconds
             let start = end - elapsed
             _ = try await self.app.persistence.insertSession(
                 StudySession(
-                    materialId: timer.materialId,
+                    materialId: materialId,
                     materialSyncId: material?.syncId,
                     materialName: materialName,
                     subjectId: subject.id,
@@ -612,6 +626,42 @@ final class TimerViewModel: ScreenViewModel {
                 guard let self else { return }
                 self.elapsedMilliseconds = self.app.preferences.activeTimer?.elapsedTime() ?? 0
             }
+    }
+
+    private func resolveSelectedSubjectId(activeTimer: TimerSnapshot?) -> Int64? {
+        if let selectedSubjectId, subjects.contains(where: { $0.id == selectedSubjectId }) {
+            return selectedSubjectId
+        }
+        if let timerSubjectId = activeTimer?.subjectId, subjects.contains(where: { $0.id == timerSubjectId }) {
+            return timerSubjectId
+        }
+        return subjects.first?.id
+    }
+
+    private func resolveSelectedMaterialId(activeTimer: TimerSnapshot?, subjectId: Int64?) -> Int64? {
+        guard let subjectId else { return nil }
+        let availableMaterials = materials.filter { $0.subjectId == subjectId }
+
+        if let selectedMaterialId, availableMaterials.contains(where: { $0.id == selectedMaterialId }) {
+            return selectedMaterialId
+        }
+        if let timerMaterialId = activeTimer?.materialId,
+           availableMaterials.contains(where: { $0.id == timerMaterialId }) {
+            return timerMaterialId
+        }
+        return nil
+    }
+
+    private func syncActiveTimerSelection() {
+        guard var timer = app.preferences.activeTimer else { return }
+        guard let subjectId = selectedSubjectId else { return }
+
+        let materialId = selectedMaterialId
+        guard timer.subjectId != subjectId || timer.materialId != materialId else { return }
+
+        timer.subjectId = subjectId
+        timer.materialId = materialId
+        app.updateActiveTimer(timer)
     }
 }
 

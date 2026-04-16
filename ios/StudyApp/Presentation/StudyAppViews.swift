@@ -520,10 +520,10 @@ private struct TimerScreen: View {
             await viewModel.load()
         }
         .onChange(of: viewModel.selectedSubjectId) { _ in
-            if let materialId = viewModel.selectedMaterialId,
-               !viewModel.materialsForSelectedSubject().contains(where: { $0.id == materialId }) {
-                viewModel.selectedMaterialId = nil
-            }
+            viewModel.handleSubjectSelectionChange()
+        }
+        .onChange(of: viewModel.selectedMaterialId) { _ in
+            viewModel.handleMaterialSelectionChange()
         }
     }
 
