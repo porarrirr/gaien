@@ -694,15 +694,18 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             records.forEach { ctx.delete($0) }
         }
 
-        let maxImportedId = [
+        let importedPlanIds = appData.plans.map { $0.plan.id }
+        let importedPlanItemIds = appData.plans.flatMap { $0.items.map(\.id) }
+        let importedIdCandidates: [Int64] = [
             appData.subjects.map(\.id).max() ?? 0,
             appData.materials.map(\.id).max() ?? 0,
             appData.sessions.map(\.id).max() ?? 0,
             appData.goals.map(\.id).max() ?? 0,
             appData.exams.map(\.id).max() ?? 0,
-            appData.plans.map(\.plan.id).max() ?? 0,
-            appData.plans.flatMap(\.items).map(\.id).max() ?? 0
-        ].max() ?? 0
+            importedPlanIds.max() ?? 0,
+            importedPlanItemIds.max() ?? 0
+        ]
+        let maxImportedId = importedIdCandidates.max() ?? 0
         var nextId = maxImportedId + 1
         var usedIds = Set<Int64>()
         let now = Date().epochMilliseconds
