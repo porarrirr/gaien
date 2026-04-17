@@ -436,7 +436,10 @@ private struct TimerScreen: View {
     private var selectedSubjectBinding: Binding<Int64> {
         Binding(
             get: { viewModel.selectedSubjectId ?? 0 },
-            set: { viewModel.selectedSubjectId = $0 }
+            set: {
+                viewModel.selectedSubjectId = $0 == 0 ? nil : $0
+                viewModel.selectedMaterialId = nil
+            }
         )
     }
 
@@ -457,6 +460,7 @@ private struct TimerScreen: View {
                             Image(systemName: "book.fill")
                                 .foregroundStyle(.tint)
                             Picker("科目", selection: selectedSubjectBinding) {
+                                Text("科目を選択").tag(Int64(0))
                                 ForEach(viewModel.subjects) { subject in
                                     Text(subject.name).tag(subject.id)
                                 }

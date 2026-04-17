@@ -467,6 +467,7 @@ final class TimerViewModel: ScreenViewModel {
             let activeTimer = app.preferences.activeTimer
             selectedSubjectId = selectedSubjectId ?? activeTimer?.subjectId ?? subjects.first?.id
             selectedMaterialId = selectedMaterialId ?? activeTimer?.materialId
+            reconcileSelection()
             elapsedMilliseconds = activeTimer?.elapsedTime() ?? 0
             configureTicker()
         } catch {
@@ -489,6 +490,35 @@ final class TimerViewModel: ScreenViewModel {
     func materialsForSelectedSubject() -> [Material] {
         guard let selectedSubjectId else { return [] }
         return materials.filter { $0.subjectId == selectedSubjectId }
+    }
+
+    private func reconcileSelection() {
+        guard !subjects.isEmpty else {
+            selectedSubjectId = nil
+            selectedMaterialId = nil
+            return
+        }
+
+        let subjectIds = Set(subjects.map(\.id))
+        if let selectedSubjectId, !subjectIds.contains(selectedSubjectId) {
+            self.selectedSubjectId = subjects.first?.id
+        } else if selectedSubjectId == nil {
+            selectedSubjectId = subjects.first?.id
+        }
+
+        guard let selectedSubjectId else {
+            selectedMaterialId = nil
+            return
+        }
+
+        if let selectedMaterialId {
+            let isMaterialInSelectedSubject = materials.contains {
+                $0.id == selectedMaterialId && $0.subjectId == selectedSubjectId
+            }
+            if !isMaterialInSelectedSubject {
+                self.selectedMaterialId = nil
+            }
+        }
     }
 
     func startOrResume() {
