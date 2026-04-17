@@ -204,6 +204,33 @@ class TimerViewModelTest {
         assertEquals(material, viewModel.uiState.value.selectedMaterial)
         assertEquals(subject, viewModel.uiState.value.selectedSubject)
     }
+
+    @Test
+    fun `selectSubject updates subject without requiring material`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
+
+        viewModel.selectSubject(subject)
+
+        assertEquals(subject, viewModel.uiState.value.selectedSubject)
+        assertNull(viewModel.uiState.value.selectedMaterial)
+    }
+
+    @Test
+    fun `selectSubject clears material when material belongs to another subject`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val math = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
+        val english = Subject(id = 2L, name = "English", color = 0x00FF00.toInt())
+        val material = Material(id = 1L, name = "Textbook", subjectId = 1L)
+
+        viewModel.selectMaterial(material, math)
+        viewModel.selectSubject(english)
+
+        assertEquals(english, viewModel.uiState.value.selectedSubject)
+        assertNull(viewModel.uiState.value.selectedMaterial)
+    }
     
     @Test
     fun `materials are grouped by subject`() = runTest {
@@ -247,6 +274,27 @@ class TimerViewModelTest {
                 subjectSyncId = subject.syncId,
                 materialId = 1L,
                 materialSyncId = material.syncId
+            )
+        }
+    }
+
+    @Test
+    fun `startTimer works when only subject is selected`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
+        viewModel.selectSubject(subject)
+
+        every { timerServiceManager.startTimer(1L, subject.syncId, null, null) } just runs
+
+        viewModel.startTimer()
+
+        verify {
+            timerServiceManager.startTimer(
+                subjectId = 1L,
+                subjectSyncId = subject.syncId,
+                materialId = null,
+                materialSyncId = null
             )
         }
     }

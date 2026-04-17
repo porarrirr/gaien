@@ -165,6 +165,17 @@ class TimerViewModel @Inject constructor(
             )
         }
     }
+
+    fun selectSubject(subject: Subject) {
+        _uiState.update { state ->
+            state.copy(
+                selectedSubject = subject,
+                selectedMaterial = state.selectedMaterial?.takeIf { material ->
+                    material.subjectId == subject.id || material.subjectSyncId == subject.syncId
+                }
+            )
+        }
+    }
     
     fun startTimer() {
         val state = _uiState.value

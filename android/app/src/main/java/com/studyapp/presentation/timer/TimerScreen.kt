@@ -206,8 +206,13 @@ fun TimerScreen(
         MaterialPickerDialog(
             subjects = uiState.subjects,
             materialsBySubject = uiState.materialsBySubject,
+            initialSubjectId = uiState.selectedSubject?.id,
             onDismiss = { showMaterialPicker = false },
-            onSelect = { material, subject ->
+            onSelectSubject = { subject ->
+                viewModel.selectSubject(subject)
+                showMaterialPicker = false
+            },
+            onSelectMaterial = { material, subject ->
                 viewModel.selectMaterial(material, subject)
                 showMaterialPicker = false
             }

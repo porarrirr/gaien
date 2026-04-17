@@ -45,6 +45,8 @@
     <string name="timer_cancel">キャンセル</string>
     <string name="timer_select_subject">科目を選択</string>
     <string name="timer_select_material_optional">教材（任意）</string>
+    <string name="timer_select_subject_only">この科目で開始</string>
+    <string name="timer_subject_has_no_materials">この科目には教材がありません</string>
     <string name="timer_notification_channel">学習タイマー</string>
     <string name="timer_notification_description">学習タイマーの通知を表示</string>
     <string name="timer_notification_title">学習中</string>

@@ -1,11 +1,15 @@
 package com.studyapp.presentation.timer
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.studyapp.R
@@ -17,48 +21,99 @@ import com.studyapp.domain.model.Subject
 fun MaterialPickerDialog(
     subjects: List<Subject>,
     materialsBySubject: Map<Long, List<Material>>,
+    initialSubjectId: Long? = null,
     onDismiss: () -> Unit,
-    onSelect: (Material, Subject) -> Unit
+    onSelectSubject: (Subject) -> Unit,
+    onSelectMaterial: (Material, Subject) -> Unit
 ) {
-    var selectedSubjectId by remember { mutableStateOf<Long?>(null) }
-    
+    var selectedSubjectId by remember(initialSubjectId, subjects) {
+        mutableStateOf(initialSubjectId ?: subjects.firstOrNull()?.id)
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("教材を選択") },
+        title = { Text(stringResource(R.string.timer_select_subject)) },
         text = {
-            LazyColumn {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 items(subjects) { subject ->
-                    Card(
+                    ElevatedCard(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .fillMaxWidth(),
                         onClick = {
-                            selectedSubjectId = if (selectedSubjectId == subject.id) null else subject.id
-                        }
+                            selectedSubjectId = subject.id
+                        },
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = if (selectedSubjectId == subject.id) {
+                                MaterialTheme.colorScheme.secondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
+                        )
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp)
                         ) {
-                            Text(
-                                text = subject.name,
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(subject.color))
+                                )
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = subject.name,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    TextButton(
+                                        onClick = { onSelectSubject(subject) },
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Text(stringResource(R.string.timer_select_subject_only))
+                                    }
+                                }
+                            }
+
                             if (selectedSubjectId == subject.id) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                val materials = materialsBySubject[subject.id] ?: emptyList()
-                                
+                                val materials = materialsBySubject[subject.id].orEmpty()
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 12.dp)
+                                )
+
                                 if (materials.isEmpty()) {
                                     Text(
-                                        text = "教材がありません",
+                                        text = stringResource(R.string.timer_subject_has_no_materials),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 } else {
+                                    Text(
+                                        text = stringResource(R.string.timer_select_material),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
                                     materials.forEach { material ->
                                         TextButton(
-                                            onClick = { onSelect(material, subject) }
+                                            onClick = { onSelectMaterial(material, subject) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentPadding = PaddingValues(horizontal = 0.dp)
                                         ) {
                                             Text(material.name)
                                         }
@@ -72,7 +127,7 @@ fun MaterialPickerDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("閉じる")
+                Text(stringResource(R.string.common_close))
             }
         }
     )
@@ -92,7 +147,7 @@ fun ManualInputDialog(
     val selectedSubject = remember(subjects, selectedSubjectId) {
         subjects.firstOrNull { it.id == selectedSubjectId }
     }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.timer_manual_input_title)) },
