@@ -183,6 +183,7 @@ jobs:
             local actual_marketing_version
             local actual_build_version
             local actual_live_activity_value
+            local plugins_path="$app_path/PlugIns"
             actual_marketing_version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app_info_plist")
             actual_build_version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$app_info_plist")
             actual_live_activity_value=$(/usr/libexec/PlistBuddy -c "Print :NSSupportsLiveActivities" "$app_info_plist" 2>/dev/null || true)
@@ -204,6 +205,15 @@ jobs:
 
             if [ "$live_activity_mode" = "off" ] && [ "$normalized_live_activity_value" = "true" -o "$normalized_live_activity_value" = "yes" -o "$normalized_live_activity_value" = "1" ]; then
               echo "Live Activity disabled build still reports NSSupportsLiveActivities=true"
+              exit 1
+            fi
+
+            if [ -d "$plugins_path" ]; then
+              rm -rf "$plugins_path"
+            fi
+
+            if [ -d "$plugins_path" ]; then
+              echo "Embedded app extensions are still present at: $plugins_path"
               exit 1
             fi
 
