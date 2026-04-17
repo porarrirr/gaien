@@ -223,7 +223,7 @@ jobs:
             echo "Archived ${variant_key} as $actual_marketing_version ($actual_build_version)"
           }
 
-          build_variant "live-activity-on" "on"
+          build_variant "live-activity-off" "off"
 
           {
             echo "asset_dir=$ASSET_DIR"
