@@ -580,7 +580,12 @@ final class TimerViewModel: ScreenViewModel {
                 self.configureTicker()
                 return
             }
-            guard let subject = self.selectedSubject ?? try await self.app.persistence.getSubjectById(timer.subjectId) else {
+            let subject = if let selectedSubject = self.selectedSubject {
+                selectedSubject
+            } else {
+                try await self.app.persistence.getSubjectById(timer.subjectId)
+            }
+            guard let subject else {
                 throw ValidationError(message: "科目を選択してください")
             }
             let materials = try await self.app.persistence.getAllMaterials()
