@@ -433,20 +433,6 @@ private struct TimerScreen: View {
         _viewModel = StateObject(wrappedValue: TimerViewModel(app: app))
     }
 
-    private var selectedSubjectBinding: Binding<Int64> {
-        Binding(
-            get: { viewModel.effectiveSelectedSubjectId ?? 0 },
-            set: { viewModel.selectedSubjectId = $0 == 0 ? nil : $0 }
-        )
-    }
-
-    private var selectedMaterialBinding: Binding<Int64> {
-        Binding(
-            get: { viewModel.selectedMaterialId ?? 0 },
-            set: { viewModel.selectedMaterialId = $0 == 0 ? nil : $0 }
-        )
-    }
-
     var body: some View {
         GeometryReader { geometry in
             ScrollView(showsIndicators: false) {
@@ -535,22 +521,61 @@ private struct TimerScreen: View {
     private var selectorSection: some View {
         VStack(spacing: AppSpacing.sm) {
             selectionRow(icon: "book.fill", title: "科目") {
-                Picker("科目", selection: selectedSubjectBinding) {
-                    ForEach(viewModel.subjects) { subject in
-                        Text(subject.name).tag(subject.id)
+                Menu {
+                    if viewModel.subjects.isEmpty {
+                        Text("科目を追加してください")
+                    } else {
+                        ForEach(viewModel.subjects) { subject in
+                            Button {
+                                viewModel.selectedSubjectId = subject.id
+                            } label: {
+                                if viewModel.effectiveSelectedSubjectId == subject.id {
+                                    Label(subject.name, systemImage: "checkmark")
+                                } else {
+                                    Text(subject.name)
+                                }
+                            }
+                        }
                     }
+                } label: {
+                    selectionMenuLabel(
+                        text: selectedSubjectText,
+                        isPlaceholder: viewModel.subjects.isEmpty
+                    )
                 }
-                .pickerStyle(.menu)
+                .disabled(viewModel.subjects.isEmpty)
             }
 
             selectionRow(icon: "doc.fill", title: "教材") {
-                Picker("教材", selection: selectedMaterialBinding) {
-                    Text("なし").tag(Int64(0))
-                    ForEach(viewModel.materialsForSelectedSubject()) { material in
-                        Text(material.name).tag(material.id)
+                Menu {
+                    Button {
+                        viewModel.selectedMaterialId = nil
+                    } label: {
+                        if viewModel.selectedMaterialId == nil {
+                            Label("なし", systemImage: "checkmark")
+                        } else {
+                            Text("なし")
+                        }
                     }
+
+                    ForEach(viewModel.materialsForSelectedSubject()) { material in
+                        Button {
+                            viewModel.selectedMaterialId = material.id
+                        } label: {
+                            if viewModel.selectedMaterialId == material.id {
+                                Label(material.name, systemImage: "checkmark")
+                            } else {
+                                Text(material.name)
+                            }
+                        }
+                    }
+                } label: {
+                    selectionMenuLabel(
+                        text: selectedMaterialText,
+                        isPlaceholder: viewModel.effectiveSelectedSubjectId == nil
+                    )
                 }
-                .pickerStyle(.menu)
+                .disabled(viewModel.effectiveSelectedSubjectId == nil)
             }
         }
     }
@@ -613,6 +638,35 @@ private struct TimerScreen: View {
         .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
+    }
+
+    private var selectedSubjectText: String {
+        if let subjectId = viewModel.effectiveSelectedSubjectId,
+           let subject = viewModel.subjects.first(where: { $0.id == subjectId }) {
+            return subject.name
+        }
+        return viewModel.subjects.isEmpty ? "科目を追加してください" : "科目を選択"
+    }
+
+    private var selectedMaterialText: String {
+        if let materialId = viewModel.selectedMaterialId,
+           let material = viewModel.materialsForSelectedSubject().first(where: { $0.id == materialId }) {
+            return material.name
+        }
+        return "なし"
+    }
+
+    private func selectionMenuLabel(text: String, isPlaceholder: Bool) -> some View {
+        HStack(spacing: AppSpacing.xs) {
+            Text(text)
+                .foregroundStyle(isPlaceholder ? AppColors.textSecondary : AppColors.textPrimary)
+                .lineLimit(1)
+            Spacer(minLength: AppSpacing.xs)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppColors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func timerRingSize(for size: CGSize) -> CGFloat {
