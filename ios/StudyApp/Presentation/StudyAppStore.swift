@@ -521,14 +521,18 @@ final class TimerViewModel: ScreenViewModel {
         }
     }
 
+    var effectiveSelectedSubjectId: Int64? {
+        resolvedSubjectId(activeTimer: app.preferences.activeTimer)
+    }
+
     func materialsForSelectedSubject() -> [Material] {
-        guard let selectedSubjectId else { return [] }
-        return materials.filter { $0.subjectId == selectedSubjectId }
+        guard let subjectId = effectiveSelectedSubjectId else { return [] }
+        return materials.filter { $0.subjectId == subjectId }
     }
 
     func startOrResume() {
         perform {
-            guard let subjectId = self.selectedSubjectId ?? self.subjects.first?.id else {
+            guard let subjectId = self.effectiveSelectedSubjectId else {
                 throw ValidationError(message: "科目を選択してください")
             }
             let current = self.app.preferences.activeTimer
@@ -556,7 +560,7 @@ final class TimerViewModel: ScreenViewModel {
     }
 
     func handleSubjectSelectionChange() {
-        selectedSubjectId = resolveSelectedSubjectId(activeTimer: app.preferences.activeTimer)
+        selectedSubjectId = effectiveSelectedSubjectId
         selectedMaterialId = resolveSelectedMaterialId(activeTimer: app.preferences.activeTimer, subjectId: selectedSubjectId)
         syncActiveTimerSelection()
     }
@@ -576,8 +580,7 @@ final class TimerViewModel: ScreenViewModel {
                 self.configureTicker()
                 return
             }
-            let subjectId = self.selectedSubjectId ?? timer.subjectId
-            guard let subject = try await self.app.persistence.getSubjectById(subjectId) else {
+            guard let subject = self.selectedSubject ?? try await self.app.persistence.getSubjectById(timer.subjectId) else {
                 throw ValidationError(message: "科目を選択してください")
             }
             let materials = try await self.app.persistence.getAllMaterials()
@@ -628,7 +631,12 @@ final class TimerViewModel: ScreenViewModel {
             }
     }
 
-    private func resolveSelectedSubjectId(activeTimer: TimerSnapshot?) -> Int64? {
+    private var selectedSubject: Subject? {
+        guard let subjectId = effectiveSelectedSubjectId else { return nil }
+        return subjects.first(where: { $0.id == subjectId })
+    }
+
+    private func resolvedSubjectId(activeTimer: TimerSnapshot?) -> Int64? {
         if let selectedSubjectId, subjects.contains(where: { $0.id == selectedSubjectId }) {
             return selectedSubjectId
         }
@@ -636,6 +644,10 @@ final class TimerViewModel: ScreenViewModel {
             return timerSubjectId
         }
         return subjects.first?.id
+    }
+
+    private func resolveSelectedSubjectId(activeTimer: TimerSnapshot?) -> Int64? {
+        resolvedSubjectId(activeTimer: activeTimer)
     }
 
     private func resolveSelectedMaterialId(activeTimer: TimerSnapshot?, subjectId: Int64?) -> Int64? {
@@ -654,7 +666,7 @@ final class TimerViewModel: ScreenViewModel {
 
     private func syncActiveTimerSelection() {
         guard var timer = app.preferences.activeTimer else { return }
-        guard let subjectId = selectedSubjectId else { return }
+        guard let subjectId = effectiveSelectedSubjectId else { return }
 
         let materialId = selectedMaterialId
         guard timer.subjectId != subjectId || timer.materialId != materialId else { return }

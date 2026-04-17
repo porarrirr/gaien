@@ -435,8 +435,8 @@ private struct TimerScreen: View {
 
     private var selectedSubjectBinding: Binding<Int64> {
         Binding(
-            get: { viewModel.selectedSubjectId ?? 0 },
-            set: { viewModel.selectedSubjectId = $0 }
+            get: { viewModel.effectiveSelectedSubjectId ?? 0 },
+            set: { viewModel.selectedSubjectId = $0 == 0 ? nil : $0 }
         )
     }
 
