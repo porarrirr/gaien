@@ -727,6 +727,7 @@ private struct CalendarScreen: View {
     @StateObject private var viewModel: CalendarViewModel
     @State private var selectedDay: Int? = nil
     @State private var editingSession: StudySession? = nil
+    @State private var durationText: String = ""
     @State private var noteText: String = ""
 
     init(app: StudyAppContainer) {
@@ -930,6 +931,14 @@ private struct CalendarScreen: View {
                             .foregroundStyle(AppColors.textSecondary)
                     }
 
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        Text("学習時間（分）")
+                            .font(.subheadline.bold())
+                        TextField("学習時間（分）", text: $durationText)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
                     TextEditor(text: $noteText)
                         .frame(minHeight: 150)
                         .scrollContentBackground(.hidden)
@@ -946,7 +955,7 @@ private struct CalendarScreen: View {
                     Spacer()
                 }
                 .padding()
-                .navigationTitle("メモを編集")
+                .navigationTitle("履歴を編集")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -956,7 +965,11 @@ private struct CalendarScreen: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("保存") {
-                            viewModel.updateSessionNote(session, note: noteText.isEmpty ? nil : noteText)
+                            viewModel.updateSession(
+                                session,
+                                durationMinutes: Int(durationText) ?? session.durationMinutes,
+                                note: noteText
+                            )
                             editingSession = nil
                         }
                         .bold()
@@ -1004,6 +1017,7 @@ private struct CalendarScreen: View {
 
             // Memo section – tappable to edit
             Button {
+                durationText = "\(session.durationMinutes)"
                 noteText = session.note ?? ""
                 editingSession = session
             } label: {

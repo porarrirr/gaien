@@ -944,9 +944,11 @@ final class CalendarViewModel: ScreenViewModel {
         sessions(for: day).reduce(0) { $0 + $1.durationMinutes }
     }
 
-    func updateSessionNote(_ session: StudySession, note: String?) {
+    func updateSession(_ session: StudySession, durationMinutes: Int, note: String?) {
         perform {
+            guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
             var updated = session
+            updated.endTime = updated.startTime + Int64(durationMinutes * 60_000)
             updated.note = note?.nilIfBlank
             try await self.app.persistence.updateSession(updated)
             await self.load()
