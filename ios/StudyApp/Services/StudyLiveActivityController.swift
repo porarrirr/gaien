@@ -58,11 +58,12 @@ final class StudyLiveActivityController {
         let now = Date()
         let todayStart = now.startOfDay.epochMilliseconds
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now.startOfDay) ?? now.startOfDay
+        let todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: now))
 
         async let subjectTask = persistence.getSubjectById(activeTimer.subjectId)
         async let materialsTask = persistence.getAllMaterials()
         async let sessionsTask = persistence.getSessionsBetweenDates(start: todayStart, end: tomorrow.epochMilliseconds)
-        async let dailyGoalTask = persistence.getActiveGoalByType(.daily)
+        async let goalsTask = persistence.getAllGoals()
 
         guard let subject = try await subjectTask else {
             throw ValidationError(message: "Live Activity の科目が見つかりません")
@@ -70,7 +71,8 @@ final class StudyLiveActivityController {
 
         let materials = try await materialsTask
         let sessions = try await sessionsTask
-        let dailyGoal = try await dailyGoalTask
+        let goals = try await goalsTask
+        let dailyGoal = goals.latestActiveDailyGoal(for: todayWeekday)
         let materialName = materials.first(where: { $0.id == activeTimer.materialId })?.name ?? ""
 
         return StudyLiveActivityContext(

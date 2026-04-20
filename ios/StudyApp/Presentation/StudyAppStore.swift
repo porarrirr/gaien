@@ -323,7 +323,7 @@ final class OnboardingViewModel: ScreenViewModel {
 
 @MainActor
 final class HomeViewModel: ScreenViewModel {
-    @Published private(set) var homeData = HomeData(todayStudyMinutes: 0, todaySessions: [], weeklyGoal: nil, weeklyStudyMinutes: 0, upcomingExams: [])
+    @Published private(set) var homeData = HomeData(todayStudyMinutes: 0, todaySessions: [], todayGoal: nil, weeklyGoal: nil, weeklyStudyMinutes: 0, upcomingExams: [])
     @Published private(set) var recentMaterials: [(Material, Subject)] = []
 
     func load() async {
@@ -731,23 +731,36 @@ final class HistoryViewModel: ScreenViewModel {
 
 @MainActor
 final class GoalsViewModel: ScreenViewModel {
-    @Published private(set) var dailyGoal: Goal?
+    @Published private(set) var dailyGoals: [StudyWeekday: Goal] = [:]
     @Published private(set) var weeklyGoal: Goal?
+    @Published private(set) var todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: Date()))
 
     func load() async {
         do {
-            dailyGoal = try await app.persistence.getActiveGoalByType(.daily)
-            weeklyGoal = try await app.persistence.getActiveGoalByType(.weekly)
+            let goals = try await app.persistence.getAllGoals()
+            dailyGoals = goals.latestActiveDailyGoalsByWeekday()
+            weeklyGoal = goals.latestActiveWeeklyGoal()
+            todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: Date()))
         } catch {
             app.present(error)
         }
     }
 
-    func updateGoal(type: GoalType, targetMinutes: Int) {
+    func updateDailyGoal(dayOfWeek: StudyWeekday, targetMinutes: Int) {
         perform {
             guard targetMinutes > 0 else { throw ValidationError(message: "目標時間は0より大きくしてください") }
             let useCase = ManageGoalsUseCase(repository: self.app.persistence)
-            try await useCase.updateGoal(type: type, targetMinutes: targetMinutes)
+            try await useCase.updateGoal(type: .daily, targetMinutes: targetMinutes, dayOfWeek: dayOfWeek)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
+
+    func updateWeeklyGoal(targetMinutes: Int) {
+        perform {
+            guard targetMinutes > 0 else { throw ValidationError(message: "目標時間は0より大きくしてください") }
+            let useCase = ManageGoalsUseCase(repository: self.app.persistence)
+            try await useCase.updateGoal(type: .weekly, targetMinutes: targetMinutes)
             await self.load()
             self.app.bumpDataVersion()
         }

@@ -51,16 +51,17 @@ final class WidgetSnapshotSync {
         let weekInterval = Calendar.current.dateInterval(of: .weekOfYear, for: now)
         let weekStart = (weekInterval?.start ?? today).epochMilliseconds
         let weekEnd = (weekInterval?.end ?? tomorrow).epochMilliseconds
+        let todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: now))
 
         async let sessionsTask = container.persistence.getAllSessions()
-        async let dailyGoalTask = container.persistence.getActiveGoalByType(.daily)
-        async let weeklyGoalTask = container.persistence.getActiveGoalByType(.weekly)
+        async let goalsTask = container.persistence.getAllGoals()
         async let examsTask = container.persistence.getUpcomingExams(now: now)
 
         let sessions = try await sessionsTask
-        let dailyGoal = try await dailyGoalTask
-        let weeklyGoal = try await weeklyGoalTask
+        let goals = try await goalsTask
         let exams = try await examsTask
+        let dailyGoal = goals.latestActiveDailyGoal(for: todayWeekday)
+        let weeklyGoal = goals.latestActiveWeeklyGoal()
 
         let todaySessions = sessions.filter { session in
             session.startTime >= today.epochMilliseconds && session.startTime < tomorrow.epochMilliseconds

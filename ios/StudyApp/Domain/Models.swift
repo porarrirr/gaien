@@ -288,6 +288,7 @@ struct Goal: Identifiable, Codable, Hashable {
     var syncId: String = UUID().uuidString.lowercased()
     var type: GoalType
     var targetMinutes: Int
+    var dayOfWeek: StudyWeekday?
     var weekStartDay: StudyWeekday = .monday
     var isActive: Bool = true
     var createdAt: Int64 = Date().epochMilliseconds
@@ -534,6 +535,45 @@ struct AppPreferences: Codable, Equatable {
     }
 }
 
+extension Sequence where Element == Goal {
+    func latestActiveDailyGoal(for dayOfWeek: StudyWeekday) -> Goal? {
+        filter { $0.type == .daily && $0.isActive && $0.deletedAt == nil && $0.dayOfWeek == dayOfWeek }
+            .max { lhs, rhs in
+                if lhs.updatedAt == rhs.updatedAt {
+                    return lhs.createdAt < rhs.createdAt
+                }
+                return lhs.updatedAt < rhs.updatedAt
+            }
+    }
+
+    func latestActiveWeeklyGoal() -> Goal? {
+        filter { $0.type == .weekly && $0.isActive && $0.deletedAt == nil }
+            .max { lhs, rhs in
+                if lhs.updatedAt == rhs.updatedAt {
+                    return lhs.createdAt < rhs.createdAt
+                }
+                return lhs.updatedAt < rhs.updatedAt
+            }
+    }
+
+    func latestActiveDailyGoalsByWeekday() -> [StudyWeekday: Goal] {
+        reduce(into: [StudyWeekday: Goal]()) { result, goal in
+            guard goal.type == .daily, goal.isActive, goal.deletedAt == nil, let dayOfWeek = goal.dayOfWeek else {
+                return
+            }
+            guard let current = result[dayOfWeek] else {
+                result[dayOfWeek] = goal
+                return
+            }
+            let isNewer = goal.updatedAt > current.updatedAt
+                || (goal.updatedAt == current.updatedAt && goal.createdAt > current.createdAt)
+            if isNewer {
+                result[dayOfWeek] = goal
+            }
+        }
+    }
+}
+
 struct AuthSession: Codable, Equatable {
     var localId: String
     var email: String
@@ -552,6 +592,7 @@ struct SyncStatus: Equatable {
 struct HomeData: Hashable {
     var todayStudyMinutes: Int
     var todaySessions: [TodaySession]
+    var todayGoal: Goal?
     var weeklyGoal: Goal?
     var weeklyStudyMinutes: Int
     var upcomingExams: [Exam]
@@ -702,18 +743,21 @@ struct GetHomeDataUseCase {
     func execute() async throws -> HomeData {
         let todayStart = clock.startOfToday()
         let weekStart = clock.startOfWeek()
+        let todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: clock.now()))
         let dayMs: Int64 = 86_400_000
         let weekMs = dayMs * 7
 
         async let todaySessionsTask = studySessionRepository.getSessionsBetweenDates(start: todayStart, end: todayStart + dayMs)
-        async let weeklyGoalTask = goalRepository.getActiveGoalByType(.weekly)
+        async let goalsTask = goalRepository.getAllGoals()
         async let weeklySessionsTask = studySessionRepository.getSessionsBetweenDates(start: weekStart, end: weekStart + weekMs)
         async let upcomingExamsTask = examRepository.getUpcomingExams(now: clock.now())
 
         let todaySessions = try await todaySessionsTask
-        let weeklyGoal = try await weeklyGoalTask
+        let goals = try await goalsTask
         let weeklySessions = try await weeklySessionsTask
         let upcomingExams = try await upcomingExamsTask
+        let todayGoal = goals.latestActiveDailyGoal(for: todayWeekday)
+        let weeklyGoal = goals.latestActiveWeeklyGoal()
 
         return HomeData(
             todayStudyMinutes: todaySessions.reduce(0) { $0 + $1.durationMinutes },
@@ -728,6 +772,7 @@ struct GetHomeDataUseCase {
                         startTime: $0.startTime
                     )
                 },
+            todayGoal: todayGoal,
             weeklyGoal: weeklyGoal,
             weeklyStudyMinutes: weeklySessions.reduce(0) { $0 + $1.durationMinutes },
             upcomingExams: upcomingExams.sorted { $0.date < $1.date }
@@ -782,31 +827,57 @@ struct GetUpcomingExamsUseCase {
 struct ManageGoalsUseCase {
     let repository: GoalRepository
 
-    func updateGoal(type: GoalType, targetMinutes: Int, weekStartDay: StudyWeekday = .monday) async throws {
+    func updateGoal(
+        type: GoalType,
+        targetMinutes: Int,
+        dayOfWeek: StudyWeekday? = nil,
+        weekStartDay: StudyWeekday = .monday
+    ) async throws {
         let goals = try await repository.getAllGoals()
-        for goal in goals where goal.type == type && goal.isActive {
-            var inactive = goal
-            inactive.isActive = false
-            inactive.updatedAt = Date().epochMilliseconds
-            try await repository.updateGoal(inactive)
-        }
-
-        if let current = goals.first(where: { $0.type == type && $0.isActive }) {
-            var updated = current
-            updated.targetMinutes = targetMinutes
-            updated.weekStartDay = weekStartDay
-            updated.isActive = true
-            updated.updatedAt = Date().epochMilliseconds
-            try await repository.updateGoal(updated)
-        } else {
-            try await repository.insertGoal(
-                Goal(
-                    type: type,
-                    targetMinutes: targetMinutes,
-                    weekStartDay: weekStartDay,
-                    isActive: true
+        switch type {
+        case .daily:
+            if let current = goals.first(where: { $0.type == .daily && $0.isActive && $0.dayOfWeek == dayOfWeek }) {
+                var updated = current
+                updated.targetMinutes = targetMinutes
+                updated.dayOfWeek = dayOfWeek
+                updated.updatedAt = Date().epochMilliseconds
+                try await repository.updateGoal(updated)
+            } else {
+                try await repository.insertGoal(
+                    Goal(
+                        type: .daily,
+                        targetMinutes: targetMinutes,
+                        dayOfWeek: dayOfWeek,
+                        weekStartDay: weekStartDay,
+                        isActive: true
+                    )
                 )
-            )
+            }
+        case .weekly:
+            for goal in goals where goal.type == .weekly && goal.isActive {
+                var inactive = goal
+                inactive.isActive = false
+                inactive.updatedAt = Date().epochMilliseconds
+                try await repository.updateGoal(inactive)
+            }
+
+            if let current = goals.first(where: { $0.type == .weekly && $0.isActive }) {
+                var updated = current
+                updated.targetMinutes = targetMinutes
+                updated.weekStartDay = weekStartDay
+                updated.isActive = true
+                updated.updatedAt = Date().epochMilliseconds
+                try await repository.updateGoal(updated)
+            } else {
+                try await repository.insertGoal(
+                    Goal(
+                        type: .weekly,
+                        targetMinutes: targetMinutes,
+                        weekStartDay: weekStartDay,
+                        isActive: true
+                    )
+                )
+            }
         }
     }
 }
