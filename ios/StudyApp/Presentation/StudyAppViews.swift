@@ -767,6 +767,17 @@ private struct CalendarScreen: View {
         viewModel.monthStudyMap.values.max() ?? 1
     }
 
+    private var isShowingDeleteConfirmation: Binding<Bool> {
+        Binding(
+            get: { pendingDeletionSession != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeletionSession = nil
+                }
+            }
+        )
+    }
+
     private let weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"]
 
     var body: some View {
@@ -987,15 +998,17 @@ private struct CalendarScreen: View {
         }
         .confirmationDialog(
             "この学習履歴を削除しますか？",
-            item: $pendingDeletionSession,
+            isPresented: isShowingDeleteConfirmation,
             titleVisibility: .visible
-        ) { session in
+        ) {
             Button("削除", role: .destructive) {
+                guard let session = pendingDeletionSession else { return }
                 viewModel.deleteSession(session)
+                pendingDeletionSession = nil
                 editingSession = nil
             }
             Button("キャンセル", role: .cancel) {}
-        } message: { _ in
+        } message: {
             Text("削除した履歴は元に戻せません。")
         }
     }

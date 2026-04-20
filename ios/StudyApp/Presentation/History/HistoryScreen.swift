@@ -22,6 +22,17 @@ struct HistoryScreen: View {
         return grouped.sorted { $0.key > $1.key }
     }
 
+    private var isShowingDeleteConfirmation: Binding<Bool> {
+        Binding(
+            get: { pendingDeletionSession != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeletionSession = nil
+                }
+            }
+        )
+    }
+
     var body: some View {
         Group {
             if viewModel.filteredSessions.isEmpty {
@@ -129,15 +140,17 @@ struct HistoryScreen: View {
         }
         .confirmationDialog(
             "この学習履歴を削除しますか？",
-            item: $pendingDeletionSession,
+            isPresented: isShowingDeleteConfirmation,
             titleVisibility: .visible
-        ) { session in
+        ) {
             Button("削除", role: .destructive) {
+                guard let session = pendingDeletionSession else { return }
                 viewModel.deleteSession(session)
+                pendingDeletionSession = nil
                 editingSession = nil
             }
             Button("キャンセル", role: .cancel) {}
-        } message: { _ in
+        } message: {
             Text("削除した履歴は元に戻せません。")
         }
         .task(id: viewModel.app.dataVersion) {
