@@ -727,6 +727,7 @@ private struct CalendarScreen: View {
     @StateObject private var viewModel: CalendarViewModel
     @State private var selectedDay: Int? = nil
     @State private var editingSession: StudySession? = nil
+    @State private var pendingDeletionSession: StudySession? = nil
     @State private var durationText: String = ""
     @State private var noteText: String = ""
 
@@ -958,6 +959,13 @@ private struct CalendarScreen: View {
                 .navigationTitle("履歴を編集")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button(role: .destructive) {
+                            pendingDeletionSession = session
+                        } label: {
+                            Label("削除", systemImage: "trash")
+                        }
+                    }
                     ToolbarItem(placement: .cancellationAction) {
                         Button("キャンセル") {
                             editingSession = nil
@@ -976,6 +984,19 @@ private struct CalendarScreen: View {
                     }
                 }
             }
+        }
+        .confirmationDialog(
+            "この学習履歴を削除しますか？",
+            item: $pendingDeletionSession,
+            titleVisibility: .visible
+        ) { session in
+            Button("削除", role: .destructive) {
+                viewModel.deleteSession(session)
+                editingSession = nil
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: { _ in
+            Text("削除した履歴は元に戻せません。")
         }
     }
 
@@ -1040,6 +1061,20 @@ private struct CalendarScreen: View {
                 }
             }
             .buttonStyle(.plain)
+            .contextMenu {
+                Button {
+                    durationText = "\(session.durationMinutes)"
+                    noteText = session.note ?? ""
+                    editingSession = session
+                } label: {
+                    Label("編集", systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    pendingDeletionSession = session
+                } label: {
+                    Label("削除", systemImage: "trash")
+                }
+            }
         }
         .cardStyle()
     }

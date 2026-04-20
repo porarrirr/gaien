@@ -955,6 +955,14 @@ final class CalendarViewModel: ScreenViewModel {
             self.app.bumpDataVersion()
         }
     }
+
+    func deleteSession(_ session: StudySession) {
+        perform {
+            try await self.app.persistence.deleteSession(session)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
 }
 
 @MainActor

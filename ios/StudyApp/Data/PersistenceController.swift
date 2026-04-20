@@ -267,7 +267,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     func updateSession(_ session: StudySession) async throws {
         try await ensureLoaded()
         guard let record = try fetchOne(entity: "StudySessionRecord", id: session.id) else { return }
-        apply(sanitize(session: session, assignedId: session.id), to: record)
+        let sanitized = sanitize(
+            session: session,
+            assignedId: session.id,
+            persistedSyncId: record.value(forKey: "syncId") as? String,
+            persistedCreatedAt: record.value(forKey: "createdAt") as? Int64,
+            persistedLastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
+        )
+        apply(sanitized, to: record)
         try saveContext()
         try await recalculatePlanActualMinutes()
     }
@@ -938,19 +945,31 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try saveContext()
     }
 
-    private func sanitize(session: StudySession, assignedId: Int64) -> StudySession {
+    private func sanitize(
+        session: StudySession,
+        assignedId: Int64,
+        persistedSyncId: String? = nil,
+        persistedCreatedAt: Int64? = nil,
+        persistedLastSyncedAt: Int64? = nil
+    ) -> StudySession {
         let duration = max(session.endTime - session.startTime, 0)
         let end = session.startTime + duration
         return StudySession(
             id: assignedId,
+            syncId: persistedSyncId ?? session.syncId,
             materialId: session.materialId,
+            materialSyncId: session.materialSyncId,
             materialName: session.materialName,
             subjectId: session.subjectId,
+            subjectSyncId: session.subjectSyncId,
             subjectName: session.subjectName,
             startTime: session.startTime,
             endTime: end,
             note: session.note,
-            createdAt: session.createdAt == 0 ? Date().epochMilliseconds : session.createdAt
+            createdAt: persistedCreatedAt ?? (session.createdAt == 0 ? Date().epochMilliseconds : session.createdAt),
+            updatedAt: Date().epochMilliseconds,
+            deletedAt: session.deletedAt,
+            lastSyncedAt: persistedLastSyncedAt ?? session.lastSyncedAt
         )
     }
 

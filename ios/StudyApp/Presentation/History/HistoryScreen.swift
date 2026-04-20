@@ -3,6 +3,7 @@ import SwiftUI
 struct HistoryScreen: View {
     @StateObject private var viewModel: HistoryViewModel
     @State private var editingSession: StudySession?
+    @State private var pendingDeletionSession: StudySession?
     @State private var durationDraft = ""
     @State private var noteDraft = ""
     @State private var isShowingFilter = false
@@ -101,6 +102,13 @@ struct HistoryScreen: View {
                 }
                 .navigationTitle("履歴を編集")
                 .toolbar {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button(role: .destructive) {
+                            pendingDeletionSession = session
+                        } label: {
+                            Label("削除", systemImage: "trash")
+                        }
+                    }
                     ToolbarItem(placement: .cancellationAction) {
                         Button("キャンセル") {
                             editingSession = nil
@@ -118,6 +126,19 @@ struct HistoryScreen: View {
                     }
                 }
             }
+        }
+        .confirmationDialog(
+            "この学習履歴を削除しますか？",
+            item: $pendingDeletionSession,
+            titleVisibility: .visible
+        ) { session in
+            Button("削除", role: .destructive) {
+                viewModel.deleteSession(session)
+                editingSession = nil
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: { _ in
+            Text("削除した履歴は元に戻せません。")
         }
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
