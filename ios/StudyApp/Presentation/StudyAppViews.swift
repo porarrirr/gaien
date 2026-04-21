@@ -1437,7 +1437,7 @@ struct GoalsScreen: View {
         .sheet(item: $editingDay) { day in
             NavigationStack {
                 GoalEditorSheet(title: "\(day.japaneseTitle)の目標", minutes: $editingDayMinutes) {
-                    viewModel.updateDailyGoal(dayOfWeek: day, targetMinutes: Int(editingDayMinutes) ?? 0)
+                    viewModel.updateDailyGoal(dayOfWeek: day, targetMinutes: parsedMinutes(editingDayMinutes) ?? 0)
                     editingDay = nil
                 } onCancel: {
                     editingDay = nil
@@ -1447,7 +1447,7 @@ struct GoalsScreen: View {
         .sheet(isPresented: $showWeeklyEditor) {
             NavigationStack {
                 GoalEditorSheet(title: "週間目標", minutes: $weeklyMinutes) {
-                    viewModel.updateWeeklyGoal(targetMinutes: Int(weeklyMinutes) ?? 0)
+                    viewModel.updateWeeklyGoal(targetMinutes: parsedMinutes(weeklyMinutes) ?? 0)
                     showWeeklyEditor = false
                 } onCancel: {
                     showWeeklyEditor = false
@@ -1521,6 +1521,19 @@ struct GoalsScreen: View {
             }
         }
         .cardStyle()
+    }
+
+    private func parsedMinutes(_ value: String) -> Int? {
+        let normalized = value
+            .applyingTransform(.fullwidthToHalfwidth, reverse: false)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ",", with: "")
+
+        guard let normalized, !normalized.isEmpty else {
+            return nil
+        }
+
+        return Int(normalized)
     }
 
     @ViewBuilder
