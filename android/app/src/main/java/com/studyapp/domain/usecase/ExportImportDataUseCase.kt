@@ -200,6 +200,7 @@ private fun Goal.toJson() = JSONObject().apply {
     put("syncId", syncId)
     put("type", type.name)
     put("targetMinutes", targetMinutes)
+    put("dayOfWeek", dayOfWeek?.name)
     put("weekStartDay", weekStartDay.name)
     put("isActive", isActive)
     put("createdAt", createdAt)
@@ -213,6 +214,7 @@ private fun JSONObject.toGoal() = Goal(
     syncId = optString("syncId").ifEmpty { "goal-${optLong("id")}" },
     type = com.studyapp.domain.model.GoalType.valueOf(optString("type", "DAILY")),
     targetMinutes = optInt("targetMinutes"),
+    dayOfWeek = optString("dayOfWeek").takeIf { it.isNotEmpty() }?.let(java.time.DayOfWeek::valueOf),
     weekStartDay = java.time.DayOfWeek.valueOf(optString("weekStartDay", "MONDAY")),
     isActive = optBoolean("isActive", true),
     createdAt = optLong("createdAt", System.currentTimeMillis()),
@@ -565,6 +567,7 @@ class ExportImportDataUseCase @Inject constructor(
                     syncId = goal.syncId,
                     type = goal.type,
                     targetMinutes = goal.targetMinutes,
+                    dayOfWeek = goal.dayOfWeek?.value ?: 0,
                     weekStartDay = goal.weekStartDay.value,
                     isActive = goal.isActive,
                     createdAt = goal.createdAt,
@@ -751,6 +754,7 @@ private fun GoalEntity.toDomain() = Goal(
     syncId = syncId.ifEmpty { "goal-$id" },
     type = type,
     targetMinutes = targetMinutes,
+    dayOfWeek = dayOfWeek.takeIf { it in 1..7 }?.let(java.time.DayOfWeek::of),
     weekStartDay = java.time.DayOfWeek.of(weekStartDay),
     isActive = isActive,
     createdAt = createdAt,

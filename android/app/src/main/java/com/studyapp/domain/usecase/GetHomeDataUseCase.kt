@@ -16,6 +16,7 @@ import javax.inject.Inject
 data class HomeData(
     val todayStudyMinutes: Long,
     val todaySessions: List<TodaySession>,
+    val todayGoal: Goal?,
     val weeklyGoal: Goal?,
     val weeklyStudyMinutes: Long,
     val upcomingExams: List<Exam>
@@ -38,6 +39,7 @@ class GetHomeDataUseCase @Inject constructor(
     operator fun invoke(): Flow<HomeData> {
         val todayStart = clock.startOfToday()
         val weekStart = clock.startOfWeek()
+        val todayDayOfWeek = clock.currentLocalDate().dayOfWeek
         
         val todaySessionsFlow: Flow<List<StudySession>> = studySessionRepository
             .getSessionsBetweenDates(todayStart, todayStart + DAY_MS)
@@ -59,6 +61,13 @@ class GetHomeDataUseCase @Inject constructor(
             }
         }
         
+        val todayGoalFlow: Flow<Goal?> = goalRepository.getActiveGoals()
+            .map { result ->
+                result.getOrNull()
+                    .orEmpty()
+                    .firstOrNull { it.type == GoalType.DAILY && it.dayOfWeek == todayDayOfWeek }
+            }
+
         val weeklyGoalFlow: Flow<Goal?> = goalRepository.getActiveGoalByType(GoalType.WEEKLY)
             .map { result -> result.getOrNull() }
         
@@ -72,16 +81,25 @@ class GetHomeDataUseCase @Inject constructor(
         val upcomingExamsFlow: Flow<List<Exam>> = examRepository.getUpcomingExams()
             .map { result -> result.getOrNull() ?: emptyList() }
         
-        return combine(
+        val todayDataFlow: Flow<Triple<Long, List<TodaySession>, Goal?>> = combine(
             todayStudyMinutesFlow,
             todaySessionsMappedFlow,
+            todayGoalFlow
+        ) { todayMinutes, todaySessions, todayGoal ->
+            Triple(todayMinutes, todaySessions, todayGoal)
+        }
+
+        return combine(
+            todayDataFlow,
             weeklyGoalFlow,
             weeklyStudyMinutesFlow,
             upcomingExamsFlow
-        ) { todayMinutes, todaySessions, weeklyGoal, weeklyMinutes, exams ->
+        ) { todayData, weeklyGoal, weeklyMinutes, exams ->
+            val (todayMinutes, todaySessions, todayGoal) = todayData
             HomeData(
                 todayStudyMinutes = todayMinutes,
                 todaySessions = todaySessions.sortedByDescending { it.startTime },
+                todayGoal = todayGoal,
                 weeklyGoal = weeklyGoal,
                 weeklyStudyMinutes = weeklyMinutes,
                 upcomingExams = exams.sortedBy { it.date.toEpochDay() }

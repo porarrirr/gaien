@@ -33,7 +33,9 @@ class StudyWidgetSnapshotBuilder @Inject constructor(
         val weekStart = clock.startOfWeek()
 
         val sessions = studySessionRepository.getAllSessions().first().getOrNull().orEmpty()
-        val dailyGoal = goalRepository.getActiveGoalByType(GoalType.DAILY).first().getOrNull()
+        val dailyGoal = goalRepository.getActiveGoals().first().getOrNull()
+            .orEmpty()
+            .firstOrNull { it.type == GoalType.DAILY && it.dayOfWeek == today.dayOfWeek }
         val weeklyGoal = goalRepository.getActiveGoalByType(GoalType.WEEKLY).first().getOrNull()
         val upcomingExams = examRepository.getUpcomingExams().first().getOrNull().orEmpty()
 

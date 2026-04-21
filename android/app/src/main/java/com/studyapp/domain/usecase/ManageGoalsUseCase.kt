@@ -5,18 +5,29 @@ import com.studyapp.domain.model.Goal
 import com.studyapp.domain.model.GoalType
 import com.studyapp.domain.repository.GoalRepository
 import com.studyapp.domain.util.Result
+import java.time.DayOfWeek
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class ManageGoalsUseCase @Inject constructor(
     private val goalRepository: GoalRepository
 ) {
-    fun getActiveDailyGoal(): Flow<Goal?> {
-        Log.d(TAG, "Getting active daily goal")
-        return goalRepository.getActiveGoalByType(GoalType.DAILY)
-            .map { result -> result.getOrNull() }
+    fun getDailyGoals(): Flow<Map<DayOfWeek, Goal>> {
+        Log.d(TAG, "Getting active daily goals")
+        return goalRepository.getActiveGoals()
+            .map { result ->
+                result.getOrNull()
+                    .orEmpty()
+                    .filter { it.type == GoalType.DAILY && it.dayOfWeek != null }
+                    .associateBy { it.dayOfWeek!! }
+            }
+    }
+
+    fun getDailyGoal(dayOfWeek: DayOfWeek): Flow<Goal?> {
+        Log.d(TAG, "Getting active daily goal for $dayOfWeek")
+        return getDailyGoals().map { it[dayOfWeek] }
     }
     
     fun getActiveWeeklyGoal(): Flow<Goal?> {
@@ -25,16 +36,20 @@ class ManageGoalsUseCase @Inject constructor(
             .map { result -> result.getOrNull() }
     }
     
-    suspend fun updateDailyGoal(targetMinutes: Long): Result<Unit> {
-        return updateGoal(GoalType.DAILY, targetMinutes)
+    suspend fun updateDailyGoal(dayOfWeek: DayOfWeek, targetMinutes: Long): Result<Unit> {
+        return updateGoal(GoalType.DAILY, targetMinutes, dayOfWeek)
     }
     
     suspend fun updateWeeklyGoal(targetMinutes: Long): Result<Unit> {
         return updateGoal(GoalType.WEEKLY, targetMinutes)
     }
     
-    private suspend fun updateGoal(type: GoalType, targetMinutes: Long): Result<Unit> {
-        Log.d(TAG, "Updating ${type.name} goal to $targetMinutes minutes")
+    private suspend fun updateGoal(
+        type: GoalType,
+        targetMinutes: Long,
+        dayOfWeek: DayOfWeek? = null
+    ): Result<Unit> {
+        Log.d(TAG, "Updating ${type.name} goal to $targetMinutes minutes day=$dayOfWeek")
         
         if (targetMinutes <= 0) {
             Log.w(TAG, "Invalid target minutes: $targetMinutes")
@@ -44,16 +59,35 @@ class ManageGoalsUseCase @Inject constructor(
             )
         }
         
-        val currentGoalResult = goalRepository.getActiveGoalByType(type).first()
-        val currentGoal = currentGoalResult.getOrNull()
+        val currentGoal = when (type) {
+            GoalType.DAILY -> {
+                when (val activeGoalsResult = goalRepository.getActiveGoals().first()) {
+                    is Result.Success -> activeGoalsResult.data
+                        .firstOrNull { it.type == GoalType.DAILY && it.dayOfWeek == dayOfWeek }
+                    is Result.Error -> return activeGoalsResult
+                }
+            }
+            GoalType.WEEKLY -> {
+                when (val currentGoalResult = goalRepository.getActiveGoalByType(type).first()) {
+                    is Result.Success -> currentGoalResult.data
+                    is Result.Error -> return currentGoalResult
+                }
+            }
+        }
         
         val result = if (currentGoal != null) {
-            goalRepository.updateGoal(currentGoal.copy(targetMinutes = targetMinutes.toInt()))
+            goalRepository.updateGoal(
+                currentGoal.copy(
+                    targetMinutes = targetMinutes.toInt(),
+                    dayOfWeek = dayOfWeek
+                )
+            )
                 .also { Log.i(TAG, "${type.name} goal updated successfully") }
         } else {
             val newGoal = Goal(
                 type = type,
                 targetMinutes = targetMinutes.toInt(),
+                dayOfWeek = dayOfWeek,
                 isActive = true
             )
             goalRepository.insertGoal(newGoal)

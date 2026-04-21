@@ -13,6 +13,7 @@ data class Goal(
     val syncId: String = UUID.randomUUID().toString(),
     val type: GoalType,
     val targetMinutes: Int,
+    val dayOfWeek: DayOfWeek? = null,
     val weekStartDay: DayOfWeek = DayOfWeek.MONDAY,
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),

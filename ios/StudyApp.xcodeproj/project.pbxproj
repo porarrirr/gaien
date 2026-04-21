@@ -28,6 +28,7 @@
 		A10000000000000000000019 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* AppLogger.swift */; };
 		A10000000000000000000020 /* StudyLiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* StudyLiveActivityController.swift */; };
 		A10000000000000000000021 /* StudyTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* StudyTimerActivityAttributes.swift */; };
+		A10000000000000000000022 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000019 /* Assets.xcassets */; };
 		A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StudyAppWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A20000000000000000000002 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
 		A20000000000000000000003 /* WidgetSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* WidgetSnapshotSync.swift */; };
@@ -48,6 +49,7 @@
 		B10000000000000000000016 /* FirebaseRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseRepositories.swift; sourceTree = "<group>"; };
 		B10000000000000000000017 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		B10000000000000000000018 /* StudyLiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyLiveActivityController.swift; sourceTree = "<group>"; };
+		B10000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000000000000000000006 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		B10000000000000000000007 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000000000000000000008 /* StudyAppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppStore.swift; sourceTree = "<group>"; };
@@ -234,6 +236,7 @@
 		D10000000000000000000008 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				B10000000000000000000019 /* Assets.xcassets */,
 				B10000000000000000000015 /* GoogleService-Info.plist */,
 			);
 			path = Resources;
@@ -352,6 +355,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000022 /* Assets.xcassets in Resources */,
 				A10000000000000000000014 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -470,6 +474,7 @@
 		F10000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = StudyApp/StudyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
@@ -499,6 +504,7 @@
 		F10000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = StudyApp/StudyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;

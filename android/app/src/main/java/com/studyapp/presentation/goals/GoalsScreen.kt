@@ -1,12 +1,36 @@
 package com.studyapp.presentation.goals
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -15,12 +39,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-
 import com.studyapp.domain.model.Goal
-import com.studyapp.domain.model.GoalType
 import com.studyapp.presentation.components.AnimatedProgressBar
 import com.studyapp.presentation.components.CircularProgressRing
 import com.studyapp.presentation.components.SectionHeader
+import java.time.DayOfWeek
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,11 +51,11 @@ fun GoalsScreen(
     viewModel: GoalsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         text = "目標設定",
                         fontWeight = FontWeight.Bold
@@ -53,15 +76,16 @@ fun GoalsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             DailyGoalSection(
-                goal = uiState.dailyGoal,
+                dailyGoals = uiState.dailyGoals,
+                todayDayOfWeek = uiState.todayDayOfWeek,
                 currentMinutes = uiState.todayMinutes,
-                onUpdate = { minutes -> viewModel.updateDailyGoal(minutes) }
+                onUpdate = viewModel::updateDailyGoal
             )
-            
+
             WeeklyGoalSection(
                 goal = uiState.weeklyGoal,
                 currentMinutes = uiState.weekMinutes,
-                onUpdate = { minutes -> viewModel.updateWeeklyGoal(minutes) }
+                onUpdate = viewModel::updateWeeklyGoal
             )
         }
     }
@@ -69,19 +93,23 @@ fun GoalsScreen(
 
 @Composable
 private fun DailyGoalSection(
-    goal: Goal?,
+    dailyGoals: Map<DayOfWeek, Goal>,
+    todayDayOfWeek: DayOfWeek,
     currentMinutes: Long,
-    onUpdate: (Int) -> Unit
+    onUpdate: (DayOfWeek, Int) -> Unit
 ) {
-    var showEditDialog by remember { mutableStateOf(false) }
-    val targetMinutes = goal?.targetMinutes ?: 0
-    val progress = if (targetMinutes > 0) {
-        (currentMinutes.toFloat() / targetMinutes.toFloat()).coerceIn(0f, 1f)
-    } else 0f
-    
+    var editingDay by remember { mutableStateOf<DayOfWeek?>(null) }
+    val todayGoal = dailyGoals[todayDayOfWeek]
+    val todayTargetMinutes = todayGoal?.targetMinutes ?: 0
+    val progress = if (todayTargetMinutes > 0) {
+        (currentMinutes.toFloat() / todayTargetMinutes.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader(title = "1日の目標")
-        
+        SectionHeader(title = "曜日別の1日目標")
+
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
@@ -89,56 +117,76 @@ private fun DailyGoalSection(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        CircularProgressRing(
-                            progress = progress,
-                            size = 64.dp,
-                            strokeWidth = 6.dp,
-                            progressColor = MaterialTheme.colorScheme.primary
+                    CircularProgressRing(
+                        progress = progress,
+                        size = 64.dp,
+                        strokeWidth = 6.dp,
+                        progressColor = MaterialTheme.colorScheme.primary
+                    )
+
+                    Column {
+                        Text(
+                            text = todayDayOfWeek.toJapaneseTitle(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
                         )
-                        
-                        Column {
-                            Text(
-                                text = currentMinutes.toString(),
-                                fontSize = 36.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (progress >= 1f) MaterialTheme.colorScheme.primary
-                                       else MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "分 / ${targetMinutes}分",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    
-                    TextButton(onClick = { showEditDialog = true }) {
-                        Text("編集")
+                        Text(
+                            text = "${currentMinutes}分 / ${todayTargetMinutes}分",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
+
                 AnimatedProgressBar(
                     progress = progress,
                     modifier = Modifier.fillMaxWidth(),
-                    height = 14.dp,
+                    height = 12.dp,
                     progressColor = MaterialTheme.colorScheme.primary
                 )
-                
-                if (progress >= 1f) {
-                    Spacer(modifier = Modifier.height(12.dp))
+
+                DayOfWeek.values().forEach { day ->
+                    val goal = dailyGoals[day]
+                    val isToday = day == todayDayOfWeek
+                    Surface(
+                        color = if (isToday) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = day.toJapaneseTitle(),
+                                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium
+                                )
+                                Text(
+                                    text = goal?.targetFormatted ?: "未設定",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(onClick = { editingDay = day }) {
+                                Text(if (goal == null) "設定" else "編集")
+                            }
+                        }
+                    }
+                }
+
+                if (progress >= 1f && todayTargetMinutes > 0) {
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
                         shape = MaterialTheme.shapes.medium,
@@ -155,7 +203,7 @@ private fun DailyGoalSection(
                                 modifier = Modifier.size(32.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(
+                                    androidx.compose.material3.Icon(
                                         Icons.Default.Check,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.onPrimary,
@@ -163,9 +211,9 @@ private fun DailyGoalSection(
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.size(8.dp))
                             Text(
-                                text = "🎉 目標達成！",
+                                text = "${todayDayOfWeek.toJapaneseShortLabel()}の目標を達成しました",
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 style = MaterialTheme.typography.titleMedium
@@ -176,15 +224,15 @@ private fun DailyGoalSection(
             }
         }
     }
-    
-    if (showEditDialog) {
+
+    editingDay?.let { day ->
         GoalEditDialog(
-            title = "1日の目標を設定",
-            currentMinutes = goal?.targetMinutes ?: 60,
-            onDismiss = { showEditDialog = false },
+            title = "${day.toJapaneseTitle()}の目標を設定",
+            currentMinutes = dailyGoals[day]?.targetMinutes ?: 60,
+            onDismiss = { editingDay = null },
             onConfirm = { minutes ->
-                onUpdate(minutes)
-                showEditDialog = false
+                onUpdate(day, minutes)
+                editingDay = null
             }
         )
     }
@@ -201,15 +249,15 @@ private fun WeeklyGoalSection(
     val progress = if (targetMinutes > 0) {
         (currentMinutes.toFloat() / targetMinutes.toFloat()).coerceIn(0f, 1f)
     } else 0f
-    
+
     val currentHours = currentMinutes / 60
     val currentMins = currentMinutes % 60
     val targetHours = targetMinutes / 60
     val targetMins = targetMinutes % 60
-    
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionHeader(title = "週間目標")
-        
+
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
@@ -234,14 +282,14 @@ private fun WeeklyGoalSection(
                             strokeWidth = 6.dp,
                             progressColor = MaterialTheme.colorScheme.tertiary
                         )
-                        
+
                         Column {
                             Text(
                                 text = "${currentHours}時間${currentMins}分",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (progress >= 1f) MaterialTheme.colorScheme.tertiary
-                                       else MaterialTheme.colorScheme.onSurface
+                                else MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "目標: ${targetHours}時間${targetMins}分",
@@ -250,69 +298,32 @@ private fun WeeklyGoalSection(
                             )
                         }
                     }
-                    
+
                     TextButton(onClick = { showEditDialog = true }) {
                         Text("編集")
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 AnimatedProgressBar(
                     progress = progress,
                     modifier = Modifier.fillMaxWidth(),
                     height = 14.dp,
                     progressColor = MaterialTheme.colorScheme.tertiary
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Text(
                     text = "達成率 ${(progress * 100).toInt()}%",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.tertiary
                 )
-                
-                if (progress >= 1f) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onTertiary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "🎉 目標達成！",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                        }
-                    }
-                }
             }
         }
     }
-    
+
     if (showEditDialog) {
         GoalEditDialog(
             title = "週間目標を設定",
@@ -335,7 +346,7 @@ private fun GoalEditDialog(
 ) {
     var hours by remember { mutableStateOf((currentMinutes / 60).toString()) }
     var minutes by remember { mutableStateOf((currentMinutes % 60).toString()) }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -354,7 +365,7 @@ private fun GoalEditDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true
                     )
-                    
+
                     OutlinedTextField(
                         value = minutes,
                         onValueChange = { minutes = it.filter { c -> c.isDigit() } },
@@ -385,3 +396,15 @@ private fun GoalEditDialog(
         }
     )
 }
+
+private fun DayOfWeek.toJapaneseShortLabel(): String = when (this) {
+    DayOfWeek.MONDAY -> "月"
+    DayOfWeek.TUESDAY -> "火"
+    DayOfWeek.WEDNESDAY -> "水"
+    DayOfWeek.THURSDAY -> "木"
+    DayOfWeek.FRIDAY -> "金"
+    DayOfWeek.SATURDAY -> "土"
+    DayOfWeek.SUNDAY -> "日"
+}
+
+private fun DayOfWeek.toJapaneseTitle(): String = "${toJapaneseShortLabel()}曜日"

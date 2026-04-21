@@ -29,6 +29,9 @@ fun MaterialPickerDialog(
     var selectedSubjectId by remember(initialSubjectId, subjects) {
         mutableStateOf(initialSubjectId ?: subjects.firstOrNull()?.id)
     }
+    val selectedSubject = remember(subjects, selectedSubjectId) {
+        subjects.firstOrNull { it.id == selectedSubjectId }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -75,15 +78,6 @@ fun MaterialPickerDialog(
                                         text = subject.name,
                                         style = MaterialTheme.typography.titleMedium
                                     )
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    TextButton(
-                                        onClick = { onSelectSubject(subject) },
-                                        contentPadding = PaddingValues(0.dp)
-                                    ) {
-                                        Text(stringResource(R.string.timer_select_subject_only))
-                                    }
                                 }
                             }
 
@@ -126,6 +120,14 @@ fun MaterialPickerDialog(
             }
         },
         confirmButton = {
+            TextButton(
+                onClick = { selectedSubject?.let(onSelectSubject) },
+                enabled = selectedSubject != null
+            ) {
+                Text(stringResource(R.string.timer_select_subject_only))
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.common_close))
             }

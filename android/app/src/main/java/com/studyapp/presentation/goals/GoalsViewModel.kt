@@ -7,14 +7,16 @@ import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.usecase.ManageGoalsUseCase
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
+import java.time.DayOfWeek
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class GoalsUiState(
-    val dailyGoal: Goal? = null,
+    val dailyGoals: Map<DayOfWeek, Goal> = emptyMap(),
     val weeklyGoal: Goal? = null,
+    val todayDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val todayMinutes: Long = 0,
     val weekMinutes: Long = 0,
     val isLoading: Boolean = true,
@@ -32,20 +34,21 @@ class GoalsViewModel @Inject constructor(
     val uiState: StateFlow<GoalsUiState> = _uiState.asStateFlow()
     
     init {
+        _uiState.update { it.copy(todayDayOfWeek = clock.currentLocalDate().dayOfWeek) }
         observeData()
     }
     
     private fun observeData() {
         viewModelScope.launch {
             combine(
-                manageGoalsUseCase.getActiveDailyGoal(),
+                manageGoalsUseCase.getDailyGoals(),
                 manageGoalsUseCase.getActiveWeeklyGoal()
-            ) { dailyGoal, weeklyGoal ->
-                Pair(dailyGoal, weeklyGoal)
-            }.collect { (dailyGoal, weeklyGoal) ->
+            ) { dailyGoals, weeklyGoal ->
+                Pair(dailyGoals, weeklyGoal)
+            }.collect { (dailyGoals, weeklyGoal) ->
                 _uiState.update { state ->
                     state.copy(
-                        dailyGoal = dailyGoal,
+                        dailyGoals = dailyGoals,
                         weeklyGoal = weeklyGoal,
                         isLoading = false
                     )
@@ -78,11 +81,11 @@ class GoalsViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
     
-    fun updateDailyGoal(minutes: Int) {
+    fun updateDailyGoal(dayOfWeek: DayOfWeek, minutes: Int) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             
-            when (val result = manageGoalsUseCase.updateDailyGoal(minutes.toLong())) {
+            when (val result = manageGoalsUseCase.updateDailyGoal(dayOfWeek, minutes.toLong())) {
                 is Result.Success -> {
                     _uiState.update { it.copy(isLoading = false, error = null) }
                 }

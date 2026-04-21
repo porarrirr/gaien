@@ -86,8 +86,12 @@ class StudyWidgetSnapshotBuilderTest {
         every { studySessionRepository.getAllSessions() } returns flowOf(
             Result.Success(listOf(todaySession, yesterdaySession, olderSession))
         )
-        every { goalRepository.getActiveGoalByType(GoalType.DAILY) } returns flowOf(
-            Result.Success(Goal(type = GoalType.DAILY, targetMinutes = 180))
+        every { goalRepository.getActiveGoals() } returns flowOf(
+            Result.Success(
+                listOf(
+                    Goal(type = GoalType.DAILY, targetMinutes = 180, dayOfWeek = today.dayOfWeek)
+                )
+            )
         )
         every { goalRepository.getActiveGoalByType(GoalType.WEEKLY) } returns flowOf(
             Result.Success(Goal(type = GoalType.WEEKLY, targetMinutes = 600))
@@ -126,7 +130,7 @@ class StudyWidgetSnapshotBuilderTest {
         every { clock.startOfToday() } returns todayStart
         every { clock.startOfWeek() } returns weekStart
         every { studySessionRepository.getAllSessions() } returns flowOf(Result.Success(emptyList()))
-        every { goalRepository.getActiveGoalByType(GoalType.DAILY) } returns flowOf(Result.Success(null))
+        every { goalRepository.getActiveGoals() } returns flowOf(Result.Success(emptyList()))
         every { goalRepository.getActiveGoalByType(GoalType.WEEKLY) } returns flowOf(Result.Success(null))
         every { examRepository.getUpcomingExams() } returns flowOf(Result.Success(emptyList()))
 

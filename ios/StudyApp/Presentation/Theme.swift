@@ -192,7 +192,7 @@ struct ProgressRing: View {
                 .rotationEffect(.degrees(-90))
 
             if showPercentage {
-                Text("\(Int(min(progress, 1.0) * 100))%")
+                Text("\(Int(progress * 100))%")
                     .font(.system(size: size * 0.22, weight: .bold, design: .rounded))
                     .foregroundStyle(AppColors.textPrimary)
             }

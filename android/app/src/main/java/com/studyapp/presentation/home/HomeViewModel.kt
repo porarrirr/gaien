@@ -26,6 +26,7 @@ data class HomeUiState(
     val error: String? = null,
     val todayStudyMinutes: Long = 0,
     val todaySessions: List<TodaySession> = emptyList(),
+    val todayGoal: Goal? = null,
     val weeklyGoal: Goal? = null,
     val weeklyStudyMinutes: Long = 0,
     val upcomingExams: List<Exam> = emptyList(),
@@ -58,6 +59,7 @@ class HomeViewModel @Inject constructor(
                         error = null,
                         todayStudyMinutes = data.todayStudyMinutes,
                         todaySessions = data.todaySessions,
+                        todayGoal = data.todayGoal,
                         weeklyGoal = data.weeklyGoal,
                         weeklyStudyMinutes = data.weeklyStudyMinutes,
                         upcomingExams = data.upcomingExams

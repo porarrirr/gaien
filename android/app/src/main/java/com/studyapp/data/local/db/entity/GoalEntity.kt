@@ -8,7 +8,7 @@ import com.studyapp.domain.model.GoalType
 @Entity(
     tableName = "goals",
     indices = [
-        Index(value = ["type", "isActive"], unique = true)
+        Index(value = ["type", "dayOfWeek", "isActive"], unique = true)
     ]
 )
 data class GoalEntity(
@@ -17,6 +17,7 @@ data class GoalEntity(
     val syncId: String = "",
     val type: GoalType,
     val targetMinutes: Int,
+    val dayOfWeek: Int = 0,
     val weekStartDay: Int = 1,
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),

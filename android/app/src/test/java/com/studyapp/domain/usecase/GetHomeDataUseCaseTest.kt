@@ -22,6 +22,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
 
 class GetHomeDataUseCaseTest {
@@ -82,6 +83,13 @@ class GetHomeDataUseCaseTest {
             targetMinutes = 600,
             isActive = true
         )
+        val todayGoal = Goal(
+            id = 3,
+            type = GoalType.DAILY,
+            targetMinutes = 90,
+            dayOfWeek = DayOfWeek.MONDAY,
+            isActive = true
+        )
         
         val exam1 = Exam(
             id = 1,
@@ -96,10 +104,12 @@ class GetHomeDataUseCaseTest {
         
         every { clock.startOfToday() } returns todayStart
         every { clock.startOfWeek() } returns weekStart
+        every { clock.currentLocalDate() } returns LocalDate.of(2026, 1, 5)
         every { studySessionRepository.getSessionsBetweenDates(todayStart, todayStart + 86400000) } returns
             flowOf(Result.Success(listOf(session1, session2)))
         every { studySessionRepository.getSessionsBetweenDates(weekStart, weekStart + 604800000) } returns
             flowOf(Result.Success(listOf(session1, session2)))
+        every { goalRepository.getActiveGoals() } returns flowOf(Result.Success(listOf(todayGoal, weeklyGoal)))
         every { goalRepository.getActiveGoalByType(GoalType.WEEKLY) } returns
             flowOf(Result.Success(weeklyGoal))
         every { examRepository.getUpcomingExams() } returns
@@ -110,6 +120,7 @@ class GetHomeDataUseCaseTest {
             
             assertEquals(120L, homeData.todayStudyMinutes)
             assertEquals(2, homeData.todaySessions.size)
+            assertEquals(todayGoal, homeData.todayGoal)
             assertEquals(weeklyGoal, homeData.weeklyGoal)
             assertEquals(120L, homeData.weeklyStudyMinutes)
             assertEquals(2, homeData.upcomingExams.size)
@@ -125,10 +136,12 @@ class GetHomeDataUseCaseTest {
         
         every { clock.startOfToday() } returns todayStart
         every { clock.startOfWeek() } returns weekStart
+        every { clock.currentLocalDate() } returns LocalDate.of(2026, 1, 5)
         every { studySessionRepository.getSessionsBetweenDates(todayStart, todayStart + 86400000) } returns
             flowOf(Result.Error(Exception("Database error")))
         every { studySessionRepository.getSessionsBetweenDates(weekStart, weekStart + 604800000) } returns
             flowOf(Result.Error(Exception("Database error")))
+        every { goalRepository.getActiveGoals() } returns flowOf(Result.Error(Exception("Database error")))
         every { goalRepository.getActiveGoalByType(GoalType.WEEKLY) } returns
             flowOf(Result.Error(Exception("Database error")))
         every { examRepository.getUpcomingExams() } returns
@@ -139,6 +152,7 @@ class GetHomeDataUseCaseTest {
             
             assertEquals(0L, homeData.todayStudyMinutes)
             assertTrue(homeData.todaySessions.isEmpty())
+            assertNull(homeData.todayGoal)
             assertNull(homeData.weeklyGoal)
             assertEquals(0L, homeData.weeklyStudyMinutes)
             assertTrue(homeData.upcomingExams.isEmpty())
@@ -154,10 +168,12 @@ class GetHomeDataUseCaseTest {
         
         every { clock.startOfToday() } returns todayStart
         every { clock.startOfWeek() } returns weekStart
+        every { clock.currentLocalDate() } returns LocalDate.of(2026, 1, 5)
         every { studySessionRepository.getSessionsBetweenDates(todayStart, todayStart + 86400000) } returns
             flowOf(Result.Success(emptyList()))
         every { studySessionRepository.getSessionsBetweenDates(weekStart, weekStart + 604800000) } returns
             flowOf(Result.Success(emptyList()))
+        every { goalRepository.getActiveGoals() } returns flowOf(Result.Success(emptyList()))
         every { goalRepository.getActiveGoalByType(GoalType.WEEKLY) } returns
             flowOf(Result.Success(null))
         every { examRepository.getUpcomingExams() } returns
@@ -168,6 +184,7 @@ class GetHomeDataUseCaseTest {
             
             assertEquals(0L, homeData.todayStudyMinutes)
             assertTrue(homeData.todaySessions.isEmpty())
+            assertNull(homeData.todayGoal)
             assertNull(homeData.weeklyGoal)
             assertEquals(0L, homeData.weeklyStudyMinutes)
             assertTrue(homeData.upcomingExams.isEmpty())
@@ -202,10 +219,12 @@ class GetHomeDataUseCaseTest {
         
         every { clock.startOfToday() } returns todayStart
         every { clock.startOfWeek() } returns weekStart
+        every { clock.currentLocalDate() } returns LocalDate.of(2026, 1, 5)
         every { studySessionRepository.getSessionsBetweenDates(todayStart, todayStart + 86400000) } returns
             flowOf(Result.Success(listOf(earlierSession, laterSession)))
         every { studySessionRepository.getSessionsBetweenDates(weekStart, weekStart + 604800000) } returns
             flowOf(Result.Success(emptyList()))
+        every { goalRepository.getActiveGoals() } returns flowOf(Result.Success(emptyList()))
         every { goalRepository.getActiveGoalByType(GoalType.WEEKLY) } returns
             flowOf(Result.Success(null))
         every { examRepository.getUpcomingExams() } returns
@@ -240,10 +259,12 @@ class GetHomeDataUseCaseTest {
         
         every { clock.startOfToday() } returns todayStart
         every { clock.startOfWeek() } returns weekStart
+        every { clock.currentLocalDate() } returns LocalDate.of(2026, 1, 5)
         every { studySessionRepository.getSessionsBetweenDates(todayStart, todayStart + 86400000) } returns
             flowOf(Result.Success(emptyList()))
         every { studySessionRepository.getSessionsBetweenDates(weekStart, weekStart + 604800000) } returns
             flowOf(Result.Success(emptyList()))
+        every { goalRepository.getActiveGoals() } returns flowOf(Result.Success(emptyList()))
         every { goalRepository.getActiveGoalByType(GoalType.WEEKLY) } returns
             flowOf(Result.Success(null))
         every { examRepository.getUpcomingExams() } returns

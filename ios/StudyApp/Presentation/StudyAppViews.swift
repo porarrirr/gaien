@@ -196,6 +196,10 @@ private struct HomeScreen: View {
         return Double(viewModel.homeData.todayStudyMinutes) / Double(target)
     }
 
+    private var todayProgressPercent: Int {
+        Int(todayProgress * 100)
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(spacing: AppSpacing.md) {
@@ -264,7 +268,7 @@ private struct HomeScreen: View {
                     showPercentage: false
                 )
                 .overlay {
-                    Text("\(Int(min(todayProgress, 1.0) * 100))%")
+                    Text("\(todayProgressPercent)%")
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                 }

@@ -58,6 +58,7 @@ class HomeViewModelTest {
     private fun createDefaultHomeData() = HomeData(
         todayStudyMinutes = 0L,
         todaySessions = emptyList(),
+        todayGoal = null,
         weeklyGoal = null,
         weeklyStudyMinutes = 0L,
         upcomingExams = emptyList()
@@ -87,6 +88,11 @@ class HomeViewModelTest {
                     startTime = System.currentTimeMillis()
                 )
             ),
+            todayGoal = Goal(
+                id = 2L,
+                type = GoalType.DAILY,
+                targetMinutes = 90
+            ),
             weeklyGoal = Goal(
                 id = 1L,
                 type = GoalType.WEEKLY,
@@ -114,6 +120,8 @@ class HomeViewModelTest {
         assertEquals(120L, state.todayStudyMinutes)
         assertEquals(1, state.todaySessions.size)
         assertEquals("Math", state.todaySessions.first().subjectName)
+        assertNotNull(state.todayGoal)
+        assertEquals(90, state.todayGoal?.targetMinutes)
         assertNotNull(state.weeklyGoal)
         assertEquals(300, state.weeklyGoal?.targetMinutes)
         assertEquals(600L, state.weeklyStudyMinutes)
@@ -225,6 +233,7 @@ class HomeViewModelTest {
         val expectedData = HomeData(
             todayStudyMinutes = 60L,
             todaySessions = emptyList(),
+            todayGoal = null,
             weeklyGoal = null,
             weeklyStudyMinutes = 100L,
             upcomingExams = emptyList()
@@ -287,6 +296,7 @@ class HomeViewModelTest {
         val firstData = HomeData(
             todayStudyMinutes = 30L,
             todaySessions = emptyList(),
+            todayGoal = null,
             weeklyGoal = null,
             weeklyStudyMinutes = 100L,
             upcomingExams = emptyList()
@@ -294,6 +304,7 @@ class HomeViewModelTest {
         val secondData = HomeData(
             todayStudyMinutes = 90L,
             todaySessions = emptyList(),
+            todayGoal = null,
             weeklyGoal = null,
             weeklyStudyMinutes = 200L,
             upcomingExams = emptyList()

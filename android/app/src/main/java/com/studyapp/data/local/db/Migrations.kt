@@ -131,4 +131,93 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS goals_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                syncId TEXT NOT NULL,
+                type TEXT NOT NULL,
+                targetMinutes INTEGER NOT NULL,
+                dayOfWeek INTEGER NOT NULL DEFAULT 0,
+                weekStartDay INTEGER NOT NULL,
+                isActive INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER,
+                lastSyncedAt INTEGER
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            INSERT INTO goals_new (
+                syncId,
+                type,
+                targetMinutes,
+                dayOfWeek,
+                weekStartDay,
+                isActive,
+                createdAt,
+                updatedAt,
+                deletedAt,
+                lastSyncedAt
+            )
+            SELECT
+                syncId,
+                type,
+                targetMinutes,
+                0,
+                weekStartDay,
+                isActive,
+                createdAt,
+                updatedAt,
+                deletedAt,
+                lastSyncedAt
+            FROM goals
+            WHERE type != 'DAILY'
+            """.trimIndent()
+        )
+
+        for (day in 1..7) {
+            db.execSQL(
+                """
+                INSERT INTO goals_new (
+                    syncId,
+                    type,
+                    targetMinutes,
+                    dayOfWeek,
+                    weekStartDay,
+                    isActive,
+                    createdAt,
+                    updatedAt,
+                    deletedAt,
+                    lastSyncedAt
+                )
+                SELECT
+                    syncId || '-$day',
+                    type,
+                    targetMinutes,
+                    $day,
+                    weekStartDay,
+                    isActive,
+                    createdAt,
+                    updatedAt,
+                    deletedAt,
+                    lastSyncedAt
+                FROM goals
+                WHERE type = 'DAILY'
+                """.trimIndent()
+            )
+        }
+
+        db.execSQL("DROP TABLE goals")
+        db.execSQL("ALTER TABLE goals_new RENAME TO goals")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_goals_type_dayOfWeek_isActive ON goals(type, dayOfWeek, isActive)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_goals_syncId ON goals(syncId)")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)

@@ -189,7 +189,8 @@ fun HomeScreen(
                     SlideInCard(visible = true, delayMillis = 0) {
                         TodayStudySection(
                             totalMinutes = uiState.todayStudyMinutes,
-                            sessions = uiState.todaySessions
+                            sessions = uiState.todaySessions,
+                            goal = uiState.todayGoal
                         )
                     }
                 }
@@ -468,7 +469,8 @@ private fun formatAnkiTimestamp(timestamp: Long): String {
 @Composable
 private fun TodayStudySection(
     totalMinutes: Long,
-    sessions: List<TodaySession>
+    sessions: List<TodaySession>,
+    goal: Goal?
 ) {
     val heroGradient = Brush.verticalGradient(
         colors = listOf(
@@ -502,7 +504,7 @@ private fun TodayStudySection(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Progress ring showing today's study as fraction of a daily goal (e.g. 120 min)
-                val dailyTargetMinutes = 120f
+                val dailyTargetMinutes = (goal?.targetMinutes ?: 120).toFloat()
                 val progress = (totalMinutes.toFloat() / dailyTargetMinutes).coerceIn(0f, 1f)
 
                 CircularProgressRing(
@@ -523,6 +525,13 @@ private fun TodayStudySection(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            goal?.let {
+                                Text(
+                                    text = "目標 ${it.targetFormatted}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 )

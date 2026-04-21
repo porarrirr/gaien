@@ -15,7 +15,7 @@ import com.studyapp.data.local.db.entity.*
         PlanEntity::class,
         PlanItemEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class StudyDatabase : RoomDatabase() {
