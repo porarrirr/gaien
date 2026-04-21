@@ -188,7 +188,7 @@ private struct HomeScreen: View {
     }
 
     private var dailyGoalMinutes: Int {
-        60
+        viewModel.homeData.todayGoal?.targetMinutes ?? 60
     }
 
     private var todayProgress: Double {
@@ -248,6 +248,11 @@ private struct HomeScreen: View {
                     Text(Goal.format(minutes: viewModel.homeData.todayStudyMinutes))
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.8))
+                    if let goal = viewModel.homeData.todayGoal {
+                        Text("目標 \(goal.targetFormatted)")
+                            .font(.caption.bold())
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
                 }
                 Spacer()
                 ProgressRing(
@@ -1401,11 +1406,10 @@ private struct ExamEditorSheet: View {
 
 struct GoalsScreen: View {
     @StateObject private var viewModel: GoalsViewModel
-    @State private var dailyMinutes = ""
     @State private var weeklyMinutes = ""
-    @State private var hasLoadedInitialValues = false
-    @State private var showDailyEditor = false
     @State private var showWeeklyEditor = false
+    @State private var editingDay: StudyWeekday?
+    @State private var editingDayMinutes = ""
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: GoalsViewModel(app: app))
@@ -1414,18 +1418,8 @@ struct GoalsScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: AppSpacing.md) {
-                // Daily Goal
-                goalCard(
-                    title: "1日の目標",
-                    icon: "sun.max.fill",
-                    goal: viewModel.dailyGoal,
-                    currentMinutes: 0,
-                    iconColor: AppColors.warning
-                ) {
-                    showDailyEditor = true
-                }
+                dailyGoalsCard
 
-                // Weekly Goal
                 goalCard(
                     title: "週間目標",
                     icon: "calendar",
@@ -1440,20 +1434,20 @@ struct GoalsScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("目標")
-        .sheet(isPresented: $showDailyEditor) {
+        .sheet(item: $editingDay) { day in
             NavigationStack {
-                GoalEditorSheet(title: "1日の目標", minutes: $dailyMinutes) {
-                    viewModel.updateGoal(type: .daily, targetMinutes: Int(dailyMinutes) ?? 0)
-                    showDailyEditor = false
+                GoalEditorSheet(title: "\(day.japaneseTitle)の目標", minutes: $editingDayMinutes) {
+                    viewModel.updateDailyGoal(dayOfWeek: day, targetMinutes: Int(editingDayMinutes) ?? 0)
+                    editingDay = nil
                 } onCancel: {
-                    showDailyEditor = false
+                    editingDay = nil
                 }
             }
         }
         .sheet(isPresented: $showWeeklyEditor) {
             NavigationStack {
                 GoalEditorSheet(title: "週間目標", minutes: $weeklyMinutes) {
-                    viewModel.updateGoal(type: .weekly, targetMinutes: Int(weeklyMinutes) ?? 0)
+                    viewModel.updateWeeklyGoal(targetMinutes: Int(weeklyMinutes) ?? 0)
                     showWeeklyEditor = false
                 } onCancel: {
                     showWeeklyEditor = false
@@ -1462,12 +1456,71 @@ struct GoalsScreen: View {
         }
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
-            if !hasLoadedInitialValues {
-                dailyMinutes = "\(viewModel.dailyGoal?.targetMinutes ?? 0)"
-                weeklyMinutes = "\(viewModel.weeklyGoal?.targetMinutes ?? 0)"
-                hasLoadedInitialValues = true
+            weeklyMinutes = "\(viewModel.weeklyGoal?.targetMinutes ?? 0)"
+        }
+    }
+
+    private var dailyGoalsCard: some View {
+        let todayGoal = viewModel.dailyGoals[viewModel.todayWeekday]
+        let todayTarget = todayGoal?.targetMinutes ?? 0
+        let todayProgress = todayTarget > 0 ? Double(0) / Double(todayTarget) : 0
+
+        return VStack(spacing: AppSpacing.md) {
+            HStack {
+                Image(systemName: "sun.max.fill")
+                    .font(.title3)
+                    .foregroundStyle(AppColors.warning)
+                Text("曜日別の1日目標")
+                    .font(.headline)
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                HStack(spacing: AppSpacing.md) {
+                    ProgressRing(
+                        progress: todayProgress,
+                        size: 72,
+                        lineWidth: 8,
+                        ringColor: .accentColor
+                    )
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(viewModel.todayWeekday.japaneseTitle)
+                            .font(.headline)
+                        Text("0分 / \(todayTarget)分")
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+                    Spacer()
+                }
+
+                ForEach(StudyWeekday.allCases) { day in
+                    let goal = viewModel.dailyGoals[day]
+                    let isToday = day == viewModel.todayWeekday
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(day.japaneseTitle)
+                                .font(.subheadline.weight(isToday ? .bold : .medium))
+                            Text(goal?.targetFormatted ?? "未設定")
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSecondary)
+                        }
+                        Spacer()
+                        Button(goal == nil ? "設定" : "編集") {
+                            editingDayMinutes = "\(goal?.targetMinutes ?? 60)"
+                            editingDay = day
+                        }
+                        .font(.subheadline.bold())
+                    }
+                    .padding(.horizontal, AppSpacing.sm)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(isToday ? Color.accentColor.opacity(0.12) : AppColors.cardBackground)
+                    )
+                }
             }
         }
+        .cardStyle()
     }
 
     @ViewBuilder
