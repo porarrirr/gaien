@@ -10,6 +10,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private let loadTask: Task<Void, Error>
     private let legacyURL: URL
     private(set) var changeToken: Int64 = 0
+    private var didNormalizeLegacyDailyGoals = false
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -297,7 +298,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func getActiveGoalByType(_ type: GoalType) async throws -> Goal? {
         try await ensureLoaded()
-        let predicate = NSPredicate(format: "type == %@ AND isActive == YES", type.rawValue)
+        let predicate = NSPredicate(format: "type == %@ AND isActive == YES AND dayOfWeek == NIL", type.rawValue)
         return try fetch(entity: "GoalRecord", predicate: predicate, sort: [NSSortDescriptor(key: "updatedAt", ascending: false)]).map(Self.goal).first(where: { $0.deletedAt == nil })
     }
 
@@ -310,6 +311,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(goal.syncId, forKey: "syncId")
         record.setValue(goal.type.rawValue, forKey: "type")
         record.setValue(Int64(goal.targetMinutes), forKey: "targetMinutes")
+        record.setValue(goal.dayOfWeek?.rawValue, forKey: "dayOfWeek")
         record.setValue(goal.weekStartDay.rawValue, forKey: "weekStartDay")
         record.setValue(goal.isActive, forKey: "isActive")
         record.setValue(goal.createdAt == 0 ? now : goal.createdAt, forKey: "createdAt")
@@ -325,6 +327,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         guard let record = try fetchOne(entity: "GoalRecord", id: goal.id) else { return }
         record.setValue(goal.type.rawValue, forKey: "type")
         record.setValue(Int64(goal.targetMinutes), forKey: "targetMinutes")
+        record.setValue(goal.dayOfWeek?.rawValue, forKey: "dayOfWeek")
         record.setValue(goal.weekStartDay.rawValue, forKey: "weekStartDay")
         record.setValue(goal.isActive, forKey: "isActive")
         record.setValue(goal.deletedAt, forKey: "deletedAt")
@@ -648,7 +651,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 )
             },
             goals: snapshot.goals.map {
-                Goal(id: $0.id, type: $0.type, targetMinutes: $0.targetMinutes, weekStartDay: $0.weekStartDay, isActive: $0.isActive)
+                Goal(id: $0.id, type: $0.type, targetMinutes: $0.targetMinutes, dayOfWeek: $0.dayOfWeek, weekStartDay: $0.weekStartDay, isActive: $0.isActive)
             },
             exams: snapshot.exams.map {
                 Exam(id: $0.id, name: $0.name, date: $0.date.epochDay, note: $0.note)
@@ -826,6 +829,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             r.setValue(goal.syncId, forKey: "syncId")
             r.setValue(goal.type.rawValue, forKey: "type")
             r.setValue(Int64(goal.targetMinutes), forKey: "targetMinutes")
+            r.setValue(goal.dayOfWeek?.rawValue, forKey: "dayOfWeek")
             r.setValue(goal.weekStartDay.rawValue, forKey: "weekStartDay")
             r.setValue(goal.isActive, forKey: "isActive")
             r.setValue(goal.createdAt == 0 ? now : goal.createdAt, forKey: "createdAt")
@@ -995,6 +999,10 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     private func ensureLoaded() async throws {
         try await loadTask.value
+        if !didNormalizeLegacyDailyGoals {
+            try normalizeLegacyDailyGoalsIfNeeded()
+            didNormalizeLegacyDailyGoals = true
+        }
     }
 
     private func isEmptyStore() async throws -> Bool {
@@ -1025,6 +1033,44 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             maxId = max(maxId, result)
         }
         return maxId + 1
+    }
+
+    private func normalizeLegacyDailyGoalsIfNeeded() throws {
+        let legacyRecords = try fetch(
+            entity: "GoalRecord",
+            predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "type == %@", GoalType.daily.rawValue),
+                NSPredicate(format: "isActive == YES"),
+                NSPredicate(format: "deletedAt == NIL"),
+                NSPredicate(format: "dayOfWeek == NIL")
+            ])
+        )
+
+        guard !legacyRecords.isEmpty else { return }
+
+        var nextGoalId = (try fetch(entity: "GoalRecord").compactMap { $0.value(forKey: "id") as? Int64 }.max() ?? 0) + 1
+        for record in legacyRecords {
+            let baseGoal = Self.goal(record)
+            container.viewContext.delete(record)
+
+            for day in StudyWeekday.allCases {
+                let newRecord = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: container.viewContext)
+                newRecord.setValue(nextGoalId, forKey: "id")
+                newRecord.setValue("\(baseGoal.syncId)-\(day.rawValue.lowercased())", forKey: "syncId")
+                newRecord.setValue(baseGoal.type.rawValue, forKey: "type")
+                newRecord.setValue(Int64(baseGoal.targetMinutes), forKey: "targetMinutes")
+                newRecord.setValue(day.rawValue, forKey: "dayOfWeek")
+                newRecord.setValue(baseGoal.weekStartDay.rawValue, forKey: "weekStartDay")
+                newRecord.setValue(baseGoal.isActive, forKey: "isActive")
+                newRecord.setValue(baseGoal.createdAt, forKey: "createdAt")
+                newRecord.setValue(baseGoal.updatedAt, forKey: "updatedAt")
+                newRecord.setValue(baseGoal.deletedAt, forKey: "deletedAt")
+                newRecord.setValue(baseGoal.lastSyncedAt, forKey: "lastSyncedAt")
+                nextGoalId += 1
+            }
+        }
+
+        try saveContext()
     }
 
     private func fetch(
@@ -1256,6 +1302,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             syncId: record.value(forKey: "syncId") as? String ?? "",
             type: GoalType(rawValue: record.value(forKey: "type") as? String ?? GoalType.daily.rawValue) ?? .daily,
             targetMinutes: Int(record.value(forKey: "targetMinutes") as? Int64 ?? 0),
+            dayOfWeek: (record.value(forKey: "dayOfWeek") as? String).flatMap(StudyWeekday.init(rawValue:)),
             weekStartDay: StudyWeekday(rawValue: record.value(forKey: "weekStartDay") as? String ?? StudyWeekday.monday.rawValue) ?? .monday,
             isActive: record.value(forKey: "isActive") as? Bool ?? false,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
@@ -1377,6 +1424,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "syncId", type: .stringAttributeType),
                     attribute(name: "type", type: .stringAttributeType),
                     attribute(name: "targetMinutes", type: .integer64AttributeType),
+                    attribute(name: "dayOfWeek", type: .stringAttributeType, optional: true),
                     attribute(name: "weekStartDay", type: .stringAttributeType),
                     attribute(name: "isActive", type: .booleanAttributeType),
                     attribute(name: "createdAt", type: .integer64AttributeType),
@@ -1592,6 +1640,7 @@ private struct LegacyGoal: Codable {
     var id: Int64
     var type: GoalType
     var targetMinutes: Int
+    var dayOfWeek: StudyWeekday?
     var weekStartDay: StudyWeekday
     var isActive: Bool
 }
