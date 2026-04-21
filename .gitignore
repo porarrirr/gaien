@@ -13,3 +13,6 @@ ios/DerivedData/
 # Firebase app config files
 android/app/google-services.json
 ios/StudyApp/Resources/GoogleService-Info.plist
+
+# Local release artifacts
+tmp-release-*/
