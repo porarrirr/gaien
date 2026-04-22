@@ -4,6 +4,7 @@ import android.util.Log
 import com.studyapp.data.local.db.dao.StudySessionDao
 import com.studyapp.data.local.db.entity.StudySessionEntity
 import com.studyapp.data.local.db.entity.StudySessionWithDetails
+import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.util.Clock
@@ -12,6 +13,8 @@ import com.studyapp.sync.AppDataWriteLock
 import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -154,6 +157,7 @@ class StudySessionRepositoryImpl @Inject constructor(
             subjectName = subject?.name ?: "",
             startTime = session.startTime,
             endTime = session.endTime,
+            intervals = session.intervalsJson.toIntervals(),
             note = session.note,
             createdAt = session.createdAt,
             updatedAt = session.updatedAt,
@@ -174,6 +178,7 @@ class StudySessionRepositoryImpl @Inject constructor(
             subjectName = "",
             startTime = startTime,
             endTime = endTime,
+            intervals = intervalsJson.toIntervals(),
             note = note,
             createdAt = createdAt,
             updatedAt = updatedAt,
@@ -191,15 +196,48 @@ class StudySessionRepositoryImpl @Inject constructor(
             materialSyncId = materialSyncId,
             subjectId = subjectId,
             subjectSyncId = subjectSyncId,
-            startTime = startTime,
-            endTime = endTime,
+            startTime = sessionStartTime,
+            endTime = sessionEndTime,
             duration = duration,
             date = localDateMillis,
+            intervalsJson = intervals.toJson(),
             note = note,
             createdAt = createdAt,
             updatedAt = updatedAt,
             deletedAt = deletedAt,
             lastSyncedAt = lastSyncedAt
         )
+    }
+
+    private fun String?.toIntervals(): List<StudySessionInterval> {
+        if (this.isNullOrBlank()) {
+            return emptyList()
+        }
+        val jsonArray = JSONArray(this)
+        return buildList(jsonArray.length()) {
+            for (index in 0 until jsonArray.length()) {
+                val item = jsonArray.optJSONObject(index) ?: continue
+                add(
+                    StudySessionInterval(
+                        startTime = item.optLong("startTime"),
+                        endTime = item.optLong("endTime")
+                    )
+                )
+            }
+        }
+    }
+
+    private fun List<StudySessionInterval>.toJson(): String? {
+        if (isEmpty()) {
+            return null
+        }
+        return JSONArray(
+            map { interval ->
+                JSONObject().apply {
+                    put("startTime", interval.startTime)
+                    put("endTime", interval.endTime)
+                }
+            }
+        ).toString()
     }
 }

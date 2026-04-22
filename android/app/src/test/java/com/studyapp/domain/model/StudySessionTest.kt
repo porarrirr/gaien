@@ -295,4 +295,29 @@ class StudySessionTest {
         assertEquals("", session.subjectName)
         assertNull(session.note)
     }
+
+    @Test
+    fun `segmented session duration sums only active intervals`() {
+        val session = StudySession(
+            id = 1,
+            materialId = null,
+            subjectId = 1,
+            startTime = 12 * 60 * 60 * 1000L,
+            endTime = 12 * 60 * 60 * 1000L + 59 * 60 * 1000L,
+            intervals = listOf(
+                StudySessionInterval(
+                    startTime = 12 * 60 * 60 * 1000L,
+                    endTime = 12 * 60 * 60 * 1000L + 25 * 60 * 1000L
+                ),
+                StudySessionInterval(
+                    startTime = 12 * 60 * 60 * 1000L + 40 * 60 * 1000L,
+                    endTime = 12 * 60 * 60 * 1000L + 59 * 60 * 1000L
+                )
+            )
+        )
+
+        assertEquals(44L, session.durationMinutes)
+        assertEquals(12 * 60 * 60 * 1000L, session.sessionStartTime)
+        assertEquals(12 * 60 * 60 * 1000L + 59 * 60 * 1000L, session.sessionEndTime)
+    }
 }

@@ -536,11 +536,18 @@ final class TimerViewModel: ScreenViewModel {
                 throw ValidationError(message: "科目を選択してください")
             }
             let current = self.app.preferences.activeTimer
+            let now = Date().epochMilliseconds
+            let completedIntervals = if let current, current.accumulatedMilliseconds > 0, current.completedIntervals.isEmpty {
+                [StudySessionInterval(startTime: now - current.accumulatedMilliseconds, endTime: now)]
+            } else {
+                current?.completedIntervals ?? []
+            }
             let next = TimerSnapshot(
                 subjectId: subjectId,
                 materialId: self.selectedMaterialId,
-                startedAt: Date().epochMilliseconds,
-                accumulatedMilliseconds: current?.elapsedTime() ?? 0,
+                startedAt: now,
+                accumulatedMilliseconds: completedIntervals.reduce(0) { $0 + $1.duration },
+                completedIntervals: completedIntervals,
                 isRunning: true
             )
             self.app.updateActiveTimer(next)
@@ -551,7 +558,16 @@ final class TimerViewModel: ScreenViewModel {
 
     func pause() {
         guard var timer = app.preferences.activeTimer else { return }
-        timer.accumulatedMilliseconds = timer.elapsedTime()
+        let now = Date().epochMilliseconds
+        if timer.isRunning, let startedAt = timer.startedAt {
+            timer.completedIntervals.append(
+                StudySessionInterval(
+                    startTime: startedAt,
+                    endTime: now
+                )
+            )
+        }
+        timer.accumulatedMilliseconds = timer.completedIntervals.reduce(0) { $0 + $1.duration }
         timer.startedAt = nil
         timer.isRunning = false
         app.updateActiveTimer(timer)
@@ -592,8 +608,9 @@ final class TimerViewModel: ScreenViewModel {
             let materialId = self.selectedMaterialId
             let material = materials.first(where: { $0.id == materialId })
             let materialName = material?.name ?? ""
-            let end = Date().epochMilliseconds
-            let start = end - elapsed
+            let intervals = timer.finalizedIntervals()
+            let start = intervals.first?.startTime ?? (Date().epochMilliseconds - elapsed)
+            let end = intervals.last?.endTime ?? Date().epochMilliseconds
             _ = try await self.app.persistence.insertSession(
                 StudySession(
                     materialId: materialId,
@@ -604,6 +621,7 @@ final class TimerViewModel: ScreenViewModel {
                     subjectName: subject.name,
                     startTime: start,
                     endTime: end,
+                    intervals: intervals,
                     note: note?.nilIfBlank
                 )
             )
@@ -615,11 +633,10 @@ final class TimerViewModel: ScreenViewModel {
         }
     }
 
-    func saveManualSession(subjectId: Int64, materialId: Int64?, durationMinutes: Int, note: String?) {
+    func saveManualSession(subjectId: Int64, materialId: Int64?, startTime: Int64, endTime: Int64, note: String?) {
         perform {
-            guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
             let useCase = SaveStudySessionUseCase(sessionRepository: self.app.persistence, subjectRepository: self.app.persistence, materialRepository: self.app.persistence)
-            try await useCase.saveManualSession(subjectId: subjectId, materialId: materialId, durationMinutes: durationMinutes, note: note)
+            try await useCase.saveManualSession(subjectId: subjectId, materialId: materialId, startTime: startTime, endTime: endTime, note: note)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -713,6 +730,7 @@ final class HistoryViewModel: ScreenViewModel {
             guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
             var updated = session
             updated.endTime = updated.startTime + Int64(durationMinutes * 60_000)
+            updated.intervals = [StudySessionInterval(startTime: updated.startTime, endTime: updated.endTime)]
             updated.note = note?.nilIfBlank
             try await self.app.persistence.updateSession(updated)
             await self.load()
@@ -734,13 +752,29 @@ final class GoalsViewModel: ScreenViewModel {
     @Published private(set) var dailyGoals: [StudyWeekday: Goal] = [:]
     @Published private(set) var weeklyGoal: Goal?
     @Published private(set) var todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: Date()))
+    @Published private(set) var todayStudyMinutes = 0
+    @Published private(set) var weeklyStudyMinutes = 0
 
     func load() async {
         do {
-            let goals = try await app.persistence.getAllGoals()
+            let todayStart = app.clock.startOfToday()
+            let weekStart = app.clock.startOfWeek()
+            let dayMs: Int64 = 86_400_000
+            let weekMs = dayMs * 7
+
+            async let goalsTask = app.persistence.getAllGoals()
+            async let todaySessionsTask = app.persistence.getSessionsBetweenDates(start: todayStart, end: todayStart + dayMs)
+            async let weeklySessionsTask = app.persistence.getSessionsBetweenDates(start: weekStart, end: weekStart + weekMs)
+
+            let goals = try await goalsTask
+            let todaySessions = try await todaySessionsTask
+            let weeklySessions = try await weeklySessionsTask
+
             dailyGoals = goals.latestActiveDailyGoalsByWeekday()
             weeklyGoal = goals.latestActiveWeeklyGoal()
             todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: Date()))
+            todayStudyMinutes = todaySessions.reduce(0) { $0 + $1.durationMinutes }
+            weeklyStudyMinutes = weeklySessions.reduce(0) { $0 + $1.durationMinutes }
         } catch {
             app.present(error)
         }
@@ -962,6 +996,7 @@ final class CalendarViewModel: ScreenViewModel {
             guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
             var updated = session
             updated.endTime = updated.startTime + Int64(durationMinutes * 60_000)
+            updated.intervals = [StudySessionInterval(startTime: updated.startTime, endTime: updated.endTime)]
             updated.note = note?.nilIfBlank
             try await self.app.persistence.updateSession(updated)
             await self.load()

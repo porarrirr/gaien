@@ -37,6 +37,7 @@ data class StudySessionEntity(
     val endTime: Long,
     val duration: Long,
     val date: Long,
+    val intervalsJson: String? = null,
     val note: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),

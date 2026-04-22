@@ -8,6 +8,7 @@ import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.PlanItem
 import com.studyapp.domain.model.StudyPlan
 import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.repository.ExamRepository
 import com.studyapp.domain.repository.GoalRepository
@@ -170,6 +171,7 @@ private fun StudySession.toJson() = JSONObject().apply {
     put("subjectName", subjectName)
     put("startTime", startTime)
     put("endTime", endTime)
+    put("intervals", JSONArray(effectiveIntervals.map { it.toJson() }))
     put("note", note)
     put("createdAt", createdAt)
     put("updatedAt", updatedAt)
@@ -188,11 +190,26 @@ private fun JSONObject.toStudySession() = StudySession(
     subjectName = optString("subjectName"),
     startTime = optLong("startTime"),
     endTime = optLong("endTime"),
+    intervals = optJSONArray("intervals")?.let { intervals ->
+        (0 until intervals.length()).mapNotNull { index ->
+            intervals.optJSONObject(index)?.toStudySessionInterval()
+        }
+    } ?: emptyList(),
     note = optString("note").takeIf { it.isNotEmpty() },
     createdAt = optLong("createdAt", System.currentTimeMillis()),
     updatedAt = optLong("updatedAt", optLong("createdAt", System.currentTimeMillis())),
     deletedAt = optNullableLong("deletedAt"),
     lastSyncedAt = optNullableLong("lastSyncedAt")
+)
+
+private fun StudySessionInterval.toJson() = JSONObject().apply {
+    put("startTime", startTime)
+    put("endTime", endTime)
+}
+
+private fun JSONObject.toStudySessionInterval() = StudySessionInterval(
+    startTime = optLong("startTime"),
+    endTime = optLong("endTime")
 )
 
 private fun Goal.toJson() = JSONObject().apply {
@@ -548,10 +565,13 @@ class ExportImportDataUseCase @Inject constructor(
                     materialSyncId = session.materialSyncId ?: session.materialId?.let { materialSyncIdsByLegacyId[it] },
                     subjectId = resolvedSubjectId,
                     subjectSyncId = session.subjectSyncId ?: subjectSyncIdsByLegacyId[session.subjectId],
-                    startTime = session.startTime,
-                    endTime = session.endTime,
+                    startTime = session.sessionStartTime,
+                    endTime = session.sessionEndTime,
                     duration = session.duration,
                     date = session.date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    intervalsJson = session.intervals.takeIf { it.isNotEmpty() }?.let { intervals ->
+                        JSONArray(intervals.map { it.toJson() }).toString()
+                    },
                     note = session.note,
                     createdAt = session.createdAt,
                     updatedAt = session.updatedAt,
@@ -724,6 +744,13 @@ private fun StudySessionEntity.toDomain() = StudySession(
     subjectName = "",
     startTime = startTime,
     endTime = endTime,
+    intervals = intervalsJson?.let { intervals ->
+        JSONArray(intervals).let { array ->
+            (0 until array.length()).mapNotNull { index ->
+                array.optJSONObject(index)?.toStudySessionInterval()
+            }
+        }
+    } ?: emptyList(),
     note = note,
     createdAt = createdAt,
     updatedAt = updatedAt,
@@ -742,6 +769,13 @@ private fun StudySessionWithNames.toDomain() = StudySession(
     subjectName = subjectName,
     startTime = session.startTime,
     endTime = session.endTime,
+    intervals = session.intervalsJson?.let { intervals ->
+        JSONArray(intervals).let { array ->
+            (0 until array.length()).mapNotNull { index ->
+                array.optJSONObject(index)?.toStudySessionInterval()
+            }
+        }
+    } ?: emptyList(),
     note = session.note,
     createdAt = session.createdAt,
     updatedAt = session.updatedAt,

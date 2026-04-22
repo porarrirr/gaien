@@ -797,9 +797,11 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 syncId: session.materialSyncId, syncMap: materialSyncMap,
                 oldId: session.materialId, oldMap: materialOldMap)
 
-            let duration = max(session.endTime - session.startTime, 0)
-            let endTime = session.startTime + duration
-            let date = Date(epochMilliseconds: session.startTime).epochDay
+            let effectiveIntervals = session.effectiveIntervals
+            let duration = effectiveIntervals.reduce(0) { $0 + $1.duration }
+            let startTime = effectiveIntervals.first?.startTime ?? session.startTime
+            let endTime = effectiveIntervals.last?.endTime ?? session.endTime
+            let date = Date(epochMilliseconds: startTime).epochDay
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: ctx)
             r.setValue(localId, forKey: "id")
@@ -810,10 +812,11 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             r.setValue(subjectId, forKey: "subjectId")
             r.setValue(session.subjectSyncId, forKey: "subjectSyncId")
             r.setValue(session.subjectName, forKey: "subjectName")
-            r.setValue(session.startTime, forKey: "startTime")
+            r.setValue(startTime, forKey: "startTime")
             r.setValue(endTime, forKey: "endTime")
             r.setValue(duration, forKey: "duration")
             r.setValue(date, forKey: "date")
+            r.setValue(Self.encodeIntervals(session.intervals), forKey: "intervalsData")
             r.setValue(session.note, forKey: "note")
             r.setValue(session.createdAt == 0 ? now : session.createdAt, forKey: "createdAt")
             r.setValue(session.updatedAt == 0 ? now : session.updatedAt, forKey: "updatedAt")
@@ -956,8 +959,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         persistedCreatedAt: Int64? = nil,
         persistedLastSyncedAt: Int64? = nil
     ) -> StudySession {
-        let duration = max(session.endTime - session.startTime, 0)
-        let end = session.startTime + duration
+        let effectiveIntervals = session.effectiveIntervals
         return StudySession(
             id: assignedId,
             syncId: persistedSyncId ?? session.syncId,
@@ -967,8 +969,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             subjectId: session.subjectId,
             subjectSyncId: session.subjectSyncId,
             subjectName: session.subjectName,
-            startTime: session.startTime,
-            endTime: end,
+            startTime: effectiveIntervals.first?.startTime ?? session.startTime,
+            endTime: effectiveIntervals.last?.endTime ?? session.endTime,
+            intervals: effectiveIntervals,
             note: session.note,
             createdAt: persistedCreatedAt ?? (session.createdAt == 0 ? Date().epochMilliseconds : session.createdAt),
             updatedAt: Date().epochMilliseconds,
@@ -990,6 +993,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(session.endTime, forKey: "endTime")
         record.setValue(session.duration, forKey: "duration")
         record.setValue(session.date, forKey: "date")
+        record.setValue(Self.encodeIntervals(session.intervals), forKey: "intervalsData")
         record.setValue(session.note, forKey: "note")
         record.setValue(session.createdAt, forKey: "createdAt")
         record.setValue(session.updatedAt, forKey: "updatedAt")
@@ -1288,6 +1292,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             subjectName: record.value(forKey: "subjectName") as? String ?? "",
             startTime: record.value(forKey: "startTime") as? Int64 ?? 0,
             endTime: record.value(forKey: "endTime") as? Int64 ?? 0,
+            intervals: decodeIntervals(record.value(forKey: "intervalsData") as? String),
             note: record.value(forKey: "note") as? String,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
             updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
@@ -1360,6 +1365,18 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         )
     }
 
+    private static func encodeIntervals(_ intervals: [StudySessionInterval]) -> String? {
+        guard !intervals.isEmpty else { return nil }
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(intervals) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeIntervals(_ value: String?) -> [StudySessionInterval] {
+        guard let value, let data = value.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([StudySessionInterval].self, from: data)) ?? []
+    }
+
     private static func makeManagedObjectModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         model.entities = [
@@ -1410,6 +1427,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "endTime", type: .integer64AttributeType),
                     attribute(name: "duration", type: .integer64AttributeType),
                     attribute(name: "date", type: .integer64AttributeType),
+                    attribute(name: "intervalsData", type: .stringAttributeType, optional: true),
                     attribute(name: "note", type: .stringAttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),
                     attribute(name: "updatedAt", type: .integer64AttributeType),

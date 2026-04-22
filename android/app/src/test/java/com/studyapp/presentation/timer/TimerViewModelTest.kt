@@ -23,6 +23,7 @@ import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.usecase.GetRecentMaterialsUseCase
 import com.studyapp.domain.usecase.SaveStudySessionUseCase
 import com.studyapp.domain.usecase.TimerServiceManager
+import com.studyapp.domain.usecase.TimerStopResult
 import com.studyapp.domain.util.Result
 import org.junit.After
 import org.junit.Assert.*
@@ -343,7 +344,11 @@ class TimerViewModelTest {
         
         viewModel.selectMaterial(material, subject)
         
-        every { timerServiceManager.stopTimer() } returns Pair(60000L, 1L)
+        every { timerServiceManager.stopTimer() } returns TimerStopResult(
+            elapsed = 60000L,
+            materialId = 1L,
+            intervals = emptyList()
+        )
         coEvery { saveStudySessionUseCase(1L, 1L, 60000L) } returns Result.Success(1L)
         
         viewModel.stopTimer()
@@ -363,7 +368,11 @@ class TimerViewModelTest {
         
         viewModel.selectMaterial(material, subject)
         
-        every { timerServiceManager.stopTimer() } returns Pair(0L, null)
+        every { timerServiceManager.stopTimer() } returns TimerStopResult(
+            elapsed = 0L,
+            materialId = null,
+            intervals = emptyList()
+        )
         
         viewModel.stopTimer()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -375,7 +384,11 @@ class TimerViewModelTest {
     fun `stopTimer does not save session when no subject selected`() = runTest {
         testDispatcher.scheduler.advanceUntilIdle()
         
-        every { timerServiceManager.stopTimer() } returns Pair(60000L, null)
+        every { timerServiceManager.stopTimer() } returns TimerStopResult(
+            elapsed = 60000L,
+            materialId = null,
+            intervals = emptyList()
+        )
         
         viewModel.stopTimer()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -392,7 +405,11 @@ class TimerViewModelTest {
         
         viewModel.selectMaterial(material, subject)
         
-        every { timerServiceManager.stopTimer() } returns Pair(60000L, 1L)
+        every { timerServiceManager.stopTimer() } returns TimerStopResult(
+            elapsed = 60000L,
+            materialId = 1L,
+            intervals = emptyList()
+        )
         coEvery { saveStudySessionUseCase(1L, 1L, 60000L) } returns Result.Error(RuntimeException("Save failed"), "保存に失敗しました")
         
         viewModel.stopTimer()
@@ -405,22 +422,32 @@ class TimerViewModelTest {
     @Test
     fun `saveManualEntry calls saveStudySessionUseCase with correct duration`() = runTest {
         testDispatcher.scheduler.advanceUntilIdle()
-        
-        coEvery { saveStudySessionUseCase(1L, 2L, 60000L) } returns Result.Success(1L)
-        
-        viewModel.saveManualEntry(subjectId = 1L, materialId = 2L, durationMinutes = 1L)
+
+        val startTime = 1_000L
+        val endTime = 61_000L
+
+        coEvery { saveStudySessionUseCase(1L, 2L, 60000L, any()) } returns Result.Success(1L)
+
+        viewModel.saveManualEntry(subjectId = 1L, materialId = 2L, startTime = startTime, endTime = endTime)
         testDispatcher.scheduler.advanceUntilIdle()
-        
-        coVerify { saveStudySessionUseCase(subjectId = 1L, materialId = 2L, duration = 60000L) }
+
+        coVerify {
+            saveStudySessionUseCase(
+                subjectId = 1L,
+                materialId = 2L,
+                duration = 60000L,
+                intervals = any()
+            )
+        }
     }
     
     @Test
     fun `saveManualEntry handles error`() = runTest {
         testDispatcher.scheduler.advanceUntilIdle()
-        
-        coEvery { saveStudySessionUseCase(1L, null, 300000L) } returns Result.Error(RuntimeException("Error"), "保存エラー")
-        
-        viewModel.saveManualEntry(subjectId = 1L, materialId = null, durationMinutes = 5L)
+
+        coEvery { saveStudySessionUseCase(1L, null, 300000L, any()) } returns Result.Error(RuntimeException("Error"), "保存エラー")
+
+        viewModel.saveManualEntry(subjectId = 1L, materialId = null, startTime = 0L, endTime = 300000L)
         testDispatcher.scheduler.advanceUntilIdle()
         
         assertNotNull(viewModel.uiState.value.error)

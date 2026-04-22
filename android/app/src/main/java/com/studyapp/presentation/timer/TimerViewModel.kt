@@ -3,6 +3,7 @@ package com.studyapp.presentation.timer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.repository.SubjectRepository
@@ -200,15 +201,16 @@ class TimerViewModel @Inject constructor(
     }
     
     fun stopTimer() {
-        val (elapsed, _) = timerServiceManager.stopTimer()
+        val stopResult = timerServiceManager.stopTimer()
         val subject = _uiState.value.selectedSubject
         val materialId = _uiState.value.selectedMaterial?.id
         
-        if (elapsed > 0 && subject != null) {
+        if (stopResult.elapsed > 0 && subject != null) {
             saveSession(
                 subjectId = subject.id,
                 materialId = materialId,
-                duration = elapsed
+                duration = stopResult.elapsed,
+                intervals = stopResult.intervals
             )
         }
         
@@ -220,17 +222,38 @@ class TimerViewModel @Inject constructor(
         }
     }
     
-    fun saveManualEntry(subjectId: Long, materialId: Long?, durationMinutes: Long) {
+    fun saveManualEntry(subjectId: Long, materialId: Long?, startTime: Long, endTime: Long) {
+        val duration = endTime - startTime
+        if (duration <= 0L) {
+            _uiState.update { it.copy(error = "終了時刻は開始時刻より後にしてください") }
+            return
+        }
         saveSession(
             subjectId = subjectId,
             materialId = materialId,
-            duration = durationMinutes * 60000
+            duration = duration,
+            intervals = listOf(
+                StudySessionInterval(
+                    startTime = startTime,
+                    endTime = endTime
+                )
+            )
         )
     }
     
-    private fun saveSession(subjectId: Long, materialId: Long?, duration: Long) {
+    private fun saveSession(
+        subjectId: Long,
+        materialId: Long?,
+        duration: Long,
+        intervals: List<com.studyapp.domain.model.StudySessionInterval> = emptyList()
+    ) {
         viewModelScope.launch {
-            saveStudySessionUseCase(subjectId, materialId, duration)
+            saveStudySessionUseCase(
+                subjectId = subjectId,
+                materialId = materialId,
+                duration = duration,
+                intervals = intervals
+            )
                 .onError { error ->
                     _uiState.update { state ->
                         state.copy(error = error.message ?: "学習記録の保存に失敗しました")

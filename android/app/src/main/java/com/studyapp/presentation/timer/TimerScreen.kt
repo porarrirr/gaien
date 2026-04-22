@@ -195,8 +195,8 @@ fun TimerScreen(
             subjects = uiState.subjects,
             initialSubjectId = uiState.selectedSubject?.id,
             onDismiss = { showManualInputDialog = false },
-            onConfirm = { subjectId, materialId, durationMinutes ->
-                viewModel.saveManualEntry(subjectId, materialId, durationMinutes)
+            onConfirm = { subjectId, materialId, startTime, endTime ->
+                viewModel.saveManualEntry(subjectId, materialId, startTime, endTime)
                 showManualInputDialog = false
             }
         )
@@ -323,46 +323,68 @@ private fun TimerControls(
     onPause: () -> Unit,
     onStop: () -> Unit
 ) {
+    val primaryLabel = when {
+        isRunning -> stringResource(R.string.timer_pause)
+        elapsedTime > 0L -> stringResource(R.string.timer_resume)
+        else -> stringResource(R.string.timer_start)
+    }
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(24.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top
     ) {
-        if (isRunning) {
-            LargeFloatingActionButton(
-                onClick = onPause,
-                containerColor = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(80.dp)
-            ) {
-                Icon(
-                    Icons.Default.Pause,
-                    contentDescription = stringResource(R.string.timer_pause),
-                    modifier = Modifier.size(36.dp)
-                )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (isRunning) {
+                LargeFloatingActionButton(
+                    onClick = onPause,
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(80.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Pause,
+                        contentDescription = stringResource(R.string.timer_pause),
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+            } else {
+                LargeFloatingActionButton(
+                    onClick = onStart,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(80.dp)
+                ) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = primaryLabel,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
             }
-        } else {
-            LargeFloatingActionButton(
-                onClick = onStart,
-                containerColor = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(80.dp)
-            ) {
-                Icon(
-                    Icons.Default.PlayArrow,
-                    contentDescription = stringResource(R.string.timer_start),
-                    modifier = Modifier.size(36.dp)
-                )
-            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = primaryLabel,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         if (elapsedTime > 0) {
-            LargeFloatingActionButton(
-                onClick = onStop,
-                containerColor = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(80.dp)
-            ) {
-                Icon(
-                    Icons.Default.Stop,
-                    contentDescription = stringResource(R.string.timer_stop),
-                    modifier = Modifier.size(36.dp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                LargeFloatingActionButton(
+                    onClick = onStop,
+                    containerColor = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(80.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Stop,
+                        contentDescription = stringResource(R.string.timer_stop),
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.timer_stop),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

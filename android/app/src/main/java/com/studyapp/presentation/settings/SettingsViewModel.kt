@@ -377,7 +377,15 @@ class SettingsViewModel @Inject constructor(
             val session = sessions.getJSONObject(i)
             val startTime = session.optLong("startTime")
             val endTime = session.optLong("endTime")
-            val durationMinutes = (endTime - startTime).coerceAtLeast(0L) / 60000
+            val intervals = session.optJSONArray("intervals")
+            val durationMinutes = if (intervals != null && intervals.length() > 0) {
+                (0 until intervals.length()).sumOf { index ->
+                    val interval = intervals.optJSONObject(index) ?: return@sumOf 0L
+                    (interval.optLong("endTime") - interval.optLong("startTime")).coerceAtLeast(0L) / 60000
+                }
+            } else {
+                (endTime - startTime).coerceAtLeast(0L) / 60000
+            }
 
             sb.append(escapeCsv(dateFormat.format(Date(startTime)))).append(',')
             sb.append(escapeCsv(session.optString("subjectName"))).append(',')

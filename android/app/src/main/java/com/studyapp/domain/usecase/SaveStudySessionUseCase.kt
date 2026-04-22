@@ -3,6 +3,7 @@ package com.studyapp.domain.usecase
 import android.util.Log
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.repository.StudySessionRepository
@@ -19,14 +20,16 @@ class SaveStudySessionUseCase @Inject constructor(
     suspend operator fun invoke(
         subjectId: Long,
         materialId: Long?,
-        duration: Long
+        duration: Long,
+        intervals: List<StudySessionInterval> = emptyList()
     ): Result<Long> {
         return invoke(
             subjectId = subjectId,
             subjectSyncId = null,
             materialId = materialId,
             materialSyncId = null,
-            duration = duration
+            duration = duration,
+            intervals = intervals
         )
     }
 
@@ -35,7 +38,8 @@ class SaveStudySessionUseCase @Inject constructor(
         subjectSyncId: String?,
         materialId: Long?,
         materialSyncId: String?,
-        duration: Long
+        duration: Long,
+        intervals: List<StudySessionInterval> = emptyList()
     ): Result<Long> {
         return try {
             Log.d(
@@ -55,6 +59,14 @@ class SaveStudySessionUseCase @Inject constructor(
                     "科目が見つかりません"
                 )
             val material = resolveMaterial(materialId, materialSyncId)
+            val effectiveIntervals = intervals.ifEmpty {
+                listOf(
+                    StudySessionInterval(
+                        startTime = currentTime - duration,
+                        endTime = currentTime
+                    )
+                )
+            }
             
             val session = StudySession(
                 materialId = material?.id,
@@ -63,8 +75,9 @@ class SaveStudySessionUseCase @Inject constructor(
                 subjectId = subject.id,
                 subjectSyncId = subject.syncId,
                 subjectName = subject.name,
-                startTime = currentTime - duration,
-                endTime = currentTime
+                startTime = effectiveIntervals.first().startTime,
+                endTime = effectiveIntervals.last().endTime,
+                intervals = effectiveIntervals
             )
             
             val result = studySessionRepository.insertSession(session)

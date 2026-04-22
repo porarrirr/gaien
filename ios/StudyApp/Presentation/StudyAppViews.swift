@@ -434,7 +434,6 @@ private struct HomeScreen: View {
 private struct TimerScreen: View {
     @StateObject private var viewModel: TimerViewModel
     @State private var showManualEntry = false
-    @State private var manualMinutes = ""
     @State private var manualNote = ""
     @State private var ringScale: CGFloat = 1.0
 
@@ -508,7 +507,7 @@ private struct TimerScreen: View {
         .navigationTitle("タイマー")
         .sheet(isPresented: $showManualEntry) {
             NavigationStack {
-                ManualEntrySheet(viewModel: viewModel, manualMinutes: $manualMinutes, manualNote: $manualNote, isPresented: $showManualEntry)
+                ManualEntrySheet(viewModel: viewModel, manualNote: $manualNote, isPresented: $showManualEntry)
             }
         }
         .task(id: viewModel.app.dataVersion) {
@@ -590,31 +589,45 @@ private struct TimerScreen: View {
     }
 
     private var controlButtonsSection: some View {
-        HStack(spacing: AppSpacing.xl) {
-            Button {
-                viewModel.stop()
-            } label: {
-                Image(systemName: "stop.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                    .frame(width: 64, height: 64)
-                    .background(
-                        Circle().fill(viewModel.elapsedMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3))
-                    )
-            }
-            .disabled(viewModel.elapsedMilliseconds == 0)
+        let primaryLabel = viewModel.isRunning ? "一時停止" : (viewModel.elapsedMilliseconds > 0 ? "再開" : "開始")
 
-            Button {
-                viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
-            } label: {
-                Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.white)
-                    .frame(width: 80, height: 80)
-                    .background(
-                        Circle().fill(Color.accentColor)
-                    )
-                    .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 4)
+        HStack(spacing: AppSpacing.xl) {
+            VStack(spacing: AppSpacing.xs) {
+                Button {
+                    viewModel.stop()
+                } label: {
+                    Image(systemName: "stop.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .frame(width: 64, height: 64)
+                        .background(
+                            Circle().fill(viewModel.elapsedMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3))
+                        )
+                }
+                .disabled(viewModel.elapsedMilliseconds == 0)
+
+                Text("終了")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+
+            VStack(spacing: AppSpacing.xs) {
+                Button {
+                    viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
+                } label: {
+                    Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.white)
+                        .frame(width: 80, height: 80)
+                        .background(
+                            Circle().fill(Color.accentColor)
+                        )
+                        .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 4)
+                }
+
+                Text(primaryLabel)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
             }
         }
         .padding(.bottom, AppSpacing.sm)
@@ -687,9 +700,10 @@ private struct TimerScreen: View {
 
 private struct ManualEntrySheet: View {
     let viewModel: TimerViewModel
-    @Binding var manualMinutes: String
     @Binding var manualNote: String
     @Binding var isPresented: Bool
+    @State private var manualStartTime = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: Date()), minute: 0, second: 0, of: Date()) ?? Date()
+    @State private var manualEndTime = Date()
 
     var body: some View {
         Form {
@@ -702,8 +716,8 @@ private struct ManualEntrySheet: View {
                 }
             }
             Section("記録") {
-                TextField("学習時間（分）", text: $manualMinutes)
-                    .keyboardType(.numberPad)
+                DatePicker("開始時刻", selection: $manualStartTime, displayedComponents: .hourAndMinute)
+                DatePicker("終了時刻", selection: $manualEndTime, displayedComponents: .hourAndMinute)
                 TextField("メモ", text: $manualNote, axis: .vertical)
             }
         }
@@ -718,13 +732,14 @@ private struct ManualEntrySheet: View {
                     viewModel.saveManualSession(
                         subjectId: subjectId,
                         materialId: viewModel.selectedMaterialId,
-                        durationMinutes: Int(manualMinutes) ?? 0,
+                        startTime: manualStartTime.epochMilliseconds,
+                        endTime: manualEndTime.epochMilliseconds,
                         note: manualNote
                     )
-                    manualMinutes = ""
                     manualNote = ""
                     isPresented = false
                 }
+                .disabled(manualEndTime <= manualStartTime)
             }
         }
     }
@@ -947,7 +962,7 @@ private struct CalendarScreen: View {
                             }
                         }
                         Spacer()
-                        Text("\(timeString(from: session.startTime)) – \(timeString(from: session.endTime))")
+                        Text(sessionIntervalText(session))
                             .font(.caption)
                             .foregroundStyle(AppColors.textSecondary)
                     }
@@ -1052,9 +1067,13 @@ private struct CalendarScreen: View {
             }
 
             // Time range
-            Text("\(timeString(from: session.startTime)) – \(timeString(from: session.endTime))")
-                .font(.subheadline)
-                .foregroundStyle(AppColors.textSecondary)
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(session.effectiveIntervals, id: \.self) { interval in
+                    Text("\(timeString(from: interval.startTime))~\(timeString(from: interval.endTime))")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+            }
 
             Divider()
 
@@ -1105,6 +1124,12 @@ private struct CalendarScreen: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: Date(epochMilliseconds: millis))
+    }
+
+    private func sessionIntervalText(_ session: StudySession) -> String {
+        session.effectiveIntervals
+            .map { "\(timeString(from: $0.startTime))~\(timeString(from: $0.endTime))" }
+            .joined(separator: "\n")
     }
 }
 
@@ -1428,7 +1453,7 @@ struct GoalsScreen: View {
                     title: "週間目標",
                     icon: "calendar",
                     goal: viewModel.weeklyGoal,
-                    currentMinutes: 0,
+                    currentMinutes: viewModel.weeklyStudyMinutes,
                     iconColor: Color(hex: 0x2196F3)
                 ) {
                     showWeeklyEditor = true
@@ -1467,7 +1492,7 @@ struct GoalsScreen: View {
     private var dailyGoalsCard: some View {
         let todayGoal = viewModel.dailyGoals[viewModel.todayWeekday]
         let todayTarget = todayGoal?.targetMinutes ?? 0
-        let todayProgress = todayTarget > 0 ? Double(0) / Double(todayTarget) : 0
+        let todayProgress = todayTarget > 0 ? Double(viewModel.todayStudyMinutes) / Double(todayTarget) : 0
 
         return VStack(spacing: AppSpacing.md) {
             HStack {
@@ -1490,7 +1515,7 @@ struct GoalsScreen: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(viewModel.todayWeekday.japaneseTitle)
                             .font(.headline)
-                        Text("0分 / \(todayTarget)分")
+                        Text("\(viewModel.todayStudyMinutes)分 / \(todayTarget)分")
                             .font(.subheadline)
                             .foregroundStyle(AppColors.textSecondary)
                     }

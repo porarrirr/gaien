@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.studyapp.R
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.Subject
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,14 +142,37 @@ fun ManualInputDialog(
     subjects: List<Subject>,
     initialSubjectId: Long? = null,
     onDismiss: () -> Unit,
-    onConfirm: (subjectId: Long, materialId: Long?, durationMinutes: Long) -> Unit
+    onConfirm: (subjectId: Long, materialId: Long?, startTime: Long, endTime: Long) -> Unit
 ) {
-    var duration by remember { mutableStateOf("") }
+    val now = remember {
+        Calendar.getInstance()
+    }
+    var startText by remember {
+        mutableStateOf(
+            String.format(
+                "%02d:%02d",
+                now.get(Calendar.HOUR_OF_DAY),
+                0
+            )
+        )
+    }
+    var endText by remember {
+        mutableStateOf(
+            String.format(
+                "%02d:%02d",
+                now.get(Calendar.HOUR_OF_DAY),
+                now.get(Calendar.MINUTE)
+            )
+        )
+    }
     var selectedSubjectId by remember(initialSubjectId) { mutableStateOf(initialSubjectId) }
     var isSubjectMenuExpanded by remember { mutableStateOf(false) }
     val selectedSubject = remember(subjects, selectedSubjectId) {
         subjects.firstOrNull { it.id == selectedSubjectId }
     }
+    val startTime = remember(startText) { parseTodayTime(startText) }
+    val endTime = remember(endText) { parseTodayTime(endText) }
+    val isTimeRangeValid = startTime != null && endTime != null && endTime > startTime
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -200,9 +224,19 @@ fun ManualInputDialog(
                 }
 
                 OutlinedTextField(
-                    value = duration,
-                    onValueChange = { duration = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.timer_duration)) },
+                    value = startText,
+                    onValueChange = { startText = it.take(5) },
+                    label = { Text(stringResource(R.string.timer_start_time)) },
+                    supportingText = { Text(stringResource(R.string.timer_time_format_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = endText,
+                    onValueChange = { endText = it.take(5) },
+                    label = { Text(stringResource(R.string.timer_end_time)) },
+                    supportingText = { Text(stringResource(R.string.timer_time_format_hint)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -212,12 +246,11 @@ fun ManualInputDialog(
             TextButton(
                 onClick = {
                     val subjectId = selectedSubjectId
-                    val durationMinutes = duration.toLongOrNull() ?: 0L
-                    if (subjectId != null && durationMinutes > 0) {
-                        onConfirm(subjectId, null, durationMinutes)
+                    if (subjectId != null && startTime != null && endTime != null && endTime > startTime) {
+                        onConfirm(subjectId, null, startTime, endTime)
                     }
                 },
-                enabled = duration.isNotEmpty() && selectedSubjectId != null
+                enabled = selectedSubjectId != null && isTimeRangeValid
             ) {
                 Text(stringResource(R.string.common_save))
             }
@@ -228,4 +261,20 @@ fun ManualInputDialog(
             }
         }
     )
+}
+
+private fun parseTodayTime(value: String): Long? {
+    val match = Regex("""^(\d{1,2}):(\d{2})$""").matchEntire(value.trim()) ?: return null
+    val hour = match.groupValues[1].toIntOrNull() ?: return null
+    val minute = match.groupValues[2].toIntOrNull() ?: return null
+    if (hour !in 0..23 || minute !in 0..59) {
+        return null
+    }
+    return Calendar.getInstance().run {
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, minute)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        timeInMillis
+    }
 }

@@ -233,18 +233,56 @@ struct StudySession: Identifiable, Codable, Hashable {
     var subjectName: String = ""
     var startTime: Int64
     var endTime: Int64
+    var intervals: [StudySessionInterval] = []
     var note: String?
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
     var deletedAt: Int64?
     var lastSyncedAt: Int64?
 
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case syncId
+        case materialId
+        case materialSyncId
+        case materialName
+        case subjectId
+        case subjectSyncId
+        case subjectName
+        case startTime
+        case endTime
+        case intervals
+        case note
+        case createdAt
+        case updatedAt
+        case deletedAt
+        case lastSyncedAt
+    }
+
+    var effectiveIntervals: [StudySessionInterval] {
+        if intervals.isEmpty {
+            return [StudySessionInterval(startTime: startTime, endTime: endTime)]
+        }
+        return intervals.sorted { $0.startTime < $1.startTime }
+    }
+
     var duration: Int64 {
-        max(endTime - startTime, 0)
+        if intervals.isEmpty {
+            return max(endTime - startTime, 0)
+        }
+        return effectiveIntervals.reduce(0) { $0 + $1.duration }
+    }
+
+    var sessionStartTime: Int64 {
+        effectiveIntervals.first?.startTime ?? startTime
+    }
+
+    var sessionEndTime: Int64 {
+        effectiveIntervals.last?.endTime ?? endTime
     }
 
     var date: Int64 {
-        Date(epochMilliseconds: startTime).epochDay
+        Date(epochMilliseconds: sessionStartTime).epochDay
     }
 
     var durationMinutes: Int {
@@ -271,15 +309,91 @@ struct StudySession: Identifiable, Codable, Hashable {
     }
 
     var startDate: Date {
-        Date(epochMilliseconds: startTime)
+        Date(epochMilliseconds: sessionStartTime)
     }
 
     var endDate: Date {
-        Date(epochMilliseconds: endTime)
+        Date(epochMilliseconds: sessionEndTime)
     }
 
     var dayOfWeek: StudyWeekday {
         StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: startDate))
+    }
+
+    init(
+        id: Int64 = 0,
+        syncId: String = UUID().uuidString.lowercased(),
+        materialId: Int64?,
+        materialSyncId: String? = nil,
+        materialName: String = "",
+        subjectId: Int64,
+        subjectSyncId: String? = nil,
+        subjectName: String = "",
+        startTime: Int64,
+        endTime: Int64,
+        intervals: [StudySessionInterval] = [],
+        note: String? = nil,
+        createdAt: Int64 = Date().epochMilliseconds,
+        updatedAt: Int64 = Date().epochMilliseconds,
+        deletedAt: Int64? = nil,
+        lastSyncedAt: Int64? = nil
+    ) {
+        self.id = id
+        self.syncId = syncId
+        self.materialId = materialId
+        self.materialSyncId = materialSyncId
+        self.materialName = materialName
+        self.subjectId = subjectId
+        self.subjectSyncId = subjectSyncId
+        self.subjectName = subjectName
+        self.startTime = startTime
+        self.endTime = endTime
+        self.intervals = intervals
+        self.note = note
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.deletedAt = deletedAt
+        self.lastSyncedAt = lastSyncedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(Int64.self, forKey: .id) ?? 0
+        syncId = try container.decodeIfPresent(String.self, forKey: .syncId) ?? UUID().uuidString.lowercased()
+        materialId = try container.decodeIfPresent(Int64.self, forKey: .materialId)
+        materialSyncId = try container.decodeIfPresent(String.self, forKey: .materialSyncId)
+        materialName = try container.decodeIfPresent(String.self, forKey: .materialName) ?? ""
+        subjectId = try container.decode(Int64.self, forKey: .subjectId)
+        subjectSyncId = try container.decodeIfPresent(String.self, forKey: .subjectSyncId)
+        subjectName = try container.decodeIfPresent(String.self, forKey: .subjectName) ?? ""
+        startTime = try container.decode(Int64.self, forKey: .startTime)
+        endTime = try container.decode(Int64.self, forKey: .endTime)
+        intervals = try container.decodeIfPresent([StudySessionInterval].self, forKey: .intervals) ?? []
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        createdAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? Date().epochMilliseconds
+        updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? createdAt
+        deletedAt = try container.decodeIfPresent(Int64.self, forKey: .deletedAt)
+        lastSyncedAt = try container.decodeIfPresent(Int64.self, forKey: .lastSyncedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(syncId, forKey: .syncId)
+        try container.encodeIfPresent(materialId, forKey: .materialId)
+        try container.encodeIfPresent(materialSyncId, forKey: .materialSyncId)
+        try container.encode(materialName, forKey: .materialName)
+        try container.encode(subjectId, forKey: .subjectId)
+        try container.encodeIfPresent(subjectSyncId, forKey: .subjectSyncId)
+        try container.encode(subjectName, forKey: .subjectName)
+        try container.encode(startTime, forKey: .startTime)
+        try container.encode(endTime, forKey: .endTime)
+        try container.encode(intervals, forKey: .intervals)
+        try container.encodeIfPresent(note, forKey: .note)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
+        try container.encodeIfPresent(lastSyncedAt, forKey: .lastSyncedAt)
     }
 }
 
@@ -453,13 +567,66 @@ struct TimerSnapshot: Codable, Equatable {
     var materialId: Int64?
     var startedAt: Int64?
     var accumulatedMilliseconds: Int64
+    var completedIntervals: [StudySessionInterval] = []
     var isRunning: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case subjectId
+        case materialId
+        case startedAt
+        case accumulatedMilliseconds
+        case completedIntervals
+        case isRunning
+    }
 
     func elapsedTime(at now: Date = Date()) -> Int64 {
         if isRunning, let startedAt {
             return accumulatedMilliseconds + max(now.epochMilliseconds - startedAt, 0)
         }
         return accumulatedMilliseconds
+    }
+
+    func finalizedIntervals(at now: Date = Date()) -> [StudySessionInterval] {
+        if isRunning, let startedAt {
+            return completedIntervals + [StudySessionInterval(startTime: startedAt, endTime: now.epochMilliseconds)]
+        }
+        return completedIntervals
+    }
+
+    init(
+        subjectId: Int64,
+        materialId: Int64?,
+        startedAt: Int64?,
+        accumulatedMilliseconds: Int64,
+        completedIntervals: [StudySessionInterval] = [],
+        isRunning: Bool
+    ) {
+        self.subjectId = subjectId
+        self.materialId = materialId
+        self.startedAt = startedAt
+        self.accumulatedMilliseconds = accumulatedMilliseconds
+        self.completedIntervals = completedIntervals
+        self.isRunning = isRunning
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        subjectId = try container.decode(Int64.self, forKey: .subjectId)
+        materialId = try container.decodeIfPresent(Int64.self, forKey: .materialId)
+        startedAt = try container.decodeIfPresent(Int64.self, forKey: .startedAt)
+        accumulatedMilliseconds = try container.decodeIfPresent(Int64.self, forKey: .accumulatedMilliseconds) ?? 0
+        completedIntervals = try container.decodeIfPresent([StudySessionInterval].self, forKey: .completedIntervals) ?? []
+        isRunning = try container.decode(Bool.self, forKey: .isRunning)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(subjectId, forKey: .subjectId)
+        try container.encodeIfPresent(materialId, forKey: .materialId)
+        try container.encodeIfPresent(startedAt, forKey: .startedAt)
+        try container.encode(accumulatedMilliseconds, forKey: .accumulatedMilliseconds)
+        try container.encode(completedIntervals, forKey: .completedIntervals)
+        try container.encode(isRunning, forKey: .isRunning)
     }
 }
 
@@ -532,6 +699,15 @@ struct AppPreferences: Codable, Equatable {
         try container.encode(liveActivityEnabled, forKey: .liveActivityEnabled)
         try container.encode(liveActivityDisplayPreset, forKey: .liveActivityDisplayPreset)
         try container.encodeIfPresent(activeTimer, forKey: .activeTimer)
+    }
+}
+
+struct StudySessionInterval: Codable, Hashable {
+    var startTime: Int64
+    var endTime: Int64
+
+    var duration: Int64 {
+        max(endTime - startTime, 0)
     }
 }
 
@@ -896,15 +1072,17 @@ struct SaveStudySessionUseCase {
     let subjectRepository: SubjectRepository
     let materialRepository: MaterialRepository
 
-    func saveManualSession(subjectId: Int64, materialId: Int64?, durationMinutes: Int, note: String?) async throws {
+    func saveManualSession(subjectId: Int64, materialId: Int64?, startTime: Int64, endTime: Int64, note: String?) async throws {
         guard let subject = try await subjectRepository.getSubjectById(subjectId) else {
             throw ValidationError(message: "科目を選択してください")
+        }
+        let duration = endTime - startTime
+        guard duration > 0 else {
+            throw ValidationError(message: "終了時刻は開始時刻より後にしてください")
         }
         let materials = try await materialRepository.getAllMaterials()
         let material = materials.first(where: { $0.id == materialId })
         let materialName = material?.name ?? ""
-        let end = Date().epochMilliseconds
-        let start = end - Int64(durationMinutes * 60_000)
         try await sessionRepository.insertSession(
             StudySession(
                 materialId: materialId,
@@ -913,8 +1091,9 @@ struct SaveStudySessionUseCase {
                 subjectId: subject.id,
                 subjectSyncId: subject.syncId,
                 subjectName: subject.name,
-                startTime: start,
-                endTime: end,
+                startTime: startTime,
+                endTime: endTime,
+                intervals: [StudySessionInterval(startTime: startTime, endTime: endTime)],
                 note: note?.nilIfBlank
             )
         )

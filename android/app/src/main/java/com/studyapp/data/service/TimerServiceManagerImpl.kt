@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import com.studyapp.domain.usecase.TimerServiceManager
+import com.studyapp.domain.usecase.TimerStopResult
 import com.studyapp.presentation.timer.TimerService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -106,7 +107,7 @@ class TimerServiceManagerImpl @Inject constructor(
         }
     }
     
-    override fun stopTimer(): Pair<Long, Long?> {
+    override fun stopTimer(): TimerStopResult {
         val service = timerService
         return if (service != null) {
             service.stopTimer()
@@ -117,11 +118,14 @@ class TimerServiceManagerImpl @Inject constructor(
             context.startService(intent)
 
             val currentState = _timerState.value
-            val elapsedTime = currentState.elapsedTime
-            val materialId = currentState.materialId
+            val intervals = completeIntervals(currentState)
             _timerState.value = TimerState()
 
-            Pair(elapsedTime, materialId)
+            TimerStopResult(
+                elapsed = intervals.sumOf { it.duration },
+                materialId = currentState.materialId,
+                intervals = intervals
+            )
         }
     }
     
@@ -162,4 +166,21 @@ class TimerServiceManagerImpl @Inject constructor(
         timerService = null
         _isBound.value = false
     }
+
+    private fun completeIntervals(state: TimerState) =
+        if (state.isRunning && state.startTime > 0L) {
+            state.completedIntervals + com.studyapp.domain.model.StudySessionInterval(
+                startTime = state.startTime,
+                endTime = System.currentTimeMillis()
+            )
+        } else if (state.completedIntervals.isNotEmpty() || state.elapsedTime <= 0L) {
+            state.completedIntervals
+        } else {
+            listOf(
+                com.studyapp.domain.model.StudySessionInterval(
+                    startTime = System.currentTimeMillis() - state.elapsedTime,
+                    endTime = System.currentTimeMillis()
+                )
+            )
+        }
 }

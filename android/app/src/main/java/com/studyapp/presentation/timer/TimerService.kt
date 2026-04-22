@@ -18,7 +18,9 @@ import com.studyapp.MainActivity
 import com.studyapp.R
 import com.studyapp.data.service.TimerState
 import com.studyapp.data.service.TimerStateStore
+import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.usecase.SaveStudySessionUseCase
+import com.studyapp.domain.usecase.TimerStopResult
 import com.studyapp.domain.util.Result
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
@@ -207,14 +209,30 @@ class TimerService : Service() {
     fun startTimer(subjectId: Long, subjectSyncId: String?, materialId: Long?, materialSyncId: String?) {
         val currentState = _timerState.value
         if (currentState.isRunning) return
+        val now = System.currentTimeMillis()
+        val completedIntervals = if (
+            currentState.elapsedTime > 0L &&
+            currentState.completedIntervals.isEmpty()
+        ) {
+            listOf(
+                StudySessionInterval(
+                    startTime = now - currentState.elapsedTime,
+                    endTime = now
+                )
+            )
+        } else {
+            currentState.completedIntervals
+        }
 
         val updatedState = currentState.copy(
             subjectId = subjectId,
             subjectSyncId = subjectSyncId,
             materialId = materialId,
             materialSyncId = materialSyncId,
+            elapsedTime = completedIntervals.sumOf { it.duration },
+            completedIntervals = completedIntervals,
             isRunning = true,
-            startTime = System.currentTimeMillis() - currentState.elapsedTime
+            startTime = now
         )
         _timerState.value = updatedState
         persistTimerState(updatedState)
@@ -231,9 +249,13 @@ class TimerService : Service() {
         updateNotification()
     }
     
-    fun stopTimer(): Pair<Long, Long?> {
+    fun stopTimer(): TimerStopResult {
         val stoppedTimer = runBlocking { clearTimerStateAndStopService() }
-        return Pair(stoppedTimer.elapsed, stoppedTimer.materialId)
+        return TimerStopResult(
+            elapsed = stoppedTimer.elapsed,
+            materialId = stoppedTimer.materialId,
+            intervals = stoppedTimer.intervals
+        )
     }
 
     private suspend fun stopTimerAndPersist() {
@@ -251,7 +273,8 @@ class TimerService : Service() {
                 subjectSyncId = stoppedTimer.subjectSyncId,
                 materialId = stoppedTimer.materialId,
                 materialSyncId = stoppedTimer.materialSyncId,
-                duration = stoppedTimer.elapsed
+                duration = stoppedTimer.elapsed,
+                intervals = stoppedTimer.intervals
             )
         ) {
             is Result.Error -> {
@@ -264,12 +287,14 @@ class TimerService : Service() {
     private suspend fun clearTimerStateAndStopService(): StoppedTimer {
         timerJob?.cancel()
         val currentState = _timerState.value
+        val completedIntervals = completeIntervals(currentState)
         val stoppedTimer = StoppedTimer(
             subjectId = currentState.subjectId,
             subjectSyncId = currentState.subjectSyncId,
             materialId = currentState.materialId,
             materialSyncId = currentState.materialSyncId,
-            elapsed = currentElapsedTime(currentState)
+            elapsed = completedIntervals.sumOf { it.duration },
+            intervals = completedIntervals
         )
         _timerState.value = TimerState()
         
@@ -296,7 +321,7 @@ class TimerService : Service() {
             state.copy(
                 elapsedTime = elapsedTime,
                 startTime = if (state.isRunning) {
-                    System.currentTimeMillis() - elapsedTime
+                    System.currentTimeMillis()
                 } else {
                     0L
                 }
@@ -343,17 +368,38 @@ class TimerService : Service() {
 
     private fun currentElapsedTime(state: TimerState): Long {
         return if (state.isRunning && state.startTime > 0L) {
-            System.currentTimeMillis() - state.startTime
+            state.completedIntervals.sumOf { it.duration } + (System.currentTimeMillis() - state.startTime)
         } else {
             state.elapsedTime
         }
     }
 
     private fun TimerState.pause(): TimerState {
+        val updatedIntervals = completeIntervals(this)
         return copy(
-            elapsedTime = currentElapsedTime(this),
+            elapsedTime = updatedIntervals.sumOf { it.duration },
+            completedIntervals = updatedIntervals,
             isRunning = false,
             startTime = 0L
+        )
+    }
+
+    private fun completeIntervals(state: TimerState): List<StudySessionInterval> {
+        if (!state.isRunning || state.startTime <= 0L) {
+            return if (state.completedIntervals.isNotEmpty() || state.elapsedTime <= 0L) {
+                state.completedIntervals
+            } else {
+                listOf(
+                    StudySessionInterval(
+                        startTime = System.currentTimeMillis() - state.elapsedTime,
+                        endTime = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+        return state.completedIntervals + StudySessionInterval(
+            startTime = state.startTime,
+            endTime = System.currentTimeMillis()
         )
     }
 
@@ -362,6 +408,7 @@ class TimerService : Service() {
         val subjectSyncId: String?,
         val materialId: Long?,
         val materialSyncId: String?,
-        val elapsed: Long
+        val elapsed: Long,
+        val intervals: List<StudySessionInterval>
     )
 }

@@ -520,8 +520,11 @@ private fun SessionCard(
     onEditMemo: () -> Unit
 ) {
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val startText = remember(session.startTime) { timeFormat.format(Date(session.startTime)) }
-    val endText = remember(session.endTime) { timeFormat.format(Date(session.endTime)) }
+    val intervalTexts = remember(session.effectiveIntervals) {
+        session.effectiveIntervals.map { interval ->
+            "${timeFormat.format(Date(interval.startTime))}~${timeFormat.format(Date(interval.endTime))}"
+        }
+    }
 
     OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -573,12 +576,18 @@ private fun SessionCard(
                 )
             }
 
-            Text(
-                text = "$startText – $endText",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            Column(
+                modifier = Modifier.padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                intervalTexts.forEach { intervalText ->
+                    Text(
+                        text = intervalText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 10.dp),
@@ -649,8 +658,10 @@ private fun MemoEditBottomSheet(
     }
 
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val timeRange = remember(session.startTime, session.endTime) {
-        "${timeFormat.format(Date(session.startTime))} – ${timeFormat.format(Date(session.endTime))}"
+    val timeRange = remember(session.effectiveIntervals) {
+        session.effectiveIntervals.joinToString(separator = "\n") { interval ->
+            "${timeFormat.format(Date(interval.startTime))}~${timeFormat.format(Date(interval.endTime))}"
+        }
     }
 
     ModalBottomSheet(

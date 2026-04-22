@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.Subject
 import com.studyapp.presentation.components.EmptyState
 import androidx.compose.foundation.background
@@ -358,6 +359,12 @@ private fun EditSessionDialog(
                     val newDuration = minutes * 60000
                     onConfirm(session.copy(
                         endTime = session.startTime + newDuration,
+                        intervals = listOf(
+                            StudySessionInterval(
+                                startTime = session.startTime,
+                                endTime = session.startTime + newDuration
+                            )
+                        ),
                         note = note.ifBlank { null }
                     ))
                 }
