@@ -19,6 +19,7 @@ struct MaterialsScreen: View {
     @State private var isShowingScanner = false
     @State private var isShowingIsbnSearch = false
     @State private var scannerMessage: String?
+    @State private var historyMaterial: Material?
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: MaterialsViewModel(app: app))
@@ -45,6 +46,9 @@ struct MaterialsScreen: View {
                                 material: material,
                                 subjectName: subjectName,
                                 subjectColor: subjectColor,
+                                onOpenHistory: {
+                                    historyMaterial = material
+                                },
                                 onEdit: {
                                     editingMaterial = material
                                     materialDraft = MaterialDraft(material: material)
@@ -65,6 +69,9 @@ struct MaterialsScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("教材")
+        .navigationDestination(item: $historyMaterial) { material in
+            MaterialHistoryScreen(app: viewModel.app, materialId: material.id)
+        }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 NavigationLink {
@@ -254,6 +261,7 @@ private struct MaterialCardNew: View {
     let material: Material
     let subjectName: String
     let subjectColor: Int
+    let onOpenHistory: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
     let onUpdateProgress: () -> Void
@@ -315,6 +323,333 @@ private struct MaterialCardNew: View {
             }
         }
         .cardStyle()
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpenHistory)
+    }
+}
+
+private struct MaterialHistoryScreen: View {
+    @StateObject private var viewModel: MaterialHistoryViewModel
+
+    init(app: StudyAppContainer, materialId: Int64) {
+        _viewModel = StateObject(wrappedValue: MaterialHistoryViewModel(app: app, materialId: materialId))
+    }
+
+    var body: some View {
+        Group {
+            if let material = viewModel.material {
+                ScrollView {
+                    LazyVStack(spacing: AppSpacing.md) {
+                        MaterialHistorySummaryCard(
+                            material: material,
+                            subject: viewModel.subject,
+                            totalMinutes: viewModel.totalMinutes,
+                            sessionCount: viewModel.sessions.count,
+                            latestStudyDate: viewModel.latestStudyDate
+                        )
+                        .padding(.horizontal, AppSpacing.md)
+
+                        MaterialHistoryCalendarView(
+                            displayedMonth: viewModel.displayedMonth,
+                            selectedDate: viewModel.selectedDate,
+                            studyMinutesByDay: viewModel.studyMinutesByDay,
+                            onPrevious: viewModel.previousMonth,
+                            onNext: viewModel.nextMonth,
+                            onSelectDate: viewModel.selectDate
+                        )
+                        .padding(.horizontal, AppSpacing.md)
+
+                        selectedDaySection
+                            .padding(.horizontal, AppSpacing.md)
+                    }
+                    .padding(.vertical, AppSpacing.md)
+                }
+            } else {
+                EmptyStateView(
+                    icon: "book.closed",
+                    title: "教材が見つかりません",
+                    description: "教材一覧からもう一度選択してください。"
+                )
+            }
+        }
+        .background(AppColors.subtleBackground)
+        .navigationTitle(viewModel.material?.name ?? "教材の履歴")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: viewModel.app.dataVersion) {
+            await viewModel.load()
+        }
+    }
+
+    private var selectedDaySection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            SectionHeaderView(title: selectedDateTitle, icon: "calendar")
+            Text("合計 \(Goal.format(minutes: viewModel.selectedDateMinutes)) ・ \(viewModel.selectedDateSessions.count)回")
+                .font(.caption)
+                .foregroundStyle(AppColors.textSecondary)
+
+            if viewModel.selectedDateSessions.isEmpty {
+                Text("この日の記録はありません")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, AppSpacing.lg)
+                    .cardStyle()
+            } else {
+                ForEach(viewModel.selectedDateSessions) { session in
+                    MaterialHistorySessionCard(session: session)
+                }
+            }
+        }
+    }
+
+    private var selectedDateTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M月d日"
+        return formatter.string(from: viewModel.selectedDate)
+    }
+}
+
+private struct MaterialHistorySummaryCard: View {
+    let material: Material
+    let subject: Subject?
+    let totalMinutes: Int
+    let sessionCount: Int
+    let latestStudyDate: Date?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(material.name)
+                    .font(.title2.bold())
+                    .foregroundStyle(AppColors.textPrimary)
+                Text(subject?.name ?? "科目未設定")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+
+            if material.totalPages > 0 {
+                AnimatedProgressBar(
+                    value: Double(material.currentPage),
+                    total: Double(material.totalPages),
+                    height: 8
+                )
+                HStack {
+                    Text("\(material.currentPage)/\(material.totalPages)ページ")
+                    Spacer()
+                    Text("\(material.progressPercent)%")
+                        .fontWeight(.bold)
+                }
+                .font(.caption)
+                .foregroundStyle(AppColors.textSecondary)
+            }
+
+            HStack(spacing: AppSpacing.sm) {
+                MaterialHistoryMetric(label: "累計", value: Goal.format(minutes: totalMinutes))
+                MaterialHistoryMetric(label: "記録", value: "\(sessionCount)回")
+                MaterialHistoryMetric(label: "最終", value: latestStudyDate.map(shortDate) ?? "なし")
+            }
+        }
+        .cardStyle()
+    }
+
+    private func shortDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: date)
+    }
+}
+
+private struct MaterialHistoryMetric: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.caption.bold())
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private struct MaterialHistoryCalendarView: View {
+    let displayedMonth: Date
+    let selectedDate: Date
+    let studyMinutesByDay: [Int: Int]
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+    let onSelectDate: (Date) -> Void
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+
+    var body: some View {
+        VStack(spacing: AppSpacing.sm) {
+            HStack {
+                Button(action: onPrevious) {
+                    Image(systemName: "chevron.left")
+                        .frame(width: 36, height: 36)
+                }
+                Spacer()
+                Text(monthTitle)
+                    .font(.headline)
+                Spacer()
+                Button(action: onNext) {
+                    Image(systemName: "chevron.right")
+                        .frame(width: 36, height: 36)
+                }
+            }
+
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(["日", "月", "火", "水", "木", "金", "土"], id: \.self) { weekday in
+                    Text(weekday)
+                        .font(.caption2)
+                        .foregroundStyle(AppColors.textSecondary)
+                        .frame(maxWidth: .infinity)
+                }
+
+                ForEach(calendarCells.indices, id: \.self) { index in
+                    if let date = calendarCells[index] {
+                        let day = Calendar.current.component(.day, from: date)
+                        MaterialHistoryDayCell(
+                            day: day,
+                            minutes: studyMinutesByDay[day] ?? 0,
+                            maxMinutes: studyMinutesByDay.values.max() ?? 0,
+                            isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate)
+                        ) {
+                            onSelectDate(date)
+                        }
+                    } else {
+                        Color.clear
+                            .aspectRatio(1, contentMode: .fit)
+                    }
+                }
+            }
+        }
+        .cardStyle()
+    }
+
+    private var monthTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy年 M月"
+        return formatter.string(from: displayedMonth)
+    }
+
+    private var calendarCells: [Date?] {
+        let calendar = Calendar.current
+        guard let interval = calendar.dateInterval(of: .month, for: displayedMonth) else { return [] }
+        let firstDay = interval.start
+        let firstWeekday = calendar.component(.weekday, from: firstDay) - 1
+        let days = calendar.range(of: .day, in: .month, for: displayedMonth)?.count ?? 0
+        var cells = Array<Date?>(repeating: nil, count: firstWeekday)
+        for dayOffset in 0..<days {
+            cells.append(calendar.date(byAdding: .day, value: dayOffset, to: firstDay))
+        }
+        while cells.count % 7 != 0 {
+            cells.append(nil)
+        }
+        return cells
+    }
+}
+
+private struct MaterialHistoryDayCell: View {
+    let day: Int
+    let minutes: Int
+    let maxMinutes: Int
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 2) {
+                Text("\(day)")
+                    .font(.caption.bold())
+                if minutes > 0 {
+                    Text("\(minutes)分")
+                        .font(.system(size: 9, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+            .foregroundStyle(isSelected || heatLevel >= 3 ? .white : AppColors.textPrimary)
+            .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)
+            .background(backgroundColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.15), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var heatLevel: Int {
+        guard minutes > 0, maxMinutes > 0 else { return 0 }
+        let ratio = Double(minutes) / Double(maxMinutes)
+        if ratio >= 0.75 { return 4 }
+        if ratio >= 0.5 { return 3 }
+        if ratio >= 0.25 { return 2 }
+        return 1
+    }
+
+    private var backgroundColor: Color {
+        if isSelected { return .accentColor }
+        switch heatLevel {
+        case 1: return Color(hex: 0xDDEEDB)
+        case 2: return Color(hex: 0x9BD58A)
+        case 3: return Color(hex: 0x5AAD5A)
+        case 4: return Color(hex: 0x2E7D32)
+        default: return Color.secondary.opacity(0.08)
+        }
+    }
+}
+
+private struct MaterialHistorySessionCard: View {
+    let session: StudySession
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(intervalText)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                    Text(session.durationJapaneseText)
+                        .font(.headline)
+                        .foregroundStyle(.tint)
+                }
+                Spacer()
+            }
+
+            Divider()
+
+            Text(session.note?.nilIfBlank ?? "メモはありません")
+                .font(.subheadline)
+                .foregroundStyle(session.note?.nilIfBlank == nil ? AppColors.textSecondary : AppColors.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .cardStyle()
+    }
+
+    private var intervalText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "HH:mm"
+        return session.effectiveIntervals.map { interval in
+            "\(formatter.string(from: Date(epochMilliseconds: interval.startTime))) - \(formatter.string(from: Date(epochMilliseconds: interval.endTime)))"
+        }
+        .joined(separator: "\n")
     }
 }
 

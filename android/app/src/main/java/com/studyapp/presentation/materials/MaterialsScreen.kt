@@ -60,7 +60,8 @@ import com.studyapp.presentation.components.LoadingState
 @Composable
 fun MaterialsScreen(
     viewModel: MaterialsViewModel = hiltViewModel(),
-    onNavigateToSubjects: () -> Unit = {}
+    onNavigateToSubjects: () -> Unit = {},
+    onOpenMaterialHistory: (Long) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
@@ -161,6 +162,7 @@ fun MaterialsScreen(
                         MaterialCard(
                             material = material,
                             subjectName = subjectName,
+                            onOpenHistory = { onOpenMaterialHistory(material.id) },
                             onEdit = { editingMaterial = material },
                             onDelete = { viewModel.deleteMaterial(material) },
                             onUpdateProgress = { page -> 
@@ -249,6 +251,7 @@ fun MaterialsScreen(
 private fun MaterialCard(
     material: Material,
     subjectName: String,
+    onOpenHistory: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onUpdateProgress: (Int) -> Unit
@@ -259,7 +262,7 @@ private fun MaterialCard(
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-        onClick = { showProgressEdit = true }
+        onClick = onOpenHistory
     ) {
         Column(
             modifier = Modifier
@@ -329,8 +332,24 @@ private fun MaterialCard(
                 )
                 
                 Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "タップで学習履歴",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = { showProgressEdit = true }) {
+                        Text("進捗更新")
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "タップで進捗更新",
+                    text = "タップで学習履歴",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

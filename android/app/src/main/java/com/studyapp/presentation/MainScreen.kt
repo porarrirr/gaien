@@ -13,14 +13,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavType
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
 import com.studyapp.presentation.home.HomeScreen
 import com.studyapp.presentation.timer.TimerScreen
+import com.studyapp.presentation.materials.MaterialHistoryScreen
 import com.studyapp.presentation.materials.MaterialsScreen
 import com.studyapp.presentation.calendar.CalendarScreen
 import com.studyapp.presentation.reports.ReportsScreen
@@ -130,7 +133,18 @@ fun MainScreen() {
             }
             composable(Screen.Materials.route) {
                 MaterialsScreen(
-                    onNavigateToSubjects = { navController.navigate(Screen.Subjects.route) }
+                    onNavigateToSubjects = { navController.navigate(Screen.Subjects.route) },
+                    onOpenMaterialHistory = { materialId ->
+                        navController.navigate(Screen.MaterialHistory.createRoute(materialId))
+                    }
+                )
+            }
+            composable(
+                route = Screen.MaterialHistory.route,
+                arguments = listOf(navArgument("materialId") { type = NavType.LongType })
+            ) {
+                MaterialHistoryScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable(Screen.Calendar.route) {

@@ -12,6 +12,9 @@ sealed class Screen(
     object Home : Screen("home", "ホーム", Icons.Default.Home)
     object Timer : Screen("timer", "タイマー", Icons.Default.Timer)
     object Materials : Screen("materials", "教材", Icons.Default.Book)
+    object MaterialHistory : Screen("materials/{materialId}/history", "教材の履歴", Icons.Default.History) {
+        fun createRoute(materialId: Long): String = "materials/$materialId/history"
+    }
     object Calendar : Screen("calendar", "カレンダー", Icons.Default.CalendarMonth)
     object Reports : Screen("reports", "レポート", Icons.Default.BarChart)
     object Exams : Screen("exams", "テスト", Icons.Default.Event)
