@@ -21,6 +21,17 @@ struct MaterialsScreen: View {
     @State private var scannerMessage: String?
     @State private var historyMaterial: Material?
 
+    private var historyNavigationBinding: Binding<Bool> {
+        Binding(
+            get: { historyMaterial != nil },
+            set: { isPresented in
+                if !isPresented {
+                    historyMaterial = nil
+                }
+            }
+        )
+    }
+
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: MaterialsViewModel(app: app))
     }
@@ -69,8 +80,10 @@ struct MaterialsScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("教材")
-        .navigationDestination(item: $historyMaterial) { material in
-            MaterialHistoryScreen(app: viewModel.app, materialId: material.id)
+        .navigationDestination(isPresented: historyNavigationBinding) {
+            if let material = historyMaterial {
+                MaterialHistoryScreen(app: viewModel.app, materialId: material.id)
+            }
         }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
