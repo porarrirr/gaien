@@ -1,15 +1,16 @@
 name: iOS Unsigned IPA Release
 
 on:
+  release:
+    types:
+      - published
   push:
-    branches:
-      - "main"
     tags:
       - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Git tag to build and publish"
+        description: "Git tag to build and publish. If omitted, the current ref is used."
         required: true
         type: string
 
@@ -17,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: ios-unsigned-ipa-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  group: ios-unsigned-ipa-${{ github.event_name == 'release' && github.event.release.tag_name || github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -34,14 +35,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            RELEASE_NAME="${{ github.event.release.tag_name }}"
+            CHECKOUT_REF="${{ github.event.release.tag_name }}"
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             RELEASE_NAME="${{ inputs.tag }}"
-            CHECKOUT_REF="${{ inputs.tag }}"
+            CHECKOUT_REF="${{ inputs.tag || github.ref }}"
           elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             RELEASE_NAME="${{ github.ref_name }}"
-            CHECKOUT_REF="${{ github.ref }}"
-          else
-            RELEASE_NAME="build-${{ github.ref_name }}-${{ github.run_number }}"
             CHECKOUT_REF="${{ github.ref }}"
           fi
 
@@ -64,14 +65,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_REF}" == refs/tags/* ]] || [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            if [[ "$release_name" == v* ]]; then
-              MARKETING_VERSION="${release_name#v}"
-            else
-              MARKETING_VERSION="$release_name"
-            fi
+          if [[ "$release_name" == v* ]]; then
+            MARKETING_VERSION="${release_name#v}"
           else
-            MARKETING_VERSION=$(sed -n 's/.*MARKETING_VERSION = \([0-9.]*\);/\1/p' ios/StudyApp.xcodeproj/project.pbxproj | head -n 1)
+            MARKETING_VERSION="$release_name"
           fi
 
           if [[ ! "$MARKETING_VERSION" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
@@ -85,7 +82,7 @@ jobs:
           echo "build_version=$BUILD_VERSION" >> "$GITHUB_ENV"
 
       - name: Verify tag exists
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           set -euo pipefail
@@ -263,7 +260,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          if gh release view "$release_name" >/dev/null 2>&1; then
+          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            gh release upload "$release_name" "${asset_dir}"/*.ipa --clobber
+          elif gh release view "$release_name" >/dev/null 2>&1; then
             gh release upload "$release_name" "${asset_dir}"/*.ipa --clobber
           else
             gh release create "$release_name" "${asset_dir}"/*.ipa --generate-notes --title "$release_name"
