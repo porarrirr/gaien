@@ -588,9 +588,11 @@ private struct TimerScreen: View {
         }
     }
 
-    private var controlButtonsSection: some View {
-        let primaryLabel = viewModel.isRunning ? "一時停止" : (viewModel.elapsedMilliseconds > 0 ? "再開" : "開始")
+    private var primaryTimerButtonLabel: String {
+        viewModel.isRunning ? "一時停止" : (viewModel.elapsedMilliseconds > 0 ? "再開" : "開始")
+    }
 
+    private var controlButtonsSection: some View {
         HStack(spacing: AppSpacing.xl) {
             VStack(spacing: AppSpacing.xs) {
                 Button {
@@ -625,7 +627,7 @@ private struct TimerScreen: View {
                         .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 4)
                 }
 
-                Text(primaryLabel)
+                Text(primaryTimerButtonLabel)
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
             }
