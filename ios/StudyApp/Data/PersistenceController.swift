@@ -1417,7 +1417,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "name", type: .stringAttributeType),
                     attribute(name: "subjectId", type: .integer64AttributeType),
                     attribute(name: "subjectSyncId", type: .stringAttributeType, optional: true),
-                    attribute(name: "sortOrder", type: .integer64AttributeType),
+                    attribute(name: "sortOrder", type: .integer64AttributeType, defaultValue: Int64(0)),
                     attribute(name: "totalPages", type: .integer64AttributeType),
                     attribute(name: "currentPage", type: .integer64AttributeType),
                     attribute(name: "color", type: .integer64AttributeType, optional: true),
@@ -1439,7 +1439,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "subjectId", type: .integer64AttributeType),
                     attribute(name: "subjectSyncId", type: .stringAttributeType, optional: true),
                     attribute(name: "subjectName", type: .stringAttributeType),
-                    attribute(name: "sessionType", type: .stringAttributeType),
+                    attribute(name: "sessionType", type: .stringAttributeType, defaultValue: StudySessionType.stopwatch.rawValue),
                     attribute(name: "startTime", type: .integer64AttributeType),
                     attribute(name: "endTime", type: .integer64AttributeType),
                     attribute(name: "duration", type: .integer64AttributeType),
@@ -1528,11 +1528,17 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return entity
     }
 
-    private static func attribute(name: String, type: NSAttributeType, optional: Bool = false) -> NSAttributeDescription {
+    private static func attribute(
+        name: String,
+        type: NSAttributeType,
+        optional: Bool = false,
+        defaultValue: Any? = nil
+    ) -> NSAttributeDescription {
         let attribute = NSAttributeDescription()
         attribute.name = name
         attribute.attributeType = type
         attribute.isOptional = optional
+        attribute.defaultValue = defaultValue
         return attribute
     }
 
