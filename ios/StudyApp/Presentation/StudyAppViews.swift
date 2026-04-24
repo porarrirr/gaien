@@ -656,7 +656,7 @@ private struct TimerScreen: View {
                         } label: {
                             Text("\(minutes)分")
                                 .font(.subheadline.bold())
-                                .foregroundStyle(viewModel.countdownMinutes == minutes ? .white : .tint)
+                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : Color.accentColor)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
                                 .background(
@@ -678,7 +678,7 @@ private struct TimerScreen: View {
         } label: {
             Text(title)
                 .font(.subheadline.bold())
-                .foregroundStyle(viewModel.mode == mode ? .white : .tint)
+                .foregroundStyle(viewModel.mode == mode ? Color.white : Color.accentColor)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(
