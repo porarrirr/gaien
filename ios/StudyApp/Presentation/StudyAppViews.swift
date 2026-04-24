@@ -447,6 +447,8 @@ private struct TimerScreen: View {
                 VStack(spacing: AppSpacing.xl) {
                     selectorSection
 
+                    timerModeSection
+
                     ZStack {
                         ProgressRing(
                             progress: timerProgress,
@@ -458,12 +460,12 @@ private struct TimerScreen: View {
                         .scaleEffect(ringScale)
 
                         VStack(spacing: AppSpacing.xs) {
-                            Text(durationString(milliseconds: viewModel.elapsedMilliseconds))
+                            Text(durationString(milliseconds: viewModel.displayMilliseconds))
                                 .font(.system(size: 48, weight: .bold, design: .rounded))
                                 .monospacedDigit()
                                 .foregroundStyle(AppColors.textPrimary)
                             if viewModel.isRunning {
-                                Text("記録中")
+                                Text(viewModel.mode == .timer ? "カウントダウン中" : "記録中")
                                     .font(.caption.bold())
                                     .foregroundStyle(.tint)
                                     .padding(.horizontal, 12)
@@ -522,6 +524,11 @@ private struct TimerScreen: View {
     }
 
     private var timerProgress: Double {
+        if viewModel.mode == .timer {
+            let targetMs = Double(viewModel.countdownMinutes * 60 * 1000)
+            guard targetMs > 0 else { return 0 }
+            return min(max(1.0 - Double(viewModel.remainingMilliseconds) / targetMs, 0), 1.0)
+        }
         let targetMs: Double = 60 * 60 * 1000
         return min(Double(viewModel.elapsedMilliseconds) / targetMs, 1.0)
     }
@@ -589,7 +596,7 @@ private struct TimerScreen: View {
     }
 
     private var primaryTimerButtonLabel: String {
-        viewModel.isRunning ? "一時停止" : (viewModel.elapsedMilliseconds > 0 ? "再開" : "開始")
+        viewModel.isRunning ? "一時停止" : (viewModel.displayMilliseconds > 0 ? "再開" : "開始")
     }
 
     private var controlButtonsSection: some View {
@@ -603,10 +610,10 @@ private struct TimerScreen: View {
                         .foregroundStyle(.white)
                         .frame(width: 64, height: 64)
                         .background(
-                            Circle().fill(viewModel.elapsedMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3))
+                            Circle().fill(viewModel.displayMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3))
                         )
                 }
-                .disabled(viewModel.elapsedMilliseconds == 0)
+                .disabled(viewModel.displayMilliseconds == 0)
 
                 Text("終了")
                     .font(.caption)
@@ -633,6 +640,54 @@ private struct TimerScreen: View {
             }
         }
         .padding(.bottom, AppSpacing.sm)
+    }
+
+    private var timerModeSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(spacing: AppSpacing.sm) {
+                timerModeButton(title: "ストップウォッチ", mode: .stopwatch)
+                timerModeButton(title: "タイマー", mode: .timer)
+            }
+            if viewModel.mode == .timer {
+                HStack(spacing: AppSpacing.sm) {
+                    ForEach([15, 25, 45, 60], id: \.self) { minutes in
+                        Button {
+                            viewModel.setCountdownMinutes(minutes)
+                        } label: {
+                            Text("\(minutes)分")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(viewModel.countdownMinutes == minutes ? .white : .tint)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(viewModel.countdownMinutes == minutes ? Color.accentColor : Color.accentColor.opacity(0.08))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isRunning)
+                    }
+                }
+            }
+        }
+    }
+
+    private func timerModeButton(title: String, mode: TimerSnapshot.Mode) -> some View {
+        Button {
+            viewModel.setMode(mode)
+        } label: {
+            Text(title)
+                .font(.subheadline.bold())
+                .foregroundStyle(viewModel.mode == mode ? .white : .tint)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(viewModel.mode == mode ? Color.accentColor : Color.accentColor.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isRunning)
     }
 
     private var manualEntryButton: some View {
@@ -819,7 +874,7 @@ private struct CalendarScreen: View {
                             .frame(width: 44, height: 44)
                     }
                     Spacer()
-                    Text("\(displayYear)年\(displayMonth)月")
+                    Text(calendarMonthTitle)
                         .font(.title2.bold())
                     Spacer()
                     Button {
@@ -1045,6 +1100,13 @@ private struct CalendarScreen: View {
         }
     }
 
+    private var calendarMonthTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy年M月"
+        return formatter.string(from: viewModel.displayedMonth)
+    }
+
     private func sessionCard(_ session: StudySession) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             // Subject + Duration badge
@@ -1053,6 +1115,12 @@ private struct CalendarScreen: View {
                     .font(.headline)
                     .foregroundStyle(AppColors.textPrimary)
                 Spacer()
+                Text(session.sessionType.title)
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.12), in: Capsule())
                 Text(Goal.format(minutes: session.durationMinutes))
                     .font(.caption.bold())
                     .foregroundStyle(.tint)

@@ -4,11 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.StudySessionInterval
+import com.studyapp.domain.model.StudySessionType
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.usecase.GetRecentMaterialsUseCase
 import com.studyapp.domain.usecase.SaveStudySessionUseCase
+import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.domain.usecase.TimerServiceManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +29,9 @@ data class TimerUiState(
     val error: String? = null,
     val isRunning: Boolean = false,
     val elapsedTime: Long = 0L,
+    val remainingTime: Long = 0L,
+    val timerMode: TimerMode = TimerMode.STOPWATCH,
+    val countdownMinutes: Int = 25,
     val selectedMaterial: Material? = null,
     val selectedSubject: Subject? = null,
     val subjects: List<Subject> = emptyList(),
@@ -53,7 +58,7 @@ class TimerViewModel @Inject constructor(
     }
     
     private fun loadData() {
-        val timerSelection = combine(
+        val selectionBase = combine(
             timerServiceManager.currentSubjectId,
             timerServiceManager.currentSubjectSyncId,
             timerServiceManager.currentMaterialId,
@@ -63,7 +68,19 @@ class TimerViewModel @Inject constructor(
                 currentSubjectId = currentSubjectId,
                 currentSubjectSyncId = currentSubjectSyncId,
                 currentMaterialId = currentMaterialId,
-                currentMaterialSyncId = currentMaterialSyncId
+                currentMaterialSyncId = currentMaterialSyncId,
+                currentMode = TimerMode.STOPWATCH,
+                currentTargetDurationMillis = null
+            )
+        }
+        val timerSelection = combine(
+            selectionBase,
+            timerServiceManager.currentMode,
+            timerServiceManager.currentTargetDurationMillis
+        ) { selection, currentMode, currentTargetDurationMillis ->
+            selection.copy(
+                currentMode = currentMode,
+                currentTargetDurationMillis = currentTargetDurationMillis
             )
         }
 
@@ -80,7 +97,9 @@ class TimerViewModel @Inject constructor(
                 currentSubjectId = selection.currentSubjectId,
                 currentSubjectSyncId = selection.currentSubjectSyncId,
                 currentMaterialId = selection.currentMaterialId,
-                currentMaterialSyncId = selection.currentMaterialSyncId
+                currentMaterialSyncId = selection.currentMaterialSyncId,
+                currentMode = selection.currentMode,
+                currentTargetDurationMillis = selection.currentTargetDurationMillis
             )
         }
         .onEach { data ->
@@ -115,6 +134,9 @@ class TimerViewModel @Inject constructor(
                     subjects = data.subjects,
                     materialsBySubject = bySubject,
                     recentMaterials = data.recentMaterials,
+                    timerMode = data.currentMode,
+                    countdownMinutes = ((data.currentTargetDurationMillis ?: (state.countdownMinutes * 60_000L)) / 60_000L).toInt()
+                        .coerceAtLeast(1),
                     selectedSubject = selectedSubject,
                     selectedMaterial = selectedMaterial
                 )
@@ -139,6 +161,12 @@ class TimerViewModel @Inject constructor(
         timerServiceManager.isRunning
             .onEach { running ->
                 _uiState.update { it.copy(isRunning = running) }
+            }
+            .launchIn(viewModelScope)
+
+        timerServiceManager.remainingTime
+            .onEach { remaining ->
+                _uiState.update { it.copy(remainingTime = remaining) }
             }
             .launchIn(viewModelScope)
         
@@ -192,7 +220,13 @@ class TimerViewModel @Inject constructor(
             subjectId = subject.id,
             subjectSyncId = subject.syncId,
             materialId = state.selectedMaterial?.id,
-            materialSyncId = state.selectedMaterial?.syncId
+            materialSyncId = state.selectedMaterial?.syncId,
+            mode = state.timerMode,
+            targetDurationMillis = if (state.timerMode == TimerMode.TIMER) {
+                state.countdownMinutes * 60_000L
+            } else {
+                null
+            }
         )
     }
     
@@ -210,14 +244,16 @@ class TimerViewModel @Inject constructor(
                 subjectId = subject.id,
                 materialId = materialId,
                 duration = stopResult.elapsed,
-                intervals = stopResult.intervals
+                intervals = stopResult.intervals,
+                sessionType = stopResult.sessionType
             )
         }
         
         _uiState.update { state ->
             state.copy(
                 isRunning = false,
-                elapsedTime = 0L
+                elapsedTime = 0L,
+                remainingTime = 0L
             )
         }
     }
@@ -237,22 +273,41 @@ class TimerViewModel @Inject constructor(
                     startTime = startTime,
                     endTime = endTime
                 )
-            )
+            ),
+            sessionType = StudySessionType.MANUAL
         )
+    }
+
+    fun setTimerMode(mode: TimerMode) {
+        if (_uiState.value.isRunning) {
+            _uiState.update { it.copy(error = "実行中はタイマー種別を変更できません") }
+            return
+        }
+        _uiState.update { it.copy(timerMode = mode) }
+    }
+
+    fun setCountdownMinutes(minutes: Int) {
+        if (_uiState.value.isRunning) {
+            _uiState.update { it.copy(error = "実行中は時間を変更できません") }
+            return
+        }
+        _uiState.update { it.copy(countdownMinutes = minutes.coerceAtLeast(1)) }
     }
     
     private fun saveSession(
         subjectId: Long,
         materialId: Long?,
         duration: Long,
-        intervals: List<com.studyapp.domain.model.StudySessionInterval> = emptyList()
+        intervals: List<com.studyapp.domain.model.StudySessionInterval> = emptyList(),
+        sessionType: StudySessionType = StudySessionType.STOPWATCH
     ) {
         viewModelScope.launch {
             saveStudySessionUseCase(
                 subjectId = subjectId,
                 materialId = materialId,
                 duration = duration,
-                intervals = intervals
+                intervals = intervals,
+                sessionType = sessionType
             )
                 .onError { error ->
                     _uiState.update { state ->
@@ -273,13 +328,17 @@ class TimerViewModel @Inject constructor(
         val currentSubjectId: Long?,
         val currentSubjectSyncId: String?,
         val currentMaterialId: Long?,
-        val currentMaterialSyncId: String?
+        val currentMaterialSyncId: String?,
+        val currentMode: TimerMode,
+        val currentTargetDurationMillis: Long?
     )
 
     private data class TimerSelection(
         val currentSubjectId: Long?,
         val currentSubjectSyncId: String?,
         val currentMaterialId: Long?,
-        val currentMaterialSyncId: String?
+        val currentMaterialSyncId: String?,
+        val currentMode: TimerMode,
+        val currentTargetDurationMillis: Long?
     )
 }

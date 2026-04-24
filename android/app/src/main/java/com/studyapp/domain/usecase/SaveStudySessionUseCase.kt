@@ -4,6 +4,7 @@ import android.util.Log
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.model.StudySessionInterval
+import com.studyapp.domain.model.StudySessionType
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.repository.StudySessionRepository
@@ -21,7 +22,8 @@ class SaveStudySessionUseCase @Inject constructor(
         subjectId: Long,
         materialId: Long?,
         duration: Long,
-        intervals: List<StudySessionInterval> = emptyList()
+        intervals: List<StudySessionInterval> = emptyList(),
+        sessionType: StudySessionType = StudySessionType.MANUAL
     ): Result<Long> {
         return invoke(
             subjectId = subjectId,
@@ -29,7 +31,8 @@ class SaveStudySessionUseCase @Inject constructor(
             materialId = materialId,
             materialSyncId = null,
             duration = duration,
-            intervals = intervals
+            intervals = intervals,
+            sessionType = sessionType
         )
     }
 
@@ -39,7 +42,8 @@ class SaveStudySessionUseCase @Inject constructor(
         materialId: Long?,
         materialSyncId: String?,
         duration: Long,
-        intervals: List<StudySessionInterval> = emptyList()
+        intervals: List<StudySessionInterval> = emptyList(),
+        sessionType: StudySessionType = StudySessionType.STOPWATCH
     ): Result<Long> {
         return try {
             Log.d(
@@ -75,6 +79,7 @@ class SaveStudySessionUseCase @Inject constructor(
                 subjectId = subject.id,
                 subjectSyncId = subject.syncId,
                 subjectName = subject.name,
+                sessionType = sessionType,
                 startTime = effectiveIntervals.first().startTime,
                 endTime = effectiveIntervals.last().endTime,
                 intervals = effectiveIntervals

@@ -57,8 +57,16 @@ struct MaterialsScreen: View {
                                 material: material,
                                 subjectName: subjectName,
                                 subjectColor: subjectColor,
+                                canMoveUp: viewModel.materials.first?.id != material.id,
+                                canMoveDown: viewModel.materials.last?.id != material.id,
                                 onOpenHistory: {
                                     historyMaterial = material
+                                },
+                                onMoveUp: {
+                                    viewModel.moveMaterial(material.id, direction: -1)
+                                },
+                                onMoveDown: {
+                                    viewModel.moveMaterial(material.id, direction: 1)
                                 },
                                 onEdit: {
                                     editingMaterial = material
@@ -274,7 +282,11 @@ private struct MaterialCardNew: View {
     let material: Material
     let subjectName: String
     let subjectColor: Int
+    let canMoveUp: Bool
+    let canMoveDown: Bool
     let onOpenHistory: () -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
     let onUpdateProgress: () -> Void
@@ -298,6 +310,14 @@ private struct MaterialCardNew: View {
                 Spacer()
 
                 Menu {
+                    Button(action: onMoveUp) {
+                        Label("上へ移動", systemImage: "arrow.up")
+                    }
+                    .disabled(!canMoveUp)
+                    Button(action: onMoveDown) {
+                        Label("下へ移動", systemImage: "arrow.down")
+                    }
+                    .disabled(!canMoveDown)
                     Button { onEdit() } label: { Label("編集", systemImage: "pencil") }
                     if material.totalPages > 0 {
                         Button { onUpdateProgress() } label: { Label("進捗を更新", systemImage: "chart.line.uptrend.xyaxis") }

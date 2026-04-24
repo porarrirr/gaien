@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -54,6 +55,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.Subject
+import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.presentation.components.CircularProgressRing
 import com.studyapp.presentation.components.PulsingEffect
 import com.studyapp.presentation.components.SectionHeader
@@ -143,22 +145,42 @@ fun TimerScreen(
                         onClick = { showMaterialPicker = true }
                     )
 
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    TimerModeSelector(
+                        selectedMode = uiState.timerMode,
+                        countdownMinutes = uiState.countdownMinutes,
+                        isRunning = uiState.isRunning,
+                        onSelectMode = viewModel::setTimerMode,
+                        onSelectMinutes = viewModel::setCountdownMinutes
+                    )
+
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // Large CircularProgressRing with PulsingEffect
-                    val elapsedMinutes = uiState.elapsedTime / 60000f
-                    val cycleProgress = (elapsedMinutes % 60f) / 60f
+                    val displayTime = if (uiState.timerMode == TimerMode.TIMER) uiState.remainingTime else uiState.elapsedTime
+                    val progress = when {
+                        uiState.timerMode == TimerMode.TIMER -> {
+                            val target = (uiState.countdownMinutes * 60_000L).coerceAtLeast(1L)
+                            1f - (uiState.remainingTime.toFloat() / target.toFloat())
+                        }
+                        else -> {
+                            val elapsedMinutes = uiState.elapsedTime / 60000f
+                            (elapsedMinutes % 60f) / 60f
+                        }
+                    }
 
                     PulsingEffect(isPulsing = uiState.isRunning) {
                         CircularProgressRing(
-                            progress = if (uiState.elapsedTime > 0) cycleProgress else 0f,
+                            progress = if (displayTime > 0L || uiState.isRunning) progress.coerceIn(0f, 1f) else 0f,
                             size = 280.dp,
                             strokeWidth = 14.dp,
                             showPercentage = false,
                             centerContent = {
                                 TimerDisplay(
-                                    time = uiState.elapsedTime,
-                                    isRunning = uiState.isRunning
+                                    time = displayTime,
+                                    isRunning = uiState.isRunning,
+                                    mode = uiState.timerMode
                                 )
                             }
                         )
@@ -168,7 +190,7 @@ fun TimerScreen(
 
                     TimerControls(
                         isRunning = uiState.isRunning,
-                        elapsedTime = uiState.elapsedTime,
+                        displayTime = displayTime,
                         onStart = { viewModel.startTimer() },
                         onPause = { viewModel.pauseTimer() },
                         onStop = { viewModel.stopTimer() }
@@ -280,7 +302,8 @@ private fun MaterialSelector(
 @Composable
 private fun TimerDisplay(
     time: Long,
-    isRunning: Boolean
+    isRunning: Boolean,
+    mode: TimerMode
 ) {
     val timeText = remember(time) {
         val hours = time / 3600000
@@ -307,7 +330,7 @@ private fun TimerDisplay(
         if (isRunning) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = stringResource(R.string.timer_studying),
+                text = if (mode == TimerMode.TIMER) "カウントダウン中" else stringResource(R.string.timer_studying),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -318,14 +341,14 @@ private fun TimerDisplay(
 @Composable
 private fun TimerControls(
     isRunning: Boolean,
-    elapsedTime: Long,
+    displayTime: Long,
     onStart: () -> Unit,
     onPause: () -> Unit,
     onStop: () -> Unit
 ) {
     val primaryLabel = when {
         isRunning -> stringResource(R.string.timer_pause)
-        elapsedTime > 0L -> stringResource(R.string.timer_resume)
+        displayTime > 0L -> stringResource(R.string.timer_resume)
         else -> stringResource(R.string.timer_start)
     }
 
@@ -367,7 +390,7 @@ private fun TimerControls(
             )
         }
 
-        if (elapsedTime > 0) {
+        if (displayTime > 0) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 LargeFloatingActionButton(
                     onClick = onStop,
@@ -386,6 +409,47 @@ private fun TimerControls(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimerModeSelector(
+    selectedMode: TimerMode,
+    countdownMinutes: Int,
+    isRunning: Boolean,
+    onSelectMode: (TimerMode) -> Unit,
+    onSelectMinutes: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = selectedMode == TimerMode.STOPWATCH,
+                onClick = { onSelectMode(TimerMode.STOPWATCH) },
+                label = { Text("ストップウォッチ") },
+                enabled = !isRunning
+            )
+            FilterChip(
+                selected = selectedMode == TimerMode.TIMER,
+                onClick = { onSelectMode(TimerMode.TIMER) },
+                label = { Text("タイマー") },
+                enabled = !isRunning
+            )
+        }
+        if (selectedMode == TimerMode.TIMER) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(15, 25, 45, 60).forEach { minutes ->
+                    FilterChip(
+                        selected = countdownMinutes == minutes,
+                        onClick = { onSelectMinutes(minutes) },
+                        label = { Text("${minutes}分") },
+                        enabled = !isRunning
+                    )
+                }
             }
         }
     }

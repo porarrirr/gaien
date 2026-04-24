@@ -158,7 +158,13 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func getAllMaterials() async throws -> [Material] {
         try await ensureLoaded()
-        return try fetch(entity: "MaterialRecord", sort: [NSSortDescriptor(key: "id", ascending: false)]).map(Self.material).filter { $0.deletedAt == nil }
+        return try fetch(
+            entity: "MaterialRecord",
+            sort: [
+                NSSortDescriptor(key: "sortOrder", ascending: true),
+                NSSortDescriptor(key: "updatedAt", ascending: false)
+            ]
+        ).map(Self.material).filter { $0.deletedAt == nil }
     }
 
     func getMaterialsBySubjectId(_ subjectId: Int64) async throws -> [Material] {
@@ -166,7 +172,10 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return try fetch(
             entity: "MaterialRecord",
             predicate: NSPredicate(format: "subjectId == %lld", subjectId),
-            sort: [NSSortDescriptor(key: "id", ascending: false)]
+            sort: [
+                NSSortDescriptor(key: "sortOrder", ascending: true),
+                NSSortDescriptor(key: "updatedAt", ascending: false)
+            ]
         ).map(Self.material).filter { $0.deletedAt == nil }
     }
 
@@ -180,6 +189,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(material.name, forKey: "name")
         record.setValue(material.subjectId, forKey: "subjectId")
         record.setValue(material.subjectSyncId, forKey: "subjectSyncId")
+        record.setValue(material.sortOrder, forKey: "sortOrder")
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(material.color.map { Int64($0) }, forKey: "color")
@@ -205,6 +215,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(material.name, forKey: "name")
         record.setValue(material.subjectId, forKey: "subjectId")
         record.setValue(subjectSyncId, forKey: "subjectSyncId")
+        record.setValue(material.sortOrder, forKey: "sortOrder")
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(material.color.map { Int64($0) }, forKey: "color")
@@ -969,6 +980,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             subjectId: session.subjectId,
             subjectSyncId: session.subjectSyncId,
             subjectName: session.subjectName,
+            sessionType: session.sessionType,
             startTime: effectiveIntervals.first?.startTime ?? session.startTime,
             endTime: effectiveIntervals.last?.endTime ?? session.endTime,
             intervals: effectiveIntervals,
@@ -989,6 +1001,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(session.subjectId, forKey: "subjectId")
         record.setValue(session.subjectSyncId, forKey: "subjectSyncId")
         record.setValue(session.subjectName, forKey: "subjectName")
+        record.setValue(session.sessionType.rawValue, forKey: "sessionType")
         record.setValue(session.startTime, forKey: "startTime")
         record.setValue(session.endTime, forKey: "endTime")
         record.setValue(session.duration, forKey: "duration")
@@ -1269,6 +1282,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             name: record.value(forKey: "name") as? String ?? "",
             subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
             subjectSyncId: record.value(forKey: "subjectSyncId") as? String,
+            sortOrder: record.value(forKey: "sortOrder") as? Int64 ?? 0,
             totalPages: Int(record.value(forKey: "totalPages") as? Int64 ?? 0),
             currentPage: Int(record.value(forKey: "currentPage") as? Int64 ?? 0),
             color: (record.value(forKey: "color") as? Int64).map(Int.init),
@@ -1290,6 +1304,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
             subjectSyncId: record.value(forKey: "subjectSyncId") as? String,
             subjectName: record.value(forKey: "subjectName") as? String ?? "",
+            sessionType: StudySessionType(rawValue: record.value(forKey: "sessionType") as? String ?? "") ?? .stopwatch,
             startTime: record.value(forKey: "startTime") as? Int64 ?? 0,
             endTime: record.value(forKey: "endTime") as? Int64 ?? 0,
             intervals: decodeIntervals(record.value(forKey: "intervalsData") as? String),
@@ -1402,6 +1417,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "name", type: .stringAttributeType),
                     attribute(name: "subjectId", type: .integer64AttributeType),
                     attribute(name: "subjectSyncId", type: .stringAttributeType, optional: true),
+                    attribute(name: "sortOrder", type: .integer64AttributeType),
                     attribute(name: "totalPages", type: .integer64AttributeType),
                     attribute(name: "currentPage", type: .integer64AttributeType),
                     attribute(name: "color", type: .integer64AttributeType, optional: true),
@@ -1423,6 +1439,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "subjectId", type: .integer64AttributeType),
                     attribute(name: "subjectSyncId", type: .stringAttributeType, optional: true),
                     attribute(name: "subjectName", type: .stringAttributeType),
+                    attribute(name: "sessionType", type: .stringAttributeType),
                     attribute(name: "startTime", type: .integer64AttributeType),
                     attribute(name: "endTime", type: .integer64AttributeType),
                     attribute(name: "duration", type: .integer64AttributeType),

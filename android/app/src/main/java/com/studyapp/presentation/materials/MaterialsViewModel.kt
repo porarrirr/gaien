@@ -81,6 +81,7 @@ class MaterialsViewModel @Inject constructor(
                     name = name,
                     subjectId = subjectId,
                     subjectSyncId = subjectSyncId,
+                    sortOrder = (_uiState.value.materials.maxOfOrNull { it.sortOrder } ?: -1L) + 1L,
                     totalPages = totalPages
                 )
             ).onError { error ->
@@ -138,6 +139,24 @@ class MaterialsViewModel @Inject constructor(
     
     fun clearSearchResult() {
         _uiState.update { it.copy(searchResult = null) }
+    }
+
+    fun moveMaterial(materialId: Long, direction: Int) {
+        viewModelScope.launch {
+            val materials = _uiState.value.materials
+            val currentIndex = materials.indexOfFirst { it.id == materialId }
+            if (currentIndex == -1) return@launch
+            val targetIndex = currentIndex + direction
+            if (targetIndex !in materials.indices) return@launch
+
+            val reordered = materials.toMutableList().apply {
+                add(targetIndex, removeAt(currentIndex))
+            }
+            val result = manageMaterialsUseCase.updateOrder(reordered.map { it.id })
+            result.onError { error ->
+                _uiState.update { it.copy(error = error.message ?: "教材順の更新に失敗しました") }
+            }
+        }
     }
     
     fun clearError() {

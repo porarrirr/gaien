@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.studyapp.domain.model.StudySessionInterval
+import com.studyapp.domain.usecase.TimerMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
@@ -22,6 +23,8 @@ data class TimerState(
     val materialId: Long? = null,
     val materialSyncId: String? = null,
     val completedIntervals: List<StudySessionInterval> = emptyList(),
+    val mode: TimerMode = TimerMode.STOPWATCH,
+    val targetDurationMillis: Long? = null,
     val isRunning: Boolean = false,
     val startTime: Long = 0L
 )
@@ -35,6 +38,8 @@ class TimerStateStore(private val context: Context) {
         private val MATERIAL_ID_KEY = longPreferencesKey("material_id")
         private val MATERIAL_SYNC_ID_KEY = stringPreferencesKey("material_sync_id")
         private val COMPLETED_INTERVALS_KEY = stringPreferencesKey("completed_intervals")
+        private val MODE_KEY = stringPreferencesKey("mode")
+        private val TARGET_DURATION_MILLIS_KEY = longPreferencesKey("target_duration_millis")
         private val IS_RUNNING_KEY = longPreferencesKey("is_running")
         private val START_TIME_KEY = longPreferencesKey("start_time")
     }
@@ -54,6 +59,8 @@ class TimerStateStore(private val context: Context) {
             materialId = prefs[MATERIAL_ID_KEY]?.takeIf { it > 0 },
             materialSyncId = prefs[MATERIAL_SYNC_ID_KEY]?.takeIf { it.isNotBlank() },
             completedIntervals = prefs[COMPLETED_INTERVALS_KEY].toIntervals(),
+            mode = prefs[MODE_KEY]?.let(TimerMode::valueOf) ?: TimerMode.STOPWATCH,
+            targetDurationMillis = prefs[TARGET_DURATION_MILLIS_KEY]?.takeIf { it > 0L },
             isRunning = isRunning,
             startTime = startTime
         )
@@ -76,6 +83,12 @@ class TimerStateStore(private val context: Context) {
             }
             state.completedIntervals.toJson()?.let { prefs[COMPLETED_INTERVALS_KEY] = it }
                 ?: prefs.remove(COMPLETED_INTERVALS_KEY)
+            prefs[MODE_KEY] = state.mode.name
+            if (state.targetDurationMillis != null && state.targetDurationMillis > 0L) {
+                prefs[TARGET_DURATION_MILLIS_KEY] = state.targetDurationMillis
+            } else {
+                prefs.remove(TARGET_DURATION_MILLIS_KEY)
+            }
             prefs[IS_RUNNING_KEY] = if (state.isRunning) 1L else 0L
             prefs[START_TIME_KEY] = state.startTime
         }
@@ -89,6 +102,8 @@ class TimerStateStore(private val context: Context) {
             prefs.remove(MATERIAL_ID_KEY)
             prefs.remove(MATERIAL_SYNC_ID_KEY)
             prefs.remove(COMPLETED_INTERVALS_KEY)
+            prefs.remove(MODE_KEY)
+            prefs.remove(TARGET_DURATION_MILLIS_KEY)
             prefs.remove(IS_RUNNING_KEY)
             prefs.remove(START_TIME_KEY)
         }

@@ -138,6 +138,11 @@ class ManageMaterialsUseCase @Inject constructor(
         result.onSuccess { Log.i(TAG, "Progress updated successfully") }
         return result
     }
+
+    suspend fun updateOrder(materialIdsInOrder: List<Long>): Result<Unit> {
+        Log.d(TAG, "Updating material order: count=${materialIdsInOrder.size}")
+        return materialRepository.updateOrder(materialIdsInOrder)
+    }
     
     companion object {
         private const val TAG = "ManageMaterialsUseCase"

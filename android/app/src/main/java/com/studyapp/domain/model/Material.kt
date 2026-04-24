@@ -8,6 +8,7 @@ data class Material(
     val name: String,
     val subjectId: Long,
     val subjectSyncId: String? = null,
+    val sortOrder: Long = System.currentTimeMillis(),
     val totalPages: Int = 0,
     val currentPage: Int = 0,
     val color: Int? = null,

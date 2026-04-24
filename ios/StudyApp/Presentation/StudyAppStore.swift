@@ -435,6 +435,7 @@ final class MaterialsViewModel: ScreenViewModel {
             guard currentPage >= 0 else { throw ValidationError(message: "ページ数は0以上で入力してください") }
             guard totalPages == 0 || currentPage <= totalPages else { throw ValidationError(message: "現在のページは総ページ数以下にしてください") }
             if let id {
+                let existing = try await self.app.persistence.getAllMaterials().first(where: { $0.id == id })
                 guard let subject = try await self.app.persistence.getSubjectById(subjectId) else {
                     throw ValidationError(message: "科目を選択してください")
                 }
@@ -444,6 +445,7 @@ final class MaterialsViewModel: ScreenViewModel {
                         name: trimmed,
                         subjectId: subjectId,
                         subjectSyncId: subject.syncId,
+                        sortOrder: existing?.sortOrder ?? Date().epochMilliseconds,
                         totalPages: totalPages,
                         currentPage: currentPage,
                         color: nil,
@@ -452,7 +454,22 @@ final class MaterialsViewModel: ScreenViewModel {
                 )
             } else {
                 let useCase = ManageMaterialsUseCase(materialRepository: self.app.persistence, subjectRepository: self.app.persistence, bookSearchRepository: self.app.googleBooksService)
-                try await useCase.addMaterial(name: trimmed, subjectId: subjectId, totalPages: totalPages, note: note?.nilIfBlank)
+                let nextOrder = (try await self.app.persistence.getAllMaterials().map(\.sortOrder).max() ?? -1) + 1
+                guard let subject = try await self.app.persistence.getSubjectById(subjectId) else {
+                    throw ValidationError(message: "科目を選択してください")
+                }
+                try await self.app.persistence.insertMaterial(
+                    Material(
+                        name: trimmed,
+                        subjectId: subjectId,
+                        subjectSyncId: subject.syncId,
+                        sortOrder: nextOrder,
+                        totalPages: totalPages,
+                        currentPage: 0,
+                        color: nil,
+                        note: note?.nilIfBlank
+                    )
+                )
             }
             await self.load()
             self.app.bumpDataVersion()
@@ -476,6 +493,24 @@ final class MaterialsViewModel: ScreenViewModel {
     func deleteMaterial(_ material: Material) {
         perform {
             try await self.app.persistence.deleteMaterial(material)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
+
+    func moveMaterial(_ materialId: Int64, direction: Int) {
+        perform {
+            var materials = try await self.app.persistence.getAllMaterials()
+            guard let currentIndex = materials.firstIndex(where: { $0.id == materialId }) else { return }
+            let targetIndex = currentIndex + direction
+            guard materials.indices.contains(targetIndex) else { return }
+            let item = materials.remove(at: currentIndex)
+            materials.insert(item, at: targetIndex)
+            for (index, material) in materials.enumerated() {
+                var updated = material
+                updated.sortOrder = Int64(index)
+                try await self.app.persistence.updateMaterial(updated)
+            }
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -586,8 +621,11 @@ final class TimerViewModel: ScreenViewModel {
     @Published private(set) var subjects: [Subject] = []
     @Published private(set) var materials: [Material] = []
     @Published private(set) var elapsedMilliseconds: Int64 = 0
+    @Published private(set) var remainingMilliseconds: Int64 = 0
     @Published var selectedSubjectId: Int64?
     @Published var selectedMaterialId: Int64?
+    @Published var mode: TimerSnapshot.Mode = .stopwatch
+    @Published var countdownMinutes: Int = 25
 
     private var cancellable: AnyCancellable?
 
@@ -601,6 +639,9 @@ final class TimerViewModel: ScreenViewModel {
             selectedSubjectId = resolveSelectedSubjectId(activeTimer: activeTimer)
             selectedMaterialId = resolveSelectedMaterialId(activeTimer: activeTimer, subjectId: selectedSubjectId)
             elapsedMilliseconds = activeTimer?.elapsedTime() ?? 0
+            remainingMilliseconds = activeTimer?.remainingTime() ?? 0
+            mode = activeTimer?.mode ?? .stopwatch
+            countdownMinutes = Int(((activeTimer?.targetDurationMilliseconds ?? Int64(countdownMinutes) * 60_000) / 60_000))
             syncActiveTimerSelection()
             configureTicker()
         } catch {
@@ -610,6 +651,10 @@ final class TimerViewModel: ScreenViewModel {
 
     var isRunning: Bool {
         app.preferences.activeTimer?.isRunning ?? false
+    }
+
+    var displayMilliseconds: Int64 {
+        mode == .timer ? remainingMilliseconds : elapsedMilliseconds
     }
 
     var recentMaterialPairs: [(Material, Subject)] {
@@ -647,10 +692,13 @@ final class TimerViewModel: ScreenViewModel {
                 startedAt: now,
                 accumulatedMilliseconds: completedIntervals.reduce(0) { $0 + $1.duration },
                 completedIntervals: completedIntervals,
+                mode: self.mode,
+                targetDurationMilliseconds: self.mode == .timer ? Int64(self.countdownMinutes * 60_000) : nil,
                 isRunning: true
             )
             self.app.updateActiveTimer(next)
             self.elapsedMilliseconds = next.elapsedTime()
+            self.remainingMilliseconds = next.remainingTime()
             self.configureTicker()
         }
     }
@@ -671,7 +719,35 @@ final class TimerViewModel: ScreenViewModel {
         timer.isRunning = false
         app.updateActiveTimer(timer)
         elapsedMilliseconds = timer.accumulatedMilliseconds
+        remainingMilliseconds = timer.remainingTime()
         configureTicker()
+    }
+
+    func setMode(_ newMode: TimerSnapshot.Mode) {
+        guard !isRunning else {
+            app.present("実行中はタイマー種別を変更できません")
+            return
+        }
+        mode = newMode
+        if var timer = app.preferences.activeTimer {
+            timer.mode = newMode
+            timer.targetDurationMilliseconds = newMode == .timer ? Int64(countdownMinutes * 60_000) : nil
+            app.updateActiveTimer(timer)
+        }
+        remainingMilliseconds = newMode == .timer ? Int64(countdownMinutes * 60_000) : 0
+    }
+
+    func setCountdownMinutes(_ minutes: Int) {
+        guard !isRunning else {
+            app.present("実行中は時間を変更できません")
+            return
+        }
+        countdownMinutes = minutes
+        remainingMilliseconds = mode == .timer ? Int64(minutes * 60_000) : 0
+        if var timer = app.preferences.activeTimer {
+            timer.targetDurationMilliseconds = mode == .timer ? Int64(minutes * 60_000) : nil
+            app.updateActiveTimer(timer)
+        }
     }
 
     func handleSubjectSelectionChange() {
@@ -718,6 +794,7 @@ final class TimerViewModel: ScreenViewModel {
                     subjectId: subject.id,
                     subjectSyncId: subject.syncId,
                     subjectName: subject.name,
+                    sessionType: timer.sessionType,
                     startTime: start,
                     endTime: end,
                     intervals: intervals,
@@ -726,6 +803,7 @@ final class TimerViewModel: ScreenViewModel {
             )
             self.app.updateActiveTimer(nil)
             self.elapsedMilliseconds = 0
+            self.remainingMilliseconds = 0
             self.configureTicker()
             await self.load()
             self.app.bumpDataVersion()
@@ -749,6 +827,10 @@ final class TimerViewModel: ScreenViewModel {
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.elapsedMilliseconds = self.app.preferences.activeTimer?.elapsedTime() ?? 0
+                self.remainingMilliseconds = self.app.preferences.activeTimer?.remainingTime() ?? 0
+                if self.mode == .timer, self.remainingMilliseconds <= 0 {
+                    self.stop()
+                }
             }
     }
 
@@ -794,6 +876,8 @@ final class TimerViewModel: ScreenViewModel {
 
         timer.subjectId = subjectId
         timer.materialId = materialId
+        timer.mode = mode
+        timer.targetDurationMilliseconds = mode == .timer ? Int64(countdownMinutes * 60_000) : nil
         app.updateActiveTimer(timer)
     }
 }

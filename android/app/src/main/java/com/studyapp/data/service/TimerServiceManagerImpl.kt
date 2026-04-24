@@ -7,6 +7,7 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import com.studyapp.domain.usecase.TimerServiceManager
 import com.studyapp.domain.usecase.TimerStopResult
+import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.presentation.timer.TimerService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -79,10 +80,17 @@ class TimerServiceManagerImpl @Inject constructor(
         }
     }
     
-    override fun startTimer(subjectId: Long, subjectSyncId: String?, materialId: Long?, materialSyncId: String?) {
+    override fun startTimer(
+        subjectId: Long,
+        subjectSyncId: String?,
+        materialId: Long?,
+        materialSyncId: String?,
+        mode: TimerMode,
+        targetDurationMillis: Long?
+    ) {
         val service = timerService
         if (service != null) {
-            service.startTimer(subjectId, subjectSyncId, materialId, materialSyncId)
+            service.startTimer(subjectId, subjectSyncId, materialId, materialSyncId, mode, targetDurationMillis)
         } else {
             val intent = Intent(context, TimerService::class.java).apply {
                 action = TimerService.ACTION_START
@@ -90,6 +98,8 @@ class TimerServiceManagerImpl @Inject constructor(
                 putExtra("subjectSyncId", subjectSyncId)
                 putExtra("materialId", materialId ?: -1)
                 putExtra("materialSyncId", materialSyncId)
+                putExtra("mode", mode.name)
+                putExtra("targetDurationMillis", targetDurationMillis ?: -1L)
             }
             context.startForegroundService(intent)
         }
@@ -124,13 +134,28 @@ class TimerServiceManagerImpl @Inject constructor(
             TimerStopResult(
                 elapsed = intervals.sumOf { it.duration },
                 materialId = currentState.materialId,
-                intervals = intervals
+                intervals = intervals,
+                sessionType = currentState.run {
+                    when (mode) {
+                        TimerMode.STOPWATCH -> com.studyapp.domain.model.StudySessionType.STOPWATCH
+                        TimerMode.TIMER -> com.studyapp.domain.model.StudySessionType.TIMER
+                    }
+                }
             )
         }
     }
     
     override val elapsedTime: Flow<Long>
         get() = _timerState.asStateFlow().map { it.elapsedTime }.distinctUntilChanged()
+
+    override val remainingTime: Flow<Long>
+        get() = _timerState.asStateFlow().map { state ->
+            if (state.mode != TimerMode.TIMER) {
+                0L
+            } else {
+                ((state.targetDurationMillis ?: 0L) - state.elapsedTime).coerceAtLeast(0L)
+            }
+        }.distinctUntilChanged()
     
     override val isRunning: Flow<Boolean>
         get() = _timerState.asStateFlow().map { it.isRunning }.distinctUntilChanged()
@@ -149,6 +174,12 @@ class TimerServiceManagerImpl @Inject constructor(
 
     override val currentMaterialSyncId: Flow<String?>
         get() = _timerState.asStateFlow().map { it.materialSyncId }.distinctUntilChanged()
+
+    override val currentMode: Flow<TimerMode>
+        get() = _timerState.asStateFlow().map { it.mode }.distinctUntilChanged()
+
+    override val currentTargetDurationMillis: Flow<Long?>
+        get() = _timerState.asStateFlow().map { it.targetDurationMillis }.distinctUntilChanged()
 
     private fun connectToService(service: TimerService) {
         timerService = service

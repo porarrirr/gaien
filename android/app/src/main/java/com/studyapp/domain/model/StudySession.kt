@@ -5,6 +5,12 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
 
+enum class StudySessionType {
+    STOPWATCH,
+    TIMER,
+    MANUAL
+}
+
 data class StudySessionInterval(
     val startTime: Long,
     val endTime: Long
@@ -22,6 +28,7 @@ data class StudySession(
     val subjectId: Long,
     val subjectSyncId: String? = null,
     val subjectName: String = "",
+    val sessionType: StudySessionType = StudySessionType.STOPWATCH,
     val startTime: Long,
     val endTime: Long,
     val intervals: List<StudySessionInterval> = emptyList(),

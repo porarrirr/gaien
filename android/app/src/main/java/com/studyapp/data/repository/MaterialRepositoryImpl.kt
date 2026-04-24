@@ -110,6 +110,22 @@ class MaterialRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun updateOrder(materialIdsInOrder: List<Long>): Result<Unit> {
+        return try {
+            val now = System.currentTimeMillis()
+            writeLock.withLock {
+                materialIdsInOrder.forEachIndexed { index, materialId ->
+                    materialDao.updateSortOrder(materialId, index.toLong(), now)
+                }
+            }
+            syncChangeNotifier.notifyLocalDataChanged()
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update material order", e)
+            Result.Error(e, "Failed to update material order")
+        }
+    }
+
     private fun MaterialWithSubject.toDomain(): Material {
         return Material(
             id = material.id,
@@ -117,6 +133,7 @@ class MaterialRepositoryImpl @Inject constructor(
             name = material.name,
             subjectId = material.subjectId,
             subjectSyncId = material.subjectSyncId,
+            sortOrder = material.sortOrder,
             totalPages = material.totalPages,
             currentPage = material.currentPage,
             color = material.color,
@@ -135,6 +152,7 @@ class MaterialRepositoryImpl @Inject constructor(
             name = name,
             subjectId = subjectId,
             subjectSyncId = subjectSyncId,
+            sortOrder = sortOrder,
             totalPages = totalPages,
             currentPage = currentPage,
             color = color,
@@ -153,6 +171,7 @@ class MaterialRepositoryImpl @Inject constructor(
             name = name,
             subjectId = subjectId,
             subjectSyncId = subjectSyncId,
+            sortOrder = sortOrder,
             totalPages = totalPages,
             currentPage = currentPage,
             color = color,

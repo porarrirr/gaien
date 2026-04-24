@@ -8,13 +8,13 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MaterialDao {
     @Transaction
-    @Query("SELECT * FROM materials WHERE deletedAt IS NULL ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM materials WHERE deletedAt IS NULL ORDER BY sortOrder ASC, updatedAt DESC")
     fun getAllMaterialsWithSubject(): Flow<List<MaterialWithSubject>>
 
-    @Query("SELECT * FROM materials WHERE deletedAt IS NULL ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM materials WHERE deletedAt IS NULL ORDER BY sortOrder ASC, updatedAt DESC")
     fun getAllMaterials(): Flow<List<MaterialEntity>>
 
-    @Query("SELECT * FROM materials ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM materials ORDER BY sortOrder ASC, updatedAt DESC")
     suspend fun getAllMaterialsForSync(): List<MaterialEntity>
 
     @Transaction
@@ -44,6 +44,9 @@ interface MaterialDao {
 
     @Query("UPDATE materials SET currentPage = :currentPage, updatedAt = :updatedAt WHERE id = :materialId")
     suspend fun updateProgress(materialId: Long, currentPage: Int, updatedAt: Long)
+
+    @Query("UPDATE materials SET sortOrder = :sortOrder, updatedAt = :updatedAt WHERE id = :materialId")
+    suspend fun updateSortOrder(materialId: Long, sortOrder: Long, updatedAt: Long)
 
     @Query("DELETE FROM materials")
     suspend fun deleteAllMaterialsForImport()

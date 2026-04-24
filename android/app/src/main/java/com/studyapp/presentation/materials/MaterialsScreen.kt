@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
@@ -162,7 +164,11 @@ fun MaterialsScreen(
                         MaterialCard(
                             material = material,
                             subjectName = subjectName,
+                            canMoveUp = uiState.materials.firstOrNull()?.id != material.id,
+                            canMoveDown = uiState.materials.lastOrNull()?.id != material.id,
                             onOpenHistory = { onOpenMaterialHistory(material.id) },
+                            onMoveUp = { viewModel.moveMaterial(material.id, -1) },
+                            onMoveDown = { viewModel.moveMaterial(material.id, 1) },
                             onEdit = { editingMaterial = material },
                             onDelete = { viewModel.deleteMaterial(material) },
                             onUpdateProgress = { page -> 
@@ -251,7 +257,11 @@ fun MaterialsScreen(
 private fun MaterialCard(
     material: Material,
     subjectName: String,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
     onOpenHistory: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onUpdateProgress: (Int) -> Unit
@@ -288,6 +298,12 @@ private fun MaterialCard(
                 }
                 
                 Row {
+                    IconButton(onClick = onMoveUp, enabled = canMoveUp) {
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上へ")
+                    }
+                    IconButton(onClick = onMoveDown, enabled = canMoveDown) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下へ")
+                    }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.common_edit))
                     }

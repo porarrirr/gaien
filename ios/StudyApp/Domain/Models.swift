@@ -203,6 +203,7 @@ struct Material: Identifiable, Codable, Hashable {
     var name: String
     var subjectId: Int64
     var subjectSyncId: String?
+    var sortOrder: Int64 = Date().epochMilliseconds
     var totalPages: Int = 0
     var currentPage: Int = 0
     var color: Int?
@@ -212,6 +213,23 @@ struct Material: Identifiable, Codable, Hashable {
     var deletedAt: Int64?
     var lastSyncedAt: Int64?
 
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case syncId
+        case name
+        case subjectId
+        case subjectSyncId
+        case sortOrder
+        case totalPages
+        case currentPage
+        case color
+        case note
+        case createdAt
+        case updatedAt
+        case deletedAt
+        case lastSyncedAt
+    }
+
     var progress: Double {
         guard totalPages > 0 else { return 0 }
         return min(max(Double(currentPage) / Double(totalPages), 0), 1)
@@ -219,6 +237,89 @@ struct Material: Identifiable, Codable, Hashable {
 
     var progressPercent: Int {
         Int(progress * 100)
+    }
+
+    init(
+        id: Int64 = 0,
+        syncId: String = UUID().uuidString.lowercased(),
+        name: String,
+        subjectId: Int64,
+        subjectSyncId: String? = nil,
+        sortOrder: Int64 = Date().epochMilliseconds,
+        totalPages: Int = 0,
+        currentPage: Int = 0,
+        color: Int? = nil,
+        note: String? = nil,
+        createdAt: Int64 = Date().epochMilliseconds,
+        updatedAt: Int64 = Date().epochMilliseconds,
+        deletedAt: Int64? = nil,
+        lastSyncedAt: Int64? = nil
+    ) {
+        self.id = id
+        self.syncId = syncId
+        self.name = name
+        self.subjectId = subjectId
+        self.subjectSyncId = subjectSyncId
+        self.sortOrder = sortOrder
+        self.totalPages = totalPages
+        self.currentPage = currentPage
+        self.color = color
+        self.note = note
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.deletedAt = deletedAt
+        self.lastSyncedAt = lastSyncedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedCreatedAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? Date().epochMilliseconds
+        id = try container.decodeIfPresent(Int64.self, forKey: .id) ?? 0
+        syncId = try container.decodeIfPresent(String.self, forKey: .syncId) ?? UUID().uuidString.lowercased()
+        name = try container.decode(String.self, forKey: .name)
+        subjectId = try container.decode(Int64.self, forKey: .subjectId)
+        subjectSyncId = try container.decodeIfPresent(String.self, forKey: .subjectSyncId)
+        sortOrder = try container.decodeIfPresent(Int64.self, forKey: .sortOrder) ?? decodedCreatedAt
+        totalPages = try container.decodeIfPresent(Int.self, forKey: .totalPages) ?? 0
+        currentPage = try container.decodeIfPresent(Int.self, forKey: .currentPage) ?? 0
+        color = try container.decodeIfPresent(Int.self, forKey: .color)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        createdAt = decodedCreatedAt
+        updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? decodedCreatedAt
+        deletedAt = try container.decodeIfPresent(Int64.self, forKey: .deletedAt)
+        lastSyncedAt = try container.decodeIfPresent(Int64.self, forKey: .lastSyncedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(syncId, forKey: .syncId)
+        try container.encode(name, forKey: .name)
+        try container.encode(subjectId, forKey: .subjectId)
+        try container.encodeIfPresent(subjectSyncId, forKey: .subjectSyncId)
+        try container.encode(sortOrder, forKey: .sortOrder)
+        try container.encode(totalPages, forKey: .totalPages)
+        try container.encode(currentPage, forKey: .currentPage)
+        try container.encodeIfPresent(color, forKey: .color)
+        try container.encodeIfPresent(note, forKey: .note)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
+        try container.encodeIfPresent(lastSyncedAt, forKey: .lastSyncedAt)
+    }
+}
+
+enum StudySessionType: String, Codable, CaseIterable, Hashable {
+    case stopwatch = "STOPWATCH"
+    case timer = "TIMER"
+    case manual = "MANUAL"
+
+    var title: String {
+        switch self {
+        case .stopwatch: return "ストップウォッチ"
+        case .timer: return "タイマー"
+        case .manual: return "手動"
+        }
     }
 }
 
@@ -231,6 +332,7 @@ struct StudySession: Identifiable, Codable, Hashable {
     var subjectId: Int64
     var subjectSyncId: String?
     var subjectName: String = ""
+    var sessionType: StudySessionType = .stopwatch
     var startTime: Int64
     var endTime: Int64
     var intervals: [StudySessionInterval] = []
@@ -249,6 +351,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         case subjectId
         case subjectSyncId
         case subjectName
+        case sessionType
         case startTime
         case endTime
         case intervals
@@ -329,6 +432,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         subjectId: Int64,
         subjectSyncId: String? = nil,
         subjectName: String = "",
+        sessionType: StudySessionType = .stopwatch,
         startTime: Int64,
         endTime: Int64,
         intervals: [StudySessionInterval] = [],
@@ -346,6 +450,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         self.subjectId = subjectId
         self.subjectSyncId = subjectSyncId
         self.subjectName = subjectName
+        self.sessionType = sessionType
         self.startTime = startTime
         self.endTime = endTime
         self.intervals = intervals
@@ -366,6 +471,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         subjectId = try container.decode(Int64.self, forKey: .subjectId)
         subjectSyncId = try container.decodeIfPresent(String.self, forKey: .subjectSyncId)
         subjectName = try container.decodeIfPresent(String.self, forKey: .subjectName) ?? ""
+        sessionType = try container.decodeIfPresent(StudySessionType.self, forKey: .sessionType) ?? .stopwatch
         startTime = try container.decode(Int64.self, forKey: .startTime)
         endTime = try container.decode(Int64.self, forKey: .endTime)
         intervals = try container.decodeIfPresent([StudySessionInterval].self, forKey: .intervals) ?? []
@@ -386,6 +492,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         try container.encode(subjectId, forKey: .subjectId)
         try container.encodeIfPresent(subjectSyncId, forKey: .subjectSyncId)
         try container.encode(subjectName, forKey: .subjectName)
+        try container.encode(sessionType, forKey: .sessionType)
         try container.encode(startTime, forKey: .startTime)
         try container.encode(endTime, forKey: .endTime)
         try container.encode(intervals, forKey: .intervals)
@@ -563,11 +670,18 @@ struct BookInfo: Codable, Hashable, Sendable {
 }
 
 struct TimerSnapshot: Codable, Equatable {
+    enum Mode: String, Codable, Equatable {
+        case stopwatch = "STOPWATCH"
+        case timer = "TIMER"
+    }
+
     var subjectId: Int64
     var materialId: Int64?
     var startedAt: Int64?
     var accumulatedMilliseconds: Int64
     var completedIntervals: [StudySessionInterval] = []
+    var mode: Mode = .stopwatch
+    var targetDurationMilliseconds: Int64?
     var isRunning: Bool
 
     private enum CodingKeys: String, CodingKey {
@@ -576,6 +690,8 @@ struct TimerSnapshot: Codable, Equatable {
         case startedAt
         case accumulatedMilliseconds
         case completedIntervals
+        case mode
+        case targetDurationMilliseconds
         case isRunning
     }
 
@@ -593,12 +709,26 @@ struct TimerSnapshot: Codable, Equatable {
         return completedIntervals
     }
 
+    func remainingTime(at now: Date = Date()) -> Int64 {
+        guard mode == .timer else { return 0 }
+        return max((targetDurationMilliseconds ?? 0) - elapsedTime(at: now), 0)
+    }
+
+    var sessionType: StudySessionType {
+        switch mode {
+        case .stopwatch: return .stopwatch
+        case .timer: return .timer
+        }
+    }
+
     init(
         subjectId: Int64,
         materialId: Int64?,
         startedAt: Int64?,
         accumulatedMilliseconds: Int64,
         completedIntervals: [StudySessionInterval] = [],
+        mode: Mode = .stopwatch,
+        targetDurationMilliseconds: Int64? = nil,
         isRunning: Bool
     ) {
         self.subjectId = subjectId
@@ -606,6 +736,8 @@ struct TimerSnapshot: Codable, Equatable {
         self.startedAt = startedAt
         self.accumulatedMilliseconds = accumulatedMilliseconds
         self.completedIntervals = completedIntervals
+        self.mode = mode
+        self.targetDurationMilliseconds = targetDurationMilliseconds
         self.isRunning = isRunning
     }
 
@@ -616,6 +748,8 @@ struct TimerSnapshot: Codable, Equatable {
         startedAt = try container.decodeIfPresent(Int64.self, forKey: .startedAt)
         accumulatedMilliseconds = try container.decodeIfPresent(Int64.self, forKey: .accumulatedMilliseconds) ?? 0
         completedIntervals = try container.decodeIfPresent([StudySessionInterval].self, forKey: .completedIntervals) ?? []
+        mode = try container.decodeIfPresent(Mode.self, forKey: .mode) ?? .stopwatch
+        targetDurationMilliseconds = try container.decodeIfPresent(Int64.self, forKey: .targetDurationMilliseconds)
         isRunning = try container.decode(Bool.self, forKey: .isRunning)
     }
 
@@ -626,6 +760,8 @@ struct TimerSnapshot: Codable, Equatable {
         try container.encodeIfPresent(startedAt, forKey: .startedAt)
         try container.encode(accumulatedMilliseconds, forKey: .accumulatedMilliseconds)
         try container.encode(completedIntervals, forKey: .completedIntervals)
+        try container.encode(mode, forKey: .mode)
+        try container.encodeIfPresent(targetDurationMilliseconds, forKey: .targetDurationMilliseconds)
         try container.encode(isRunning, forKey: .isRunning)
     }
 }
@@ -1091,6 +1227,7 @@ struct SaveStudySessionUseCase {
                 subjectId: subject.id,
                 subjectSyncId: subject.syncId,
                 subjectName: subject.name,
+                sessionType: .manual,
                 startTime: startTime,
                 endTime: endTime,
                 intervals: [StudySessionInterval(startTime: startTime, endTime: endTime)],

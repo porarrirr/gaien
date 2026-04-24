@@ -73,4 +73,6 @@ interface MaterialRepository {
      * @return 成功またはエラー
      */
     suspend fun updateProgress(id: Long, page: Int): Result<Unit>
+
+    suspend fun updateOrder(materialIdsInOrder: List<Long>): Result<Unit>
 }

@@ -27,6 +27,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.model.StudySessionType
 
 import kotlin.math.ceil
 import java.text.SimpleDateFormat
@@ -134,7 +135,7 @@ private fun CalendarHeader(
         }
         
         Text(
-            text = "${year}年 ${monthNames[month - 1]}",
+            text = String.format(Locale.JAPANESE, "%d年 %s", year, monthNames[month - 1]),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
@@ -551,6 +552,10 @@ private fun SessionCard(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
+                SessionTypeChip(session.sessionType)
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.primaryContainer
@@ -636,6 +641,38 @@ private fun SessionCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SessionTypeChip(sessionType: StudySessionType) {
+    val (label, containerColor, contentColor) = when (sessionType) {
+        StudySessionType.STOPWATCH -> Triple(
+            "ストップウォッチ",
+            MaterialTheme.colorScheme.tertiaryContainer,
+            MaterialTheme.colorScheme.onTertiaryContainer
+        )
+        StudySessionType.TIMER -> Triple(
+            "タイマー",
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.onSecondaryContainer
+        )
+        StudySessionType.MANUAL -> Triple(
+            "手動",
+            MaterialTheme.colorScheme.surfaceVariant,
+            MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = containerColor
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
     }
 }
 

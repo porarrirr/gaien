@@ -19,7 +19,9 @@ import com.studyapp.R
 import com.studyapp.data.service.TimerState
 import com.studyapp.data.service.TimerStateStore
 import com.studyapp.domain.model.StudySessionInterval
+import com.studyapp.domain.model.StudySessionType
 import com.studyapp.domain.usecase.SaveStudySessionUseCase
+import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.domain.usecase.TimerStopResult
 import com.studyapp.domain.util.Result
 import dagger.hilt.android.AndroidEntryPoint
@@ -113,8 +115,10 @@ class TimerService : Service() {
                 val subjectSyncId = intent.getStringExtra("subjectSyncId")
                 val materialId = intent.getLongExtra("materialId", -1).takeIf { it > 0 }
                 val materialSyncId = intent.getStringExtra("materialSyncId")
+                val mode = intent.getStringExtra("mode")?.let(TimerMode::valueOf) ?: TimerMode.STOPWATCH
+                val targetDurationMillis = intent.getLongExtra("targetDurationMillis", -1L).takeIf { it > 0L }
                 if (subjectId != null) {
-                    startTimer(subjectId, subjectSyncId, materialId, materialSyncId)
+                    startTimer(subjectId, subjectSyncId, materialId, materialSyncId, mode, targetDurationMillis)
                 }
             }
             ACTION_PAUSE -> pauseTimer()
@@ -157,7 +161,7 @@ class TimerService : Service() {
         )
         
         val state = _timerState.value
-        val time = state.elapsedTime
+        val time = if (state.mode == TimerMode.TIMER) currentRemainingTime(state) else state.elapsedTime
         val hours = time / 3600000
         val minutes = (time % 3600000) / 60000
         val seconds = (time % 60000) / 1000
@@ -182,7 +186,15 @@ class TimerService : Service() {
         }
         
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.timer_running))
+            .setContentTitle(
+                getString(
+                    if (state.mode == TimerMode.TIMER) {
+                        R.string.timer_screen_title
+                    } else {
+                        R.string.timer_running
+                    }
+                )
+            )
             .setContentText(timeText)
             .setSmallIcon(notificationIconResId)
             .setContentIntent(pendingIntent)
@@ -206,7 +218,14 @@ class TimerService : Service() {
         return builder.build()
     }
     
-    fun startTimer(subjectId: Long, subjectSyncId: String?, materialId: Long?, materialSyncId: String?) {
+    fun startTimer(
+        subjectId: Long,
+        subjectSyncId: String?,
+        materialId: Long?,
+        materialSyncId: String?,
+        mode: TimerMode,
+        targetDurationMillis: Long?
+    ) {
         val currentState = _timerState.value
         if (currentState.isRunning) return
         val now = System.currentTimeMillis()
@@ -231,6 +250,8 @@ class TimerService : Service() {
             materialSyncId = materialSyncId,
             elapsedTime = completedIntervals.sumOf { it.duration },
             completedIntervals = completedIntervals,
+            mode = mode,
+            targetDurationMillis = targetDurationMillis,
             isRunning = true,
             startTime = now
         )
@@ -254,7 +275,8 @@ class TimerService : Service() {
         return TimerStopResult(
             elapsed = stoppedTimer.elapsed,
             materialId = stoppedTimer.materialId,
-            intervals = stoppedTimer.intervals
+            intervals = stoppedTimer.intervals,
+            sessionType = stoppedTimer.sessionType
         )
     }
 
@@ -274,7 +296,8 @@ class TimerService : Service() {
                 materialId = stoppedTimer.materialId,
                 materialSyncId = stoppedTimer.materialSyncId,
                 duration = stoppedTimer.elapsed,
-                intervals = stoppedTimer.intervals
+                intervals = stoppedTimer.intervals,
+                sessionType = stoppedTimer.sessionType
             )
         ) {
             is Result.Error -> {
@@ -294,7 +317,8 @@ class TimerService : Service() {
             materialId = currentState.materialId,
             materialSyncId = currentState.materialSyncId,
             elapsed = completedIntervals.sumOf { it.duration },
-            intervals = completedIntervals
+            intervals = completedIntervals,
+            sessionType = currentState.sessionType()
         )
         _timerState.value = TimerState()
         
@@ -345,6 +369,10 @@ class TimerService : Service() {
                         state.copy(elapsedTime = currentElapsedTime(state))
                     }
                 }
+                if (_timerState.value.mode == TimerMode.TIMER && currentRemainingTime(_timerState.value) <= 0L) {
+                    stopTimerAndPersist()
+                    break
+                }
                 updateNotification()
             }
         }
@@ -372,6 +400,12 @@ class TimerService : Service() {
         } else {
             state.elapsedTime
         }
+    }
+
+    private fun currentRemainingTime(state: TimerState): Long {
+        if (state.mode != TimerMode.TIMER) return 0L
+        val target = state.targetDurationMillis ?: 0L
+        return (target - currentElapsedTime(state)).coerceAtLeast(0L)
     }
 
     private fun TimerState.pause(): TimerState {
@@ -409,6 +443,14 @@ class TimerService : Service() {
         val materialId: Long?,
         val materialSyncId: String?,
         val elapsed: Long,
-        val intervals: List<StudySessionInterval>
+        val intervals: List<StudySessionInterval>,
+        val sessionType: StudySessionType
     )
+
+    private fun TimerState.sessionType(): StudySessionType {
+        return when (mode) {
+            TimerMode.STOPWATCH -> StudySessionType.STOPWATCH
+            TimerMode.TIMER -> StudySessionType.TIMER
+        }
+    }
 }

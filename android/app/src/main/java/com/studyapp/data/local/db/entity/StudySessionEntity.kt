@@ -6,6 +6,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
+import com.studyapp.domain.model.StudySessionType
 
 @Entity(
     tableName = "study_sessions",
@@ -33,6 +34,7 @@ data class StudySessionEntity(
     val materialSyncId: String? = null,
     val subjectId: Long,
     val subjectSyncId: String? = null,
+    val sessionType: StudySessionType = StudySessionType.STOPWATCH,
     val startTime: Long,
     val endTime: Long,
     val duration: Long,
