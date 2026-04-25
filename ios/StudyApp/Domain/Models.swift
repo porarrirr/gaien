@@ -324,6 +324,8 @@ enum StudySessionType: String, Codable, CaseIterable, Hashable {
 }
 
 struct StudySession: Identifiable, Codable, Hashable {
+    static let allowedRatings = 1...5
+
     var id: Int64 = 0
     var syncId: String = UUID().uuidString.lowercased()
     var materialId: Int64?
@@ -336,6 +338,7 @@ struct StudySession: Identifiable, Codable, Hashable {
     var startTime: Int64
     var endTime: Int64
     var intervals: [StudySessionInterval] = []
+    var rating: Int?
     var note: String?
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
@@ -355,6 +358,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         case startTime
         case endTime
         case intervals
+        case rating
         case note
         case createdAt
         case updatedAt
@@ -411,6 +415,10 @@ struct StudySession: Identifiable, Codable, Hashable {
         Goal.format(minutes: durationMinutes)
     }
 
+    var hasRating: Bool {
+        rating != nil
+    }
+
     var startDate: Date {
         Date(epochMilliseconds: sessionStartTime)
     }
@@ -436,6 +444,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         startTime: Int64,
         endTime: Int64,
         intervals: [StudySessionInterval] = [],
+        rating: Int? = nil,
         note: String? = nil,
         createdAt: Int64 = Date().epochMilliseconds,
         updatedAt: Int64 = Date().epochMilliseconds,
@@ -454,6 +463,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         self.startTime = startTime
         self.endTime = endTime
         self.intervals = intervals
+        self.rating = rating
         self.note = note
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -475,6 +485,14 @@ struct StudySession: Identifiable, Codable, Hashable {
         startTime = try container.decode(Int64.self, forKey: .startTime)
         endTime = try container.decode(Int64.self, forKey: .endTime)
         intervals = try container.decodeIfPresent([StudySessionInterval].self, forKey: .intervals) ?? []
+        if let decodedRating = try container.decodeIfPresent(Int.self, forKey: .rating) {
+            guard Self.allowedRatings.contains(decodedRating) else {
+                throw DecodingError.dataCorruptedError(forKey: .rating, in: container, debugDescription: "rating must be 1...5")
+            }
+            rating = decodedRating
+        } else {
+            rating = nil
+        }
         note = try container.decodeIfPresent(String.self, forKey: .note)
         createdAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? Date().epochMilliseconds
         updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? createdAt
@@ -496,12 +514,26 @@ struct StudySession: Identifiable, Codable, Hashable {
         try container.encode(startTime, forKey: .startTime)
         try container.encode(endTime, forKey: .endTime)
         try container.encode(intervals, forKey: .intervals)
+        if let rating {
+            guard Self.allowedRatings.contains(rating) else {
+                throw EncodingError.invalidValue(
+                    rating,
+                    EncodingError.Context(codingPath: container.codingPath + [CodingKeys.rating], debugDescription: "rating must be 1...5")
+                )
+            }
+        }
+        try container.encodeIfPresent(rating, forKey: .rating)
         try container.encodeIfPresent(note, forKey: .note)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
         try container.encodeIfPresent(lastSyncedAt, forKey: .lastSyncedAt)
     }
+}
+
+struct PendingSessionEvaluation: Identifiable, Hashable {
+    let id = UUID()
+    var session: StudySession
 }
 
 struct Goal: Identifiable, Codable, Hashable {
@@ -668,6 +700,17 @@ struct SubjectStudyData: Identifiable, Hashable {
     var hours: Int
     var minutes: Int
     var color: Int
+}
+
+struct RatingAverageSummary: Hashable {
+    var average: Double?
+    var ratedMinutes: Int
+}
+
+struct RatingAveragesData: Hashable {
+    var today: RatingAverageSummary
+    var week: RatingAverageSummary
+    var month: RatingAverageSummary
 }
 
 struct BookInfo: Codable, Hashable, Sendable {
@@ -933,6 +976,7 @@ struct ReportsData: Hashable {
     var weekly: [WeeklyStudyData]
     var monthly: [MonthlyStudyData]
     var bySubject: [SubjectStudyData]
+    var ratingAverages: RatingAveragesData
     var streakDays: Int
     var bestStreak: Int
 }
@@ -1328,6 +1372,7 @@ struct GetReportsDataUseCase {
             weekly: weekly,
             monthly: monthly,
             bySubject: bySubject,
+            ratingAverages: ratingAverages(sessions: sortedSessions, reference: reference),
             streakDays: streakDays(sessions: sortedSessions, reference: reference),
             bestStreak: bestStreak(sessions: sortedSessions)
         )
@@ -1431,6 +1476,54 @@ struct GetReportsDataUseCase {
             )
         }
         .sorted { ($0.hours * 60 + $0.minutes) > ($1.hours * 60 + $1.minutes) }
+    }
+
+    private func ratingAverages(sessions: [StudySession], reference: Date) -> RatingAveragesData {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: reference)
+        let todayEnd = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? reference
+        let weekInterval = calendar.dateInterval(of: .weekOfYear, for: reference)
+        let monthInterval = calendar.dateInterval(of: .month, for: reference)
+
+        return RatingAveragesData(
+            today: weightedAverageRating(
+                sessions: sessions,
+                start: todayStart.epochMilliseconds,
+                end: todayEnd.epochMilliseconds
+            ),
+            week: weightedAverageRating(
+                sessions: sessions,
+                start: (weekInterval?.start ?? todayStart).epochMilliseconds,
+                end: (weekInterval?.end ?? todayEnd).epochMilliseconds
+            ),
+            month: weightedAverageRating(
+                sessions: sessions,
+                start: (monthInterval?.start ?? todayStart).epochMilliseconds,
+                end: (monthInterval?.end ?? todayEnd).epochMilliseconds
+            )
+        )
+    }
+
+    private func weightedAverageRating(sessions: [StudySession], start: Int64, end: Int64) -> RatingAverageSummary {
+        let ratedSessions = sessions.filter {
+            $0.startTime >= start &&
+            $0.startTime < end &&
+            $0.rating != nil
+        }
+
+        let ratedDuration = ratedSessions.reduce(Int64(0)) { $0 + $1.duration }
+        guard ratedDuration > 0 else {
+            return RatingAverageSummary(average: nil, ratedMinutes: 0)
+        }
+
+        let weightedTotal = ratedSessions.reduce(0.0) { partial, session in
+            partial + (Double(session.rating ?? 0) * Double(session.duration))
+        }
+
+        return RatingAverageSummary(
+            average: weightedTotal / Double(ratedDuration),
+            ratedMinutes: Int(ratedDuration / 60_000)
+        )
     }
 
     private func streakDays(sessions: [StudySession], reference: Date) -> Int {

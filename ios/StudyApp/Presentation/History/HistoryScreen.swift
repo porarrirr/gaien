@@ -6,6 +6,7 @@ struct HistoryScreen: View {
     @State private var pendingDeletionSession: StudySession?
     @State private var durationDraft = ""
     @State private var noteDraft = ""
+    @State private var ratingDraft: Int? = nil
     @State private var isShowingFilter = false
 
     init(app: StudyAppContainer) {
@@ -57,6 +58,7 @@ struct HistoryScreen: View {
                                                 editingSession = session
                                                 durationDraft = "\(session.durationMinutes)"
                                                 noteDraft = session.note ?? ""
+                                                ratingDraft = session.rating
                                             } label: {
                                                 Label("編集", systemImage: "pencil")
                                             }
@@ -108,6 +110,7 @@ struct HistoryScreen: View {
                     Section("記録") {
                         TextField("学習時間（分）", text: $durationDraft)
                             .keyboardType(.numberPad)
+                        SessionRatingSelector(rating: $ratingDraft, allowsClearing: true)
                         TextField("メモ", text: $noteDraft, axis: .vertical)
                     }
                 }
@@ -130,7 +133,8 @@ struct HistoryScreen: View {
                             viewModel.updateSession(
                                 session,
                                 durationMinutes: Int(durationDraft) ?? session.durationMinutes,
-                                note: noteDraft
+                                note: noteDraft,
+                                rating: ratingDraft
                             )
                             editingSession = nil
                         }
@@ -173,8 +177,13 @@ private struct HistorySessionCardNew: View {
                 }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.subjectName)
-                    .font(.subheadline.bold())
+                HStack(spacing: AppSpacing.xs) {
+                    Text(session.subjectName)
+                        .font(.subheadline.bold())
+                    if let rating = session.rating {
+                        SessionRatingBadge(rating: rating)
+                    }
+                }
                 if !session.materialName.isEmpty {
                     Text(session.materialName)
                         .font(.caption)

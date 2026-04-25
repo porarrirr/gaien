@@ -622,6 +622,7 @@ final class TimerViewModel: ScreenViewModel {
     @Published private(set) var materials: [Material] = []
     @Published private(set) var elapsedMilliseconds: Int64 = 0
     @Published private(set) var remainingMilliseconds: Int64 = 0
+    @Published var pendingSessionEvaluation: PendingSessionEvaluation?
     @Published var selectedSubjectId: Int64?
     @Published var selectedMaterialId: Int64?
     @Published var mode: TimerSnapshot.Mode = .stopwatch
@@ -761,33 +762,30 @@ final class TimerViewModel: ScreenViewModel {
         syncActiveTimerSelection()
     }
 
-    func stop(note: String? = nil) {
+    func stop() {
         perform {
-            guard let timer = self.app.preferences.activeTimer else { return }
-            let elapsed = timer.elapsedTime()
+            guard self.pendingSessionEvaluation == nil else { return }
+            guard let timer = self.finalizeTimerForEvaluation() else { return }
+            let elapsed = timer.accumulatedMilliseconds
             guard elapsed > 0 else {
                 self.app.updateActiveTimer(nil)
                 self.elapsedMilliseconds = 0
+                self.remainingMilliseconds = 0
                 self.configureTicker()
                 return
             }
-            let subject = if let selectedSubject = self.selectedSubject {
-                selectedSubject
-            } else {
-                try await self.app.persistence.getSubjectById(timer.subjectId)
-            }
-            guard let subject else {
+            guard let subject = try await self.app.persistence.getSubjectById(timer.subjectId) else {
                 throw ValidationError(message: "科目を選択してください")
             }
             let materials = try await self.app.persistence.getAllMaterials()
-            let materialId = self.selectedMaterialId
+            let materialId = timer.materialId
             let material = materials.first(where: { $0.id == materialId })
             let materialName = material?.name ?? ""
             let intervals = timer.finalizedIntervals()
             let start = intervals.first?.startTime ?? (Date().epochMilliseconds - elapsed)
             let end = intervals.last?.endTime ?? Date().epochMilliseconds
-            _ = try await self.app.persistence.insertSession(
-                StudySession(
+            self.pendingSessionEvaluation = PendingSessionEvaluation(
+                session: StudySession(
                     materialId: materialId,
                     materialSyncId: material?.syncId,
                     materialName: materialName,
@@ -797,10 +795,21 @@ final class TimerViewModel: ScreenViewModel {
                     sessionType: timer.sessionType,
                     startTime: start,
                     endTime: end,
-                    intervals: intervals,
-                    note: note?.nilIfBlank
+                    intervals: intervals
                 )
             )
+        }
+    }
+
+    func savePendingSessionEvaluation(rating: Int) {
+        perform {
+            guard StudySession.allowedRatings.contains(rating) else {
+                throw ValidationError(message: "評価は1〜5で入力してください")
+            }
+            guard var draft = self.pendingSessionEvaluation else { return }
+            draft.session.rating = rating
+            _ = try await self.app.persistence.insertSession(draft.session)
+            self.pendingSessionEvaluation = nil
             self.app.updateActiveTimer(nil)
             self.elapsedMilliseconds = 0
             self.remainingMilliseconds = 0
@@ -808,6 +817,10 @@ final class TimerViewModel: ScreenViewModel {
             await self.load()
             self.app.bumpDataVersion()
         }
+    }
+
+    func cancelPendingSessionEvaluation() {
+        pendingSessionEvaluation = nil
     }
 
     func saveManualSession(subjectId: Int64, materialId: Int64?, startTime: Int64, endTime: Int64, note: String?) {
@@ -834,9 +847,25 @@ final class TimerViewModel: ScreenViewModel {
             }
     }
 
-    private var selectedSubject: Subject? {
-        guard let subjectId = effectiveSelectedSubjectId else { return nil }
-        return subjects.first(where: { $0.id == subjectId })
+    private func finalizeTimerForEvaluation() -> TimerSnapshot? {
+        guard var timer = app.preferences.activeTimer else { return nil }
+        let now = Date().epochMilliseconds
+        if timer.isRunning, let startedAt = timer.startedAt {
+            timer.completedIntervals.append(
+                StudySessionInterval(
+                    startTime: startedAt,
+                    endTime: now
+                )
+            )
+        }
+        timer.accumulatedMilliseconds = timer.completedIntervals.reduce(0) { $0 + $1.duration }
+        timer.startedAt = nil
+        timer.isRunning = false
+        app.updateActiveTimer(timer)
+        elapsedMilliseconds = timer.accumulatedMilliseconds
+        remainingMilliseconds = timer.remainingTime()
+        configureTicker()
+        return timer
     }
 
     private func resolvedSubjectId(activeTimer: TimerSnapshot?) -> Int64? {
@@ -908,13 +937,14 @@ final class HistoryViewModel: ScreenViewModel {
         filterSubjectId = subjectId
     }
 
-    func updateSession(_ session: StudySession, durationMinutes: Int, note: String?) {
+    func updateSession(_ session: StudySession, durationMinutes: Int, note: String?, rating: Int?) {
         perform {
             guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
             var updated = session
             updated.endTime = updated.startTime + Int64(durationMinutes * 60_000)
             updated.intervals = [StudySessionInterval(startTime: updated.startTime, endTime: updated.endTime)]
             updated.note = note?.nilIfBlank
+            updated.rating = rating
             try await self.app.persistence.updateSession(updated)
             await self.load()
             self.app.bumpDataVersion()
@@ -1174,13 +1204,14 @@ final class CalendarViewModel: ScreenViewModel {
         sessions(for: day).reduce(0) { $0 + $1.durationMinutes }
     }
 
-    func updateSession(_ session: StudySession, durationMinutes: Int, note: String?) {
+    func updateSession(_ session: StudySession, durationMinutes: Int, note: String?, rating: Int?) {
         perform {
             guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
             var updated = session
             updated.endTime = updated.startTime + Int64(durationMinutes * 60_000)
             updated.intervals = [StudySessionInterval(startTime: updated.startTime, endTime: updated.endTime)]
             updated.note = note?.nilIfBlank
+            updated.rating = rating
             try await self.app.persistence.updateSession(updated)
             await self.load()
             self.app.bumpDataVersion()
@@ -1198,7 +1229,19 @@ final class CalendarViewModel: ScreenViewModel {
 
 @MainActor
 final class ReportsViewModel: ScreenViewModel {
-    @Published private(set) var reports = ReportsData(daily: [], weekly: [], monthly: [], bySubject: [], streakDays: 0, bestStreak: 0)
+    @Published private(set) var reports = ReportsData(
+        daily: [],
+        weekly: [],
+        monthly: [],
+        bySubject: [],
+        ratingAverages: RatingAveragesData(
+            today: RatingAverageSummary(average: nil, ratedMinutes: 0),
+            week: RatingAverageSummary(average: nil, ratedMinutes: 0),
+            month: RatingAverageSummary(average: nil, ratedMinutes: 0)
+        ),
+        streakDays: 0,
+        bestStreak: 0
+    )
 
     func load() async {
         do {

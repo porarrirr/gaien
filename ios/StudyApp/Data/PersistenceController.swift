@@ -592,7 +592,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let timeFormatter = DateFormatter()
         timeFormatter.locale = Locale(identifier: "ja_JP")
         timeFormatter.dateFormat = "HH:mm"
-        let header = "日付,科目,教材,開始時刻,終了時刻,時間(分),メモ\n"
+        let header = "日付,科目,教材,開始時刻,終了時刻,時間(分),評価,メモ\n"
         let rows = sessions.map { session in
             [
                 csvEscaped(dateFormatter.string(from: session.startDate)),
@@ -601,6 +601,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 csvEscaped(timeFormatter.string(from: session.startDate)),
                 csvEscaped(timeFormatter.string(from: session.endDate)),
                 "\(session.durationMinutes)",
+                session.rating.map { String($0) } ?? "",
                 csvEscaped(session.note ?? "")
             ].joined(separator: ",")
         }
@@ -823,11 +824,13 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             r.setValue(subjectId, forKey: "subjectId")
             r.setValue(session.subjectSyncId, forKey: "subjectSyncId")
             r.setValue(session.subjectName, forKey: "subjectName")
+            r.setValue(session.sessionType.rawValue, forKey: "sessionType")
             r.setValue(startTime, forKey: "startTime")
             r.setValue(endTime, forKey: "endTime")
             r.setValue(duration, forKey: "duration")
             r.setValue(date, forKey: "date")
             r.setValue(Self.encodeIntervals(session.intervals), forKey: "intervalsData")
+            r.setValue(session.rating, forKey: "rating")
             r.setValue(session.note, forKey: "note")
             r.setValue(session.createdAt == 0 ? now : session.createdAt, forKey: "createdAt")
             r.setValue(session.updatedAt == 0 ? now : session.updatedAt, forKey: "updatedAt")
@@ -984,6 +987,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             startTime: effectiveIntervals.first?.startTime ?? session.startTime,
             endTime: effectiveIntervals.last?.endTime ?? session.endTime,
             intervals: effectiveIntervals,
+            rating: session.rating,
             note: session.note,
             createdAt: persistedCreatedAt ?? (session.createdAt == 0 ? Date().epochMilliseconds : session.createdAt),
             updatedAt: Date().epochMilliseconds,
@@ -1007,6 +1011,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(session.duration, forKey: "duration")
         record.setValue(session.date, forKey: "date")
         record.setValue(Self.encodeIntervals(session.intervals), forKey: "intervalsData")
+        record.setValue(session.rating, forKey: "rating")
         record.setValue(session.note, forKey: "note")
         record.setValue(session.createdAt, forKey: "createdAt")
         record.setValue(session.updatedAt, forKey: "updatedAt")
@@ -1308,6 +1313,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             startTime: record.value(forKey: "startTime") as? Int64 ?? 0,
             endTime: record.value(forKey: "endTime") as? Int64 ?? 0,
             intervals: decodeIntervals(record.value(forKey: "intervalsData") as? String),
+            rating: (record.value(forKey: "rating") as? NSNumber)?.intValue,
             note: record.value(forKey: "note") as? String,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
             updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
@@ -1445,6 +1451,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "duration", type: .integer64AttributeType),
                     attribute(name: "date", type: .integer64AttributeType),
                     attribute(name: "intervalsData", type: .stringAttributeType, optional: true),
+                    attribute(name: "rating", type: .integer16AttributeType, optional: true),
                     attribute(name: "note", type: .stringAttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),
                     attribute(name: "updatedAt", type: .integer64AttributeType),

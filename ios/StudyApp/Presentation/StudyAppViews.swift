@@ -435,6 +435,7 @@ private struct TimerScreen: View {
     @StateObject private var viewModel: TimerViewModel
     @State private var showManualEntry = false
     @State private var manualNote = ""
+    @State private var sessionRatingDraft: Int?
     @State private var ringScale: CGFloat = 1.0
 
     init(app: StudyAppContainer) {
@@ -510,6 +511,26 @@ private struct TimerScreen: View {
         .sheet(isPresented: $showManualEntry) {
             NavigationStack {
                 ManualEntrySheet(viewModel: viewModel, manualNote: $manualNote, isPresented: $showManualEntry)
+            }
+        }
+        .sheet(item: $viewModel.pendingSessionEvaluation, onDismiss: {
+            sessionRatingDraft = nil
+        }) { draft in
+            NavigationStack {
+                SessionEvaluationSheet(
+                    session: draft.session,
+                    rating: $sessionRatingDraft,
+                    onSave: {
+                        guard let rating = sessionRatingDraft else { return }
+                        viewModel.savePendingSessionEvaluation(rating: rating)
+                    },
+                    onCancel: {
+                        viewModel.cancelPendingSessionEvaluation()
+                    }
+                )
+            }
+            .onAppear {
+                sessionRatingDraft = draft.session.rating
             }
         }
         .task(id: viewModel.app.dataVersion) {
@@ -802,6 +823,52 @@ private struct ManualEntrySheet: View {
     }
 }
 
+private struct SessionEvaluationSheet: View {
+    let session: StudySession
+    @Binding var rating: Int?
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.lg) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text("このセッションを評価")
+                    .font(.title3.bold())
+                Text(session.subjectName)
+                    .font(.headline)
+                if !session.materialName.isEmpty {
+                    Text(session.materialName)
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                Text("\(session.durationJapaneseText) ・ \(session.sessionType.title)")
+                    .font(.subheadline)
+                    .foregroundStyle(.tint)
+            }
+
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                Text("5段階で選択")
+                    .font(.subheadline.bold())
+                SessionRatingSelector(rating: $rating)
+            }
+
+            Spacer()
+        }
+        .padding(AppSpacing.md)
+        .navigationTitle("セッション評価")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("キャンセル", action: onCancel)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("保存", action: onSave)
+                    .disabled(rating == nil)
+            }
+        }
+    }
+}
+
 // MARK: - CalendarScreen
 
 private struct CalendarScreen: View {
@@ -811,6 +878,7 @@ private struct CalendarScreen: View {
     @State private var pendingDeletionSession: StudySession? = nil
     @State private var durationText: String = ""
     @State private var noteText: String = ""
+    @State private var ratingSelection: Int? = nil
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: CalendarViewModel(app: app))
@@ -1032,6 +1100,12 @@ private struct CalendarScreen: View {
                             .textFieldStyle(.roundedBorder)
                     }
 
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        Text("評価")
+                            .font(.subheadline.bold())
+                        SessionRatingSelector(rating: $ratingSelection, allowsClearing: true)
+                    }
+
                     TextEditor(text: $noteText)
                         .frame(minHeight: 150)
                         .scrollContentBackground(.hidden)
@@ -1068,7 +1142,8 @@ private struct CalendarScreen: View {
                             viewModel.updateSession(
                                 session,
                                 durationMinutes: Int(durationText) ?? session.durationMinutes,
-                                note: noteText
+                                note: noteText,
+                                rating: ratingSelection
                             )
                             editingSession = nil
                         }
@@ -1121,6 +1196,9 @@ private struct CalendarScreen: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Color.secondary.opacity(0.12), in: Capsule())
+                if let rating = session.rating {
+                    SessionRatingBadge(rating: rating)
+                }
                 Text(Goal.format(minutes: session.durationMinutes))
                     .font(.caption.bold())
                     .foregroundStyle(.tint)
@@ -1151,6 +1229,7 @@ private struct CalendarScreen: View {
             Button {
                 durationText = "\(session.durationMinutes)"
                 noteText = session.note ?? ""
+                ratingSelection = session.rating
                 editingSession = session
             } label: {
                 HStack {
@@ -1176,6 +1255,7 @@ private struct CalendarScreen: View {
                 Button {
                     durationText = "\(session.durationMinutes)"
                     noteText = session.note ?? ""
+                    ratingSelection = session.rating
                     editingSession = session
                 } label: {
                     Label("編集", systemImage: "pencil")
@@ -1225,6 +1305,10 @@ private struct ReportsScreen: View {
 
                 // Weekly Chart
                 weeklyChartSection
+                    .padding(.horizontal, AppSpacing.md)
+
+                // Rating Summary
+                ratingSummarySection
                     .padding(.horizontal, AppSpacing.md)
 
                 // Subject Breakdown
@@ -1332,6 +1416,18 @@ private struct ReportsScreen: View {
         .cardStyle()
     }
 
+    private var ratingSummarySection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            SectionHeaderView(title: "平均評価", icon: "star.fill")
+            VStack(spacing: AppSpacing.sm) {
+                ratingAverageCard(title: "今日", summary: viewModel.reports.ratingAverages.today)
+                ratingAverageCard(title: "今週", summary: viewModel.reports.ratingAverages.week)
+                ratingAverageCard(title: "今月", summary: viewModel.reports.ratingAverages.month)
+            }
+        }
+        .cardStyle()
+    }
+
     private var subjectSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             SectionHeaderView(title: "科目別", icon: "square.grid.2x2.fill")
@@ -1368,6 +1464,38 @@ private struct ReportsScreen: View {
             }
         }
         .cardStyle()
+    }
+
+    private func ratingAverageCard(title: String, summary: RatingAverageSummary) -> some View {
+        HStack(spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.bold())
+                Text(summary.ratedMinutes > 0 ? "評価対象 \(Goal.format(minutes: summary.ratedMinutes))" : "評価データなし")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+            Spacer()
+            if let average = summary.average {
+                HStack(spacing: 6) {
+                    Image(systemName: "star.fill")
+                        .foregroundStyle(AppColors.warning)
+                    Text(String(format: "%.1f / 5", average))
+                        .font(.headline)
+                        .foregroundStyle(AppColors.textPrimary)
+                }
+            } else {
+                Text("未評価")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+        }
+        .padding(.horizontal, AppSpacing.sm)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemFill))
+        )
     }
 }
 
