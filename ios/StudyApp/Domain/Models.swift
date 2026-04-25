@@ -635,6 +635,7 @@ struct DailyStudyData: Identifiable, Hashable {
     var dateLabel: String
     var minutes: Int
     var hours: Double
+    var segments: [SubjectStudySegment] = []
 }
 
 struct WeeklyStudyData: Identifiable, Hashable {
@@ -643,6 +644,15 @@ struct WeeklyStudyData: Identifiable, Hashable {
     var weekLabel: String
     var hours: Int
     var minutes: Int
+    var segments: [SubjectStudySegment] = []
+}
+
+struct SubjectStudySegment: Identifiable, Hashable {
+    var id: Int64 { subjectId }
+    var subjectId: Int64
+    var subjectName: String
+    var minutes: Int
+    var color: Int
 }
 
 struct MonthlyStudyData: Identifiable, Hashable {
@@ -1308,8 +1318,8 @@ struct GetReportsDataUseCase {
         let sessions = try await sessionsTask
 
         let sortedSessions = sessions.sorted { $0.startTime < $1.startTime }
-        let daily = reportDailyData(sessions: sortedSessions, reference: reference)
-        let weekly = reportWeeklyData(sessions: sortedSessions, reference: reference)
+        let daily = reportDailyData(subjects: subjects, sessions: sortedSessions, reference: reference)
+        let weekly = reportWeeklyData(subjects: subjects, sessions: sortedSessions, reference: reference)
         let monthly = reportMonthlyData(sessions: sortedSessions, reference: reference)
         let bySubject = subjectBreakdown(subjects: subjects, sessions: sortedSessions, reference: reference)
 
@@ -1323,7 +1333,7 @@ struct GetReportsDataUseCase {
         )
     }
 
-    private func reportDailyData(sessions: [StudySession], reference: Date) -> [DailyStudyData] {
+    private func reportDailyData(subjects: [Subject], sessions: [StudySession], reference: Date) -> [DailyStudyData] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ja_JP")
         formatter.dateFormat = "M/d (E)"
@@ -1331,13 +1341,21 @@ struct GetReportsDataUseCase {
             guard let date = Calendar.current.date(byAdding: .day, value: -offset, to: reference) else { return nil }
             let start = Calendar.current.startOfDay(for: date).epochMilliseconds
             let end = start + 86_400_000
-            let minutes = sessions.filter { $0.startTime >= start && $0.startTime < end }.reduce(0) { $0 + $1.durationMinutes }
-            return DailyStudyData(date: start, dateLabel: formatter.string(from: date), minutes: minutes, hours: Double(minutes) / 60)
+            let periodSessions = sessions.filter { $0.startTime >= start && $0.startTime < end }
+            let segments = subjectSegments(subjects: subjects, sessions: periodSessions)
+            let minutes = segments.reduce(0) { $0 + $1.minutes }
+            return DailyStudyData(
+                date: start,
+                dateLabel: formatter.string(from: date),
+                minutes: minutes,
+                hours: Double(minutes) / 60,
+                segments: segments
+            )
         }
         .reversed()
     }
 
-    private func reportWeeklyData(sessions: [StudySession], reference: Date) -> [WeeklyStudyData] {
+    private func reportWeeklyData(subjects: [Subject], sessions: [StudySession], reference: Date) -> [WeeklyStudyData] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ja_JP")
         formatter.dateFormat = "M/d"
@@ -1346,15 +1364,33 @@ struct GetReportsDataUseCase {
             let interval = Calendar.current.dateInterval(of: .weekOfYear, for: date)
             let start = (interval?.start ?? date).epochMilliseconds
             let end = Int64((interval?.end ?? date).epochMilliseconds)
-            let minutes = sessions.filter { $0.startTime >= start && $0.startTime <= end }.reduce(0) { $0 + $1.durationMinutes }
+            let periodSessions = sessions.filter { $0.startTime >= start && $0.startTime < end }
+            let segments = subjectSegments(subjects: subjects, sessions: periodSessions)
+            let minutes = segments.reduce(0) { $0 + $1.minutes }
             return WeeklyStudyData(
                 weekStart: start,
                 weekLabel: "\(formatter.string(from: Date(epochMilliseconds: start)))週",
                 hours: minutes / 60,
-                minutes: minutes % 60
+                minutes: minutes % 60,
+                segments: segments
             )
         }
         .reversed()
+    }
+
+    private func subjectSegments(subjects: [Subject], sessions: [StudySession]) -> [SubjectStudySegment] {
+        subjects.compactMap { subject in
+            let minutes = sessions
+                .filter { $0.subjectId == subject.id }
+                .reduce(0) { $0 + $1.durationMinutes }
+            guard minutes > 0 else { return nil }
+            return SubjectStudySegment(
+                subjectId: subject.id,
+                subjectName: subject.name,
+                minutes: minutes,
+                color: subject.color
+            )
+        }
     }
 
     private func reportMonthlyData(sessions: [StudySession], reference: Date) -> [MonthlyStudyData] {

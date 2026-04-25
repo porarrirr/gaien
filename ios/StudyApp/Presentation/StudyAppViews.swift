@@ -1288,9 +1288,15 @@ private struct ReportsScreen: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, AppSpacing.lg)
             } else {
-                SimpleBarChart(
+                StackedBarChart(
                     data: viewModel.reports.daily.suffix(7).map { item in
-                        (label: String(item.dateLabel.suffix(3)), value: Double(item.minutes))
+                        (
+                            label: String(item.dateLabel.suffix(3)),
+                            value: Double(item.minutes),
+                            segments: item.segments.map { segment in
+                                StackedBarSegment(value: Double(segment.minutes), color: Color(hex: segment.color))
+                            }
+                        )
                     },
                     maxBarHeight: 140
                 )
@@ -1309,11 +1315,16 @@ private struct ReportsScreen: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, AppSpacing.lg)
             } else {
-                SimpleBarChart(
+                StackedBarChart(
                     data: viewModel.reports.weekly.suffix(4).map { item in
-                        (label: item.weekLabel, value: Double(item.hours * 60 + item.minutes))
+                        (
+                            label: item.weekLabel,
+                            value: Double(item.hours * 60 + item.minutes),
+                            segments: item.segments.map { segment in
+                                StackedBarSegment(value: Double(segment.minutes), color: Color(hex: segment.color))
+                            }
+                        )
                     },
-                    barColor: Color(hex: 0x2196F3),
                     maxBarHeight: 120
                 )
             }

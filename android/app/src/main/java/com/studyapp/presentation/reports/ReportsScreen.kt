@@ -381,20 +381,17 @@ private fun DailyReportSection(uiState: ReportsUiState) {
             Spacer(modifier = Modifier.height(16.dp))
             
             if (uiState.dailyData.isNotEmpty()) {
-                BarChart(
+                StackedBarChart(
                     data = uiState.dailyData.map { data ->
-                        BarChartData(
-                            label = data.dateLabel.substringBefore(" ("),
-                            value = data.minutes.toFloat(),
-                            color = when {
-                                data.minutes >= 180 -> Color(0xFF1B5E20)
-                                data.minutes >= 120 -> Color(0xFF388E3C)
-                                data.minutes >= 60 -> MaterialTheme.colorScheme.primary
-                                data.minutes >= 30 -> Color(0xFF81C784)
-                                else -> Color(0xFFC8E6C9)
-                            }
-                        )
+                        data.segments.map { segment ->
+                            BarChartData(
+                                label = segment.subjectName,
+                                value = segment.minutes.toFloat(),
+                                color = Color(segment.color)
+                            )
+                        }
                     },
+                    labels = uiState.dailyData.map { it.dateLabel.substringBefore(" (") },
                     modifier = Modifier.fillMaxWidth(),
                     title = "過去7日間"
                 )
@@ -518,14 +515,17 @@ private fun WeeklyReportSection(uiState: ReportsUiState) {
             Spacer(modifier = Modifier.height(16.dp))
             
             if (uiState.weeklyData.isNotEmpty()) {
-                BarChart(
+                StackedBarChart(
                     data = uiState.weeklyData.map { data ->
-                        BarChartData(
-                            label = data.weekLabel,
-                            value = (data.hours * 60 + data.minutes).toFloat(),
-                            color = MaterialTheme.colorScheme.secondary
-                        )
+                        data.segments.map { segment ->
+                            BarChartData(
+                                label = segment.subjectName,
+                                value = segment.minutes.toFloat(),
+                                color = Color(segment.color)
+                            )
+                        }
                     },
+                    labels = uiState.weeklyData.map { it.weekLabel },
                     modifier = Modifier.fillMaxWidth(),
                     title = "過去4週間"
                 )

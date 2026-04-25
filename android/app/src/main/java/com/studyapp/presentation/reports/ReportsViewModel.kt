@@ -2,6 +2,8 @@ package com.studyapp.presentation.reports
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.model.Subject
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.util.Clock
@@ -112,6 +114,10 @@ class ReportsViewModel @Inject constructor(
     
     private suspend fun loadDailyData(): Result<List<DailyStudyData>> {
         return try {
+            val subjects = when (val result = subjectRepository.getAllSubjects().first()) {
+                is Result.Success -> result.data
+                is Result.Error -> return result
+            }
             val calendar = Calendar.getInstance()
             calendar.set(Calendar.HOUR_OF_DAY, 0)
             calendar.set(Calendar.MINUTE, 0)
@@ -125,14 +131,16 @@ class ReportsViewModel @Inject constructor(
                 val dayStart = calendar.timeInMillis
                 val dayEnd = dayStart + 24 * 60 * 60 * 1000
                 
-                when (val result = studySessionRepository.getTotalDurationBetweenDates(dayStart, dayEnd)) {
+                when (val result = studySessionRepository.getSessionsBetweenDates(dayStart, dayEnd).first()) {
                     is Result.Success -> {
-                        val dayMinutes = result.data / 60000
+                        val segments = subjectSegments(subjects, result.data)
+                        val dayMinutes = segments.sumOf { it.minutes }
                         dailyData.add(0, DailyStudyData(
                             dateLabel = dateFormat.format(Date(dayStart)),
                             dateMillis = dayStart,
                             minutes = dayMinutes,
-                            hours = dayMinutes / 60f
+                            hours = dayMinutes / 60f,
+                            segments = segments
                         ))
                     }
                     is Result.Error -> return result
@@ -149,6 +157,10 @@ class ReportsViewModel @Inject constructor(
     
     private suspend fun loadWeeklyData(): Result<List<WeeklyStudyData>> {
         return try {
+            val subjects = when (val result = subjectRepository.getAllSubjects().first()) {
+                is Result.Success -> result.data
+                is Result.Error -> return result
+            }
             val calendar = Calendar.getInstance()
             calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
             calendar.set(Calendar.HOUR_OF_DAY, 0)
@@ -162,14 +174,16 @@ class ReportsViewModel @Inject constructor(
                 val weekStart = calendar.timeInMillis
                 val weekEnd = weekStart + 7 * 24 * 60 * 60 * 1000
                 
-                when (val result = studySessionRepository.getTotalDurationBetweenDates(weekStart, weekEnd)) {
+                when (val result = studySessionRepository.getSessionsBetweenDates(weekStart, weekEnd).first()) {
                     is Result.Success -> {
-                        val weekMinutes = result.data / 60000
+                        val segments = subjectSegments(subjects, result.data)
+                        val weekMinutes = segments.sumOf { it.minutes }
                         val startFormat = SimpleDateFormat("M/d", Locale.JAPANESE)
                         weeklyData.add(0, WeeklyStudyData(
                             weekLabel = "${startFormat.format(Date(weekStart))}週",
                             hours = weekMinutes / 60,
-                            minutes = weekMinutes % 60
+                            minutes = weekMinutes % 60,
+                            segments = segments
                         ))
                     }
                     is Result.Error -> return result
@@ -181,6 +195,27 @@ class ReportsViewModel @Inject constructor(
             Result.Success(weeklyData)
         } catch (e: Exception) {
             Result.Error(e, "週次データの読み込みに失敗しました")
+        }
+    }
+
+    private fun subjectSegments(
+        subjects: List<Subject>,
+        sessions: List<StudySession>
+    ): List<SubjectStudySegment> {
+        return subjects.mapNotNull { subject ->
+            val minutes = sessions
+                .filter { it.subjectId == subject.id }
+                .sumOf { it.durationMinutes }
+            if (minutes <= 0) {
+                null
+            } else {
+                SubjectStudySegment(
+                    subjectId = subject.id,
+                    subjectName = subject.name,
+                    minutes = minutes,
+                    color = subject.color
+                )
+            }
         }
     }
     

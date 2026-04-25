@@ -624,7 +624,8 @@ fun StackedBarChart(
     labels: List<String>,
     modifier: Modifier = Modifier,
     title: String = "",
-    animated: Boolean = true
+    animated: Boolean = true,
+    showValues: Boolean = true
 ) {
     if (data.isEmpty() || data.all { it.isEmpty() }) {
         EmptyChartPlaceholder(
@@ -675,35 +676,52 @@ fun StackedBarChart(
                 .height(200.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            data.forEachIndexed { index, segments ->
+            data.forEach { segments ->
                 val segmentsTotal = segments.sumOf { it.value.toDouble() }.toFloat()
                 val animatedHeight = if (maxTotal > 0.001f) {
                     (segmentsTotal / maxTotal) * animationProgress
                 } else 0f
                 
-                Box(
+                Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight(),
-                    contentAlignment = Alignment.BottomCenter
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
+                    if (showValues && segmentsTotal > 0f) {
+                        Text(
+                            text = segmentsTotal.toLong().toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.6f)
-                            .fillMaxHeight(animatedHeight.coerceIn(0f, 1f))
-                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.BottomCenter
                     ) {
-                        segments.forEach { segment ->
-                            val segmentHeight = if (segmentsTotal > 0.001f) {
-                                (segment.value / segmentsTotal)
-                            } else 0f
-                            
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(segmentHeight.coerceIn(0.001f, 1f))
-                                    .background(segment.color)
-                            )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth(0.6f)
+                                .fillMaxHeight(animatedHeight.coerceIn(0f, 1f))
+                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                        ) {
+                            segments.forEach { segment ->
+                                val segmentHeight = if (segmentsTotal > 0.001f) {
+                                    (segment.value / segmentsTotal)
+                                } else 0f
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(segmentHeight.coerceIn(0.001f, 1f))
+                                        .background(segment.color)
+                                )
+                            }
                         }
                     }
                 }
