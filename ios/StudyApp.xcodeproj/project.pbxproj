@@ -15,6 +15,7 @@
 		A10000000000000000000005 /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* ReminderScheduler.swift */; };
 		A10000000000000000000006 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Theme.swift */; };
 		A10000000000000000000007 /* StudyAppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* StudyAppStore.swift */; };
+		A10000000000000000000023 /* AutoSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* AutoSyncCoordinator.swift */; };
 		A10000000000000000000008 /* StudyAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StudyAppViews.swift */; };
 		A10000000000000000000009 /* SubjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* SubjectsView.swift */; };
 		A10000000000000000000010 /* MaterialsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MaterialsScreen.swift */; };
@@ -53,6 +54,7 @@
 		B10000000000000000000006 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		B10000000000000000000007 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000000000000000000008 /* StudyAppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000020 /* AutoSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSyncCoordinator.swift; sourceTree = "<group>"; };
 		B10000000000000000000009 /* StudyAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppViews.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* SubjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsView.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* MaterialsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsScreen.swift; sourceTree = "<group>"; };
@@ -173,6 +175,7 @@
 			children = (
 				B10000000000000000000007 /* Theme.swift */,
 				B10000000000000000000008 /* StudyAppStore.swift */,
+				B10000000000000000000020 /* AutoSyncCoordinator.swift */,
 				B10000000000000000000009 /* StudyAppViews.swift */,
 				D10000000000000000000010 /* Materials */,
 				D10000000000000000000011 /* History */,
@@ -413,6 +416,7 @@
 				A10000000000000000000020 /* StudyLiveActivityController.swift in Sources */,
 				A10000000000000000000006 /* Theme.swift in Sources */,
 				A10000000000000000000007 /* StudyAppStore.swift in Sources */,
+				A10000000000000000000023 /* AutoSyncCoordinator.swift in Sources */,
 				A10000000000000000000008 /* StudyAppViews.swift in Sources */,
 				A10000000000000000000009 /* SubjectsView.swift in Sources */,
 				A10000000000000000000010 /* MaterialsScreen.swift in Sources */,

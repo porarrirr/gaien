@@ -42,6 +42,7 @@ class ReportsViewModelTest {
         every { clock.currentTimeMillis() } returns 1_700_000_000_000L
         every { clock.startOfToday() } returns 1_700_000_000_000L
         every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(emptyList()))
+        every { studySessionRepository.getSessionsBetweenDates(any(), any()) } returns flowOf(Result.Success(emptyList()))
         coEvery { studySessionRepository.getTotalDurationBetweenDates(any(), any()) } returns Result.Success(0L)
         coEvery { studySessionRepository.getTotalDurationByDate(any()) } returns Result.Success(0L)
     }
@@ -53,9 +54,9 @@ class ReportsViewModelTest {
 
     @Test
     fun `loadReports surfaces typed repository errors without casts`() = runTest {
-        coEvery {
-            studySessionRepository.getTotalDurationBetweenDates(any(), any())
-        } returns Result.Error(IllegalStateException("boom"), "daily failed")
+        every {
+            studySessionRepository.getSessionsBetweenDates(any(), any())
+        } returns flowOf(Result.Error(IllegalStateException("boom"), "daily failed"))
 
         val viewModel = ReportsViewModel(
             studySessionRepository = studySessionRepository,

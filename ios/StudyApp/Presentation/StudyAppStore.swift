@@ -23,13 +23,14 @@ final class StudyAppContainer: ObservableObject {
 
     private lazy var widgetSnapshotSync = WidgetSnapshotSync(container: self)
     private lazy var liveActivityController = StudyLiveActivityController(persistence: persistence, logger: logger)
+    private lazy var autoSyncCoordinator = AutoSyncCoordinator(
+        syncRepository: syncRepository,
+        logger: logger,
+        currentDataVersion: { [weak self] in self?.dataVersion ?? 0 },
+        onSyncStatusChanged: { [weak self] in self?.refreshSyncStatus() }
+    )
     private var cancellables = Set<AnyCancellable>()
-    private var autoSyncDelayTask: Task<Void, Never>?
     private var liveActivitySyncTask: Task<Void, Never>?
-    private var lastAutoSyncDataVersion: Int?
-    private let autoSyncBlockedKey = "studyapp.sync.autoSyncBlockedUntilLocalChange"
-    private var pendingAutoSyncRequest: (reason: String, dataVersion: Int)?
-    private var isAutoSyncRunning = false
 
     convenience init() {
         let persistence = PersistenceController.shared
@@ -201,66 +202,15 @@ final class StudyAppContainer: ObservableObject {
     }
 
     func scheduleAutoSync(reason: String) {
-        guard syncRepository.status.isAuthenticated else { return }
-
-        if isAutoSyncBlockedUntilLocalChange {
-            if reason.hasPrefix("data-version-") {
-                isAutoSyncBlockedUntilLocalChange = false
-            } else {
-                logger.log(category: .sync, message: "Auto sync skipped", details: "reason=\(reason) blocked=true")
-                return
-            }
-        }
-
-        let currentVersion = dataVersion
-        if lastAutoSyncDataVersion == currentVersion, reason != "scene-active", reason != "app-load" {
-            return
-        }
-
-        pendingAutoSyncRequest = (reason, currentVersion)
-        autoSyncDelayTask?.cancel()
-        autoSyncDelayTask = Task { [weak self] in
-            guard let self else { return }
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            await self.runQueuedAutoSync()
-        }
-    }
-
-    private func runQueuedAutoSync() async {
-        guard !isAutoSyncRunning else { return }
-
-        while let request = pendingAutoSyncRequest {
-            guard syncRepository.status.isAuthenticated else {
-                pendingAutoSyncRequest = nil
-                return
-            }
-            guard !syncRepository.status.isSyncing else { return }
-
-            pendingAutoSyncRequest = nil
-            isAutoSyncRunning = true
-            do {
-                logger.log(category: .sync, message: "Auto sync started", details: "reason=\(request.reason) dataVersion=\(request.dataVersion)")
-                try await syncRepository.syncNow()
-                refreshSyncStatus()
-                lastAutoSyncDataVersion = request.dataVersion
-                logger.log(category: .sync, message: "Auto sync completed", details: "reason=\(request.reason) dataVersion=\(request.dataVersion)")
-            } catch {
-                logger.log(category: .sync, level: .warning, message: "Auto sync failed", details: "reason=\(request.reason)", error: error)
-            }
-            isAutoSyncRunning = false
-        }
+        autoSyncCoordinator.schedule(reason: reason)
     }
 
     func recordManualSyncApplied() {
-        lastAutoSyncDataVersion = dataVersion
-        isAutoSyncBlockedUntilLocalChange = false
+        autoSyncCoordinator.recordManualSyncApplied()
     }
 
     func blockAutoSyncUntilLocalChange() {
-        autoSyncDelayTask?.cancel()
-        autoSyncDelayTask = nil
-        pendingAutoSyncRequest = nil
-        isAutoSyncBlockedUntilLocalChange = true
+        autoSyncCoordinator.blockUntilLocalChange()
     }
 
     func present(_ error: Error) {
@@ -271,11 +221,6 @@ final class StudyAppContainer: ObservableObject {
     func present(_ message: String) {
         logger.log(category: .ui, level: .warning, message: "Presented message to user", details: message)
         errorMessage = message
-    }
-
-    private var isAutoSyncBlockedUntilLocalChange: Bool {
-        get { UserDefaults.standard.bool(forKey: autoSyncBlockedKey) }
-        set { UserDefaults.standard.set(newValue, forKey: autoSyncBlockedKey) }
     }
 
     private func shouldSyncLiveActivity(previous: AppPreferences, next: AppPreferences) -> Bool {

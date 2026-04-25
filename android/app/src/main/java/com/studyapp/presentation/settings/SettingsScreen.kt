@@ -1,13 +1,6 @@
 package com.studyapp.presentation.settings
 
-import android.Manifest
-import android.app.TimePickerDialog
-import android.content.Context
-import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.content.pm.PackageManager
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
@@ -25,13 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import com.ichi2.anki.api.AddContentApi
 import com.studyapp.domain.model.AnkiIntegrationStatus
 import com.studyapp.domain.model.AnkiTodayStats
 import java.text.SimpleDateFormat
@@ -50,53 +38,10 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val actions = rememberSettingsScreenActions(uiState, viewModel)
     var showExportDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     var showDeleteDataDialog by remember { mutableStateOf(false) }
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            viewModel.setReminderEnabled(true)
-        }
-    }
-    val ankiPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) {
-        viewModel.refreshAnkiStats()
-    }
-    val reminderTimeParts = remember(uiState.reminderTime) {
-        val parts = uiState.reminderTime.split(":")
-        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 19
-        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
-        hour to minute
-    }
-    val reminderTimePickerDialog = remember(context, reminderTimeParts) {
-        TimePickerDialog(
-            context,
-            { _, hour, minute ->
-                viewModel.setReminderTime(
-                    String.format(Locale.ROOT, "%02d:%02d", hour, minute)
-                )
-            },
-            reminderTimeParts.first,
-            reminderTimeParts.second,
-            true
-        )
-    }
-
-    DisposableEffect(lifecycleOwner, viewModel) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshAnkiStats()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
     
     Scaffold(
         topBar = {
@@ -132,24 +77,8 @@ fun SettingsScreen(
             NotificationSection(
                 reminderEnabled = uiState.reminderEnabled,
                 reminderTime = uiState.reminderTime,
-                onReminderEnabledChange = { enabled ->
-                    val shouldRequestNotificationPermission =
-                        enabled &&
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS
-                            ) != PackageManager.PERMISSION_GRANTED
-
-                    if (shouldRequestNotificationPermission) {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        viewModel.setReminderEnabled(enabled)
-                    }
-                },
-                onReminderTimeClick = {
-                    reminderTimePickerDialog.show()
-                }
+                onReminderEnabledChange = actions.onReminderEnabledChange,
+                onReminderTimeClick = actions.onReminderTimeClick
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -157,17 +86,9 @@ fun SettingsScreen(
             AnkiSection(
                 stats = uiState.ankiStats,
                 isRefreshing = uiState.isRefreshingAnkiStats,
-                onGrantAnkiPermission = {
-                    ankiPermissionLauncher.launch(AddContentApi.READ_WRITE_PERMISSION)
-                },
-                onOpenUsageAccess = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                    )
-                },
-                onRefresh = viewModel::refreshAnkiStats
+                onGrantAnkiPermission = actions.onGrantAnkiPermission,
+                onOpenUsageAccess = actions.onOpenUsageAccess,
+                onRefresh = actions.onRefreshAnkiStats
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

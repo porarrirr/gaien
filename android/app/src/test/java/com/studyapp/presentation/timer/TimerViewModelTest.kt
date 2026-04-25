@@ -17,11 +17,13 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.StudySessionType
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.usecase.GetRecentMaterialsUseCase
 import com.studyapp.domain.usecase.SaveStudySessionUseCase
+import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.domain.usecase.TimerServiceManager
 import com.studyapp.domain.usecase.TimerStopResult
 import com.studyapp.domain.util.Result
@@ -43,12 +45,15 @@ class TimerViewModelTest {
     private lateinit var viewModel: TimerViewModel
     
     private val elapsedTimeFlow = MutableStateFlow(0L)
+    private val remainingTimeFlow = MutableStateFlow(0L)
     private val isRunningFlow = MutableStateFlow(false)
     private val isBoundFlow = MutableStateFlow(false)
     private val currentSubjectIdFlow = MutableStateFlow<Long?>(null)
     private val currentSubjectSyncIdFlow = MutableStateFlow<String?>(null)
     private val currentMaterialIdFlow = MutableStateFlow<Long?>(null)
     private val currentMaterialSyncIdFlow = MutableStateFlow<String?>(null)
+    private val currentModeFlow = MutableStateFlow(TimerMode.STOPWATCH)
+    private val currentTargetDurationMillisFlow = MutableStateFlow<Long?>(null)
     
     @Before
     fun setup() {
@@ -65,12 +70,15 @@ class TimerViewModelTest {
         every { getRecentMaterialsUseCase() } returns flowOf(emptyList())
         
         every { timerServiceManager.elapsedTime } returns elapsedTimeFlow
+        every { timerServiceManager.remainingTime } returns remainingTimeFlow
         every { timerServiceManager.isRunning } returns isRunningFlow
         every { timerServiceManager.isBound } returns isBoundFlow
         every { timerServiceManager.currentSubjectId } returns currentSubjectIdFlow
         every { timerServiceManager.currentSubjectSyncId } returns currentSubjectSyncIdFlow
         every { timerServiceManager.currentMaterialId } returns currentMaterialIdFlow
         every { timerServiceManager.currentMaterialSyncId } returns currentMaterialSyncIdFlow
+        every { timerServiceManager.currentMode } returns currentModeFlow
+        every { timerServiceManager.currentTargetDurationMillis } returns currentTargetDurationMillisFlow
         every { timerServiceManager.bind() } just runs
         every { timerServiceManager.unbind() } just runs
         
@@ -265,7 +273,9 @@ class TimerViewModelTest {
         
         viewModel.selectMaterial(material, subject)
         
-        every { timerServiceManager.startTimer(1L, subject.syncId, 1L, material.syncId) } just runs
+        every {
+            timerServiceManager.startTimer(1L, subject.syncId, 1L, material.syncId, TimerMode.STOPWATCH, null)
+        } just runs
         
         viewModel.startTimer()
         
@@ -274,7 +284,9 @@ class TimerViewModelTest {
                 subjectId = 1L,
                 subjectSyncId = subject.syncId,
                 materialId = 1L,
-                materialSyncId = material.syncId
+                materialSyncId = material.syncId,
+                mode = TimerMode.STOPWATCH,
+                targetDurationMillis = null
             )
         }
     }
@@ -286,7 +298,9 @@ class TimerViewModelTest {
         val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
         viewModel.selectSubject(subject)
 
-        every { timerServiceManager.startTimer(1L, subject.syncId, null, null) } just runs
+        every {
+            timerServiceManager.startTimer(1L, subject.syncId, null, null, TimerMode.STOPWATCH, null)
+        } just runs
 
         viewModel.startTimer()
 
@@ -295,7 +309,9 @@ class TimerViewModelTest {
                 subjectId = 1L,
                 subjectSyncId = subject.syncId,
                 materialId = null,
-                materialSyncId = null
+                materialSyncId = null,
+                mode = TimerMode.STOPWATCH,
+                targetDurationMillis = null
             )
         }
     }
@@ -314,7 +330,7 @@ class TimerViewModelTest {
         
         viewModel.startTimer()
         
-        verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any()) }
+        verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any(), any(), any()) }
     }
     
     @Test
@@ -323,7 +339,7 @@ class TimerViewModelTest {
         
         viewModel.startTimer()
         
-        verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any()) }
+        verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any(), any(), any()) }
     }
     
     @Test
@@ -347,14 +363,25 @@ class TimerViewModelTest {
         every { timerServiceManager.stopTimer() } returns TimerStopResult(
             elapsed = 60000L,
             materialId = 1L,
-            intervals = emptyList()
+            intervals = emptyList(),
+            sessionType = StudySessionType.STOPWATCH
         )
-        coEvery { saveStudySessionUseCase(1L, 1L, 60000L) } returns Result.Success(1L)
+        coEvery {
+            saveStudySessionUseCase(1L, 1L, 60000L, emptyList(), StudySessionType.STOPWATCH)
+        } returns Result.Success(1L)
         
         viewModel.stopTimer()
         testDispatcher.scheduler.advanceUntilIdle()
         
-        coVerify { saveStudySessionUseCase(subjectId = 1L, materialId = 1L, duration = 60000L) }
+        coVerify {
+            saveStudySessionUseCase(
+                subjectId = 1L,
+                materialId = 1L,
+                duration = 60000L,
+                intervals = emptyList(),
+                sessionType = StudySessionType.STOPWATCH
+            )
+        }
         assertFalse(viewModel.uiState.value.isRunning)
         assertEquals(0L, viewModel.uiState.value.elapsedTime)
     }
@@ -371,13 +398,22 @@ class TimerViewModelTest {
         every { timerServiceManager.stopTimer() } returns TimerStopResult(
             elapsed = 0L,
             materialId = null,
-            intervals = emptyList()
+            intervals = emptyList(),
+            sessionType = StudySessionType.STOPWATCH
         )
         
         viewModel.stopTimer()
         testDispatcher.scheduler.advanceUntilIdle()
         
-        coVerify(exactly = 0) { saveStudySessionUseCase(any(), any(), any()) }
+        coVerify(exactly = 0) {
+            saveStudySessionUseCase(
+                subjectId = any<Long>(),
+                materialId = any(),
+                duration = any<Long>(),
+                intervals = any(),
+                sessionType = any()
+            )
+        }
     }
     
     @Test
@@ -387,13 +423,22 @@ class TimerViewModelTest {
         every { timerServiceManager.stopTimer() } returns TimerStopResult(
             elapsed = 60000L,
             materialId = null,
-            intervals = emptyList()
+            intervals = emptyList(),
+            sessionType = StudySessionType.STOPWATCH
         )
         
         viewModel.stopTimer()
         testDispatcher.scheduler.advanceUntilIdle()
         
-        coVerify(exactly = 0) { saveStudySessionUseCase(any(), any(), any()) }
+        coVerify(exactly = 0) {
+            saveStudySessionUseCase(
+                subjectId = any<Long>(),
+                materialId = any(),
+                duration = any<Long>(),
+                intervals = any(),
+                sessionType = any()
+            )
+        }
     }
     
     @Test
@@ -408,9 +453,12 @@ class TimerViewModelTest {
         every { timerServiceManager.stopTimer() } returns TimerStopResult(
             elapsed = 60000L,
             materialId = 1L,
-            intervals = emptyList()
+            intervals = emptyList(),
+            sessionType = StudySessionType.STOPWATCH
         )
-        coEvery { saveStudySessionUseCase(1L, 1L, 60000L) } returns Result.Error(RuntimeException("Save failed"), "保存に失敗しました")
+        coEvery {
+            saveStudySessionUseCase(1L, 1L, 60000L, emptyList(), StudySessionType.STOPWATCH)
+        } returns Result.Error(RuntimeException("Save failed"), "保存に失敗しました")
         
         viewModel.stopTimer()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -426,7 +474,7 @@ class TimerViewModelTest {
         val startTime = 1_000L
         val endTime = 61_000L
 
-        coEvery { saveStudySessionUseCase(1L, 2L, 60000L, any()) } returns Result.Success(1L)
+        coEvery { saveStudySessionUseCase(1L, 2L, 60000L, any(), StudySessionType.MANUAL) } returns Result.Success(1L)
 
         viewModel.saveManualEntry(subjectId = 1L, materialId = 2L, startTime = startTime, endTime = endTime)
         testDispatcher.scheduler.advanceUntilIdle()
@@ -436,7 +484,8 @@ class TimerViewModelTest {
                 subjectId = 1L,
                 materialId = 2L,
                 duration = 60000L,
-                intervals = any()
+                intervals = any(),
+                sessionType = StudySessionType.MANUAL
             )
         }
     }
@@ -445,7 +494,9 @@ class TimerViewModelTest {
     fun `saveManualEntry handles error`() = runTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coEvery { saveStudySessionUseCase(1L, null, 300000L, any()) } returns Result.Error(RuntimeException("Error"), "保存エラー")
+        coEvery {
+            saveStudySessionUseCase(1L, null, 300000L, any(), StudySessionType.MANUAL)
+        } returns Result.Error(RuntimeException("Error"), "保存エラー")
 
         viewModel.saveManualEntry(subjectId = 1L, materialId = null, startTime = 0L, endTime = 300000L)
         testDispatcher.scheduler.advanceUntilIdle()
