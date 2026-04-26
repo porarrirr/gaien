@@ -761,6 +761,7 @@ final class TimerViewModel: ScreenViewModel {
         rating: Int,
         note: String?,
         problemRecords: [ProblemSessionRecord],
+        totalProblems: Int,
         problemStart: Int?,
         problemEnd: Int?,
         wrongProblemCount: Int?
@@ -782,6 +783,13 @@ final class TimerViewModel: ScreenViewModel {
             draft.session.problemStart = normalizedRecords.first?.number ?? problemStart
             draft.session.problemEnd = normalizedRecords.last?.number ?? problemEnd
             draft.session.wrongProblemCount = normalizedRecords.isEmpty ? wrongProblemCount : normalizedRecords.filter(\.isWrong).count
+            if totalProblems > 0, let materialId = draft.session.materialId {
+                let materials = try await self.app.persistence.getAllMaterials()
+                if var material = materials.first(where: { $0.id == materialId }), material.totalProblems != totalProblems {
+                    material.totalProblems = totalProblems
+                    try await self.app.persistence.updateMaterial(material)
+                }
+            }
             _ = try await self.app.persistence.insertSession(draft.session)
             self.pendingSessionEvaluation = nil
             self.app.updateActiveTimer(nil)

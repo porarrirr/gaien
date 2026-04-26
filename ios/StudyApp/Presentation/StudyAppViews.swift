@@ -441,6 +441,7 @@ private struct TimerScreen: View {
     @State private var sessionProblemEndDraft = ""
     @State private var sessionWrongCountDraft = ""
     @State private var sessionProblemRecords: [ProblemSessionRecord] = []
+    @State private var sessionProblemCountDraft = ""
     @State private var ringScale: CGFloat = 1.0
 
     init(app: StudyAppContainer) {
@@ -530,13 +531,14 @@ private struct TimerScreen: View {
                     problemEnd: $sessionProblemEndDraft,
                     wrongProblemCount: $sessionWrongCountDraft,
                     problemRecords: $sessionProblemRecords,
-                    totalProblems: selectedMaterialTotalProblems,
+                    problemCount: $sessionProblemCountDraft,
                     onSave: {
                         guard let rating = sessionRatingDraft else { return }
                         viewModel.savePendingSessionEvaluation(
                             rating: rating,
                             note: sessionNoteDraft,
                             problemRecords: sessionProblemRecords,
+                            totalProblems: parseDraftInt(sessionProblemCountDraft),
                             problemStart: Int(sessionProblemStartDraft),
                             problemEnd: Int(sessionProblemEndDraft),
                             wrongProblemCount: Int(sessionWrongCountDraft)
@@ -554,6 +556,7 @@ private struct TimerScreen: View {
                 sessionProblemEndDraft = draft.session.problemEnd.map(String.init) ?? ""
                 sessionWrongCountDraft = draft.session.wrongProblemCount.map(String.init) ?? ""
                 sessionProblemRecords = draft.session.problemRecords
+                sessionProblemCountDraft = selectedMaterialTotalProblems > 0 ? "\(selectedMaterialTotalProblems)" : ""
             }
         }
         .task(id: viewModel.app.dataVersion) {
@@ -862,60 +865,64 @@ private struct SessionEvaluationSheet: View {
     @Binding var problemEnd: String
     @Binding var wrongProblemCount: String
     @Binding var problemRecords: [ProblemSessionRecord]
-    let totalProblems: Int
+    @Binding var problemCount: String
     let onSave: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
-            VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                Text("このセッションを評価")
-                    .font(.title3.bold())
-                Text(session.subjectName)
-                    .font(.headline)
-                if !session.materialName.isEmpty {
-                    Text(session.materialName)
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.textSecondary)
-                }
-                Text("\(session.durationJapaneseText) ・ \(session.sessionType.title)")
-                    .font(.subheadline)
-                    .foregroundStyle(.tint)
-            }
-
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                Text("5段階で選択")
-                    .font(.subheadline.bold())
-                SessionRatingSelector(rating: $rating)
-            }
-
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                Text("問題集の記録")
-                    .font(.subheadline.bold())
-                if totalProblems > 0 {
-                    ProblemTileSelector(totalProblems: totalProblems, records: $problemRecords)
-                    Text(problemRecordSummary)
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSecondary)
-                } else {
-                    HStack {
-                        TextField("開始", text: $problemStart)
-                            .keyboardType(.numberPad)
-                        Text("〜")
-                        TextField("終了", text: $problemEnd)
-                            .keyboardType(.numberPad)
-                        TextField("誤答", text: $wrongProblemCount)
-                            .keyboardType(.numberPad)
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    Text("このセッションを評価")
+                        .font(.title3.bold())
+                    Text(session.subjectName)
+                        .font(.headline)
+                    if !session.materialName.isEmpty {
+                        Text(session.materialName)
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.textSecondary)
                     }
-                    .textFieldStyle(.roundedBorder)
+                    Text("\(session.durationJapaneseText) ・ \(session.sessionType.title)")
+                        .font(.subheadline)
+                        .foregroundStyle(.tint)
                 }
-                TextField("セッションメモ", text: $note, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .keyboardType(.default)
-            }
 
-            Spacer()
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    Text("5段階で選択")
+                        .font(.subheadline.bold())
+                    SessionRatingSelector(rating: $rating)
+                }
+
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    Text("問題集の記録")
+                        .font(.subheadline.bold())
+                    if effectiveProblemCount <= 0 {
+                        TextField("全問題数", text: $problemCount)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+                    } else {
+                        HStack {
+                            Text("全\(effectiveProblemCount)問")
+                                .font(.caption.bold())
+                                .foregroundStyle(AppColors.textSecondary)
+                            Spacer()
+                            Button("変更") {
+                                problemRecords = []
+                                problemCount = ""
+                            }
+                            .font(.caption.bold())
+                        }
+                        ProblemTileSelector(totalProblems: effectiveProblemCount, records: $problemRecords)
+                        Text(problemRecordSummary)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+                    TextField("セッションメモ", text: $note, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.default)
+                }
+
+                Spacer()
             }
         }
         .padding(AppSpacing.md)
@@ -935,7 +942,11 @@ private struct SessionEvaluationSheet: View {
     private var problemRecordSummary: String {
         let done = problemRecords.count
         let wrong = problemRecords.filter(\.isWrong).count
-        return "タップで正解、もう一度タップで誤答、さらにタップで解除。長押しで小問メモ。選択 \(done)問 / 誤答 \(wrong)問"
+        return "タップで実施、もう一度で誤答、さらにタップで解除。長押しで小問メモ。選択 \(done)問 / 誤答 \(wrong)問"
+    }
+
+    private var effectiveProblemCount: Int {
+        parseDraftInt(problemCount)
     }
 }
 
@@ -1060,6 +1071,11 @@ private struct ProblemTile: View {
         guard let record else { return Color.secondary.opacity(0.15) }
         return record.isWrong ? AppColors.danger.opacity(0.55) : Color.accentColor.opacity(0.45)
     }
+}
+
+private func parseDraftInt(_ value: String) -> Int {
+    let normalized = value.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? value
+    return Int(normalized.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
 }
 
 // MARK: - CalendarScreen

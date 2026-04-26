@@ -173,9 +173,9 @@ struct MaterialsScreen: View {
                             id: material.id > 0 ? material.id : nil,
                             name: materialDraft.name,
                             subjectId: materialDraft.subjectId,
-                            totalPages: Int(materialDraft.totalPages) ?? 0,
+                            totalPages: parseDraftInt(materialDraft.totalPages),
                             currentPage: material.id > 0 ? material.currentPage : 0,
-                            totalProblems: Int(materialDraft.totalProblems) ?? 0,
+                            totalProblems: parseDraftInt(materialDraft.totalProblems),
                             note: materialDraft.note
                         )
                         editingMaterial = nil
@@ -370,6 +370,7 @@ private struct MaterialCardNew: View {
 
 private struct MaterialHistoryScreen: View {
     @StateObject private var viewModel: MaterialHistoryViewModel
+    @State private var selectedTab: MaterialDetailTab = .history
 
     init(app: StudyAppContainer, materialId: Int64) {
         _viewModel = StateObject(wrappedValue: MaterialHistoryViewModel(app: app, materialId: materialId))
@@ -389,26 +390,34 @@ private struct MaterialHistoryScreen: View {
                         )
                         .padding(.horizontal, AppSpacing.md)
 
-                        if material.totalProblems > 0 {
+                        Picker("表示", selection: $selectedTab) {
+                            ForEach(MaterialDetailTab.allCases) { tab in
+                                Label(tab.title, systemImage: tab.systemImage).tag(tab)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, AppSpacing.md)
+
+                        if selectedTab == .history {
+                            MaterialHistoryCalendarView(
+                                displayedMonth: viewModel.displayedMonth,
+                                selectedDate: viewModel.selectedDate,
+                                studyMinutesByDay: viewModel.studyMinutesByDay,
+                                onPrevious: viewModel.previousMonth,
+                                onNext: viewModel.nextMonth,
+                                onSelectDate: viewModel.selectDate
+                            )
+                            .padding(.horizontal, AppSpacing.md)
+
+                            selectedDaySection
+                                .padding(.horizontal, AppSpacing.md)
+                        } else {
                             MaterialProblemProgressCard(
                                 totalProblems: material.totalProblems,
                                 sessions: viewModel.sessions
                             )
                             .padding(.horizontal, AppSpacing.md)
                         }
-
-                        MaterialHistoryCalendarView(
-                            displayedMonth: viewModel.displayedMonth,
-                            selectedDate: viewModel.selectedDate,
-                            studyMinutesByDay: viewModel.studyMinutesByDay,
-                            onPrevious: viewModel.previousMonth,
-                            onNext: viewModel.nextMonth,
-                            onSelectDate: viewModel.selectDate
-                        )
-                        .padding(.horizontal, AppSpacing.md)
-
-                        selectedDaySection
-                            .padding(.horizontal, AppSpacing.md)
                     }
                     .padding(.vertical, AppSpacing.md)
                 }
@@ -472,6 +481,27 @@ private struct MaterialHistoryScreen: View {
         }
         .font(.caption.bold())
         .buttonStyle(.bordered)
+    }
+}
+
+private enum MaterialDetailTab: String, CaseIterable, Identifiable {
+    case history
+    case problems
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .history: return "履歴"
+        case .problems: return "問題集"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .history: return "calendar"
+        case .problems: return "square.grid.3x3.fill"
+        }
     }
 }
 
@@ -558,31 +588,53 @@ private struct MaterialProblemProgressCard: View {
     let totalProblems: Int
     let sessions: [StudySession]
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 10)
-
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             SectionHeaderView(title: "問題集の進捗", icon: "square.grid.3x3.fill")
 
-            HStack(spacing: AppSpacing.sm) {
-                MaterialHistoryMetric(label: "実施", value: "\(doneNumbers.count)/\(totalProblems)")
-                MaterialHistoryMetric(label: "誤答あり", value: "\(wrongNumbers.count)")
-                MaterialHistoryMetric(label: "未実施", value: "\(max(totalProblems - doneNumbers.count, 0))")
-            }
+            if totalProblems <= 0 {
+                EmptyStateView(
+                    icon: "number.square",
+                    title: "全問題数が未設定です",
+                    description: "教材編集から問題数を設定すると、ここに進捗が表示されます。"
+                )
+                .padding(.vertical, AppSpacing.sm)
+            } else {
+                HStack(spacing: AppSpacing.sm) {
+                    MaterialHistoryMetric(label: "実施", value: "\(doneNumbers.count)/\(totalProblems)")
+                    MaterialHistoryMetric(label: "誤答あり", value: "\(wrongNumbers.count)")
+                    MaterialHistoryMetric(label: "未実施", value: "\(max(totalProblems - doneNumbers.count, 0))")
+                }
 
-            LazyVGrid(columns: columns, spacing: 4) {
-                ForEach(1...totalProblems, id: \.self) { number in
-                    Text("\(number)")
-                        .font(.system(size: 9, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(tileForeground(number))
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(1, contentMode: .fit)
-                        .background(tileBackground(number), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                ProgressView(value: Double(doneNumbers.count), total: Double(max(totalProblems, 1)))
+                    .tint(.accentColor)
+
+                VStack(spacing: 6) {
+                    ForEach(problemRanges, id: \.lowerBound) { range in
+                        ProblemRangeRow(
+                            range: range,
+                            doneCount: range.filter { doneNumbers.contains($0) }.count,
+                            wrongCount: range.filter { wrongNumbers.contains($0) }.count
+                        )
+                    }
+                }
+
+                if !wrongNumbers.isEmpty {
+                    Text("誤答: \(wrongNumbers.sorted().prefix(30).map(String.init).joined(separator: ", "))\(wrongNumbers.count > 30 ? " ..." : "")")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
                 }
             }
         }
         .cardStyle()
+    }
+
+    private var problemRanges: [ClosedRange<Int>] {
+        guard totalProblems > 0 else { return [] }
+        let chunkSize = totalProblems > 200 ? 50 : 25
+        return stride(from: 1, through: totalProblems, by: chunkSize).map { start in
+            start...min(start + chunkSize - 1, totalProblems)
+        }
     }
 
     private var doneNumbers: Set<Int> {
@@ -601,16 +653,49 @@ private struct MaterialProblemProgressCard: View {
         })
     }
 
-    private func tileBackground(_ number: Int) -> Color {
-        if wrongNumbers.contains(number) { return AppColors.danger.opacity(0.20) }
-        if doneNumbers.contains(number) { return Color.accentColor.opacity(0.18) }
-        return Color.secondary.opacity(0.08)
+}
+
+private struct ProblemRangeRow: View {
+    let range: ClosedRange<Int>
+    let doneCount: Int
+    let wrongCount: Int
+
+    private var totalCount: Int {
+        range.upperBound - range.lowerBound + 1
     }
 
-    private func tileForeground(_ number: Int) -> Color {
-        if wrongNumbers.contains(number) { return AppColors.danger }
-        if doneNumbers.contains(number) { return Color.accentColor }
-        return AppColors.textSecondary
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("\(range.lowerBound)-\(range.upperBound)")
+                    .font(.caption.bold())
+                    .monospacedDigit()
+                Spacer()
+                Text("\(doneCount)/\(totalCount)")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                if wrongCount > 0 {
+                    Label("\(wrongCount)", systemImage: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.danger)
+                }
+            }
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.12))
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.65))
+                        .frame(width: proxy.size.width * CGFloat(doneCount) / CGFloat(max(totalCount, 1)))
+                    Capsule()
+                        .fill(AppColors.danger.opacity(0.75))
+                        .frame(width: proxy.size.width * CGFloat(wrongCount) / CGFloat(max(totalCount, 1)))
+                }
+            }
+            .frame(height: 8)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -971,6 +1056,11 @@ private struct MaterialDraft {
         totalProblems = material.totalProblems == 0 ? "" : "\(material.totalProblems)"
         note = material.note ?? ""
     }
+}
+
+private func parseDraftInt(_ value: String) -> Int {
+    let normalized = value.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? value
+    return Int(normalized.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
 }
 
 private struct BarcodeScannerSheet: View {
