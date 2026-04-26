@@ -7,6 +7,9 @@ struct HistoryScreen: View {
     @State private var durationDraft = ""
     @State private var noteDraft = ""
     @State private var ratingDraft: Int? = nil
+    @State private var problemStartDraft = ""
+    @State private var problemEndDraft = ""
+    @State private var wrongProblemCountDraft = ""
     @State private var isShowingFilter = false
 
     init(app: StudyAppContainer) {
@@ -59,6 +62,9 @@ struct HistoryScreen: View {
                                                 durationDraft = "\(session.durationMinutes)"
                                                 noteDraft = session.note ?? ""
                                                 ratingDraft = session.rating
+                                                problemStartDraft = session.problemStart.map(String.init) ?? ""
+                                                problemEndDraft = session.problemEnd.map(String.init) ?? ""
+                                                wrongProblemCountDraft = session.wrongProblemCount.map(String.init) ?? ""
                                             } label: {
                                                 Label("編集", systemImage: "pencil")
                                             }
@@ -111,6 +117,14 @@ struct HistoryScreen: View {
                         TextField("学習時間（分）", text: $durationDraft)
                             .keyboardType(.numberPad)
                         SessionRatingSelector(rating: $ratingDraft, allowsClearing: true)
+                        HStack {
+                            TextField("開始問題", text: $problemStartDraft)
+                                .keyboardType(.numberPad)
+                            TextField("終了問題", text: $problemEndDraft)
+                                .keyboardType(.numberPad)
+                            TextField("誤答", text: $wrongProblemCountDraft)
+                                .keyboardType(.numberPad)
+                        }
                         TextField("メモ", text: $noteDraft, axis: .vertical)
                     }
                 }
@@ -134,7 +148,10 @@ struct HistoryScreen: View {
                                 session,
                                 durationMinutes: Int(durationDraft) ?? session.durationMinutes,
                                 note: noteDraft,
-                                rating: ratingDraft
+                                rating: ratingDraft,
+                                problemStart: Int(problemStartDraft),
+                                problemEnd: Int(problemEndDraft),
+                                wrongProblemCount: Int(wrongProblemCountDraft)
                             )
                             editingSession = nil
                         }
@@ -187,6 +204,11 @@ private struct HistorySessionCardNew: View {
                 if !session.materialName.isEmpty {
                     Text(session.materialName)
                         .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                if session.problemRangeText != nil || session.wrongProblemCount != nil {
+                    Text("\(session.problemRangeText ?? "範囲未入力") / 誤答 \(session.wrongProblemCount ?? 0)")
+                        .font(.caption2)
                         .foregroundStyle(AppColors.textSecondary)
                 }
                 Text(historyTimeLabel(session))

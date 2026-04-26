@@ -192,6 +192,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(material.sortOrder, forKey: "sortOrder")
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
+        record.setValue(Int64(material.totalProblems), forKey: "totalProblems")
         record.setValue(material.color.map { Int64($0) }, forKey: "color")
         record.setValue(material.note, forKey: "note")
         record.setValue(material.createdAt == 0 ? now : material.createdAt, forKey: "createdAt")
@@ -218,6 +219,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(material.sortOrder, forKey: "sortOrder")
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
+        record.setValue(Int64(material.totalProblems), forKey: "totalProblems")
         record.setValue(material.color.map { Int64($0) }, forKey: "color")
         record.setValue(material.note, forKey: "note")
         record.setValue(material.deletedAt, forKey: "deletedAt")
@@ -989,6 +991,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             intervals: effectiveIntervals,
             rating: session.rating,
             note: session.note,
+            problemStart: session.problemStart,
+            problemEnd: session.problemEnd,
+            wrongProblemCount: session.wrongProblemCount,
             createdAt: persistedCreatedAt ?? (session.createdAt == 0 ? Date().epochMilliseconds : session.createdAt),
             updatedAt: Date().epochMilliseconds,
             deletedAt: session.deletedAt,
@@ -1013,6 +1018,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(Self.encodeIntervals(session.intervals), forKey: "intervalsData")
         record.setValue(session.rating, forKey: "rating")
         record.setValue(session.note, forKey: "note")
+        record.setValue(session.problemStart.map { Int64($0) }, forKey: "problemStart")
+        record.setValue(session.problemEnd.map { Int64($0) }, forKey: "problemEnd")
+        record.setValue(session.wrongProblemCount.map { Int64($0) }, forKey: "wrongProblemCount")
         record.setValue(session.createdAt, forKey: "createdAt")
         record.setValue(session.updatedAt, forKey: "updatedAt")
         record.setValue(session.deletedAt, forKey: "deletedAt")
@@ -1290,6 +1298,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             sortOrder: record.value(forKey: "sortOrder") as? Int64 ?? 0,
             totalPages: Int(record.value(forKey: "totalPages") as? Int64 ?? 0),
             currentPage: Int(record.value(forKey: "currentPage") as? Int64 ?? 0),
+            totalProblems: Int(record.value(forKey: "totalProblems") as? Int64 ?? 0),
             color: (record.value(forKey: "color") as? Int64).map(Int.init),
             note: record.value(forKey: "note") as? String,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
@@ -1315,6 +1324,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             intervals: decodeIntervals(record.value(forKey: "intervalsData") as? String),
             rating: (record.value(forKey: "rating") as? NSNumber)?.intValue,
             note: record.value(forKey: "note") as? String,
+            problemStart: (record.value(forKey: "problemStart") as? Int64).map(Int.init),
+            problemEnd: (record.value(forKey: "problemEnd") as? Int64).map(Int.init),
+            wrongProblemCount: (record.value(forKey: "wrongProblemCount") as? Int64).map(Int.init),
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
             updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
             deletedAt: record.value(forKey: "deletedAt") as? Int64,
@@ -1426,6 +1438,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "sortOrder", type: .integer64AttributeType, defaultValue: Int64(0)),
                     attribute(name: "totalPages", type: .integer64AttributeType),
                     attribute(name: "currentPage", type: .integer64AttributeType),
+                    attribute(name: "totalProblems", type: .integer64AttributeType, defaultValue: Int64(0)),
                     attribute(name: "color", type: .integer64AttributeType, optional: true),
                     attribute(name: "note", type: .stringAttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),
@@ -1453,6 +1466,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "intervalsData", type: .stringAttributeType, optional: true),
                     attribute(name: "rating", type: .integer16AttributeType, optional: true),
                     attribute(name: "note", type: .stringAttributeType, optional: true),
+                    attribute(name: "problemStart", type: .integer64AttributeType, optional: true),
+                    attribute(name: "problemEnd", type: .integer64AttributeType, optional: true),
+                    attribute(name: "wrongProblemCount", type: .integer64AttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),
                     attribute(name: "updatedAt", type: .integer64AttributeType),
                     attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),

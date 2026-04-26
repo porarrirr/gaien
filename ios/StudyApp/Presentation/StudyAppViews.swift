@@ -436,6 +436,10 @@ private struct TimerScreen: View {
     @State private var showManualEntry = false
     @State private var manualNote = ""
     @State private var sessionRatingDraft: Int?
+    @State private var sessionNoteDraft = ""
+    @State private var sessionProblemStartDraft = ""
+    @State private var sessionProblemEndDraft = ""
+    @State private var sessionWrongCountDraft = ""
     @State private var ringScale: CGFloat = 1.0
 
     init(app: StudyAppContainer) {
@@ -520,9 +524,19 @@ private struct TimerScreen: View {
                 SessionEvaluationSheet(
                     session: draft.session,
                     rating: $sessionRatingDraft,
+                    note: $sessionNoteDraft,
+                    problemStart: $sessionProblemStartDraft,
+                    problemEnd: $sessionProblemEndDraft,
+                    wrongProblemCount: $sessionWrongCountDraft,
                     onSave: {
                         guard let rating = sessionRatingDraft else { return }
-                        viewModel.savePendingSessionEvaluation(rating: rating)
+                        viewModel.savePendingSessionEvaluation(
+                            rating: rating,
+                            note: sessionNoteDraft,
+                            problemStart: Int(sessionProblemStartDraft),
+                            problemEnd: Int(sessionProblemEndDraft),
+                            wrongProblemCount: Int(sessionWrongCountDraft)
+                        )
                     },
                     onCancel: {
                         viewModel.cancelPendingSessionEvaluation()
@@ -531,6 +545,10 @@ private struct TimerScreen: View {
             }
             .onAppear {
                 sessionRatingDraft = draft.session.rating
+                sessionNoteDraft = draft.session.note ?? ""
+                sessionProblemStartDraft = draft.session.problemStart.map(String.init) ?? ""
+                sessionProblemEndDraft = draft.session.problemEnd.map(String.init) ?? ""
+                sessionWrongCountDraft = draft.session.wrongProblemCount.map(String.init) ?? ""
             }
         }
         .task(id: viewModel.app.dataVersion) {
@@ -826,6 +844,10 @@ private struct ManualEntrySheet: View {
 private struct SessionEvaluationSheet: View {
     let session: StudySession
     @Binding var rating: Int?
+    @Binding var note: String
+    @Binding var problemStart: String
+    @Binding var problemEnd: String
+    @Binding var wrongProblemCount: String
     let onSave: () -> Void
     let onCancel: () -> Void
 
@@ -850,6 +872,23 @@ private struct SessionEvaluationSheet: View {
                 Text("5段階で選択")
                     .font(.subheadline.bold())
                 SessionRatingSelector(rating: $rating)
+            }
+
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                Text("問題集の記録")
+                    .font(.subheadline.bold())
+                HStack {
+                    TextField("開始", text: $problemStart)
+                        .keyboardType(.numberPad)
+                    Text("〜")
+                    TextField("終了", text: $problemEnd)
+                        .keyboardType(.numberPad)
+                    TextField("誤答", text: $wrongProblemCount)
+                        .keyboardType(.numberPad)
+                }
+                .textFieldStyle(.roundedBorder)
+                TextField("セッションメモ", text: $note, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
             }
 
             Spacer()

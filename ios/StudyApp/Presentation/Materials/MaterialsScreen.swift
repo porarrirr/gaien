@@ -175,6 +175,7 @@ struct MaterialsScreen: View {
                             subjectId: materialDraft.subjectId,
                             totalPages: Int(materialDraft.totalPages) ?? 0,
                             currentPage: material.id > 0 ? material.currentPage : 0,
+                            totalProblems: Int(materialDraft.totalProblems) ?? 0,
                             note: materialDraft.note
                         )
                         editingMaterial = nil
@@ -348,6 +349,12 @@ private struct MaterialCardNew: View {
                 }
             }
 
+            if material.totalProblems > 0 {
+                Text("全\(material.totalProblems)問")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+
             if let note = material.note, !note.isEmpty {
                 Text(note)
                     .font(.caption)
@@ -416,6 +423,7 @@ private struct MaterialHistoryScreen: View {
     private var selectedDaySection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             SectionHeaderView(title: selectedDateTitle, icon: "calendar")
+            reviewJumpControls
             Text("合計 \(Goal.format(minutes: viewModel.selectedDateMinutes)) ・ \(viewModel.selectedDateSessions.count)回")
                 .font(.caption)
                 .foregroundStyle(AppColors.textSecondary)
@@ -440,6 +448,22 @@ private struct MaterialHistoryScreen: View {
         formatter.locale = Locale(identifier: "ja_JP")
         formatter.dateFormat = "M月d日"
         return formatter.string(from: viewModel.selectedDate)
+    }
+
+    private var reviewJumpControls: some View {
+        HStack(spacing: AppSpacing.sm) {
+            Button("前日") {
+                viewModel.selectDate(Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+            }
+            Button("1週間前") {
+                viewModel.selectDate(Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date())
+            }
+            Button("1か月前") {
+                viewModel.selectDate(Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date())
+            }
+        }
+        .font(.caption.bold())
+        .buttonStyle(.bordered)
     }
 }
 
@@ -475,6 +499,12 @@ private struct MaterialHistorySummaryCard: View {
                 }
                 .font(.caption)
                 .foregroundStyle(AppColors.textSecondary)
+            }
+
+            if material.totalProblems > 0 {
+                Text("全問題数: \(material.totalProblems)問")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
             }
 
             HStack(spacing: AppSpacing.sm) {
@@ -671,6 +701,15 @@ private struct MaterialHistorySessionCard: View {
                 .font(.subheadline)
                 .foregroundStyle(session.note?.nilIfBlank == nil ? AppColors.textSecondary : AppColors.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if session.problemRangeText != nil || session.wrongProblemCount != nil {
+                HStack {
+                    Label(session.problemRangeText ?? "範囲未入力", systemImage: "list.number")
+                    Spacer()
+                    Text("誤答 \(session.wrongProblemCount ?? 0)")
+                }
+                .font(.caption)
+                .foregroundStyle(AppColors.textSecondary)
+            }
         }
         .cardStyle()
     }
@@ -705,6 +744,8 @@ private struct MaterialEditorSheet: View {
                     }
                 }
                 TextField("総ページ数", text: $draft.totalPages)
+                    .keyboardType(.numberPad)
+                TextField("全問題数", text: $draft.totalProblems)
                     .keyboardType(.numberPad)
                 TextField("メモ", text: $draft.note, axis: .vertical)
             }
@@ -839,6 +880,7 @@ private struct MaterialDraft {
     var name = ""
     var subjectId: Int64 = 0
     var totalPages = ""
+    var totalProblems = ""
     var note = ""
 
     init(subjectId: Int64 = 0) {
@@ -849,6 +891,7 @@ private struct MaterialDraft {
         name = material.name
         subjectId = material.subjectId
         totalPages = "\(material.totalPages)"
+        totalProblems = material.totalProblems == 0 ? "" : "\(material.totalProblems)"
         note = material.note ?? ""
     }
 }

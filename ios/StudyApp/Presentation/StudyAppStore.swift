@@ -372,12 +372,21 @@ final class MaterialsViewModel: ScreenViewModel {
         isShowingBookResult = false
     }
 
-    func saveMaterial(id: Int64? = nil, name: String, subjectId: Int64, totalPages: Int, currentPage: Int = 0, note: String?) {
+    func saveMaterial(
+        id: Int64? = nil,
+        name: String,
+        subjectId: Int64,
+        totalPages: Int,
+        currentPage: Int = 0,
+        totalProblems: Int = 0,
+        note: String?
+    ) {
         perform {
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { throw ValidationError(message: "教材名を入力してください") }
             guard totalPages >= 0 else { throw ValidationError(message: "ページ数は0以上で入力してください") }
             guard currentPage >= 0 else { throw ValidationError(message: "ページ数は0以上で入力してください") }
+            guard totalProblems >= 0 else { throw ValidationError(message: "全問題数は0以上で入力してください") }
             guard totalPages == 0 || currentPage <= totalPages else { throw ValidationError(message: "現在のページは総ページ数以下にしてください") }
             if let id {
                 let existing = try await self.app.persistence.getAllMaterials().first(where: { $0.id == id })
@@ -393,6 +402,7 @@ final class MaterialsViewModel: ScreenViewModel {
                         sortOrder: existing?.sortOrder ?? Date().epochMilliseconds,
                         totalPages: totalPages,
                         currentPage: currentPage,
+                        totalProblems: totalProblems,
                         color: nil,
                         note: note?.nilIfBlank
                     )
@@ -411,6 +421,7 @@ final class MaterialsViewModel: ScreenViewModel {
                         sortOrder: nextOrder,
                         totalPages: totalPages,
                         currentPage: 0,
+                        totalProblems: totalProblems,
                         color: nil,
                         note: note?.nilIfBlank
                     )
@@ -746,13 +757,18 @@ final class TimerViewModel: ScreenViewModel {
         }
     }
 
-    func savePendingSessionEvaluation(rating: Int) {
+    func savePendingSessionEvaluation(rating: Int, note: String?, problemStart: Int?, problemEnd: Int?, wrongProblemCount: Int?) {
         perform {
             guard StudySession.allowedRatings.contains(rating) else {
                 throw ValidationError(message: "評価は1〜5で入力してください")
             }
+            try self.validateProblemRecord(problemStart: problemStart, problemEnd: problemEnd, wrongProblemCount: wrongProblemCount)
             guard var draft = self.pendingSessionEvaluation else { return }
             draft.session.rating = rating
+            draft.session.note = note?.nilIfBlank
+            draft.session.problemStart = problemStart
+            draft.session.problemEnd = problemEnd
+            draft.session.wrongProblemCount = wrongProblemCount
             _ = try await self.app.persistence.insertSession(draft.session)
             self.pendingSessionEvaluation = nil
             self.app.updateActiveTimer(nil)
@@ -774,6 +790,26 @@ final class TimerViewModel: ScreenViewModel {
             try await useCase.saveManualSession(subjectId: subjectId, materialId: materialId, startTime: startTime, endTime: endTime, note: note)
             await self.load()
             self.app.bumpDataVersion()
+        }
+    }
+
+    private func validateProblemRecord(problemStart: Int?, problemEnd: Int?, wrongProblemCount: Int?) throws {
+        if problemStart == nil && problemEnd == nil && wrongProblemCount == nil {
+            return
+        }
+        guard let problemStart, let problemEnd else {
+            throw ValidationError(message: "問題範囲は開始と終了を両方入力してください")
+        }
+        guard problemStart > 0, problemEnd >= problemStart else {
+            throw ValidationError(message: "問題範囲を正しく入力してください")
+        }
+        if let wrongProblemCount {
+            guard wrongProblemCount >= 0 else {
+                throw ValidationError(message: "間違えた数は0以上で入力してください")
+            }
+            guard wrongProblemCount <= (problemEnd - problemStart + 1) else {
+                throw ValidationError(message: "間違えた数は実施問題数以下にしてください")
+            }
         }
     }
 
@@ -882,7 +918,15 @@ final class HistoryViewModel: ScreenViewModel {
         filterSubjectId = subjectId
     }
 
-    func updateSession(_ session: StudySession, durationMinutes: Int, note: String?, rating: Int?) {
+    func updateSession(
+        _ session: StudySession,
+        durationMinutes: Int,
+        note: String?,
+        rating: Int?,
+        problemStart: Int? = nil,
+        problemEnd: Int? = nil,
+        wrongProblemCount: Int? = nil
+    ) {
         perform {
             guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
             var updated = session
@@ -890,6 +934,9 @@ final class HistoryViewModel: ScreenViewModel {
             updated.intervals = [StudySessionInterval(startTime: updated.startTime, endTime: updated.endTime)]
             updated.note = note?.nilIfBlank
             updated.rating = rating
+            updated.problemStart = problemStart
+            updated.problemEnd = problemEnd
+            updated.wrongProblemCount = wrongProblemCount
             try await self.app.persistence.updateSession(updated)
             await self.load()
             self.app.bumpDataVersion()
@@ -1149,7 +1196,15 @@ final class CalendarViewModel: ScreenViewModel {
         sessions(for: day).reduce(0) { $0 + $1.durationMinutes }
     }
 
-    func updateSession(_ session: StudySession, durationMinutes: Int, note: String?, rating: Int?) {
+    func updateSession(
+        _ session: StudySession,
+        durationMinutes: Int,
+        note: String?,
+        rating: Int?,
+        problemStart: Int? = nil,
+        problemEnd: Int? = nil,
+        wrongProblemCount: Int? = nil
+    ) {
         perform {
             guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
             var updated = session
@@ -1157,6 +1212,9 @@ final class CalendarViewModel: ScreenViewModel {
             updated.intervals = [StudySessionInterval(startTime: updated.startTime, endTime: updated.endTime)]
             updated.note = note?.nilIfBlank
             updated.rating = rating
+            updated.problemStart = problemStart
+            updated.problemEnd = problemEnd
+            updated.wrongProblemCount = wrongProblemCount
             try await self.app.persistence.updateSession(updated)
             await self.load()
             self.app.bumpDataVersion()

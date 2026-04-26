@@ -206,6 +206,7 @@ struct Material: Identifiable, Codable, Hashable {
     var sortOrder: Int64 = Date().epochMilliseconds
     var totalPages: Int = 0
     var currentPage: Int = 0
+    var totalProblems: Int = 0
     var color: Int?
     var note: String?
     var createdAt: Int64 = Date().epochMilliseconds
@@ -222,6 +223,7 @@ struct Material: Identifiable, Codable, Hashable {
         case sortOrder
         case totalPages
         case currentPage
+        case totalProblems
         case color
         case note
         case createdAt
@@ -248,6 +250,7 @@ struct Material: Identifiable, Codable, Hashable {
         sortOrder: Int64 = Date().epochMilliseconds,
         totalPages: Int = 0,
         currentPage: Int = 0,
+        totalProblems: Int = 0,
         color: Int? = nil,
         note: String? = nil,
         createdAt: Int64 = Date().epochMilliseconds,
@@ -263,6 +266,7 @@ struct Material: Identifiable, Codable, Hashable {
         self.sortOrder = sortOrder
         self.totalPages = totalPages
         self.currentPage = currentPage
+        self.totalProblems = totalProblems
         self.color = color
         self.note = note
         self.createdAt = createdAt
@@ -282,6 +286,7 @@ struct Material: Identifiable, Codable, Hashable {
         sortOrder = try container.decodeIfPresent(Int64.self, forKey: .sortOrder) ?? decodedCreatedAt
         totalPages = try container.decodeIfPresent(Int.self, forKey: .totalPages) ?? 0
         currentPage = try container.decodeIfPresent(Int.self, forKey: .currentPage) ?? 0
+        totalProblems = try container.decodeIfPresent(Int.self, forKey: .totalProblems) ?? 0
         color = try container.decodeIfPresent(Int.self, forKey: .color)
         note = try container.decodeIfPresent(String.self, forKey: .note)
         createdAt = decodedCreatedAt
@@ -300,6 +305,7 @@ struct Material: Identifiable, Codable, Hashable {
         try container.encode(sortOrder, forKey: .sortOrder)
         try container.encode(totalPages, forKey: .totalPages)
         try container.encode(currentPage, forKey: .currentPage)
+        try container.encode(totalProblems, forKey: .totalProblems)
         try container.encodeIfPresent(color, forKey: .color)
         try container.encodeIfPresent(note, forKey: .note)
         try container.encode(createdAt, forKey: .createdAt)
@@ -340,6 +346,9 @@ struct StudySession: Identifiable, Codable, Hashable {
     var intervals: [StudySessionInterval] = []
     var rating: Int?
     var note: String?
+    var problemStart: Int?
+    var problemEnd: Int?
+    var wrongProblemCount: Int?
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
     var deletedAt: Int64?
@@ -360,6 +369,9 @@ struct StudySession: Identifiable, Codable, Hashable {
         case intervals
         case rating
         case note
+        case problemStart
+        case problemEnd
+        case wrongProblemCount
         case createdAt
         case updatedAt
         case deletedAt
@@ -419,6 +431,14 @@ struct StudySession: Identifiable, Codable, Hashable {
         rating != nil
     }
 
+    var problemRangeText: String? {
+        guard let problemStart, let problemEnd else { return nil }
+        if problemStart == problemEnd {
+            return "\(problemStart)問"
+        }
+        return "\(problemStart)-\(problemEnd)問"
+    }
+
     var startDate: Date {
         Date(epochMilliseconds: sessionStartTime)
     }
@@ -446,6 +466,9 @@ struct StudySession: Identifiable, Codable, Hashable {
         intervals: [StudySessionInterval] = [],
         rating: Int? = nil,
         note: String? = nil,
+        problemStart: Int? = nil,
+        problemEnd: Int? = nil,
+        wrongProblemCount: Int? = nil,
         createdAt: Int64 = Date().epochMilliseconds,
         updatedAt: Int64 = Date().epochMilliseconds,
         deletedAt: Int64? = nil,
@@ -465,6 +488,9 @@ struct StudySession: Identifiable, Codable, Hashable {
         self.intervals = intervals
         self.rating = rating
         self.note = note
+        self.problemStart = problemStart
+        self.problemEnd = problemEnd
+        self.wrongProblemCount = wrongProblemCount
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.deletedAt = deletedAt
@@ -494,6 +520,9 @@ struct StudySession: Identifiable, Codable, Hashable {
             rating = nil
         }
         note = try container.decodeIfPresent(String.self, forKey: .note)
+        problemStart = try container.decodeIfPresent(Int.self, forKey: .problemStart)
+        problemEnd = try container.decodeIfPresent(Int.self, forKey: .problemEnd)
+        wrongProblemCount = try container.decodeIfPresent(Int.self, forKey: .wrongProblemCount)
         createdAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? Date().epochMilliseconds
         updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? createdAt
         deletedAt = try container.decodeIfPresent(Int64.self, forKey: .deletedAt)
@@ -524,6 +553,9 @@ struct StudySession: Identifiable, Codable, Hashable {
         }
         try container.encodeIfPresent(rating, forKey: .rating)
         try container.encodeIfPresent(note, forKey: .note)
+        try container.encodeIfPresent(problemStart, forKey: .problemStart)
+        try container.encodeIfPresent(problemEnd, forKey: .problemEnd)
+        try container.encodeIfPresent(wrongProblemCount, forKey: .wrongProblemCount)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
