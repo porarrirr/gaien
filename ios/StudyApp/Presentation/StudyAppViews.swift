@@ -440,6 +440,7 @@ private struct TimerScreen: View {
     @State private var sessionProblemStartDraft = ""
     @State private var sessionProblemEndDraft = ""
     @State private var sessionWrongCountDraft = ""
+    @State private var sessionProblemRecords: [ProblemSessionRecord] = []
     @State private var ringScale: CGFloat = 1.0
 
     init(app: StudyAppContainer) {
@@ -528,11 +529,14 @@ private struct TimerScreen: View {
                     problemStart: $sessionProblemStartDraft,
                     problemEnd: $sessionProblemEndDraft,
                     wrongProblemCount: $sessionWrongCountDraft,
+                    problemRecords: $sessionProblemRecords,
+                    totalProblems: selectedMaterialTotalProblems,
                     onSave: {
                         guard let rating = sessionRatingDraft else { return }
                         viewModel.savePendingSessionEvaluation(
                             rating: rating,
                             note: sessionNoteDraft,
+                            problemRecords: sessionProblemRecords,
                             problemStart: Int(sessionProblemStartDraft),
                             problemEnd: Int(sessionProblemEndDraft),
                             wrongProblemCount: Int(sessionWrongCountDraft)
@@ -549,6 +553,7 @@ private struct TimerScreen: View {
                 sessionProblemStartDraft = draft.session.problemStart.map(String.init) ?? ""
                 sessionProblemEndDraft = draft.session.problemEnd.map(String.init) ?? ""
                 sessionWrongCountDraft = draft.session.wrongProblemCount.map(String.init) ?? ""
+                sessionProblemRecords = draft.session.problemRecords
             }
         }
         .task(id: viewModel.app.dataVersion) {
@@ -774,6 +779,14 @@ private struct TimerScreen: View {
         return "なし"
     }
 
+    private var selectedMaterialTotalProblems: Int {
+        guard let materialId = viewModel.selectedMaterialId,
+              let material = viewModel.materials.first(where: { $0.id == materialId }) else {
+            return 0
+        }
+        return material.totalProblems
+    }
+
     private func selectionMenuLabel(text: String, isPlaceholder: Bool) -> some View {
         HStack(spacing: AppSpacing.xs) {
             Text(text)
@@ -848,11 +861,14 @@ private struct SessionEvaluationSheet: View {
     @Binding var problemStart: String
     @Binding var problemEnd: String
     @Binding var wrongProblemCount: String
+    @Binding var problemRecords: [ProblemSessionRecord]
+    let totalProblems: Int
     let onSave: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.lg) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.lg) {
             VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Text("このセッションを評価")
                     .font(.title3.bold())
@@ -877,21 +893,30 @@ private struct SessionEvaluationSheet: View {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 Text("問題集の記録")
                     .font(.subheadline.bold())
-                HStack {
-                    TextField("開始", text: $problemStart)
-                        .keyboardType(.numberPad)
-                    Text("〜")
-                    TextField("終了", text: $problemEnd)
-                        .keyboardType(.numberPad)
-                    TextField("誤答", text: $wrongProblemCount)
-                        .keyboardType(.numberPad)
+                if totalProblems > 0 {
+                    ProblemTileSelector(totalProblems: totalProblems, records: $problemRecords)
+                    Text(problemRecordSummary)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                } else {
+                    HStack {
+                        TextField("開始", text: $problemStart)
+                            .keyboardType(.numberPad)
+                        Text("〜")
+                        TextField("終了", text: $problemEnd)
+                            .keyboardType(.numberPad)
+                        TextField("誤答", text: $wrongProblemCount)
+                            .keyboardType(.numberPad)
+                    }
+                    .textFieldStyle(.roundedBorder)
                 }
-                .textFieldStyle(.roundedBorder)
                 TextField("セッションメモ", text: $note, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
+                    .keyboardType(.default)
             }
 
             Spacer()
+            }
         }
         .padding(AppSpacing.md)
         .navigationTitle("セッション評価")
@@ -905,6 +930,135 @@ private struct SessionEvaluationSheet: View {
                     .disabled(rating == nil)
             }
         }
+    }
+
+    private var problemRecordSummary: String {
+        let done = problemRecords.count
+        let wrong = problemRecords.filter(\.isWrong).count
+        return "タップで正解、もう一度タップで誤答、さらにタップで解除。長押しで小問メモ。選択 \(done)問 / 誤答 \(wrong)問"
+    }
+}
+
+private struct ProblemTileSelector: View {
+    let totalProblems: Int
+    @Binding var records: [ProblemSessionRecord]
+    @State private var editingNumber: Int?
+    @State private var detailText = ""
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 6)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 6) {
+            ForEach(1...totalProblems, id: \.self) { number in
+                ProblemTile(
+                    number: number,
+                    record: records.first(where: { $0.number == number }),
+                    onTap: { toggle(number) },
+                    onLongPress: {
+                        let record = records.first(where: { $0.number == number })
+                        detailText = record?.detail ?? ""
+                        editingNumber = number
+                    }
+                )
+            }
+        }
+        .sheet(item: Binding(
+            get: { editingNumber.map(ProblemTileEditTarget.init(number:)) },
+            set: { if $0 == nil { editingNumber = nil } }
+        )) { target in
+            NavigationStack {
+                Form {
+                    TextField("小問メモ（例: (2)(4)、計算ミス）", text: $detailText, axis: .vertical)
+                        .keyboardType(.default)
+                }
+                .navigationTitle("\(target.number)問目")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("閉じる") { editingNumber = nil }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("保存") {
+                            upsertDetail(number: target.number, detail: detailText)
+                            editingNumber = nil
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func toggle(_ number: Int) {
+        if let index = records.firstIndex(where: { $0.number == number }) {
+            if records[index].isWrong {
+                records.remove(at: index)
+            } else {
+                records[index].isWrong = true
+            }
+        } else {
+            records.append(ProblemSessionRecord(number: number, isWrong: false))
+            records.sort { $0.number < $1.number }
+        }
+    }
+
+    private func upsertDetail(number: Int, detail: String) {
+        let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let index = records.firstIndex(where: { $0.number == number }) {
+            records[index].detail = trimmed.isEmpty ? nil : trimmed
+        } else if !trimmed.isEmpty {
+            records.append(ProblemSessionRecord(number: number, isWrong: true, detail: trimmed))
+            records.sort { $0.number < $1.number }
+        }
+    }
+}
+
+private struct ProblemTileEditTarget: Identifiable {
+    let number: Int
+    var id: Int { number }
+}
+
+private struct ProblemTile: View {
+    let number: Int
+    let record: ProblemSessionRecord?
+    let onTap: () -> Void
+    let onLongPress: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 2) {
+                Text("\(number)")
+                    .font(.caption.bold())
+                    .monospacedDigit()
+                if record?.detail?.nilIfBlank != nil {
+                    Image(systemName: "text.bubble.fill")
+                        .font(.system(size: 8, weight: .bold))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)
+            .foregroundStyle(foreground)
+            .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in onLongPress() })
+    }
+
+    private var background: Color {
+        guard let record else { return Color.secondary.opacity(0.08) }
+        return record.isWrong ? AppColors.danger.opacity(0.18) : Color.accentColor.opacity(0.16)
+    }
+
+    private var foreground: Color {
+        guard let record else { return AppColors.textSecondary }
+        return record.isWrong ? AppColors.danger : Color.accentColor
+    }
+
+    private var border: Color {
+        guard let record else { return Color.secondary.opacity(0.15) }
+        return record.isWrong ? AppColors.danger.opacity(0.55) : Color.accentColor.opacity(0.45)
     }
 }
 
@@ -1182,7 +1336,11 @@ private struct CalendarScreen: View {
                                 session,
                                 durationMinutes: Int(durationText) ?? session.durationMinutes,
                                 note: noteText,
-                                rating: ratingSelection
+                                rating: ratingSelection,
+                                problemStart: session.problemStart,
+                                problemEnd: session.problemEnd,
+                                wrongProblemCount: session.wrongProblemCount,
+                                problemRecords: session.problemRecords
                             )
                             editingSession = nil
                         }

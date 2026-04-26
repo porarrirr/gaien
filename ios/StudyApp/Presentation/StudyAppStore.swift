@@ -757,18 +757,31 @@ final class TimerViewModel: ScreenViewModel {
         }
     }
 
-    func savePendingSessionEvaluation(rating: Int, note: String?, problemStart: Int?, problemEnd: Int?, wrongProblemCount: Int?) {
+    func savePendingSessionEvaluation(
+        rating: Int,
+        note: String?,
+        problemRecords: [ProblemSessionRecord],
+        problemStart: Int?,
+        problemEnd: Int?,
+        wrongProblemCount: Int?
+    ) {
         perform {
             guard StudySession.allowedRatings.contains(rating) else {
                 throw ValidationError(message: "評価は1〜5で入力してください")
             }
-            try self.validateProblemRecord(problemStart: problemStart, problemEnd: problemEnd, wrongProblemCount: wrongProblemCount)
+            let normalizedRecords = problemRecords.sorted { $0.number < $1.number }
+            try self.validateProblemRecord(
+                problemStart: normalizedRecords.first?.number ?? problemStart,
+                problemEnd: normalizedRecords.last?.number ?? problemEnd,
+                wrongProblemCount: normalizedRecords.isEmpty ? wrongProblemCount : normalizedRecords.filter(\.isWrong).count
+            )
             guard var draft = self.pendingSessionEvaluation else { return }
             draft.session.rating = rating
             draft.session.note = note?.nilIfBlank
-            draft.session.problemStart = problemStart
-            draft.session.problemEnd = problemEnd
-            draft.session.wrongProblemCount = wrongProblemCount
+            draft.session.problemRecords = normalizedRecords
+            draft.session.problemStart = normalizedRecords.first?.number ?? problemStart
+            draft.session.problemEnd = normalizedRecords.last?.number ?? problemEnd
+            draft.session.wrongProblemCount = normalizedRecords.isEmpty ? wrongProblemCount : normalizedRecords.filter(\.isWrong).count
             _ = try await self.app.persistence.insertSession(draft.session)
             self.pendingSessionEvaluation = nil
             self.app.updateActiveTimer(nil)
@@ -925,7 +938,8 @@ final class HistoryViewModel: ScreenViewModel {
         rating: Int?,
         problemStart: Int? = nil,
         problemEnd: Int? = nil,
-        wrongProblemCount: Int? = nil
+        wrongProblemCount: Int? = nil,
+        problemRecords: [ProblemSessionRecord] = []
     ) {
         perform {
             guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
@@ -937,6 +951,7 @@ final class HistoryViewModel: ScreenViewModel {
             updated.problemStart = problemStart
             updated.problemEnd = problemEnd
             updated.wrongProblemCount = wrongProblemCount
+            updated.problemRecords = problemRecords
             try await self.app.persistence.updateSession(updated)
             await self.load()
             self.app.bumpDataVersion()
@@ -1203,7 +1218,8 @@ final class CalendarViewModel: ScreenViewModel {
         rating: Int?,
         problemStart: Int? = nil,
         problemEnd: Int? = nil,
-        wrongProblemCount: Int? = nil
+        wrongProblemCount: Int? = nil,
+        problemRecords: [ProblemSessionRecord] = []
     ) {
         perform {
             guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
@@ -1215,6 +1231,7 @@ final class CalendarViewModel: ScreenViewModel {
             updated.problemStart = problemStart
             updated.problemEnd = problemEnd
             updated.wrongProblemCount = wrongProblemCount
+            updated.problemRecords = problemRecords
             try await self.app.persistence.updateSession(updated)
             await self.load()
             self.app.bumpDataVersion()

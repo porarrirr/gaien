@@ -151,7 +151,8 @@ struct HistoryScreen: View {
                                 rating: ratingDraft,
                                 problemStart: Int(problemStartDraft),
                                 problemEnd: Int(problemEndDraft),
-                                wrongProblemCount: Int(wrongProblemCountDraft)
+                                wrongProblemCount: Int(wrongProblemCountDraft),
+                                problemRecords: session.problemRecords
                             )
                             editingSession = nil
                         }
@@ -207,7 +208,7 @@ private struct HistorySessionCardNew: View {
                         .foregroundStyle(AppColors.textSecondary)
                 }
                 if session.problemRangeText != nil || session.wrongProblemCount != nil {
-                    Text("\(session.problemRangeText ?? "範囲未入力") / 誤答 \(session.wrongProblemCount ?? 0)")
+                    Text("\(session.problemRangeText ?? "範囲未入力") / 誤答 \(session.effectiveWrongProblemCount ?? 0)")
                         .font(.caption2)
                         .foregroundStyle(AppColors.textSecondary)
                 }

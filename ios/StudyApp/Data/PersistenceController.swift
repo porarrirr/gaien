@@ -994,6 +994,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             problemStart: session.problemStart,
             problemEnd: session.problemEnd,
             wrongProblemCount: session.wrongProblemCount,
+            problemRecords: session.problemRecords,
             createdAt: persistedCreatedAt ?? (session.createdAt == 0 ? Date().epochMilliseconds : session.createdAt),
             updatedAt: Date().epochMilliseconds,
             deletedAt: session.deletedAt,
@@ -1021,6 +1022,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(session.problemStart.map { Int64($0) }, forKey: "problemStart")
         record.setValue(session.problemEnd.map { Int64($0) }, forKey: "problemEnd")
         record.setValue(session.wrongProblemCount.map { Int64($0) }, forKey: "wrongProblemCount")
+        record.setValue(Self.encodeProblemRecords(session.problemRecords), forKey: "problemRecordsData")
         record.setValue(session.createdAt, forKey: "createdAt")
         record.setValue(session.updatedAt, forKey: "updatedAt")
         record.setValue(session.deletedAt, forKey: "deletedAt")
@@ -1327,6 +1329,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             problemStart: (record.value(forKey: "problemStart") as? Int64).map(Int.init),
             problemEnd: (record.value(forKey: "problemEnd") as? Int64).map(Int.init),
             wrongProblemCount: (record.value(forKey: "wrongProblemCount") as? Int64).map(Int.init),
+            problemRecords: decodeProblemRecords(record.value(forKey: "problemRecordsData") as? String),
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
             updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
             deletedAt: record.value(forKey: "deletedAt") as? Int64,
@@ -1410,6 +1413,17 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return (try? JSONDecoder().decode([StudySessionInterval].self, from: data)) ?? []
     }
 
+    private static func encodeProblemRecords(_ records: [ProblemSessionRecord]) -> String? {
+        guard !records.isEmpty else { return nil }
+        guard let data = try? JSONEncoder().encode(records.sorted(by: { $0.number < $1.number })) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeProblemRecords(_ value: String?) -> [ProblemSessionRecord] {
+        guard let value, let data = value.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([ProblemSessionRecord].self, from: data)) ?? []
+    }
+
     private static func makeManagedObjectModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         model.entities = [
@@ -1469,6 +1483,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "problemStart", type: .integer64AttributeType, optional: true),
                     attribute(name: "problemEnd", type: .integer64AttributeType, optional: true),
                     attribute(name: "wrongProblemCount", type: .integer64AttributeType, optional: true),
+                    attribute(name: "problemRecordsData", type: .stringAttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),
                     attribute(name: "updatedAt", type: .integer64AttributeType),
                     attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),

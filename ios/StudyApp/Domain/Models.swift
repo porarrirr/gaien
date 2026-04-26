@@ -329,6 +329,14 @@ enum StudySessionType: String, Codable, CaseIterable, Hashable {
     }
 }
 
+struct ProblemSessionRecord: Identifiable, Codable, Hashable {
+    var number: Int
+    var isWrong: Bool
+    var detail: String?
+
+    var id: Int { number }
+}
+
 struct StudySession: Identifiable, Codable, Hashable {
     static let allowedRatings = 1...5
 
@@ -349,6 +357,7 @@ struct StudySession: Identifiable, Codable, Hashable {
     var problemStart: Int?
     var problemEnd: Int?
     var wrongProblemCount: Int?
+    var problemRecords: [ProblemSessionRecord] = []
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
     var deletedAt: Int64?
@@ -372,6 +381,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         case problemStart
         case problemEnd
         case wrongProblemCount
+        case problemRecords
         case createdAt
         case updatedAt
         case deletedAt
@@ -432,11 +442,23 @@ struct StudySession: Identifiable, Codable, Hashable {
     }
 
     var problemRangeText: String? {
+        if !problemRecords.isEmpty {
+            let numbers = problemRecords.map(\.number).sorted()
+            guard let first = numbers.first, let last = numbers.last else { return nil }
+            return first == last ? "\(first)問" : "\(first)-\(last)問"
+        }
         guard let problemStart, let problemEnd else { return nil }
         if problemStart == problemEnd {
             return "\(problemStart)問"
         }
         return "\(problemStart)-\(problemEnd)問"
+    }
+
+    var effectiveWrongProblemCount: Int? {
+        if !problemRecords.isEmpty {
+            return problemRecords.filter(\.isWrong).count
+        }
+        return wrongProblemCount
     }
 
     var startDate: Date {
@@ -469,6 +491,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         problemStart: Int? = nil,
         problemEnd: Int? = nil,
         wrongProblemCount: Int? = nil,
+        problemRecords: [ProblemSessionRecord] = [],
         createdAt: Int64 = Date().epochMilliseconds,
         updatedAt: Int64 = Date().epochMilliseconds,
         deletedAt: Int64? = nil,
@@ -491,6 +514,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         self.problemStart = problemStart
         self.problemEnd = problemEnd
         self.wrongProblemCount = wrongProblemCount
+        self.problemRecords = problemRecords
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.deletedAt = deletedAt
@@ -523,6 +547,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         problemStart = try container.decodeIfPresent(Int.self, forKey: .problemStart)
         problemEnd = try container.decodeIfPresent(Int.self, forKey: .problemEnd)
         wrongProblemCount = try container.decodeIfPresent(Int.self, forKey: .wrongProblemCount)
+        problemRecords = try container.decodeIfPresent([ProblemSessionRecord].self, forKey: .problemRecords) ?? []
         createdAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? Date().epochMilliseconds
         updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? createdAt
         deletedAt = try container.decodeIfPresent(Int64.self, forKey: .deletedAt)
@@ -556,6 +581,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(problemStart, forKey: .problemStart)
         try container.encodeIfPresent(problemEnd, forKey: .problemEnd)
         try container.encodeIfPresent(wrongProblemCount, forKey: .wrongProblemCount)
+        try container.encode(problemRecords, forKey: .problemRecords)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)

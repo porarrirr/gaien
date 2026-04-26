@@ -389,6 +389,14 @@ private struct MaterialHistoryScreen: View {
                         )
                         .padding(.horizontal, AppSpacing.md)
 
+                        if material.totalProblems > 0 {
+                            MaterialProblemProgressCard(
+                                totalProblems: material.totalProblems,
+                                sessions: viewModel.sessions
+                            )
+                            .padding(.horizontal, AppSpacing.md)
+                        }
+
                         MaterialHistoryCalendarView(
                             displayedMonth: viewModel.displayedMonth,
                             selectedDate: viewModel.selectedDate,
@@ -543,6 +551,66 @@ private struct MaterialHistoryMetric: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private struct MaterialProblemProgressCard: View {
+    let totalProblems: Int
+    let sessions: [StudySession]
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 10)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            SectionHeaderView(title: "問題集の進捗", icon: "square.grid.3x3.fill")
+
+            HStack(spacing: AppSpacing.sm) {
+                MaterialHistoryMetric(label: "実施", value: "\(doneNumbers.count)/\(totalProblems)")
+                MaterialHistoryMetric(label: "誤答あり", value: "\(wrongNumbers.count)")
+                MaterialHistoryMetric(label: "未実施", value: "\(max(totalProblems - doneNumbers.count, 0))")
+            }
+
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(1...totalProblems, id: \.self) { number in
+                    Text("\(number)")
+                        .font(.system(size: 9, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(tileForeground(number))
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
+                        .background(tileBackground(number), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                }
+            }
+        }
+        .cardStyle()
+    }
+
+    private var doneNumbers: Set<Int> {
+        Set(sessions.flatMap { session in
+            if !session.problemRecords.isEmpty {
+                return session.problemRecords.map(\.number)
+            }
+            guard let start = session.problemStart, let end = session.problemEnd, end >= start else { return [] }
+            return Array(start...end)
+        })
+    }
+
+    private var wrongNumbers: Set<Int> {
+        Set(sessions.flatMap { session in
+            session.problemRecords.filter(\.isWrong).map(\.number)
+        })
+    }
+
+    private func tileBackground(_ number: Int) -> Color {
+        if wrongNumbers.contains(number) { return AppColors.danger.opacity(0.20) }
+        if doneNumbers.contains(number) { return Color.accentColor.opacity(0.18) }
+        return Color.secondary.opacity(0.08)
+    }
+
+    private func tileForeground(_ number: Int) -> Color {
+        if wrongNumbers.contains(number) { return AppColors.danger }
+        if doneNumbers.contains(number) { return Color.accentColor }
+        return AppColors.textSecondary
     }
 }
 
@@ -705,9 +773,18 @@ private struct MaterialHistorySessionCard: View {
                 HStack {
                     Label(session.problemRangeText ?? "範囲未入力", systemImage: "list.number")
                     Spacer()
-                    Text("誤答 \(session.wrongProblemCount ?? 0)")
+                    Text("誤答 \(session.effectiveWrongProblemCount ?? 0)")
                 }
                 .font(.caption)
+                .foregroundStyle(AppColors.textSecondary)
+            }
+            if !session.problemRecords.filter({ $0.detail?.nilIfBlank != nil }).isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(session.problemRecords.filter { $0.detail?.nilIfBlank != nil }) { record in
+                        Text("\(record.number)問目: \(record.detail ?? "")")
+                    }
+                }
+                .font(.caption2)
                 .foregroundStyle(AppColors.textSecondary)
             }
         }
