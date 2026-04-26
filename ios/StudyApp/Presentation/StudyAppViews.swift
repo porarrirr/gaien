@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 // MARK: - Root
@@ -942,7 +943,7 @@ private struct SessionEvaluationSheet: View {
     private var problemRecordSummary: String {
         let done = problemRecords.count
         let wrong = problemRecords.filter(\.isWrong).count
-        return "タップで実施、もう一度で誤答、さらにタップで解除。長押しで小問メモ。選択 \(done)問 / 誤答 \(wrong)問"
+        return "タップで正解、ダブルタップで不正解、長押しで大問・小問メモ。選択 \(done)問 / 誤答 \(wrong)問"
     }
 
     private var effectiveProblemCount: Int {
@@ -964,7 +965,8 @@ private struct ProblemTileSelector: View {
                 ProblemTile(
                     number: number,
                     record: records.first(where: { $0.number == number }),
-                    onTap: { toggle(number) },
+                    onCorrectTap: { toggleCorrect(number) },
+                    onWrongDoubleTap: { toggleWrong(number) },
                     onLongPress: {
                         let record = records.first(where: { $0.number == number })
                         detailText = record?.detail ?? ""
@@ -979,7 +981,7 @@ private struct ProblemTileSelector: View {
         )) { target in
             NavigationStack {
                 Form {
-                    TextField("小問メモ（例: (2)(4)、計算ミス）", text: $detailText, axis: .vertical)
+                    TextField("大問・小問メモ（例: 大問2の(4)、計算ミス）", text: $detailText, axis: .vertical)
                         .keyboardType(.default)
                 }
                 .navigationTitle("\(target.number)問目")
@@ -998,7 +1000,20 @@ private struct ProblemTileSelector: View {
         }
     }
 
-    private func toggle(_ number: Int) {
+    private func toggleCorrect(_ number: Int) {
+        if let index = records.firstIndex(where: { $0.number == number }) {
+            if records[index].isWrong {
+                records[index].isWrong = false
+            } else {
+                records.remove(at: index)
+            }
+        } else {
+            records.append(ProblemSessionRecord(number: number, isWrong: false))
+            records.sort { $0.number < $1.number }
+        }
+    }
+
+    private func toggleWrong(_ number: Int) {
         if let index = records.firstIndex(where: { $0.number == number }) {
             if records[index].isWrong {
                 records.remove(at: index)
@@ -1006,7 +1021,7 @@ private struct ProblemTileSelector: View {
                 records[index].isWrong = true
             }
         } else {
-            records.append(ProblemSessionRecord(number: number, isWrong: false))
+            records.append(ProblemSessionRecord(number: number, isWrong: true))
             records.sort { $0.number < $1.number }
         }
     }
@@ -1030,31 +1045,52 @@ private struct ProblemTileEditTarget: Identifiable {
 private struct ProblemTile: View {
     let number: Int
     let record: ProblemSessionRecord?
-    let onTap: () -> Void
+    let onCorrectTap: () -> Void
+    let onWrongDoubleTap: () -> Void
     let onLongPress: () -> Void
 
+    @State private var pendingSingleTap: DispatchWorkItem?
+
     var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 2) {
-                Text("\(number)")
-                    .font(.caption.bold())
-                    .monospacedDigit()
-                if record?.detail?.nilIfBlank != nil {
-                    Image(systemName: "text.bubble.fill")
-                        .font(.system(size: 8, weight: .bold))
-                }
+        VStack(spacing: 2) {
+            Text("\(number)")
+                .font(.caption.bold())
+                .monospacedDigit()
+            if record?.detail?.nilIfBlank != nil {
+                Image(systemName: "text.bubble.fill")
+                    .font(.system(size: 8, weight: .bold))
             }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .foregroundStyle(foreground)
-            .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(border, lineWidth: 1)
-            )
         }
-        .buttonStyle(.plain)
-        .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in onLongPress() })
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .foregroundStyle(foreground)
+        .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(border, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onTapGesture(count: 2, perform: handleDoubleTap)
+        .onTapGesture(count: 1, perform: handleSingleTap)
+        .onLongPressGesture(minimumDuration: 0.45, perform: onLongPress)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("タップで正解、ダブルタップで不正解、長押しで大問・小問メモ")
+    }
+
+    private func handleSingleTap() {
+        pendingSingleTap?.cancel()
+        let task = DispatchWorkItem {
+            onCorrectTap()
+        }
+        pendingSingleTap = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: task)
+    }
+
+    private func handleDoubleTap() {
+        pendingSingleTap?.cancel()
+        pendingSingleTap = nil
+        onWrongDoubleTap()
     }
 
     private var background: Color {
@@ -1070,6 +1106,11 @@ private struct ProblemTile: View {
     private var border: Color {
         guard let record else { return Color.secondary.opacity(0.15) }
         return record.isWrong ? AppColors.danger.opacity(0.55) : Color.accentColor.opacity(0.45)
+    }
+
+    private var accessibilityLabel: String {
+        guard let record else { return "\(number)問目 未着手" }
+        return record.isWrong ? "\(number)問目 不正解" : "\(number)問目 正解"
     }
 }
 

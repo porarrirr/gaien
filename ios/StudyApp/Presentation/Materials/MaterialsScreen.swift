@@ -606,15 +606,17 @@ private struct MaterialProblemProgressCard: View {
                     MaterialHistoryMetric(label: "未実施", value: "\(max(totalProblems - doneNumbers.count, 0))")
                 }
 
-                ProgressView(value: Double(doneNumbers.count), total: Double(max(totalProblems, 1)))
-                    .tint(.accentColor)
+                HStack(spacing: AppSpacing.sm) {
+                    MaterialProblemLegendItem(label: "未着手", color: Color.secondary.opacity(0.12), textColor: AppColors.textSecondary)
+                    MaterialProblemLegendItem(label: "正解", color: AppColors.success.opacity(0.18), textColor: AppColors.success)
+                    MaterialProblemLegendItem(label: "間違い", color: AppColors.danger.opacity(0.18), textColor: AppColors.danger)
+                }
 
-                VStack(spacing: 6) {
-                    ForEach(problemRanges, id: \.lowerBound) { range in
-                        ProblemRangeRow(
-                            range: range,
-                            doneCount: range.filter { doneNumbers.contains($0) }.count,
-                            wrongCount: range.filter { wrongNumbers.contains($0) }.count
+                LazyVGrid(columns: tileColumns, spacing: 6) {
+                    ForEach(1...totalProblems, id: \.self) { number in
+                        MaterialProblemStatusTile(
+                            number: number,
+                            status: status(for: number)
                         )
                     }
                 }
@@ -629,12 +631,8 @@ private struct MaterialProblemProgressCard: View {
         .cardStyle()
     }
 
-    private var problemRanges: [ClosedRange<Int>] {
-        guard totalProblems > 0 else { return [] }
-        let chunkSize = totalProblems > 200 ? 50 : 25
-        return stride(from: 1, through: totalProblems, by: chunkSize).map { start in
-            start...min(start + chunkSize - 1, totalProblems)
-        }
+    private var tileColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 34, maximum: 44), spacing: 6)]
     }
 
     private var doneNumbers: Set<Int> {
@@ -653,49 +651,108 @@ private struct MaterialProblemProgressCard: View {
         })
     }
 
+    private func status(for number: Int) -> MaterialProblemStatus {
+        if wrongNumbers.contains(number) {
+            return .wrong
+        }
+        if doneNumbers.contains(number) {
+            return .correct
+        }
+        return .untouched
+    }
 }
 
-private struct ProblemRangeRow: View {
-    let range: ClosedRange<Int>
-    let doneCount: Int
-    let wrongCount: Int
+private enum MaterialProblemStatus {
+    case untouched
+    case correct
+    case wrong
+}
 
-    private var totalCount: Int {
-        range.upperBound - range.lowerBound + 1
-    }
+private struct MaterialProblemLegendItem: View {
+    let label: String
+    let color: Color
+    let textColor: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("\(range.lowerBound)-\(range.upperBound)")
-                    .font(.caption.bold())
-                    .monospacedDigit()
-                Spacer()
-                Text("\(doneCount)/\(totalCount)")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-                if wrongCount > 0 {
-                    Label("\(wrongCount)", systemImage: "xmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(AppColors.danger)
-                }
-            }
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.secondary.opacity(0.12))
-                    Capsule()
-                        .fill(Color.accentColor.opacity(0.65))
-                        .frame(width: proxy.size.width * CGFloat(doneCount) / CGFloat(max(totalCount, 1)))
-                    Capsule()
-                        .fill(AppColors.danger.opacity(0.75))
-                        .frame(width: proxy.size.width * CGFloat(wrongCount) / CGFloat(max(totalCount, 1)))
-                }
-            }
-            .frame(height: 8)
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(color)
+                .frame(width: 14, height: 14)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(textColor.opacity(0.45), lineWidth: 1)
+                )
+            Text(label)
+                .font(.caption2.bold())
+                .foregroundStyle(textColor)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct MaterialProblemStatusTile: View {
+    let number: Int
+    let status: MaterialProblemStatus
+
+    var body: some View {
+        Text("\(number)")
+            .font(.caption2.bold())
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
+            .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)
+            .foregroundStyle(foreground)
+            .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(border, lineWidth: 1)
+            )
+            .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var background: Color {
+        switch status {
+        case .untouched:
+            return Color.secondary.opacity(0.08)
+        case .correct:
+            return AppColors.success.opacity(0.18)
+        case .wrong:
+            return AppColors.danger.opacity(0.18)
+        }
+    }
+
+    private var foreground: Color {
+        switch status {
+        case .untouched:
+            return AppColors.textSecondary
+        case .correct:
+            return AppColors.success
+        case .wrong:
+            return AppColors.danger
+        }
+    }
+
+    private var border: Color {
+        switch status {
+        case .untouched:
+            return Color.secondary.opacity(0.15)
+        case .correct:
+            return AppColors.success.opacity(0.45)
+        case .wrong:
+            return AppColors.danger.opacity(0.55)
+        }
+    }
+
+    private var accessibilityLabel: String {
+        switch status {
+        case .untouched:
+            return "\(number)問目 未着手"
+        case .correct:
+            return "\(number)問目 正解"
+        case .wrong:
+            return "\(number)問目 間違い"
+        }
     }
 }
 
