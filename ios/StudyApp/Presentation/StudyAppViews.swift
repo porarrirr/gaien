@@ -443,6 +443,7 @@ private struct TimerScreen: View {
     @State private var sessionWrongCountDraft = ""
     @State private var sessionProblemRecords: [ProblemSessionRecord] = []
     @State private var sessionProblemCountDraft = ""
+    @State private var initializedEvaluationId: UUID?
     @State private var ringScale: CGFloat = 1.0
 
     init(app: StudyAppContainer) {
@@ -522,6 +523,7 @@ private struct TimerScreen: View {
         }
         .sheet(item: $viewModel.pendingSessionEvaluation, onDismiss: {
             sessionRatingDraft = nil
+            initializedEvaluationId = nil
         }) { draft in
             NavigationStack {
                 SessionEvaluationSheet(
@@ -551,6 +553,8 @@ private struct TimerScreen: View {
                 )
             }
             .onAppear {
+                guard initializedEvaluationId != draft.id else { return }
+                initializedEvaluationId = draft.id
                 sessionRatingDraft = draft.session.rating
                 sessionNoteDraft = draft.session.note ?? ""
                 sessionProblemStartDraft = draft.session.problemStart.map(String.init) ?? ""
@@ -897,22 +901,10 @@ private struct SessionEvaluationSheet: View {
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
                     Text("問題集の記録")
                         .font(.subheadline.bold())
-                    if effectiveProblemCount <= 0 {
-                        TextField("全問題数", text: $problemCount)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
-                    } else {
-                        HStack {
-                            Text("全\(effectiveProblemCount)問")
-                                .font(.caption.bold())
-                                .foregroundStyle(AppColors.textSecondary)
-                            Spacer()
-                            Button("変更") {
-                                problemRecords = []
-                                problemCount = ""
-                            }
-                            .font(.caption.bold())
-                        }
+                    TextField("全問題数", text: $problemCount)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                    if effectiveProblemCount > 0 {
                         ProblemTileSelector(totalProblems: effectiveProblemCount, records: $problemRecords)
                         Text(problemRecordSummary)
                             .font(.caption)
@@ -938,6 +930,11 @@ private struct SessionEvaluationSheet: View {
                     .disabled(rating == nil)
             }
         }
+        .onChange(of: problemCount) { _ in
+            let count = effectiveProblemCount
+            guard count > 0 else { return }
+            problemRecords.removeAll { $0.number > count }
+        }
     }
 
     private var problemRecordSummary: String {
@@ -957,10 +954,10 @@ private struct ProblemTileSelector: View {
     @State private var editingNumber: Int?
     @State private var detailText = ""
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 6)
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 48), spacing: 10), count: 5)
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 6) {
+        LazyVGrid(columns: columns, spacing: 10) {
             ForEach(1...totalProblems, id: \.self) { number in
                 ProblemTile(
                     number: number,
@@ -1054,14 +1051,15 @@ private struct ProblemTile: View {
     var body: some View {
         VStack(spacing: 2) {
             Text("\(number)")
-                .font(.caption.bold())
+                .font(.callout.bold())
                 .monospacedDigit()
             if record?.detail?.nilIfBlank != nil {
                 Image(systemName: "text.bubble.fill")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
             }
         }
         .frame(maxWidth: .infinity)
+        .frame(minHeight: 52)
         .aspectRatio(1, contentMode: .fit)
         .foregroundStyle(foreground)
         .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))

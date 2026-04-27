@@ -612,7 +612,7 @@ private struct MaterialProblemProgressCard: View {
                     MaterialProblemLegendItem(label: "間違い", color: AppColors.danger.opacity(0.18), textColor: AppColors.danger)
                 }
 
-                LazyVGrid(columns: tileColumns, spacing: 6) {
+                LazyVGrid(columns: tileColumns, spacing: 10) {
                     ForEach(1...totalProblems, id: \.self) { number in
                         MaterialProblemStatusTile(
                             number: number,
@@ -632,7 +632,7 @@ private struct MaterialProblemProgressCard: View {
     }
 
     private var tileColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 34, maximum: 44), spacing: 6)]
+        Array(repeating: GridItem(.flexible(minimum: 48), spacing: 10), count: 5)
     }
 
     private var doneNumbers: Set<Int> {
@@ -696,11 +696,12 @@ private struct MaterialProblemStatusTile: View {
 
     var body: some View {
         Text("\(number)")
-            .font(.caption2.bold())
+            .font(.callout.bold())
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.65)
             .frame(maxWidth: .infinity)
+            .frame(minHeight: 52)
             .aspectRatio(1, contentMode: .fit)
             .foregroundStyle(foreground)
             .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
