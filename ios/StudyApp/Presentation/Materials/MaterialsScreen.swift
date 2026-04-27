@@ -1390,11 +1390,6 @@ private struct MaterialDraft {
     }
 }
 
-private func parseDraftInt(_ value: String) -> Int {
-    let normalized = value.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? value
-    return Int(normalized.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-}
-
 private struct BarcodeScannerSheet: View {
     let onScanned: (String) -> Void
     let onFailure: (String) -> Void
