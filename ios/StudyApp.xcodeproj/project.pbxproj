@@ -39,6 +39,28 @@
 		A20000000000000000000007 /* StudyTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* StudyTimerActivityAttributes.swift */; };
 		A20000000000000000000008 /* StudyTimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* StudyTimerLiveActivity.swift */; };
 		A20000000000000000000009 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Models.swift */; };
+		A30000000000000000000001 /* ScreenViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* ScreenViewModel.swift */; };
+		A30000000000000000000002 /* OnboardingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000002 /* OnboardingScreen.swift */; };
+		A30000000000000000000003 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000003 /* OnboardingViewModel.swift */; };
+		A30000000000000000000004 /* HomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000004 /* HomeScreen.swift */; };
+		A30000000000000000000005 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000005 /* HomeViewModel.swift */; };
+		A30000000000000000000006 /* TimerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000006 /* TimerScreen.swift */; };
+		A30000000000000000000007 /* TimerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000007 /* TimerViewModel.swift */; };
+		A30000000000000000000008 /* CalendarScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000008 /* CalendarScreen.swift */; };
+		A30000000000000000000009 /* CalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000009 /* CalendarViewModel.swift */; };
+		A30000000000000000000010 /* ReportsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000010 /* ReportsScreen.swift */; };
+		A30000000000000000000011 /* ReportsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000011 /* ReportsViewModel.swift */; };
+		A30000000000000000000012 /* ExamsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000012 /* ExamsScreen.swift */; };
+		A30000000000000000000013 /* ExamsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000013 /* ExamsViewModel.swift */; };
+		A30000000000000000000014 /* GoalsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000014 /* GoalsScreen.swift */; };
+		A30000000000000000000015 /* GoalsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000015 /* GoalsViewModel.swift */; };
+		A30000000000000000000016 /* MaterialsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000016 /* MaterialsViewModel.swift */; };
+		A30000000000000000000017 /* MaterialHistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000017 /* MaterialHistoryViewModel.swift */; };
+		A30000000000000000000018 /* HistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000018 /* HistoryViewModel.swift */; };
+		A30000000000000000000019 /* PlanViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000019 /* PlanViewModel.swift */; };
+		A30000000000000000000020 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000020 /* SettingsViewModel.swift */; };
+		A30000000000000000000021 /* SubjectsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000021 /* SubjectsViewModel.swift */; };
+		A30000000000000000000022 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000022 /* MainTabView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -72,6 +94,28 @@
 		B20000000000000000000008 /* StudyAppWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyAppWidgets.entitlements; sourceTree = "<group>"; };
 		B20000000000000000000009 /* StudyTimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerActivityAttributes.swift; sourceTree = "<group>"; };
 		B20000000000000000000010 /* StudyTimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerLiveActivity.swift; sourceTree = "<group>"; };
+		B30000000000000000000001 /* ScreenViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000002 /* OnboardingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000003 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000004 /* HomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000005 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000006 /* TimerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000007 /* TimerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000008 /* CalendarScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000009 /* CalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000010 /* ReportsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000011 /* ReportsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000012 /* ExamsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExamsScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000013 /* ExamsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExamsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000014 /* GoalsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000015 /* GoalsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000016 /* MaterialsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000017 /* MaterialHistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialHistoryViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000018 /* HistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000019 /* PlanViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000020 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000021 /* SubjectsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000022 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -175,8 +219,17 @@
 			children = (
 				B10000000000000000000007 /* Theme.swift */,
 				B10000000000000000000008 /* StudyAppStore.swift */,
+				B30000000000000000000001 /* ScreenViewModel.swift */,
 				B10000000000000000000020 /* AutoSyncCoordinator.swift */,
 				B10000000000000000000009 /* StudyAppViews.swift */,
+				D30000000000000000000008 /* Navigation */,
+				D30000000000000000000001 /* Onboarding */,
+				D30000000000000000000002 /* Home */,
+				D30000000000000000000003 /* Timer */,
+				D30000000000000000000004 /* Calendar */,
+				D30000000000000000000005 /* Reports */,
+				D30000000000000000000006 /* Exams */,
+				D30000000000000000000007 /* Goals */,
 				D10000000000000000000010 /* Materials */,
 				D10000000000000000000011 /* History */,
 				D10000000000000000000012 /* Plans */,
@@ -190,6 +243,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000010 /* SubjectsView.swift */,
+				B30000000000000000000021 /* SubjectsViewModel.swift */,
 			);
 			path = Subjects;
 			sourceTree = "<group>";
@@ -198,6 +252,8 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000011 /* MaterialsScreen.swift */,
+				B30000000000000000000016 /* MaterialsViewModel.swift */,
+				B30000000000000000000017 /* MaterialHistoryViewModel.swift */,
 			);
 			path = Materials;
 			sourceTree = "<group>";
@@ -206,6 +262,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000012 /* HistoryScreen.swift */,
+				B30000000000000000000018 /* HistoryViewModel.swift */,
 			);
 			path = History;
 			sourceTree = "<group>";
@@ -214,6 +271,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000013 /* PlanScreen.swift */,
+				B30000000000000000000019 /* PlanViewModel.swift */,
 			);
 			path = Plans;
 			sourceTree = "<group>";
@@ -222,6 +280,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000014 /* SettingsScreen.swift */,
+				B30000000000000000000020 /* SettingsViewModel.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -265,6 +324,77 @@
 				B20000000000000000000008 /* StudyAppWidgets.entitlements */,
 			);
 			path = StudyAppWidgets;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000001 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000002 /* OnboardingScreen.swift */,
+				B30000000000000000000003 /* OnboardingViewModel.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000002 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000004 /* HomeScreen.swift */,
+				B30000000000000000000005 /* HomeViewModel.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000003 /* Timer */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000006 /* TimerScreen.swift */,
+				B30000000000000000000007 /* TimerViewModel.swift */,
+			);
+			path = Timer;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000004 /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000008 /* CalendarScreen.swift */,
+				B30000000000000000000009 /* CalendarViewModel.swift */,
+			);
+			path = Calendar;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000005 /* Reports */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000010 /* ReportsScreen.swift */,
+				B30000000000000000000011 /* ReportsViewModel.swift */,
+			);
+			path = Reports;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000006 /* Exams */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000012 /* ExamsScreen.swift */,
+				B30000000000000000000013 /* ExamsViewModel.swift */,
+			);
+			path = Exams;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000007 /* Goals */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000014 /* GoalsScreen.swift */,
+				B30000000000000000000015 /* GoalsViewModel.swift */,
+			);
+			path = Goals;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000008 /* Navigation */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000022 /* MainTabView.swift */,
+			);
+			path = Navigation;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -419,6 +549,28 @@
 				A10000000000000000000023 /* AutoSyncCoordinator.swift in Sources */,
 				A10000000000000000000008 /* StudyAppViews.swift in Sources */,
 				A10000000000000000000009 /* SubjectsView.swift in Sources */,
+				A30000000000000000000001 /* ScreenViewModel.swift in Sources */,
+				A30000000000000000000002 /* OnboardingScreen.swift in Sources */,
+				A30000000000000000000003 /* OnboardingViewModel.swift in Sources */,
+				A30000000000000000000004 /* HomeScreen.swift in Sources */,
+				A30000000000000000000005 /* HomeViewModel.swift in Sources */,
+				A30000000000000000000006 /* TimerScreen.swift in Sources */,
+				A30000000000000000000007 /* TimerViewModel.swift in Sources */,
+				A30000000000000000000008 /* CalendarScreen.swift in Sources */,
+				A30000000000000000000009 /* CalendarViewModel.swift in Sources */,
+				A30000000000000000000010 /* ReportsScreen.swift in Sources */,
+				A30000000000000000000011 /* ReportsViewModel.swift in Sources */,
+				A30000000000000000000012 /* ExamsScreen.swift in Sources */,
+				A30000000000000000000013 /* ExamsViewModel.swift in Sources */,
+				A30000000000000000000014 /* GoalsScreen.swift in Sources */,
+				A30000000000000000000015 /* GoalsViewModel.swift in Sources */,
+				A30000000000000000000016 /* MaterialsViewModel.swift in Sources */,
+				A30000000000000000000017 /* MaterialHistoryViewModel.swift in Sources */,
+				A30000000000000000000018 /* HistoryViewModel.swift in Sources */,
+				A30000000000000000000019 /* PlanViewModel.swift in Sources */,
+				A30000000000000000000020 /* SettingsViewModel.swift in Sources */,
+				A30000000000000000000021 /* SubjectsViewModel.swift in Sources */,
+				A30000000000000000000022 /* MainTabView.swift in Sources */,
 				A10000000000000000000010 /* MaterialsScreen.swift in Sources */,
 				A10000000000000000000011 /* HistoryScreen.swift in Sources */,
 				A10000000000000000000012 /* PlanScreen.swift in Sources */,
