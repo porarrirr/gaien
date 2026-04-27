@@ -207,6 +207,7 @@ struct Material: Identifiable, Codable, Hashable {
     var totalPages: Int = 0
     var currentPage: Int = 0
     var totalProblems: Int = 0
+    var problemRecords: [ProblemSessionRecord] = []
     var color: Int?
     var note: String?
     var createdAt: Int64 = Date().epochMilliseconds
@@ -224,6 +225,7 @@ struct Material: Identifiable, Codable, Hashable {
         case totalPages
         case currentPage
         case totalProblems
+        case problemRecords
         case color
         case note
         case createdAt
@@ -251,6 +253,7 @@ struct Material: Identifiable, Codable, Hashable {
         totalPages: Int = 0,
         currentPage: Int = 0,
         totalProblems: Int = 0,
+        problemRecords: [ProblemSessionRecord] = [],
         color: Int? = nil,
         note: String? = nil,
         createdAt: Int64 = Date().epochMilliseconds,
@@ -267,6 +270,7 @@ struct Material: Identifiable, Codable, Hashable {
         self.totalPages = totalPages
         self.currentPage = currentPage
         self.totalProblems = totalProblems
+        self.problemRecords = problemRecords
         self.color = color
         self.note = note
         self.createdAt = createdAt
@@ -287,6 +291,7 @@ struct Material: Identifiable, Codable, Hashable {
         totalPages = try container.decodeIfPresent(Int.self, forKey: .totalPages) ?? 0
         currentPage = try container.decodeIfPresent(Int.self, forKey: .currentPage) ?? 0
         totalProblems = try container.decodeIfPresent(Int.self, forKey: .totalProblems) ?? 0
+        problemRecords = try container.decodeIfPresent([ProblemSessionRecord].self, forKey: .problemRecords) ?? []
         color = try container.decodeIfPresent(Int.self, forKey: .color)
         note = try container.decodeIfPresent(String.self, forKey: .note)
         createdAt = decodedCreatedAt
@@ -306,6 +311,7 @@ struct Material: Identifiable, Codable, Hashable {
         try container.encode(totalPages, forKey: .totalPages)
         try container.encode(currentPage, forKey: .currentPage)
         try container.encode(totalProblems, forKey: .totalProblems)
+        try container.encode(problemRecords, forKey: .problemRecords)
         try container.encodeIfPresent(color, forKey: .color)
         try container.encodeIfPresent(note, forKey: .note)
         try container.encode(createdAt, forKey: .createdAt)

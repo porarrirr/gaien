@@ -403,6 +403,7 @@ final class MaterialsViewModel: ScreenViewModel {
                         totalPages: totalPages,
                         currentPage: currentPage,
                         totalProblems: totalProblems,
+                        problemRecords: existing?.problemRecords ?? [],
                         color: nil,
                         note: note?.nilIfBlank
                     )
@@ -441,6 +442,19 @@ final class MaterialsViewModel: ScreenViewModel {
             var updated = material
             updated.currentPage = currentPage
             try await self.app.persistence.updateMaterial(updated)
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
+
+    func updateProblemRecords(materialId: Int64, records: [ProblemSessionRecord]) {
+        perform {
+            let materials = try await self.app.persistence.getAllMaterials()
+            guard var material = materials.first(where: { $0.id == materialId }) else {
+                throw ValidationError(message: "教材が見つかりません")
+            }
+            material.problemRecords = records.sorted { $0.number < $1.number }
+            try await self.app.persistence.updateMaterial(material)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -556,6 +570,18 @@ final class MaterialHistoryViewModel: ScreenViewModel {
     func selectDate(_ date: Date) {
         selectedDate = Calendar.current.startOfDay(for: date)
         displayedMonth = selectedDate
+    }
+
+    func updateProblemRecords(_ records: [ProblemSessionRecord]) {
+        perform {
+            guard var material = self.material else {
+                throw ValidationError(message: "教材が見つかりません")
+            }
+            material.problemRecords = records.sorted { $0.number < $1.number }
+            try await self.app.persistence.updateMaterial(material)
+            self.material = material
+            self.app.bumpDataVersion()
+        }
     }
 
     private func moveMonth(by value: Int) {
@@ -788,7 +814,16 @@ final class TimerViewModel: ScreenViewModel {
                 if var material = materials.first(where: { $0.id == materialId }) {
                     let storedTotalProblems = material.totalProblems
                     material.totalProblems = totalProblems
-                    if storedTotalProblems != totalProblems {
+                    if !normalizedRecords.isEmpty {
+                        var recordsByNumber = material.problemRecords.reduce(into: [Int: ProblemSessionRecord]()) { result, record in
+                            result[record.number] = record
+                        }
+                        for record in normalizedRecords {
+                            recordsByNumber[record.number] = record
+                        }
+                        material.problemRecords = recordsByNumber.values.sorted { $0.number < $1.number }
+                    }
+                    if storedTotalProblems != totalProblems || !normalizedRecords.isEmpty {
                         try await self.app.persistence.updateMaterial(material)
                     }
                     if let index = self.materials.firstIndex(where: { $0.id == materialId }) {

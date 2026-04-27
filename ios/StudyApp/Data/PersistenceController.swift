@@ -193,6 +193,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(Int64(material.totalProblems), forKey: "totalProblems")
+        record.setValue(Self.encodeProblemRecords(material.problemRecords), forKey: "problemRecordsData")
         record.setValue(material.color.map { Int64($0) }, forKey: "color")
         record.setValue(material.note, forKey: "note")
         record.setValue(material.createdAt == 0 ? now : material.createdAt, forKey: "createdAt")
@@ -220,6 +221,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(Int64(material.totalProblems), forKey: "totalProblems")
+        record.setValue(Self.encodeProblemRecords(material.problemRecords), forKey: "problemRecordsData")
         record.setValue(material.color.map { Int64($0) }, forKey: "color")
         record.setValue(material.note, forKey: "note")
         record.setValue(material.deletedAt, forKey: "deletedAt")
@@ -792,6 +794,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             r.setValue(material.subjectSyncId, forKey: "subjectSyncId")
             r.setValue(Int64(material.totalPages), forKey: "totalPages")
             r.setValue(Int64(material.currentPage), forKey: "currentPage")
+            r.setValue(Int64(material.totalProblems), forKey: "totalProblems")
+            r.setValue(Self.encodeProblemRecords(material.problemRecords), forKey: "problemRecordsData")
             r.setValue(material.color.map { Int64($0) }, forKey: "color")
             r.setValue(material.note, forKey: "note")
             r.setValue(material.createdAt == 0 ? now : material.createdAt, forKey: "createdAt")
@@ -1301,6 +1305,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             totalPages: Int(record.value(forKey: "totalPages") as? Int64 ?? 0),
             currentPage: Int(record.value(forKey: "currentPage") as? Int64 ?? 0),
             totalProblems: Int(record.value(forKey: "totalProblems") as? Int64 ?? 0),
+            problemRecords: decodeProblemRecords(record.value(forKey: "problemRecordsData") as? String),
             color: (record.value(forKey: "color") as? Int64).map(Int.init),
             note: record.value(forKey: "note") as? String,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
@@ -1453,6 +1458,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "totalPages", type: .integer64AttributeType),
                     attribute(name: "currentPage", type: .integer64AttributeType),
                     attribute(name: "totalProblems", type: .integer64AttributeType, defaultValue: Int64(0)),
+                    attribute(name: "problemRecordsData", type: .stringAttributeType, optional: true),
                     attribute(name: "color", type: .integer64AttributeType, optional: true),
                     attribute(name: "note", type: .stringAttributeType, optional: true),
                     attribute(name: "createdAt", type: .integer64AttributeType),

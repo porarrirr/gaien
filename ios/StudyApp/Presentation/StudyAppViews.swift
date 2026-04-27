@@ -535,6 +535,7 @@ private struct TimerScreen: View {
                     wrongProblemCount: $sessionWrongCountDraft,
                     problemRecords: $sessionProblemRecords,
                     problemCount: $sessionProblemCountDraft,
+                    materialProblemCount: selectedMaterialTotalProblems,
                     onSave: {
                         guard let rating = sessionRatingDraft else { return }
                         viewModel.savePendingSessionEvaluation(
@@ -871,6 +872,7 @@ private struct SessionEvaluationSheet: View {
     @Binding var wrongProblemCount: String
     @Binding var problemRecords: [ProblemSessionRecord]
     @Binding var problemCount: String
+    let materialProblemCount: Int
     let onSave: () -> Void
     let onCancel: () -> Void
 
@@ -901,9 +903,13 @@ private struct SessionEvaluationSheet: View {
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
                     Text("問題集の記録")
                         .font(.subheadline.bold())
-                    TextField("全問題数", text: $problemCount)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(.roundedBorder)
+                    if materialProblemCount > 0 {
+                        Text("全\(materialProblemCount)問")
+                            .font(.caption.bold())
+                            .foregroundStyle(AppColors.textSecondary)
+                    } else {
+                        problemCountControls
+                    }
                     if effectiveProblemCount > 0 {
                         ProblemTileSelector(totalProblems: effectiveProblemCount, records: $problemRecords)
                         Text(problemRecordSummary)
@@ -940,11 +946,56 @@ private struct SessionEvaluationSheet: View {
     private var problemRecordSummary: String {
         let done = problemRecords.count
         let wrong = problemRecords.filter(\.isWrong).count
-        return "タップで正解、ダブルタップで不正解、長押しで大問・小問メモ。選択 \(done)問 / 誤答 \(wrong)問"
+        return "タップで正解、ダブルタップで不正解、長押しで状態とメモを編集。選択 \(done)問 / 誤答 \(wrong)問"
     }
 
     private var effectiveProblemCount: Int {
-        parseDraftInt(problemCount)
+        materialProblemCount > 0 ? materialProblemCount : parseDraftInt(problemCount)
+    }
+
+    private var problemCountControls: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack {
+                Button {
+                    decrementProblemCount()
+                } label: {
+                    Image(systemName: "minus")
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(.bordered)
+                .disabled(effectiveProblemCount <= 0)
+
+                Text("全\(effectiveProblemCount)問")
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity)
+
+                Button {
+                    setProblemCount(effectiveProblemCount + 1)
+                } label: {
+                    Image(systemName: "plus")
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(.bordered)
+            }
+
+            HStack(spacing: AppSpacing.xs) {
+                ForEach([10, 20, 50], id: \.self) { count in
+                    Button("\(count)問") {
+                        setProblemCount(count)
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.caption.bold())
+                }
+            }
+        }
+    }
+
+    private func setProblemCount(_ count: Int) {
+        problemCount = "\(max(count, 0))"
+    }
+
+    private func decrementProblemCount() {
+        setProblemCount(max(effectiveProblemCount - 1, 0))
     }
 }
 
@@ -952,6 +1003,7 @@ private struct ProblemTileSelector: View {
     let totalProblems: Int
     @Binding var records: [ProblemSessionRecord]
     @State private var editingNumber: Int?
+    @State private var editingStatus: ProblemTileEditStatus = .untouched
     @State private var detailText = ""
 
     private let columns = Array(repeating: GridItem(.flexible(minimum: 48), spacing: 10), count: 5)
@@ -966,6 +1018,11 @@ private struct ProblemTileSelector: View {
                     onWrongDoubleTap: { toggleWrong(number) },
                     onLongPress: {
                         let record = records.first(where: { $0.number == number })
+                        if let record {
+                            editingStatus = record.isWrong ? .wrong : .correct
+                        } else {
+                            editingStatus = .untouched
+                        }
                         detailText = record?.detail ?? ""
                         editingNumber = number
                     }
@@ -978,6 +1035,11 @@ private struct ProblemTileSelector: View {
         )) { target in
             NavigationStack {
                 Form {
+                    Picker("状態", selection: $editingStatus) {
+                        Text("未着手").tag(ProblemTileEditStatus.untouched)
+                        Text("正解").tag(ProblemTileEditStatus.correct)
+                        Text("間違い").tag(ProblemTileEditStatus.wrong)
+                    }
                     TextField("大問・小問メモ（例: 大問2の(4)、計算ミス）", text: $detailText, axis: .vertical)
                         .keyboardType(.default)
                 }
@@ -988,7 +1050,7 @@ private struct ProblemTileSelector: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("保存") {
-                            upsertDetail(number: target.number, detail: detailText)
+                            saveEditedRecord(number: target.number)
                             editingNumber = nil
                         }
                     }
@@ -1023,15 +1085,25 @@ private struct ProblemTileSelector: View {
         }
     }
 
-    private func upsertDetail(number: Int, detail: String) {
+    private func saveEditedRecord(number: Int) {
         let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let index = records.firstIndex(where: { $0.number == number }) {
-            records[index].detail = trimmed.isEmpty ? nil : trimmed
-        } else if !trimmed.isEmpty {
-            records.append(ProblemSessionRecord(number: number, isWrong: true, detail: trimmed))
-            records.sort { $0.number < $1.number }
-        }
+        records.removeAll { $0.number == number }
+        guard editingStatus != .untouched else { return }
+        records.append(
+            ProblemSessionRecord(
+                number: number,
+                isWrong: editingStatus == .wrong,
+                detail: trimmed.isEmpty ? nil : trimmed
+            )
+        )
+        records.sort { $0.number < $1.number }
     }
+}
+
+private enum ProblemTileEditStatus: Hashable {
+    case untouched
+    case correct
+    case wrong
 }
 
 private struct ProblemTileEditTarget: Identifiable {

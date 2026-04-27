@@ -414,7 +414,11 @@ private struct MaterialHistoryScreen: View {
                         } else {
                             MaterialProblemProgressCard(
                                 totalProblems: material.totalProblems,
-                                sessions: viewModel.sessions
+                                materialRecords: material.problemRecords,
+                                sessions: viewModel.sessions,
+                                onRecordsChange: { records in
+                                    viewModel.updateProblemRecords(records)
+                                }
                             )
                             .padding(.horizontal, AppSpacing.md)
                         }
@@ -586,7 +590,13 @@ private struct MaterialHistoryMetric: View {
 
 private struct MaterialProblemProgressCard: View {
     let totalProblems: Int
+    let materialRecords: [ProblemSessionRecord]
     let sessions: [StudySession]
+    let onRecordsChange: ([ProblemSessionRecord]) -> Void
+
+    @State private var editingNumber: Int?
+    @State private var editingStatus: MaterialProblemStatus = .untouched
+    @State private var detailText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -616,7 +626,14 @@ private struct MaterialProblemProgressCard: View {
                     ForEach(1...totalProblems, id: \.self) { number in
                         MaterialProblemStatusTile(
                             number: number,
-                            status: status(for: number)
+                            status: status(for: number),
+                            hasDetail: detail(for: number) != nil,
+                            onTap: {
+                                toggleCorrect(number)
+                            },
+                            onLongPress: {
+                                openEditor(for: number)
+                            }
                         )
                     }
                 }
@@ -629,6 +646,33 @@ private struct MaterialProblemProgressCard: View {
             }
         }
         .cardStyle()
+        .sheet(item: Binding(
+            get: { editingNumber.map(MaterialProblemEditTarget.init(number:)) },
+            set: { if $0 == nil { editingNumber = nil } }
+        )) { target in
+            NavigationStack {
+                Form {
+                    Picker("状態", selection: $editingStatus) {
+                        Text("未着手").tag(MaterialProblemStatus.untouched)
+                        Text("正解").tag(MaterialProblemStatus.correct)
+                        Text("間違い").tag(MaterialProblemStatus.wrong)
+                    }
+                    TextField("大問・小問メモ", text: $detailText, axis: .vertical)
+                }
+                .navigationTitle("\(target.number)問目")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("閉じる") { editingNumber = nil }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("保存") {
+                            saveEditedRecord(number: target.number)
+                            editingNumber = nil
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var tileColumns: [GridItem] {
@@ -636,19 +680,19 @@ private struct MaterialProblemProgressCard: View {
     }
 
     private var doneNumbers: Set<Int> {
-        Set(sessions.flatMap { session in
+        Set(materialRecords.map(\.number)).union(Set(sessions.flatMap { session in
             if !session.problemRecords.isEmpty {
                 return session.problemRecords.map(\.number)
             }
             guard let start = session.problemStart, let end = session.problemEnd, end >= start else { return [] }
             return Array(start...end)
-        })
+        }))
     }
 
     private var wrongNumbers: Set<Int> {
-        Set(sessions.flatMap { session in
+        Set(materialRecords.filter(\.isWrong).map(\.number)).union(Set(sessions.flatMap { session in
             session.problemRecords.filter(\.isWrong).map(\.number)
-        })
+        }))
     }
 
     private func status(for number: Int) -> MaterialProblemStatus {
@@ -660,12 +704,63 @@ private struct MaterialProblemProgressCard: View {
         }
         return .untouched
     }
+
+    private func detail(for number: Int) -> String? {
+        materialRecords.first(where: { $0.number == number })?.detail?.nilIfBlank
+            ?? sessions
+                .flatMap { $0.problemRecords }
+                .first(where: { $0.number == number })?
+                .detail?
+                .nilIfBlank
+    }
+
+    private func toggleCorrect(_ number: Int) {
+        var nextRecords = materialRecords
+        if let index = nextRecords.firstIndex(where: { $0.number == number }) {
+            if nextRecords[index].isWrong {
+                nextRecords[index].isWrong = false
+            } else {
+                nextRecords.remove(at: index)
+            }
+        } else {
+            nextRecords.append(ProblemSessionRecord(number: number, isWrong: false))
+        }
+        onRecordsChange(nextRecords.sorted { $0.number < $1.number })
+    }
+
+    private func openEditor(for number: Int) {
+        editingNumber = number
+        editingStatus = status(for: number)
+        detailText = detail(for: number) ?? ""
+    }
+
+    private func saveEditedRecord(number: Int) {
+        var nextRecords = materialRecords
+        nextRecords.removeAll { $0.number == number }
+        guard editingStatus != .untouched else {
+            onRecordsChange(nextRecords.sorted { $0.number < $1.number })
+            return
+        }
+        nextRecords.append(
+            ProblemSessionRecord(
+                number: number,
+                isWrong: editingStatus == .wrong,
+                detail: detailText.nilIfBlank
+            )
+        )
+        onRecordsChange(nextRecords.sorted { $0.number < $1.number })
+    }
 }
 
-private enum MaterialProblemStatus {
+private enum MaterialProblemStatus: Hashable {
     case untouched
     case correct
     case wrong
+}
+
+private struct MaterialProblemEditTarget: Identifiable {
+    let number: Int
+    var id: Int { number }
 }
 
 private struct MaterialProblemLegendItem: View {
@@ -693,23 +788,36 @@ private struct MaterialProblemLegendItem: View {
 private struct MaterialProblemStatusTile: View {
     let number: Int
     let status: MaterialProblemStatus
+    let hasDetail: Bool
+    let onTap: () -> Void
+    let onLongPress: () -> Void
 
     var body: some View {
-        Text("\(number)")
-            .font(.callout.bold())
-            .monospacedDigit()
-            .lineLimit(1)
-            .minimumScaleFactor(0.65)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 52)
-            .aspectRatio(1, contentMode: .fit)
-            .foregroundStyle(foreground)
-            .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(border, lineWidth: 1)
-            )
-            .accessibilityLabel(accessibilityLabel)
+        VStack(spacing: 2) {
+            Text("\(number)")
+                .font(.callout.bold())
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+            if hasDetail {
+                Image(systemName: "text.bubble.fill")
+                    .font(.system(size: 10, weight: .bold))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 52)
+        .aspectRatio(1, contentMode: .fit)
+        .foregroundStyle(foreground)
+        .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(border, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onTapGesture(perform: onTap)
+        .onLongPressGesture(minimumDuration: 0.45, perform: onLongPress)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("タップで正解を切り替え、長押しで状態とメモを編集")
     }
 
     private var background: Color {
