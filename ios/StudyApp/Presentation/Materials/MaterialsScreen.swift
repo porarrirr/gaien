@@ -625,15 +625,25 @@ private struct MaterialProblemProgressCard: View {
                     MaterialProblemLegendItem(label: "復習正解", color: AppColors.warning.opacity(0.20), textColor: AppColors.warning)
                 }
 
+                Text("誤答履歴を含む問題は、赤から黄緑へ寄る5段階の色で復調度を表示します。")
+                    .font(.caption2)
+                    .foregroundStyle(AppColors.textSecondary)
+
                 LazyVGrid(columns: tileColumns, spacing: 10) {
                     ForEach(1...totalProblems, id: \.self) { number in
+                        let entries = historyEntries(for: number)
                         MaterialProblemStatusTile(
                             number: number,
-                            status: status(for: number),
+                            appearance: appearance(for: number, historyEntries: entries),
                             isSelected: selectedNumber == number,
                             hasDetail: detail(for: number) != nil,
+                            hasHistory: !entries.isEmpty,
+                            isLatestWrong: latestHistoryResult(for: number, historyEntries: entries) == .wrong,
                             onTap: {
-                                selectedNumber = number
+                                guard !entries.isEmpty else { return }
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    selectedNumber = selectedNumber == number ? nil : number
+                                }
                             },
                             onLongPress: {
                                 openEditor(for: number)
@@ -643,11 +653,15 @@ private struct MaterialProblemProgressCard: View {
                 }
 
                 if let selectedNumber {
-                    MaterialProblemHistoryAccordion(
-                        number: selectedNumber,
-                        entries: historyEntries(for: selectedNumber),
-                        currentRecord: materialRecords.first(where: { $0.number == selectedNumber })
-                    )
+                    let entries = historyEntries(for: selectedNumber)
+                    if !entries.isEmpty {
+                        MaterialProblemHistoryAccordion(
+                            number: selectedNumber,
+                            entries: entries,
+                            currentRecord: materialRecords.first(where: { $0.number == selectedNumber })
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
 
                 if !wrongNumbers.isEmpty {
@@ -782,6 +796,58 @@ private struct MaterialProblemProgressCard: View {
         }
         .sorted { $0.date > $1.date }
     }
+
+    private func appearance(for number: Int, historyEntries: [ProblemHistoryEntry]) -> MaterialProblemAppearance {
+        MaterialProblemAppearance(
+            status: status(for: number),
+            recoveryStage: recoveryStage(for: number, historyEntries: historyEntries)
+        )
+    }
+
+    private func latestHistoryResult(for number: Int, historyEntries: [ProblemHistoryEntry]) -> ProblemResult? {
+        if let currentResult = materialRecords.first(where: { $0.number == number })?.result {
+            return currentResult
+        }
+        return historyEntries.first?.result
+    }
+
+    private func recoveryStage(for number: Int, historyEntries: [ProblemHistoryEntry]) -> MaterialProblemRecoveryStage? {
+        let currentResult = materialRecords.first(where: { $0.number == number })?.result
+        var observedResults = historyEntries.map(\.result)
+        if let currentResult, currentResult != observedResults.first {
+            observedResults.insert(currentResult, at: 0)
+        }
+
+        let wrongCount = observedResults.filter { $0 == .wrong }.count
+        guard wrongCount > 0 else { return nil }
+
+        let positiveScore = observedResults.reduce(0.0) { partialResult, result in
+            switch result {
+            case .correct:
+                return partialResult + 1.0
+            case .reviewCorrect:
+                return partialResult + 1.15
+            case .wrong:
+                return partialResult
+            }
+        }
+
+        guard positiveScore > 0 else { return .allWrong }
+
+        let recoveryRatio = positiveScore / (Double(wrongCount) + positiveScore)
+        switch recoveryRatio {
+        case ..<0.18:
+            return .allWrong
+        case ..<0.36:
+            return .startingToRecover
+        case ..<0.54:
+            return .halfRecovered
+        case ..<0.74:
+            return .mostlyRecovered
+        default:
+            return .almostStable
+        }
+    }
 }
 
 private enum MaterialProblemStatus: Hashable {
@@ -807,6 +873,62 @@ private enum MaterialProblemStatus: Hashable {
         case .correct: return .correct
         case .wrong: return .wrong
         case .reviewCorrect: return .reviewCorrect
+        }
+    }
+
+    var accessibilityTitle: String {
+        switch self {
+        case .untouched:
+            return "未着手"
+        case .correct:
+            return "正解"
+        case .wrong:
+            return "不正解"
+        case .reviewCorrect:
+            return "復習正解"
+        }
+    }
+}
+
+private struct MaterialProblemAppearance {
+    let status: MaterialProblemStatus
+    let recoveryStage: MaterialProblemRecoveryStage?
+}
+
+private enum MaterialProblemRecoveryStage: Int {
+    case allWrong
+    case startingToRecover
+    case halfRecovered
+    case mostlyRecovered
+    case almostStable
+
+    var accentColor: Color {
+        switch self {
+        case .allWrong:
+            return AppColors.danger
+        case .startingToRecover:
+            return Color(hex: 0xE26631)
+        case .halfRecovered:
+            return Color(hex: 0xD8902C)
+        case .mostlyRecovered:
+            return Color(hex: 0xB6A53A)
+        case .almostStable:
+            return Color(hex: 0x8DBA48)
+        }
+    }
+
+    var accessibilityTitle: String {
+        switch self {
+        case .allWrong:
+            return "復調度1/5"
+        case .startingToRecover:
+            return "復調度2/5"
+        case .halfRecovered:
+            return "復調度3/5"
+        case .mostlyRecovered:
+            return "復調度4/5"
+        case .almostStable:
+            return "復調度5/5"
         }
     }
 }
@@ -840,9 +962,11 @@ private struct MaterialProblemLegendItem: View {
 
 private struct MaterialProblemStatusTile: View {
     let number: Int
-    let status: MaterialProblemStatus
+    let appearance: MaterialProblemAppearance
     let isSelected: Bool
     let hasDetail: Bool
+    let hasHistory: Bool
+    let isLatestWrong: Bool
     let onTap: () -> Void
     let onLongPress: () -> Void
 
@@ -853,29 +977,84 @@ private struct MaterialProblemStatusTile: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
-            if hasDetail {
-                Image(systemName: "text.bubble.fill")
-                    .font(.system(size: 10, weight: .bold))
+            HStack(spacing: 4) {
+                if hasHistory {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                if hasDetail {
+                    Image(systemName: "text.bubble.fill")
+                        .font(.system(size: 10, weight: .bold))
+                }
             }
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 52)
         .aspectRatio(1, contentMode: .fit)
         .foregroundStyle(foreground)
-        .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(border, lineWidth: isSelected ? 2 : 1)
-        )
+        .background(tileBackground)
+        .overlay(tileBorder)
+        .overlay(alignment: .topTrailing) {
+            if isLatestWrong {
+                Circle()
+                    .fill(AppColors.danger)
+                    .frame(width: 10, height: 10)
+                    .overlay(
+                        Circle()
+                            .stroke(Color(.systemBackground), lineWidth: 1.5)
+                    )
+                    .padding(6)
+                    .accessibilityHidden(true)
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onTapGesture(perform: onTap)
         .onLongPressGesture(minimumDuration: 0.45, perform: onLongPress)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("タップで履歴を表示、長押しで状態とメモを編集")
+        .accessibilityHint(accessibilityHint)
     }
 
-    private var background: Color {
-        switch status {
+    @ViewBuilder
+    private var tileBackground: some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        if let recoveryStage = appearance.recoveryStage {
+            shape.fill(
+                LinearGradient(
+                    colors: [
+                        AppColors.danger.opacity(0.22),
+                        recoveryStage.accentColor.opacity(0.26)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        } else {
+            shape.fill(backgroundColor)
+        }
+    }
+
+    @ViewBuilder
+    private var tileBorder: some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        if let recoveryStage = appearance.recoveryStage {
+            shape.strokeBorder(
+                LinearGradient(
+                    colors: [
+                        AppColors.danger.opacity(0.75),
+                        recoveryStage.accentColor.opacity(0.90)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: isSelected ? 2 : 1
+            )
+        } else {
+            shape.strokeBorder(borderColor, lineWidth: isSelected ? 2 : 1)
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch appearance.status {
         case .untouched:
             return Color.secondary.opacity(0.08)
         case .correct:
@@ -888,7 +1067,10 @@ private struct MaterialProblemStatusTile: View {
     }
 
     private var foreground: Color {
-        switch status {
+        if let recoveryStage = appearance.recoveryStage {
+            return recoveryStage.accentColor
+        }
+        switch appearance.status {
         case .untouched:
             return AppColors.textSecondary
         case .correct:
@@ -900,8 +1082,8 @@ private struct MaterialProblemStatusTile: View {
         }
     }
 
-    private var border: Color {
-        switch status {
+    private var borderColor: Color {
+        switch appearance.status {
         case .untouched:
             return Color.secondary.opacity(0.15)
         case .correct:
@@ -914,16 +1096,14 @@ private struct MaterialProblemStatusTile: View {
     }
 
     private var accessibilityLabel: String {
-        switch status {
-        case .untouched:
-            return "\(number)問目 未着手"
-        case .correct:
-            return "\(number)問目 正解"
-        case .wrong:
-            return "\(number)問目 不正解"
-        case .reviewCorrect:
-            return "\(number)問目 復習正解"
+        if let recoveryStage = appearance.recoveryStage {
+            return "\(number)問目 \(appearance.status.accessibilityTitle) \(recoveryStage.accessibilityTitle)\(isLatestWrong ? " 最新は不正解" : "")"
         }
+        return "\(number)問目 \(appearance.status.accessibilityTitle)\(isLatestWrong ? " 最新は不正解" : "")"
+    }
+
+    private var accessibilityHint: String {
+        hasHistory ? "タップで履歴を表示、長押しで状態とメモを編集" : "長押しで状態とメモを編集"
     }
 }
 
@@ -945,46 +1125,53 @@ private struct MaterialProblemHistoryAccordion: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
             HStack {
-                Label("\(number)問目の履歴", systemImage: "clock.arrow.circlepath")
-                    .font(.subheadline.bold())
+                Label("\(number)問目", systemImage: "clock.arrow.circlepath")
+                    .font(.caption.bold())
                 Spacer()
+                Text("\(entries.count)回")
+                    .font(.caption2.bold())
+                    .foregroundStyle(AppColors.textSecondary)
                 if let currentRecord {
                     Text(currentRecord.result.title)
-                        .font(.caption.bold())
+                        .font(.caption2.bold())
                         .foregroundStyle(color(for: currentRecord.result))
                 }
             }
 
             if let detail = currentRecord?.detail?.nilIfBlank {
                 Text(detail)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(AppColors.textSecondary)
             }
 
-            if entries.isEmpty {
-                Text("この問題のセッション履歴はありません")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-            } else {
-                ForEach(entries) { entry in
-                    HStack(spacing: AppSpacing.xs) {
-                        Text(dateText(entry.date))
-                            .font(.caption.monospacedDigit())
+            Divider()
+                .overlay(Color.secondary.opacity(0.16))
+
+            ForEach(entries.prefix(6)) { entry in
+                HStack(spacing: AppSpacing.xs) {
+                    Text(dateText(entry.date))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(AppColors.textSecondary)
+                    Text(entry.result.title)
+                        .font(.caption2.bold())
+                        .foregroundStyle(color(for: entry.result))
+                    if let detail = entry.detail {
+                        Text(detail)
+                            .font(.caption2)
                             .foregroundStyle(AppColors.textSecondary)
-                        Text(entry.result.title)
-                            .font(.caption.bold())
-                            .foregroundStyle(color(for: entry.result))
-                        if let detail = entry.detail {
-                            Text(detail)
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textSecondary)
-                                .lineLimit(1)
-                        }
+                            .lineLimit(1)
                     }
                 }
             }
+
+            if entries.count > 6 {
+                Text("他 \(entries.count - 6) 件")
+                    .font(.caption2)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
         }
-        .padding(AppSpacing.sm)
+        .padding(.horizontal, AppSpacing.sm)
+        .padding(.vertical, 10)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -995,7 +1182,7 @@ private struct MaterialProblemHistoryAccordion: View {
     private func dateText(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "MM/dd"
+        formatter.dateFormat = "M/d HH:mm"
         return formatter.string(from: date)
     }
 
