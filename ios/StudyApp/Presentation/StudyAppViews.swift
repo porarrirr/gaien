@@ -1199,6 +1199,11 @@ private struct CalendarScreen: View {
     @State private var durationText: String = ""
     @State private var noteText: String = ""
     @State private var ratingSelection: Int? = nil
+    @State private var problemStartText: String = ""
+    @State private var problemEndText: String = ""
+    @State private var wrongProblemCountText: String = ""
+    @State private var problemCountText: String = ""
+    @State private var editingProblemRecords: [ProblemSessionRecord] = []
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: CalendarViewModel(app: app))
@@ -1395,53 +1400,61 @@ private struct CalendarScreen: View {
         }
         .sheet(item: $editingSession) { session in
             NavigationView {
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(session.subjectName.isEmpty ? "未設定" : session.subjectName)
-                                .font(.headline)
-                            if !session.materialName.isEmpty {
-                                Text(session.materialName)
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppColors.textSecondary)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(session.subjectName.isEmpty ? "未設定" : session.subjectName)
+                                    .font(.headline)
+                                if !session.materialName.isEmpty {
+                                    Text(session.materialName)
+                                        .font(.subheadline)
+                                        .foregroundStyle(AppColors.textSecondary)
+                                }
                             }
+                            Spacer()
+                            Text(sessionIntervalText(session))
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSecondary)
                         }
+
+                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                            Text("学習時間（分）")
+                                .font(.subheadline.bold())
+                            TextField("学習時間（分）", text: $durationText)
+                                .keyboardType(.numberPad)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                            Text("評価")
+                                .font(.subheadline.bold())
+                            SessionRatingSelector(rating: $ratingSelection, allowsClearing: true)
+                        }
+
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            Text("問題集の記録")
+                                .font(.subheadline.bold())
+                            problemRecordEditor(for: session)
+                        }
+
+                        TextEditor(text: $noteText)
+                            .frame(minHeight: 150)
+                            .scrollContentBackground(.hidden)
+                            .padding(AppSpacing.sm)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color(.systemGray6))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Color(.separator), lineWidth: 1)
+                            )
+
                         Spacer()
-                        Text(sessionIntervalText(session))
-                            .font(.caption)
-                            .foregroundStyle(AppColors.textSecondary)
                     }
-
-                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                        Text("学習時間（分）")
-                            .font(.subheadline.bold())
-                        TextField("学習時間（分）", text: $durationText)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                        Text("評価")
-                            .font(.subheadline.bold())
-                        SessionRatingSelector(rating: $ratingSelection, allowsClearing: true)
-                    }
-
-                    TextEditor(text: $noteText)
-                        .frame(minHeight: 150)
-                        .scrollContentBackground(.hidden)
-                        .padding(AppSpacing.sm)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color(.systemGray6))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color(.separator), lineWidth: 1)
-                        )
-
-                    Spacer()
+                    .padding()
                 }
-                .padding()
                 .navigationTitle("履歴を編集")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -1459,15 +1472,16 @@ private struct CalendarScreen: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("保存") {
+                            let normalizedRecords = editingProblemRecords.sorted { $0.number < $1.number }
                             viewModel.updateSession(
                                 session,
                                 durationMinutes: Int(durationText) ?? session.durationMinutes,
                                 note: noteText,
                                 rating: ratingSelection,
-                                problemStart: session.problemStart,
-                                problemEnd: session.problemEnd,
-                                wrongProblemCount: session.wrongProblemCount,
-                                problemRecords: session.problemRecords
+                                problemStart: normalizedRecords.first?.number ?? Int(problemStartText),
+                                problemEnd: normalizedRecords.last?.number ?? Int(problemEndText),
+                                wrongProblemCount: normalizedRecords.isEmpty ? Int(wrongProblemCountText) : normalizedRecords.filter(\.isWrong).count,
+                                problemRecords: normalizedRecords
                             )
                             editingSession = nil
                         }
@@ -1538,6 +1552,26 @@ private struct CalendarScreen: View {
                     .foregroundStyle(AppColors.textSecondary)
             }
 
+            if session.problemRangeText != nil || session.effectiveWrongProblemCount != nil {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Label(session.problemRangeText ?? "範囲未入力", systemImage: "list.number")
+                        Spacer()
+                        Text("誤答 \(session.effectiveWrongProblemCount ?? 0)")
+                    }
+                    if !session.problemRecords.isEmpty {
+                        Text(problemNumbersText(for: session.problemRecords))
+                            .lineLimit(2)
+                    }
+                    ForEach(session.problemRecords.filter { $0.detail?.nilIfBlank != nil }) { record in
+                        Text("\(record.number)問目: \(record.detail ?? "")")
+                            .lineLimit(2)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(AppColors.textSecondary)
+            }
+
             // Time range
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(session.effectiveIntervals, id: \.self) { interval in
@@ -1551,10 +1585,7 @@ private struct CalendarScreen: View {
 
             // Memo section – tappable to edit
             Button {
-                durationText = "\(session.durationMinutes)"
-                noteText = session.note ?? ""
-                ratingSelection = session.rating
-                editingSession = session
+                prepareEditing(session)
             } label: {
                 HStack {
                     if let note = session.note, !note.isEmpty {
@@ -1577,10 +1608,7 @@ private struct CalendarScreen: View {
             .buttonStyle(.plain)
             .contextMenu {
                 Button {
-                    durationText = "\(session.durationMinutes)"
-                    noteText = session.note ?? ""
-                    ratingSelection = session.rating
-                    editingSession = session
+                    prepareEditing(session)
                 } label: {
                     Label("編集", systemImage: "pencil")
                 }
@@ -1592,6 +1620,98 @@ private struct CalendarScreen: View {
             }
         }
         .cardStyle()
+    }
+
+    @ViewBuilder
+    private func problemRecordEditor(for session: StudySession) -> some View {
+        let totalProblems = editingTotalProblems(for: session)
+        if viewModel.materialProblemCount(for: session) > 0 {
+            Text("全\(totalProblems)問")
+                .font(.caption.bold())
+                .foregroundStyle(AppColors.textSecondary)
+        } else {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                HStack {
+                    TextField("開始問題", text: $problemStartText)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("終了問題", text: $problemEndText)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("誤答", text: $wrongProblemCountText)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                }
+                HStack {
+                    TextField("全問題数", text: $problemCountText)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                    ForEach([10, 20, 50], id: \.self) { count in
+                        Button("\(count)問") {
+                            problemCountText = "\(count)"
+                        }
+                        .buttonStyle(.bordered)
+                        .font(.caption.bold())
+                    }
+                }
+            }
+        }
+
+        if totalProblems > 0 {
+            ProblemTileSelector(totalProblems: totalProblems, records: $editingProblemRecords)
+            Text(problemRecordEditSummary)
+                .font(.caption)
+                .foregroundStyle(AppColors.textSecondary)
+        }
+    }
+
+    private var problemRecordEditSummary: String {
+        let done = editingProblemRecords.count
+        let wrong = editingProblemRecords.filter(\.isWrong).count
+        return "タップで正解、ダブルタップで不正解、長押しで状態とメモを編集。選択 \(done)問 / 誤答 \(wrong)問"
+    }
+
+    private func prepareEditing(_ session: StudySession) {
+        durationText = "\(session.durationMinutes)"
+        noteText = session.note ?? ""
+        ratingSelection = session.rating
+        problemStartText = session.problemStart.map(String.init) ?? ""
+        problemEndText = session.problemEnd.map(String.init) ?? ""
+        wrongProblemCountText = session.wrongProblemCount.map(String.init) ?? ""
+        editingProblemRecords = session.problemRecords
+        problemCountText = initialProblemCountText(for: session)
+        editingSession = session
+    }
+
+    private func initialProblemCountText(for session: StudySession) -> String {
+        let totalProblems = viewModel.materialProblemCount(for: session)
+        if totalProblems > 0 {
+            return "\(totalProblems)"
+        }
+        let maxRecordedProblem = session.problemRecords.map(\.number).max() ?? 0
+        let count = max(maxRecordedProblem, session.problemEnd ?? 0)
+        return count > 0 ? "\(count)" : ""
+    }
+
+    private func editingTotalProblems(for session: StudySession) -> Int {
+        let materialProblemCount = viewModel.materialProblemCount(for: session)
+        if materialProblemCount > 0 {
+            return materialProblemCount
+        }
+        return parseDraftInt(problemCountText)
+    }
+
+    private func problemNumbersText(for records: [ProblemSessionRecord]) -> String {
+        let correct = records.filter { !$0.isWrong }.map(\.number)
+        let wrong = records.filter(\.isWrong).map(\.number)
+        var parts: [String] = []
+        if !correct.isEmpty {
+            parts.append("実施 \(correct.map(String.init).joined(separator: ", "))")
+        }
+        if !wrong.isEmpty {
+            parts.append("誤答 \(wrong.map(String.init).joined(separator: ", "))")
+        }
+        return parts.joined(separator: " / ")
     }
 
     private func timeString(from millis: Int64) -> String {

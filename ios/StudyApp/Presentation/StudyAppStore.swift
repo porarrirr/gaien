@@ -1227,6 +1227,7 @@ final class PlanViewModel: ScreenViewModel {
 final class CalendarViewModel: ScreenViewModel {
     @Published private(set) var monthStudyMap: [Int: Int] = [:]
     @Published private(set) var daySessionsMap: [Int: [StudySession]] = [:]
+    @Published private(set) var materials: [Material] = []
     @Published var displayedMonth = Date()
 
     func load() async {
@@ -1234,10 +1235,13 @@ final class CalendarViewModel: ScreenViewModel {
             let monthInterval = Calendar.current.dateInterval(of: .month, for: displayedMonth)
             let start = monthInterval?.start ?? displayedMonth.startOfDay
             let end = monthInterval?.end ?? displayedMonth
-            let sessions = try await app.persistence.getSessionsBetweenDates(
+            async let sessionsTask = app.persistence.getSessionsBetweenDates(
                 start: start.epochMilliseconds,
                 end: end.epochMilliseconds
             )
+            async let materialsTask = app.persistence.getAllMaterials()
+            let sessions = try await sessionsTask
+            materials = try await materialsTask
             let sortedSessions = sessions.sorted { $0.startTime < $1.startTime }
 
             monthStudyMap = sortedSessions.reduce(into: [:]) { result, session in
@@ -1258,6 +1262,11 @@ final class CalendarViewModel: ScreenViewModel {
 
     func totalMinutes(for day: Int) -> Int {
         sessions(for: day).reduce(0) { $0 + $1.durationMinutes }
+    }
+
+    func materialProblemCount(for session: StudySession) -> Int {
+        guard let materialId = session.materialId else { return 0 }
+        return materials.first(where: { $0.id == materialId })?.totalProblems ?? 0
     }
 
     func updateSession(
