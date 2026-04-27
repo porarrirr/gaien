@@ -61,6 +61,8 @@
 		A30000000000000000000020 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000020 /* SettingsViewModel.swift */; };
 		A30000000000000000000021 /* SubjectsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000021 /* SubjectsViewModel.swift */; };
 		A30000000000000000000022 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000022 /* MainTabView.swift */; };
+		A30000000000000000000023 /* StudyFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000023 /* StudyFormatters.swift */; };
+		A30000000000000000000024 /* ProblemTileSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000024 /* ProblemTileSelector.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -116,6 +118,8 @@
 		B30000000000000000000020 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		B30000000000000000000021 /* SubjectsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsViewModel.swift; sourceTree = "<group>"; };
 		B30000000000000000000022 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		B30000000000000000000023 /* StudyFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyFormatters.swift; sourceTree = "<group>"; };
+		B30000000000000000000024 /* ProblemTileSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemTileSelector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -222,6 +226,7 @@
 				B30000000000000000000001 /* ScreenViewModel.swift */,
 				B10000000000000000000020 /* AutoSyncCoordinator.swift */,
 				B10000000000000000000009 /* StudyAppViews.swift */,
+				D30000000000000000000009 /* Shared */,
 				D30000000000000000000008 /* Navigation */,
 				D30000000000000000000001 /* Onboarding */,
 				D30000000000000000000002 /* Home */,
@@ -395,6 +400,15 @@
 				B30000000000000000000022 /* MainTabView.swift */,
 			);
 			path = Navigation;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000009 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000023 /* StudyFormatters.swift */,
+				B30000000000000000000024 /* ProblemTileSelector.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -571,6 +585,8 @@
 				A30000000000000000000020 /* SettingsViewModel.swift in Sources */,
 				A30000000000000000000021 /* SubjectsViewModel.swift in Sources */,
 				A30000000000000000000022 /* MainTabView.swift in Sources */,
+				A30000000000000000000023 /* StudyFormatters.swift in Sources */,
+				A30000000000000000000024 /* ProblemTileSelector.swift in Sources */,
 				A10000000000000000000010 /* MaterialsScreen.swift in Sources */,
 				A10000000000000000000011 /* HistoryScreen.swift in Sources */,
 				A10000000000000000000012 /* PlanScreen.swift in Sources */,
