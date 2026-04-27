@@ -629,38 +629,52 @@ private struct MaterialProblemProgressCard: View {
                     .font(.caption2)
                     .foregroundStyle(AppColors.textSecondary)
 
-                LazyVGrid(columns: tileColumns, spacing: 10) {
-                    ForEach(1...totalProblems, id: \.self) { number in
-                        let entries = historyEntries(for: number)
-                        MaterialProblemStatusTile(
-                            number: number,
-                            appearance: appearance(for: number, historyEntries: entries),
-                            isSelected: selectedNumber == number,
-                            hasDetail: detail(for: number) != nil,
-                            hasHistory: !entries.isEmpty,
-                            isLatestWrong: latestHistoryResult(for: number, historyEntries: entries) == .wrong,
-                            onTap: {
-                                guard !entries.isEmpty else { return }
-                                withAnimation(.easeInOut(duration: 0.18)) {
-                                    selectedNumber = selectedNumber == number ? nil : number
+                VStack(spacing: 10) {
+                    ForEach(Array(problemRows.enumerated()), id: \.offset) { rowInfo in
+                        let row = rowInfo.element
+                        VStack(spacing: 8) {
+                            HStack(spacing: 10) {
+                                ForEach(row, id: \.self) { number in
+                                    let entries = historyEntries(for: number)
+                                    MaterialProblemStatusTile(
+                                        number: number,
+                                        appearance: appearance(for: number, historyEntries: entries),
+                                        isSelected: selectedNumber == number,
+                                        hasDetail: detail(for: number) != nil,
+                                        hasHistory: !entries.isEmpty,
+                                        isLatestWrong: latestHistoryResult(for: number, historyEntries: entries) == .wrong,
+                                        onTap: {
+                                            guard !entries.isEmpty else { return }
+                                            withAnimation(.easeInOut(duration: 0.18)) {
+                                                selectedNumber = selectedNumber == number ? nil : number
+                                            }
+                                        },
+                                        onLongPress: {
+                                            openEditor(for: number)
+                                        }
+                                    )
                                 }
-                            },
-                            onLongPress: {
-                                openEditor(for: number)
-                            }
-                        )
-                    }
-                }
 
-                if let selectedNumber {
-                    let entries = historyEntries(for: selectedNumber)
-                    if !entries.isEmpty {
-                        MaterialProblemHistoryAccordion(
-                            number: selectedNumber,
-                            entries: entries,
-                            currentRecord: materialRecords.first(where: { $0.number == selectedNumber })
-                        )
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                                ForEach(0..<emptyTileCount(for: row), id: \.self) { _ in
+                                    Color.clear
+                                        .frame(maxWidth: .infinity)
+                                        .frame(minHeight: 52)
+                                        .aspectRatio(1, contentMode: .fit)
+                                }
+                            }
+
+                            if let selectedNumber, row.contains(selectedNumber) {
+                                let entries = historyEntries(for: selectedNumber)
+                                if !entries.isEmpty {
+                                    MaterialProblemHistoryAccordion(
+                                        number: selectedNumber,
+                                        entries: entries,
+                                        currentRecord: materialRecords.first(where: { $0.number == selectedNumber })
+                                    )
+                                    .transition(.move(edge: .top).combined(with: .opacity))
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -702,12 +716,19 @@ private struct MaterialProblemProgressCard: View {
         }
     }
 
-    private var tileColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(minimum: 48), spacing: 10), count: 5)
+    private var problemRows: [[Int]] {
+        guard totalProblems > 0 else { return [] }
+        return stride(from: 1, through: totalProblems, by: 5).map { start in
+            Array(start...min(start + 4, totalProblems))
+        }
     }
 
     private var metricColumns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: AppSpacing.sm), count: 2)
+    }
+
+    private func emptyTileCount(for row: [Int]) -> Int {
+        max(5 - row.count, 0)
     }
 
     private var doneNumbers: Set<Int> {
