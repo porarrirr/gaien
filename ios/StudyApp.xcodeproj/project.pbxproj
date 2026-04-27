@@ -8,7 +8,15 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* StudyAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* StudyAppApp.swift */; };
-		A10000000000000000000002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Models.swift */; };
+		A40000000000000000000001 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
+		A40000000000000000000002 /* StudyEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* StudyEntities.swift */; };
+		A40000000000000000000003 /* SupportingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000003 /* SupportingModels.swift */; };
+		A40000000000000000000004 /* GoalCollectionExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000004 /* GoalCollectionExtensions.swift */; };
+		A40000000000000000000005 /* AppDataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000005 /* AppDataModels.swift */; };
+		A40000000000000000000006 /* RepositoryProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000006 /* RepositoryProtocols.swift */; };
+		A40000000000000000000007 /* StudyUseCases.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000007 /* StudyUseCases.swift */; };
+		A40000000000000000000008 /* FoundationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000008 /* FoundationExtensions.swift */; };
+		A40000000000000000000009 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
 		A10000000000000000000003 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* PersistenceController.swift */; };
 		A10000000000000000000004 /* GoogleBooksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* GoogleBooksService.swift */; };
 		A10000000000000000000018 /* FirebaseRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseRepositories.swift */; };
@@ -38,7 +46,6 @@
 		A20000000000000000000006 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
 		A20000000000000000000007 /* StudyTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* StudyTimerActivityAttributes.swift */; };
 		A20000000000000000000008 /* StudyTimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* StudyTimerLiveActivity.swift */; };
-		A20000000000000000000009 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Models.swift */; };
 		A30000000000000000000001 /* ScreenViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* ScreenViewModel.swift */; };
 		A30000000000000000000002 /* OnboardingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000002 /* OnboardingScreen.swift */; };
 		A30000000000000000000003 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000003 /* OnboardingViewModel.swift */; };
@@ -68,7 +75,14 @@
 /* Begin PBXFileReference section */
 		B10000000000000000000001 /* StudyApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StudyApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000000000000000000002 /* StudyAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppApp.swift; sourceTree = "<group>"; };
-		B10000000000000000000003 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		B40000000000000000000001 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
+		B40000000000000000000002 /* StudyEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyEntities.swift; sourceTree = "<group>"; };
+		B40000000000000000000003 /* SupportingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportingModels.swift; sourceTree = "<group>"; };
+		B40000000000000000000004 /* GoalCollectionExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCollectionExtensions.swift; sourceTree = "<group>"; };
+		B40000000000000000000005 /* AppDataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataModels.swift; sourceTree = "<group>"; };
+		B40000000000000000000006 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
+		B40000000000000000000007 /* StudyUseCases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyUseCases.swift; sourceTree = "<group>"; };
+		B40000000000000000000008 /* FoundationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationExtensions.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* FirebaseRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseRepositories.swift; sourceTree = "<group>"; };
@@ -203,9 +217,48 @@
 		D10000000000000000000004 /* Domain */ = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000003 /* Models.swift */,
+				D40000000000000000000001 /* Models */,
+				D40000000000000000000002 /* Repositories */,
+				D40000000000000000000003 /* UseCases */,
+				D40000000000000000000004 /* Support */,
 			);
 			path = Domain;
+			sourceTree = "<group>";
+		};
+		D40000000000000000000001 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000001 /* DomainEnums.swift */,
+				B40000000000000000000002 /* StudyEntities.swift */,
+				B40000000000000000000003 /* SupportingModels.swift */,
+				B40000000000000000000004 /* GoalCollectionExtensions.swift */,
+				B40000000000000000000005 /* AppDataModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D40000000000000000000002 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000006 /* RepositoryProtocols.swift */,
+			);
+			path = Repositories;
+			sourceTree = "<group>";
+		};
+		D40000000000000000000003 /* UseCases */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000007 /* StudyUseCases.swift */,
+			);
+			path = UseCases;
+			sourceTree = "<group>";
+		};
+		D40000000000000000000004 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000008 /* FoundationExtensions.swift */,
+			);
+			path = Support;
 			sourceTree = "<group>";
 		};
 		D10000000000000000000005 /* Data */ = {
@@ -551,7 +604,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* StudyAppApp.swift in Sources */,
-				A10000000000000000000002 /* Models.swift in Sources */,
+				A40000000000000000000001 /* DomainEnums.swift in Sources */,
+				A40000000000000000000002 /* StudyEntities.swift in Sources */,
+				A40000000000000000000003 /* SupportingModels.swift in Sources */,
+				A40000000000000000000004 /* GoalCollectionExtensions.swift in Sources */,
+				A40000000000000000000005 /* AppDataModels.swift in Sources */,
+				A40000000000000000000006 /* RepositoryProtocols.swift in Sources */,
+				A40000000000000000000007 /* StudyUseCases.swift in Sources */,
+				A40000000000000000000008 /* FoundationExtensions.swift in Sources */,
 				A10000000000000000000003 /* PersistenceController.swift in Sources */,
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,
 				A10000000000000000000018 /* FirebaseRepositories.swift in Sources */,
@@ -601,7 +661,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A20000000000000000000009 /* Models.swift in Sources */,
+				A40000000000000000000009 /* DomainEnums.swift in Sources */,
 				A20000000000000000000004 /* StudyAppWidgetsBundle.swift in Sources */,
 				A20000000000000000000005 /* StudyAppWidgets.swift in Sources */,
 				A20000000000000000000006 /* WidgetSnapshotModels.swift in Sources */,
