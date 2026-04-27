@@ -945,8 +945,10 @@ private struct SessionEvaluationSheet: View {
 
     private var problemRecordSummary: String {
         let done = problemRecords.count
+        let correct = problemRecords.filter { $0.result == .correct }.count
         let wrong = problemRecords.filter(\.isWrong).count
-        return "タップで正解、ダブルタップで不正解、長押しで状態とメモを編集。選択 \(done)問 / 誤答 \(wrong)問"
+        let review = problemRecords.filter { $0.result == .reviewCorrect }.count
+        return "タップで正解、ダブルタップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
     }
 
     private var effectiveProblemCount: Int {
@@ -1019,7 +1021,7 @@ private struct ProblemTileSelector: View {
                     onLongPress: {
                         let record = records.first(where: { $0.number == number })
                         if let record {
-                            editingStatus = record.isWrong ? .wrong : .correct
+                            editingStatus = record.result.editStatus
                         } else {
                             editingStatus = .untouched
                         }
@@ -1038,7 +1040,8 @@ private struct ProblemTileSelector: View {
                     Picker("状態", selection: $editingStatus) {
                         Text("未着手").tag(ProblemTileEditStatus.untouched)
                         Text("正解").tag(ProblemTileEditStatus.correct)
-                        Text("間違い").tag(ProblemTileEditStatus.wrong)
+                        Text("不正解").tag(ProblemTileEditStatus.wrong)
+                        Text("復習正解").tag(ProblemTileEditStatus.reviewCorrect)
                     }
                     TextField("大問・小問メモ（例: 大問2の(4)、計算ミス）", text: $detailText, axis: .vertical)
                         .keyboardType(.default)
@@ -1061,8 +1064,8 @@ private struct ProblemTileSelector: View {
 
     private func toggleCorrect(_ number: Int) {
         if let index = records.firstIndex(where: { $0.number == number }) {
-            if records[index].isWrong {
-                records[index].isWrong = false
+            if records[index].result == .wrong {
+                records[index].result = .correct
             } else {
                 records.remove(at: index)
             }
@@ -1092,7 +1095,7 @@ private struct ProblemTileSelector: View {
         records.append(
             ProblemSessionRecord(
                 number: number,
-                isWrong: editingStatus == .wrong,
+                result: editingStatus.problemResult ?? .correct,
                 detail: trimmed.isEmpty ? nil : trimmed
             )
         )
@@ -1104,6 +1107,26 @@ private enum ProblemTileEditStatus: Hashable {
     case untouched
     case correct
     case wrong
+    case reviewCorrect
+
+    var problemResult: ProblemResult? {
+        switch self {
+        case .untouched: return nil
+        case .correct: return .correct
+        case .wrong: return .wrong
+        case .reviewCorrect: return .reviewCorrect
+        }
+    }
+}
+
+private extension ProblemResult {
+    var editStatus: ProblemTileEditStatus {
+        switch self {
+        case .correct: return .correct
+        case .wrong: return .wrong
+        case .reviewCorrect: return .reviewCorrect
+        }
+    }
 }
 
 private struct ProblemTileEditTarget: Identifiable {
@@ -1145,7 +1168,7 @@ private struct ProblemTile: View {
         .onLongPressGesture(minimumDuration: 0.45, perform: onLongPress)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("タップで正解、ダブルタップで不正解、長押しで大問・小問メモ")
+        .accessibilityHint("タップで正解、ダブルタップで不正解、長押しで復習正解とメモを編集")
     }
 
     private func handleSingleTap() {
@@ -1165,22 +1188,34 @@ private struct ProblemTile: View {
 
     private var background: Color {
         guard let record else { return Color.secondary.opacity(0.08) }
-        return record.isWrong ? AppColors.danger.opacity(0.18) : Color.accentColor.opacity(0.16)
+        switch record.result {
+        case .correct: return Color.accentColor.opacity(0.16)
+        case .wrong: return AppColors.danger.opacity(0.18)
+        case .reviewCorrect: return AppColors.warning.opacity(0.20)
+        }
     }
 
     private var foreground: Color {
         guard let record else { return AppColors.textSecondary }
-        return record.isWrong ? AppColors.danger : Color.accentColor
+        switch record.result {
+        case .correct: return Color.accentColor
+        case .wrong: return AppColors.danger
+        case .reviewCorrect: return AppColors.warning
+        }
     }
 
     private var border: Color {
         guard let record else { return Color.secondary.opacity(0.15) }
-        return record.isWrong ? AppColors.danger.opacity(0.55) : Color.accentColor.opacity(0.45)
+        switch record.result {
+        case .correct: return Color.accentColor.opacity(0.45)
+        case .wrong: return AppColors.danger.opacity(0.55)
+        case .reviewCorrect: return AppColors.warning.opacity(0.60)
+        }
     }
 
     private var accessibilityLabel: String {
         guard let record else { return "\(number)問目 未着手" }
-        return record.isWrong ? "\(number)問目 不正解" : "\(number)問目 正解"
+        return "\(number)問目 \(record.result.title)"
     }
 }
 
@@ -1557,11 +1592,13 @@ private struct CalendarScreen: View {
                     HStack {
                         Label(session.problemRangeText ?? "範囲未入力", systemImage: "list.number")
                         Spacer()
-                        Text("誤答 \(session.effectiveWrongProblemCount ?? 0)")
+                        Text("不正解 \(session.effectiveWrongProblemCount ?? 0)")
                     }
                     if !session.problemRecords.isEmpty {
                         Text(problemNumbersText(for: session.problemRecords))
                             .lineLimit(2)
+                    } else if session.effectiveReviewCorrectProblemCount > 0 {
+                        Text("復習 \(session.effectiveReviewCorrectProblemCount)")
                     }
                     ForEach(session.problemRecords.filter { $0.detail?.nilIfBlank != nil }) { record in
                         Text("\(record.number)問目: \(record.detail ?? "")")
@@ -1638,7 +1675,7 @@ private struct CalendarScreen: View {
                     TextField("終了問題", text: $problemEndText)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
-                    TextField("誤答", text: $wrongProblemCountText)
+                    TextField("不正解", text: $wrongProblemCountText)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
                 }
@@ -1667,8 +1704,10 @@ private struct CalendarScreen: View {
 
     private var problemRecordEditSummary: String {
         let done = editingProblemRecords.count
+        let correct = editingProblemRecords.filter { $0.result == .correct }.count
         let wrong = editingProblemRecords.filter(\.isWrong).count
-        return "タップで正解、ダブルタップで不正解、長押しで状態とメモを編集。選択 \(done)問 / 誤答 \(wrong)問"
+        let review = editingProblemRecords.filter { $0.result == .reviewCorrect }.count
+        return "タップで正解、ダブルタップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
     }
 
     private func prepareEditing(_ session: StudySession) {
@@ -1702,14 +1741,18 @@ private struct CalendarScreen: View {
     }
 
     private func problemNumbersText(for records: [ProblemSessionRecord]) -> String {
-        let correct = records.filter { !$0.isWrong }.map(\.number)
+        let correct = records.filter { $0.result == .correct }.map(\.number)
         let wrong = records.filter(\.isWrong).map(\.number)
+        let review = records.filter { $0.result == .reviewCorrect }.map(\.number)
         var parts: [String] = []
-        if !correct.isEmpty {
-            parts.append("実施 \(correct.map(String.init).joined(separator: ", "))")
-        }
         if !wrong.isEmpty {
-            parts.append("誤答 \(wrong.map(String.init).joined(separator: ", "))")
+            parts.append("不正解 \(wrong.map(String.init).joined(separator: ", "))")
+        }
+        if !correct.isEmpty {
+            parts.append("正解 \(correct.map(String.init).joined(separator: ", "))")
+        }
+        if !review.isEmpty {
+            parts.append("復習 \(review.map(String.init).joined(separator: ", "))")
         }
         return parts.joined(separator: " / ")
     }

@@ -122,7 +122,7 @@ struct HistoryScreen: View {
                                 .keyboardType(.numberPad)
                             TextField("終了問題", text: $problemEndDraft)
                                 .keyboardType(.numberPad)
-                            TextField("誤答", text: $wrongProblemCountDraft)
+                            TextField("不正解", text: $wrongProblemCountDraft)
                                 .keyboardType(.numberPad)
                         }
                         TextField("メモ", text: $noteDraft, axis: .vertical)
@@ -208,7 +208,7 @@ private struct HistorySessionCardNew: View {
                         .foregroundStyle(AppColors.textSecondary)
                 }
                 if session.problemRangeText != nil || session.wrongProblemCount != nil {
-                    Text("\(session.problemRangeText ?? "範囲未入力") / 誤答 \(session.effectiveWrongProblemCount ?? 0)")
+                    Text(sessionProblemSummary(session))
                         .font(.caption2)
                         .foregroundStyle(AppColors.textSecondary)
                 }
@@ -231,5 +231,25 @@ private struct HistorySessionCardNew: View {
         tf.locale = Locale(identifier: "ja_JP")
         tf.dateFormat = "HH:mm"
         return "\(tf.string(from: session.startDate)) - \(tf.string(from: session.endDate))"
+    }
+
+    private func sessionProblemSummary(_ session: StudySession) -> String {
+        guard !session.problemRecords.isEmpty else {
+            return "\(session.problemRangeText ?? "範囲未入力") / 不正解 \(session.effectiveWrongProblemCount ?? 0)"
+        }
+        let correct = session.problemRecords.filter { $0.result == .correct }.map(\.number)
+        let wrong = session.problemRecords.filter(\.isWrong).map(\.number)
+        let review = session.problemRecords.filter { $0.result == .reviewCorrect }.map(\.number)
+        var parts = [session.problemRangeText ?? "範囲未入力"]
+        if !wrong.isEmpty {
+            parts.append("不正解 \(wrong.map(String.init).joined(separator: ", "))")
+        }
+        if !correct.isEmpty {
+            parts.append("正解 \(correct.map(String.init).joined(separator: ", "))")
+        }
+        if !review.isEmpty {
+            parts.append("復習 \(review.map(String.init).joined(separator: ", "))")
+        }
+        return parts.joined(separator: " / ")
     }
 }
