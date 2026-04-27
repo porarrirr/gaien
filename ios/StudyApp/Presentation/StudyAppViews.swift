@@ -1086,7 +1086,7 @@ private struct ProblemTileSelector: View {
     }
 
     private func saveEditedRecord(number: Int) {
-        let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = detailText.trimmingCharacters(in: .whitespacesAndNewlines)
         records.removeAll { $0.number == number }
         guard editingStatus != .untouched else { return }
         records.append(
