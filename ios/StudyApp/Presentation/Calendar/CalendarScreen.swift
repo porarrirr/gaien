@@ -6,6 +6,7 @@ import SwiftUI
 struct CalendarScreen: View {
     @StateObject private var viewModel: CalendarViewModel
     @State private var selectedDay: Int? = nil
+    @State private var detailDisplayMode: CalendarDetailDisplayMode = .summary
     @State private var editingSession: StudySession? = nil
     @State private var pendingDeletionSession: StudySession? = nil
     @State private var durationText: String = ""
@@ -154,11 +155,7 @@ struct CalendarScreen: View {
                             }
                             Spacer()
                             if !sessions.isEmpty {
-                                Text("\(sessions.count)")
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(.white)
-                                    .frame(width: 22, height: 22)
-                                    .background(.tint, in: Circle())
+                                detailModeSwitch
                             }
                         }
 
@@ -179,8 +176,15 @@ struct CalendarScreen: View {
                             .padding(.vertical, AppSpacing.lg)
                             .cardStyle()
                         } else {
-                            ForEach(subjectSummaries) { subject in
-                                subjectSummarySection(subject)
+                            switch detailDisplayMode {
+                            case .summary:
+                                ForEach(subjectSummaries) { subject in
+                                    subjectSummarySection(subject)
+                                }
+                            case .timeline:
+                                ForEach(sessions) { session in
+                                    sessionCard(session)
+                                }
                             }
                         }
                     }
@@ -330,6 +334,31 @@ struct CalendarScreen: View {
         formatter.locale = Locale(identifier: "ja_JP")
         formatter.dateFormat = "yyyy年M月"
         return formatter.string(from: viewModel.displayedMonth)
+    }
+
+    private var detailModeSwitch: some View {
+        HStack(spacing: 4) {
+            ForEach(CalendarDetailDisplayMode.allCases) { mode in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        detailDisplayMode = mode
+                    }
+                } label: {
+                    Text(mode.title)
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .foregroundStyle(detailDisplayMode == mode ? .white : AppColors.textSecondary)
+                        .background(
+                            Capsule()
+                                .fill(detailDisplayMode == mode ? Color.accentColor : Color(.systemGray5))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("表示切替")
     }
 
     private func subjectSummarySection(_ subject: DayStudySubjectSummary) -> some View {
@@ -694,5 +723,19 @@ struct CalendarScreen: View {
         session.effectiveIntervals
             .map(intervalText)
             .joined(separator: "\n")
+    }
+}
+
+private enum CalendarDetailDisplayMode: String, CaseIterable, Identifiable {
+    case summary
+    case timeline
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .summary: return "まとめ"
+        case .timeline: return "時系列"
+        }
     }
 }
