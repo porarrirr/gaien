@@ -414,11 +414,7 @@ private struct MaterialHistoryScreen: View {
                         } else {
                             MaterialProblemProgressCard(
                                 totalProblems: material.totalProblems,
-                                materialRecords: material.problemRecords,
-                                sessions: viewModel.sessions,
-                                onRecordsChange: { records in
-                                    viewModel.updateProblemRecords(records)
-                                }
+                                sessions: viewModel.sessions
                             )
                             .padding(.horizontal, AppSpacing.md)
                         }
@@ -590,14 +586,9 @@ private struct MaterialHistoryMetric: View {
 
 private struct MaterialProblemProgressCard: View {
     let totalProblems: Int
-    let materialRecords: [ProblemSessionRecord]
     let sessions: [StudySession]
-    let onRecordsChange: ([ProblemSessionRecord]) -> Void
 
-    @State private var editingNumber: Int?
     @State private var selectedNumber: Int?
-    @State private var editingStatus: MaterialProblemStatus = .untouched
-    @State private var detailText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -612,10 +603,10 @@ private struct MaterialProblemProgressCard: View {
                 .padding(.vertical, AppSpacing.sm)
             } else {
                 LazyVGrid(columns: metricColumns, spacing: AppSpacing.sm) {
-                    MaterialHistoryMetric(label: "正解", value: "\(correctNumbers.count)")
-                    MaterialHistoryMetric(label: "不正解", value: "\(wrongNumbers.count)")
-                    MaterialHistoryMetric(label: "復習正解", value: "\(reviewCorrectNumbers.count)")
-                    MaterialHistoryMetric(label: "未実施", value: "\(max(totalProblems - doneNumbers.count, 0))")
+                    MaterialHistoryMetric(label: "正解", value: "\(snapshot.correctNumbers.count)")
+                    MaterialHistoryMetric(label: "不正解", value: "\(snapshot.wrongNumbers.count)")
+                    MaterialHistoryMetric(label: "復習正解", value: "\(snapshot.reviewCorrectNumbers.count)")
+                    MaterialHistoryMetric(label: "未実施", value: "\(max(totalProblems - snapshot.doneNumbers.count, 0))")
                 }
 
                 HStack(spacing: AppSpacing.sm) {
@@ -635,22 +626,19 @@ private struct MaterialProblemProgressCard: View {
                         VStack(spacing: 8) {
                             HStack(spacing: 10) {
                                 ForEach(row, id: \.self) { number in
-                                    let entries = historyEntries(for: number)
+                                    let item = snapshot.item(for: number)
                                     MaterialProblemStatusTile(
                                         number: number,
-                                        appearance: appearance(for: number, historyEntries: entries),
+                                        appearance: item.appearance,
                                         isSelected: selectedNumber == number,
-                                        hasDetail: detail(for: number) != nil,
-                                        hasHistory: !entries.isEmpty,
-                                        isLatestWrong: latestHistoryResult(for: number, historyEntries: entries) == .wrong,
+                                        hasDetail: item.detail != nil,
+                                        hasHistory: !item.entries.isEmpty,
+                                        isLatestWrong: item.latestResult == .wrong,
                                         onTap: {
-                                            guard !entries.isEmpty else { return }
+                                            guard !item.entries.isEmpty else { return }
                                             withAnimation(.easeInOut(duration: 0.18)) {
                                                 selectedNumber = selectedNumber == number ? nil : number
                                             }
-                                        },
-                                        onLongPress: {
-                                            openEditor(for: number)
                                         }
                                     )
                                 }
@@ -664,12 +652,11 @@ private struct MaterialProblemProgressCard: View {
                             }
 
                             if let selectedNumber, row.contains(selectedNumber) {
-                                let entries = historyEntries(for: selectedNumber)
-                                if !entries.isEmpty {
+                                let item = snapshot.item(for: selectedNumber)
+                                if !item.entries.isEmpty {
                                     MaterialProblemHistoryAccordion(
                                         number: selectedNumber,
-                                        entries: entries,
-                                        currentRecord: materialRecords.first(where: { $0.number == selectedNumber })
+                                        entries: item.entries
                                     )
                                     .transition(.move(edge: .top).combined(with: .opacity))
                                 }
@@ -678,42 +665,18 @@ private struct MaterialProblemProgressCard: View {
                     }
                 }
 
-                if !wrongNumbers.isEmpty {
-                    Text("不正解: \(wrongNumbers.sorted().prefix(30).map(String.init).joined(separator: ", "))\(wrongNumbers.count > 30 ? " ..." : "")")
+                if !snapshot.wrongNumbers.isEmpty {
+                    Text("不正解: \(snapshot.wrongNumbers.sorted().prefix(30).map(String.init).joined(separator: ", "))\(snapshot.wrongNumbers.count > 30 ? " ..." : "")")
                         .font(.caption)
                         .foregroundStyle(AppColors.textSecondary)
                 }
             }
         }
         .cardStyle()
-        .sheet(item: Binding(
-            get: { editingNumber.map(MaterialProblemEditTarget.init(number:)) },
-            set: { if $0 == nil { editingNumber = nil } }
-        )) { target in
-            NavigationStack {
-                Form {
-                    Picker("状態", selection: $editingStatus) {
-                        Text("未着手").tag(MaterialProblemStatus.untouched)
-                        Text("正解").tag(MaterialProblemStatus.correct)
-                        Text("不正解").tag(MaterialProblemStatus.wrong)
-                        Text("復習正解").tag(MaterialProblemStatus.reviewCorrect)
-                    }
-                    TextField("大問・小問メモ", text: $detailText, axis: .vertical)
-                }
-                .navigationTitle("\(target.number)問目")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("閉じる") { editingNumber = nil }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("保存") {
-                            saveEditedRecord(number: target.number)
-                            editingNumber = nil
-                        }
-                    }
-                }
-            }
-        }
+    }
+
+    private var snapshot: MaterialProblemProgressSnapshot {
+        MaterialProblemProgressSnapshot(sessions: sessions, totalProblems: totalProblems)
     }
 
     private var problemRows: [[Int]] {
@@ -730,116 +693,122 @@ private struct MaterialProblemProgressCard: View {
     private func emptyTileCount(for row: [Int]) -> Int {
         max(5 - row.count, 0)
     }
+}
 
-    private var doneNumbers: Set<Int> {
-        Set(materialRecords.map(\.number)).union(Set(sessions.flatMap { session in
-            if !session.problemRecords.isEmpty {
-                return session.problemRecords.map(\.number)
-            }
-            guard let start = session.problemStart, let end = session.problemEnd, end >= start else { return [] }
-            return Array(start...end)
-        }))
-    }
+private enum MaterialProblemStatus: Hashable {
+    case untouched
+    case correct
+    case wrong
+    case reviewCorrect
 
-    private var wrongNumbers: Set<Int> {
-        guard totalProblems > 0 else { return [] }
-        return Set((1...totalProblems).filter { status(for: $0) == .wrong })
-    }
-
-    private var correctNumbers: Set<Int> {
-        guard totalProblems > 0 else { return [] }
-        return Set((1...totalProblems).filter { status(for: $0) == .correct })
-    }
-
-    private var reviewCorrectNumbers: Set<Int> {
-        guard totalProblems > 0 else { return [] }
-        return Set((1...totalProblems).filter { status(for: $0) == .reviewCorrect })
-    }
-
-    private func status(for number: Int) -> MaterialProblemStatus {
-        if let explicitStatus = explicitStatus(for: number) {
-            return explicitStatus
+    init(result: ProblemResult) {
+        switch result {
+        case .correct:
+            self = .correct
+        case .wrong:
+            self = .wrong
+        case .reviewCorrect:
+            self = .reviewCorrect
         }
-        if doneNumbers.contains(number) {
-            return .correct
+    }
+
+    var accessibilityTitle: String {
+        switch self {
+        case .untouched:
+            return "未着手"
+        case .correct:
+            return "正解"
+        case .wrong:
+            return "不正解"
+        case .reviewCorrect:
+            return "復習正解"
         }
-        return .untouched
     }
+}
 
-    private func explicitStatus(for number: Int) -> MaterialProblemStatus? {
-        if let latestSessionRecord = latestSessionRecord(for: number) {
-            return MaterialProblemStatus(result: latestSessionRecord.result)
-        }
-        if let record = materialRecords.first(where: { $0.number == number }) {
-            return MaterialProblemStatus(result: record.result)
-        }
-        return nil
-    }
+private struct MaterialProblemAppearance {
+    let status: MaterialProblemStatus
+    let recoveryStage: MaterialProblemRecoveryStage?
+}
 
-    private func detail(for number: Int) -> String? {
-        latestSessionRecord(for: number)?.detail?.nilIfBlank
-            ?? materialRecords.first(where: { $0.number == number })?.detail?.nilIfBlank
-    }
+private struct MaterialProblemProgressSnapshot {
+    private let itemsByNumber: [Int: MaterialProblemProgressItem]
 
-    private func latestSessionRecord(for number: Int) -> ProblemSessionRecord? {
-        sessions
-            .sorted { $0.sessionStartTime > $1.sessionStartTime }
-            .compactMap { session in
-                session.problemRecords.first { $0.number == number }
-            }
-            .first
-    }
-
-    private func openEditor(for number: Int) {
-        editingNumber = number
-        editingStatus = status(for: number)
-        detailText = detail(for: number) ?? ""
-    }
-
-    private func saveEditedRecord(number: Int) {
-        var nextRecords = materialRecords
-        nextRecords.removeAll { $0.number == number }
-        guard editingStatus != .untouched else {
-            onRecordsChange(nextRecords.sorted { $0.number < $1.number })
+    init(sessions: [StudySession], totalProblems: Int) {
+        guard totalProblems > 0 else {
+            itemsByNumber = [:]
             return
         }
-        nextRecords.append(
-            ProblemSessionRecord(
-                number: number,
-                result: editingStatus.problemResult ?? .correct,
-                detail: detailText.nilIfBlank
-            )
-        )
-        onRecordsChange(nextRecords.sorted { $0.number < $1.number })
-    }
 
-    private func historyEntries(for number: Int) -> [ProblemHistoryEntry] {
-        sessions.compactMap { session in
-            guard let record = session.problemRecords.first(where: { $0.number == number }) else { return nil }
-            return ProblemHistoryEntry(date: session.startDate, result: record.result, detail: record.detail?.nilIfBlank)
+        let entriesByNumber = sessions.reduce(into: [Int: [ProblemHistoryEntry]]()) { result, session in
+            for record in session.problemRecords {
+                guard (1...totalProblems).contains(record.number) else { continue }
+                result[record.number, default: []].append(
+                    ProblemHistoryEntry(
+                        date: session.startDate,
+                        result: record.result,
+                        detail: record.detail?.nilIfBlank
+                    )
+                )
+            }
         }
-        .sorted { $0.date > $1.date }
+
+        itemsByNumber = entriesByNumber.mapValues { entries in
+            MaterialProblemProgressItem(entries: entries.sorted { $0.date > $1.date })
+        }
     }
 
-    private func appearance(for number: Int, historyEntries: [ProblemHistoryEntry]) -> MaterialProblemAppearance {
+    var doneNumbers: Set<Int> {
+        Set(itemsByNumber.keys)
+    }
+
+    var correctNumbers: Set<Int> {
+        numbers(matching: .correct)
+    }
+
+    var wrongNumbers: Set<Int> {
+        numbers(matching: .wrong)
+    }
+
+    var reviewCorrectNumbers: Set<Int> {
+        numbers(matching: .reviewCorrect)
+    }
+
+    func item(for number: Int) -> MaterialProblemProgressItem {
+        itemsByNumber[number] ?? MaterialProblemProgressItem(entries: [])
+    }
+
+    private func numbers(matching status: MaterialProblemStatus) -> Set<Int> {
+        Set(itemsByNumber.compactMap { number, item in
+            item.status == status ? number : nil
+        })
+    }
+}
+
+private struct MaterialProblemProgressItem {
+    let entries: [ProblemHistoryEntry]
+
+    var latestResult: ProblemResult? {
+        entries.first?.result
+    }
+
+    var status: MaterialProblemStatus {
+        latestResult.map(MaterialProblemStatus.init(result:)) ?? .untouched
+    }
+
+    var detail: String? {
+        entries.first?.detail
+    }
+
+    var appearance: MaterialProblemAppearance {
         MaterialProblemAppearance(
-            status: status(for: number),
-            recoveryStage: recoveryStage(for: number, historyEntries: historyEntries)
+            status: status,
+            recoveryStage: Self.recoveryStage(for: entries)
         )
     }
 
-    private func latestHistoryResult(for number: Int, historyEntries: [ProblemHistoryEntry]) -> ProblemResult? {
-        historyEntries.first?.result
-            ?? materialRecords.first(where: { $0.number == number })?.result
-    }
-
-    private func recoveryStage(for number: Int, historyEntries: [ProblemHistoryEntry]) -> MaterialProblemRecoveryStage? {
-        var observedResults = historyEntries.map(\.result)
-        if observedResults.isEmpty,
-           let currentResult = materialRecords.first(where: { $0.number == number })?.result {
-            observedResults.insert(currentResult, at: 0)
-        }
-
+    private static func recoveryStage(for entries: [ProblemHistoryEntry]) -> MaterialProblemRecoveryStage? {
+        let observedResults = entries.map(\.result)
         let wrongCount = observedResults.filter { $0 == .wrong }.count
         guard wrongCount > 0 else { return nil }
 
@@ -870,51 +839,6 @@ private struct MaterialProblemProgressCard: View {
             return .almostStable
         }
     }
-}
-
-private enum MaterialProblemStatus: Hashable {
-    case untouched
-    case correct
-    case wrong
-    case reviewCorrect
-
-    init(result: ProblemResult) {
-        switch result {
-        case .correct:
-            self = .correct
-        case .wrong:
-            self = .wrong
-        case .reviewCorrect:
-            self = .reviewCorrect
-        }
-    }
-
-    var problemResult: ProblemResult? {
-        switch self {
-        case .untouched: return nil
-        case .correct: return .correct
-        case .wrong: return .wrong
-        case .reviewCorrect: return .reviewCorrect
-        }
-    }
-
-    var accessibilityTitle: String {
-        switch self {
-        case .untouched:
-            return "未着手"
-        case .correct:
-            return "正解"
-        case .wrong:
-            return "不正解"
-        case .reviewCorrect:
-            return "復習正解"
-        }
-    }
-}
-
-private struct MaterialProblemAppearance {
-    let status: MaterialProblemStatus
-    let recoveryStage: MaterialProblemRecoveryStage?
 }
 
 private enum MaterialProblemRecoveryStage: Int {
@@ -955,11 +879,6 @@ private enum MaterialProblemRecoveryStage: Int {
     }
 }
 
-private struct MaterialProblemEditTarget: Identifiable {
-    let number: Int
-    var id: Int { number }
-}
-
 private struct MaterialProblemLegendItem: View {
     let label: String
     let color: Color
@@ -990,7 +909,6 @@ private struct MaterialProblemStatusTile: View {
     let hasHistory: Bool
     let isLatestWrong: Bool
     let onTap: () -> Void
-    let onLongPress: () -> Void
 
     var body: some View {
         VStack(spacing: 2) {
@@ -1031,7 +949,6 @@ private struct MaterialProblemStatusTile: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onTapGesture(perform: onTap)
-        .onLongPressGesture(minimumDuration: 0.45, perform: onLongPress)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(accessibilityHint)
     }
@@ -1125,7 +1042,7 @@ private struct MaterialProblemStatusTile: View {
     }
 
     private var accessibilityHint: String {
-        hasHistory ? "タップで履歴を表示、長押しで状態とメモを編集" : "長押しで状態とメモを編集"
+        hasHistory ? "タップで履歴を表示" : "履歴はありません"
     }
 }
 
@@ -1142,7 +1059,6 @@ private struct ProblemHistoryEntry: Identifiable {
 private struct MaterialProblemHistoryAccordion: View {
     let number: Int
     let entries: [ProblemHistoryEntry]
-    let currentRecord: ProblemSessionRecord?
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
@@ -1153,14 +1069,14 @@ private struct MaterialProblemHistoryAccordion: View {
                 Text("\(entries.count)回")
                     .font(.caption2.bold())
                     .foregroundStyle(AppColors.textSecondary)
-                if let currentRecord {
-                    Text(currentRecord.result.title)
+                if let latestEntry = entries.first {
+                    Text(latestEntry.result.title)
                         .font(.caption2.bold())
-                        .foregroundStyle(color(for: currentRecord.result))
+                        .foregroundStyle(color(for: latestEntry.result))
                 }
             }
 
-            if let detail = currentRecord?.detail?.nilIfBlank {
+            if let detail = entries.first?.detail {
                 Text(detail)
                     .font(.caption2)
                     .foregroundStyle(AppColors.textSecondary)

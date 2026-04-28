@@ -128,19 +128,6 @@ final class MaterialsViewModel: ScreenViewModel {
         }
     }
 
-    func updateProblemRecords(materialId: Int64, records: [ProblemSessionRecord]) {
-        perform {
-            let materials = try await self.app.persistence.getAllMaterials()
-            guard var material = materials.first(where: { $0.id == materialId }) else {
-                throw ValidationError(message: "教材が見つかりません")
-            }
-            material.problemRecords = records.sorted { $0.number < $1.number }
-            try await self.app.persistence.updateMaterial(material)
-            await self.load()
-            self.app.bumpDataVersion()
-        }
-    }
-
     func deleteMaterial(_ material: Material) {
         perform {
             try await self.app.persistence.deleteMaterial(material)

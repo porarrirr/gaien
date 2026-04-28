@@ -290,43 +290,6 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
     }
 
-    func reconcileMaterialProblemRecords(materialId: Int64, affectedNumbers: Set<Int>) async throws -> Material? {
-        try await ensureLoaded()
-        guard !affectedNumbers.isEmpty,
-              var material = try fetchOne(entity: "MaterialRecord", id: materialId).map(Self.material),
-              material.deletedAt == nil else {
-            return nil
-        }
-
-        let sessions = try fetch(
-            entity: "StudySessionRecord",
-            predicate: NSPredicate(format: "materialId == %lld", materialId),
-            sort: [NSSortDescriptor(key: "startTime", ascending: false)]
-        )
-        .map(Self.session)
-        .filter { $0.deletedAt == nil }
-
-        var recordsByNumber = material.problemRecords.reduce(into: [Int: ProblemSessionRecord]()) { result, record in
-            result[record.number] = record
-        }
-
-        for number in affectedNumbers {
-            let latestRecord = sessions.compactMap { session in
-                session.problemRecords.first { $0.number == number }
-            }.first
-
-            if let latestRecord {
-                recordsByNumber[number] = latestRecord
-            } else {
-                recordsByNumber.removeValue(forKey: number)
-            }
-        }
-
-        material.problemRecords = recordsByNumber.values.sorted { $0.number < $1.number }
-        try await updateMaterial(material)
-        return material
-    }
-
     func getAllGoals() async throws -> [Goal] {
         try await ensureLoaded()
         return try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(Self.goal).filter { $0.deletedAt == nil }

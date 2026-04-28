@@ -86,18 +86,6 @@ final class MaterialHistoryViewModel: ScreenViewModel {
         displayedMonth = selectedDate
     }
 
-    func updateProblemRecords(_ records: [ProblemSessionRecord]) {
-        perform {
-            guard var material = self.material else {
-                throw ValidationError(message: "教材が見つかりません")
-            }
-            material.problemRecords = records.sorted { $0.number < $1.number }
-            try await self.app.persistence.updateMaterial(material)
-            self.material = material
-            self.app.bumpDataVersion()
-        }
-    }
-
     private func moveMonth(by value: Int) {
         let calendar = Calendar.current
         guard let newMonth = calendar.date(byAdding: .month, value: value, to: displayedMonth),

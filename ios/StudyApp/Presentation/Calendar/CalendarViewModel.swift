@@ -73,14 +73,6 @@ final class CalendarViewModel: ScreenViewModel {
             updated.wrongProblemCount = wrongProblemCount
             updated.problemRecords = problemRecords
             try await self.app.persistence.updateSession(updated)
-            if let materialId = updated.materialId {
-                let affectedNumbers = Set(session.problemRecords.map(\.number))
-                    .union(problemRecords.map(\.number))
-                _ = try await self.app.persistence.reconcileMaterialProblemRecords(
-                    materialId: materialId,
-                    affectedNumbers: affectedNumbers
-                )
-            }
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -89,12 +81,6 @@ final class CalendarViewModel: ScreenViewModel {
     func deleteSession(_ session: StudySession) {
         perform {
             try await self.app.persistence.deleteSession(session)
-            if let materialId = session.materialId {
-                _ = try await self.app.persistence.reconcileMaterialProblemRecords(
-                    materialId: materialId,
-                    affectedNumbers: Set(session.problemRecords.map(\.number))
-                )
-            }
             await self.load()
             self.app.bumpDataVersion()
         }

@@ -226,16 +226,6 @@ final class TimerViewModel: ScreenViewModel {
                 }
             }
             _ = try await self.app.persistence.insertSession(draft.session)
-            if let materialId = draft.session.materialId {
-                let affectedNumbers = Set(normalizedRecords.map(\.number))
-                if let reconciledMaterial = try await self.app.persistence.reconcileMaterialProblemRecords(
-                    materialId: materialId,
-                    affectedNumbers: affectedNumbers
-                ),
-                   let index = self.materials.firstIndex(where: { $0.id == materialId }) {
-                    self.materials[index] = reconciledMaterial
-                }
-            }
             self.pendingSessionEvaluation = nil
             self.app.updateActiveTimer(nil)
             self.elapsedMilliseconds = 0
