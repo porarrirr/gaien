@@ -767,24 +767,27 @@ private struct MaterialProblemProgressCard: View {
     }
 
     private func explicitStatus(for number: Int) -> MaterialProblemStatus? {
+        if let latestSessionRecord = latestSessionRecord(for: number) {
+            return MaterialProblemStatus(result: latestSessionRecord.result)
+        }
         if let record = materialRecords.first(where: { $0.number == number }) {
             return MaterialProblemStatus(result: record.result)
         }
-        return sessions
-            .sorted { $0.sessionStartTime > $1.sessionStartTime }
-            .compactMap { session in
-                session.problemRecords.first(where: { $0.number == number }).map { MaterialProblemStatus(result: $0.result) }
-            }
-            .first
+        return nil
     }
 
     private func detail(for number: Int) -> String? {
-        materialRecords.first(where: { $0.number == number })?.detail?.nilIfBlank
-            ?? sessions
-                .flatMap { $0.problemRecords }
-                .first(where: { $0.number == number })?
-                .detail?
-                .nilIfBlank
+        latestSessionRecord(for: number)?.detail?.nilIfBlank
+            ?? materialRecords.first(where: { $0.number == number })?.detail?.nilIfBlank
+    }
+
+    private func latestSessionRecord(for number: Int) -> ProblemSessionRecord? {
+        sessions
+            .sorted { $0.sessionStartTime > $1.sessionStartTime }
+            .compactMap { session in
+                session.problemRecords.first { $0.number == number }
+            }
+            .first
     }
 
     private func openEditor(for number: Int) {
@@ -826,16 +829,14 @@ private struct MaterialProblemProgressCard: View {
     }
 
     private func latestHistoryResult(for number: Int, historyEntries: [ProblemHistoryEntry]) -> ProblemResult? {
-        if let currentResult = materialRecords.first(where: { $0.number == number })?.result {
-            return currentResult
-        }
-        return historyEntries.first?.result
+        historyEntries.first?.result
+            ?? materialRecords.first(where: { $0.number == number })?.result
     }
 
     private func recoveryStage(for number: Int, historyEntries: [ProblemHistoryEntry]) -> MaterialProblemRecoveryStage? {
-        let currentResult = materialRecords.first(where: { $0.number == number })?.result
         var observedResults = historyEntries.map(\.result)
-        if let currentResult, currentResult != observedResults.first {
+        if observedResults.isEmpty,
+           let currentResult = materialRecords.first(where: { $0.number == number })?.result {
             observedResults.insert(currentResult, at: 0)
         }
 

@@ -217,16 +217,7 @@ final class TimerViewModel: ScreenViewModel {
                 if var material = materials.first(where: { $0.id == materialId }) {
                     let storedTotalProblems = material.totalProblems
                     material.totalProblems = totalProblems
-                    if !normalizedRecords.isEmpty {
-                        var recordsByNumber = material.problemRecords.reduce(into: [Int: ProblemSessionRecord]()) { result, record in
-                            result[record.number] = record
-                        }
-                        for record in normalizedRecords {
-                            recordsByNumber[record.number] = record
-                        }
-                        material.problemRecords = recordsByNumber.values.sorted { $0.number < $1.number }
-                    }
-                    if storedTotalProblems != totalProblems || !normalizedRecords.isEmpty {
+                    if storedTotalProblems != totalProblems {
                         try await self.app.persistence.updateMaterial(material)
                     }
                     if let index = self.materials.firstIndex(where: { $0.id == materialId }) {
@@ -235,6 +226,16 @@ final class TimerViewModel: ScreenViewModel {
                 }
             }
             _ = try await self.app.persistence.insertSession(draft.session)
+            if let materialId = draft.session.materialId {
+                let affectedNumbers = Set(normalizedRecords.map(\.number))
+                if let reconciledMaterial = try await self.app.persistence.reconcileMaterialProblemRecords(
+                    materialId: materialId,
+                    affectedNumbers: affectedNumbers
+                ),
+                   let index = self.materials.firstIndex(where: { $0.id == materialId }) {
+                    self.materials[index] = reconciledMaterial
+                }
+            }
             self.pendingSessionEvaluation = nil
             self.app.updateActiveTimer(nil)
             self.elapsedMilliseconds = 0
