@@ -38,6 +38,10 @@ final class CalendarViewModel: ScreenViewModel {
         daySessionsMap[day] ?? []
     }
 
+    func subjectSummaries(for day: Int) -> [DayStudySubjectSummary] {
+        DayStudySubjectSummary.make(from: sessions(for: day))
+    }
+
     func totalMinutes(for day: Int) -> Int {
         sessions(for: day).reduce(0) { $0 + $1.durationMinutes }
     }
@@ -80,5 +84,97 @@ final class CalendarViewModel: ScreenViewModel {
             await self.load()
             self.app.bumpDataVersion()
         }
+    }
+}
+
+struct DayStudySubjectSummary: Identifiable, Hashable {
+    var id: String
+    var subjectName: String
+    var totalMinutes: Int
+    var sessionCount: Int
+    var materials: [DayStudyMaterialSummary]
+
+    static func make(from sessions: [StudySession]) -> [DayStudySubjectSummary] {
+        let subjectGroups = Dictionary(grouping: sessions) { session in
+            "\(session.subjectId)|\(session.subjectName)"
+        }
+
+        return subjectGroups.map { _, subjectSessions in
+            let sortedSubjectSessions = subjectSessions.sorted { $0.sessionStartTime < $1.sessionStartTime }
+            let firstSession = sortedSubjectSessions[0]
+            let materialGroups = Dictionary(grouping: sortedSubjectSessions, by: materialGroupingKey)
+            let materialSummaries = materialGroups.map { _, materialSessions in
+                DayStudyMaterialSummary.make(from: materialSessions)
+            }
+            .sorted { left, right in
+                localizedMaterialName(left.materialName)
+                    .localizedStandardCompare(localizedMaterialName(right.materialName)) == .orderedAscending
+            }
+
+            return DayStudySubjectSummary(
+                id: "subject-\(firstSession.subjectId)-\(firstSession.subjectName)",
+                subjectName: firstSession.subjectName.isEmpty ? "未設定" : firstSession.subjectName,
+                totalMinutes: sortedSubjectSessions.reduce(0) { $0 + $1.durationMinutes },
+                sessionCount: sortedSubjectSessions.count,
+                materials: materialSummaries
+            )
+        }
+        .sorted { left, right in
+            localizedSubjectName(left.subjectName)
+                .localizedStandardCompare(localizedSubjectName(right.subjectName)) == .orderedAscending
+        }
+    }
+
+    private static func materialGroupingKey(_ session: StudySession) -> String {
+        if let materialId = session.materialId {
+            return "id-\(materialId)"
+        }
+        return "name-\(session.materialName)"
+    }
+
+    private static func localizedSubjectName(_ value: String) -> String {
+        value == "未設定" ? "\u{10FFFF}" : value
+    }
+
+    private static func localizedMaterialName(_ value: String) -> String {
+        value == "教材未設定" ? "\u{10FFFF}" : value
+    }
+}
+
+struct DayStudyMaterialSummary: Identifiable, Hashable {
+    var id: String
+    var materialName: String
+    var totalMinutes: Int
+    var sessionCount: Int
+    var sessions: [StudySession]
+    var notes: [String]
+    var intervals: [StudySessionInterval]
+    var problemRecords: [ProblemSessionRecord]
+    var wrongProblemCount: Int
+    var reviewCorrectProblemCount: Int
+
+    static func make(from sessions: [StudySession]) -> DayStudyMaterialSummary {
+        let sortedSessions = sessions.sorted { $0.sessionStartTime < $1.sessionStartTime }
+        let firstSession = sortedSessions[0]
+        let notes = sortedSessions.compactMap { $0.note?.nilIfBlank }
+        let problemRecords = sortedSessions
+            .flatMap(\.problemRecords)
+            .sorted { $0.number < $1.number }
+        let wrongProblemCount = sortedSessions.reduce(0) { result, session in
+            result + (session.effectiveWrongProblemCount ?? 0)
+        }
+
+        return DayStudyMaterialSummary(
+            id: firstSession.materialId.map { "material-\($0)" } ?? "material-name-\(firstSession.materialName)",
+            materialName: firstSession.materialName.isEmpty ? "教材未設定" : firstSession.materialName,
+            totalMinutes: sortedSessions.reduce(0) { $0 + $1.durationMinutes },
+            sessionCount: sortedSessions.count,
+            sessions: sortedSessions,
+            notes: notes,
+            intervals: sortedSessions.flatMap(\.effectiveIntervals).sorted { $0.startTime < $1.startTime },
+            problemRecords: problemRecords,
+            wrongProblemCount: wrongProblemCount,
+            reviewCorrectProblemCount: sortedSessions.reduce(0) { $0 + $1.effectiveReviewCorrectProblemCount }
+        )
     }
 }

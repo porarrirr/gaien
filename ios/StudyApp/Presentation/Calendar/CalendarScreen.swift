@@ -136,6 +136,7 @@ struct CalendarScreen: View {
                 // Selected day detail
                 if let day = selectedDay {
                     let sessions = viewModel.sessions(for: day)
+                    let subjectSummaries = viewModel.subjectSummaries(for: day)
                     let totalMins = viewModel.totalMinutes(for: day)
 
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -178,9 +179,8 @@ struct CalendarScreen: View {
                             .padding(.vertical, AppSpacing.lg)
                             .cardStyle()
                         } else {
-                            // Per-session cards with time ranges and memos
-                            ForEach(sessions) { session in
-                                sessionCard(session)
+                            ForEach(subjectSummaries) { subject in
+                                subjectSummarySection(subject)
                             }
                         }
                     }
@@ -330,6 +330,152 @@ struct CalendarScreen: View {
         formatter.locale = Locale(identifier: "ja_JP")
         formatter.dateFormat = "yyyy年M月"
         return formatter.string(from: viewModel.displayedMonth)
+    }
+
+    private func subjectSummarySection(_ subject: DayStudySubjectSummary) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack {
+                Text(subject.subjectName)
+                    .font(.headline.bold())
+                    .foregroundStyle(AppColors.textPrimary)
+                Spacer()
+                Text("\(Goal.format(minutes: subject.totalMinutes)) · \(subject.materials.count)教材")
+                    .font(.caption.bold())
+                    .foregroundStyle(.tint)
+            }
+            .padding(.top, AppSpacing.xs)
+
+            ForEach(subject.materials) { material in
+                materialSummaryCard(material)
+            }
+        }
+    }
+
+    private func materialSummaryCard(_ material: DayStudyMaterialSummary) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(material.materialName)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(AppColors.textPrimary)
+                    Text("\(material.sessionCount)セッションを集約")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                Spacer()
+                Text(Goal.format(minutes: material.totalMinutes))
+                    .font(.caption.bold())
+                    .foregroundStyle(.tint)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+            }
+
+            if !material.intervals.isEmpty {
+                Label(material.intervals.map(intervalText).joined(separator: " / "), systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(2)
+            }
+
+            if material.wrongProblemCount > 0 || material.reviewCorrectProblemCount > 0 || !material.problemRecords.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Label("問題記録", systemImage: "list.number")
+                        Spacer()
+                        if material.wrongProblemCount > 0 {
+                            Text("不正解 \(material.wrongProblemCount)")
+                        }
+                        if material.reviewCorrectProblemCount > 0 {
+                            Text("復習 \(material.reviewCorrectProblemCount)")
+                        }
+                    }
+                    if !material.problemRecords.isEmpty {
+                        Text(problemNumbersText(for: material.problemRecords))
+                            .lineLimit(2)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(AppColors.textSecondary)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("メモ")
+                    .font(.caption.bold())
+                    .foregroundStyle(AppColors.textSecondary)
+                if material.notes.isEmpty {
+                    Text("メモはまだありません")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.textSecondary.opacity(0.7))
+                } else {
+                    ForEach(Array(material.notes.enumerated()), id: \.offset) { _, note in
+                        Text(note)
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            if material.sessions.count > 1 {
+                DisclosureGroup("個別履歴を編集") {
+                    VStack(spacing: AppSpacing.xs) {
+                        ForEach(material.sessions) { session in
+                            compactSessionEditRow(session)
+                        }
+                    }
+                    .padding(.top, AppSpacing.xs)
+                }
+                .font(.caption.bold())
+            } else if let session = material.sessions.first {
+                Button {
+                    prepareEditing(session)
+                } label: {
+                    Label("この履歴を編集", systemImage: "square.and.pencil")
+                        .font(.caption.bold())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+            }
+        }
+        .cardStyle()
+    }
+
+    private func compactSessionEditRow(_ session: StudySession) -> some View {
+        Button {
+            prepareEditing(session)
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(sessionIntervalText(session).replacingOccurrences(of: "\n", with: " / "))
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textPrimary)
+                    Text("\(session.sessionType.title) · \(Goal.format(minutes: session.durationMinutes))")
+                        .font(.caption2)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                Spacer()
+                Image(systemName: "square.and.pencil")
+                    .font(.caption)
+                    .foregroundStyle(.tint)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                prepareEditing(session)
+            } label: {
+                Label("編集", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                pendingDeletionSession = session
+            } label: {
+                Label("削除", systemImage: "trash")
+            }
+        }
     }
 
     private func sessionCard(_ session: StudySession) -> some View {
@@ -540,9 +686,13 @@ struct CalendarScreen: View {
         return formatter.string(from: Date(epochMilliseconds: millis))
     }
 
+    private func intervalText(_ interval: StudySessionInterval) -> String {
+        "\(timeString(from: interval.startTime))~\(timeString(from: interval.endTime))"
+    }
+
     private func sessionIntervalText(_ session: StudySession) -> String {
         session.effectiveIntervals
-            .map { "\(timeString(from: $0.startTime))~\(timeString(from: $0.endTime))" }
+            .map(intervalText)
             .joined(separator: "\n")
     }
 }
