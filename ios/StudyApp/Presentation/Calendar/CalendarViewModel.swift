@@ -61,7 +61,7 @@ final class CalendarViewModel: ScreenViewModel {
 
     func updateSession(
         _ session: StudySession,
-        durationMinutes: Int,
+        intervals: [StudySessionInterval],
         note: String?,
         rating: Int?,
         problemStart: Int? = nil,
@@ -70,10 +70,18 @@ final class CalendarViewModel: ScreenViewModel {
         problemRecords: [ProblemSessionRecord] = []
     ) {
         perform {
-            guard durationMinutes > 0 else { throw ValidationError(message: "学習時間は0より大きくしてください") }
+            guard !intervals.isEmpty else { throw ValidationError(message: "学習時間を入力してください") }
+            guard intervals.allSatisfy({ $0.endTime > $0.startTime }) else {
+                throw ValidationError(message: "終了時刻は開始時刻より後にしてください")
+            }
+            let sortedIntervals = intervals.sorted { $0.startTime < $1.startTime }
+            for index in sortedIntervals.indices.dropFirst() where sortedIntervals[index].startTime < sortedIntervals[index - 1].endTime {
+                throw ValidationError(message: "学習区間が重ならないようにしてください")
+            }
             var updated = session
-            updated.endTime = updated.startTime + Int64(durationMinutes * 60_000)
-            updated.intervals = [StudySessionInterval(startTime: updated.startTime, endTime: updated.endTime)]
+            updated.startTime = sortedIntervals[0].startTime
+            updated.endTime = sortedIntervals[sortedIntervals.count - 1].endTime
+            updated.intervals = sortedIntervals
             updated.note = note?.nilIfBlank
             updated.rating = rating
             updated.problemStart = problemStart

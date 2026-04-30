@@ -9,7 +9,7 @@ struct CalendarScreen: View {
     @State private var detailDisplayMode: CalendarDetailDisplayMode = .summary
     @State private var editingSession: StudySession? = nil
     @State private var pendingDeletionSession: StudySession? = nil
-    @State private var durationText: String = ""
+    @State private var intervalDrafts: [CalendarSessionIntervalDraft] = []
     @State private var noteText: String = ""
     @State private var ratingSelection: Int? = nil
     @State private var problemStartText: String = ""
@@ -234,12 +234,18 @@ struct CalendarScreen: View {
                                 .foregroundStyle(AppColors.textSecondary)
                         }
 
-                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                            Text("学習時間（分）")
-                                .font(.subheadline.bold())
-                            TextField("学習時間（分）", text: $durationText)
-                                .keyboardType(.numberPad)
-                                .textFieldStyle(.roundedBorder)
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            ForEach($intervalDrafts) { $interval in
+                                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                                    if intervalDrafts.count > 1 {
+                                        Text("区間 \(interval.index + 1)")
+                                            .font(.caption)
+                                            .foregroundStyle(AppColors.textSecondary)
+                                    }
+                                    DatePicker("開始時刻", selection: $interval.startDate, displayedComponents: .hourAndMinute)
+                                    DatePicker("終了時刻", selection: $interval.endDate, displayedComponents: .hourAndMinute)
+                                }
+                            }
                         }
 
                         VStack(alignment: .leading, spacing: AppSpacing.xs) {
@@ -291,7 +297,7 @@ struct CalendarScreen: View {
                             let normalizedRecords = editingProblemRecords.sorted { $0.number < $1.number }
                             viewModel.updateSession(
                                 session,
-                                durationMinutes: Int(durationText) ?? session.durationMinutes,
+                                intervals: intervalDrafts.map(\.interval),
                                 note: noteText,
                                 rating: ratingSelection,
                                 problemStart: normalizedRecords.first?.number ?? Int(problemStartText),
@@ -301,6 +307,7 @@ struct CalendarScreen: View {
                             )
                             editingSession = nil
                         }
+                        .disabled(!areIntervalDraftsValid)
                         .bold()
                     }
                 }
@@ -667,8 +674,21 @@ struct CalendarScreen: View {
         return "タップで正解、ダブルタップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
     }
 
+    private var areIntervalDraftsValid: Bool {
+        guard !intervalDrafts.isEmpty else { return false }
+        let intervals = intervalDrafts.map(\.interval)
+        guard intervals.allSatisfy({ $0.endTime > $0.startTime }) else { return false }
+
+        for index in intervals.indices.dropFirst() where intervals[index].startTime < intervals[index - 1].endTime {
+            return false
+        }
+        return true
+    }
+
     private func prepareEditing(_ session: StudySession) {
-        durationText = "\(session.durationMinutes)"
+        intervalDrafts = session.effectiveIntervals.enumerated().map {
+            CalendarSessionIntervalDraft(interval: $0.element, index: $0.offset)
+        }
         noteText = session.note ?? ""
         ratingSelection = session.rating
         problemStartText = session.problemStart.map(String.init) ?? ""
@@ -744,6 +764,23 @@ struct CalendarScreen: View {
         session.effectiveIntervals
             .map(intervalText)
             .joined(separator: "\n")
+    }
+}
+
+private struct CalendarSessionIntervalDraft: Identifiable, Hashable {
+    let id = UUID()
+    let index: Int
+    var startDate: Date
+    var endDate: Date
+
+    init(interval: StudySessionInterval, index: Int) {
+        self.index = index
+        startDate = Date(epochMilliseconds: interval.startTime)
+        endDate = Date(epochMilliseconds: interval.endTime)
+    }
+
+    var interval: StudySessionInterval {
+        StudySessionInterval(startTime: startDate.epochMilliseconds, endTime: endDate.epochMilliseconds)
     }
 }
 
