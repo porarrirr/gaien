@@ -57,6 +57,7 @@ struct MaterialsScreen: View {
                                 material: material,
                                 subjectName: subjectName,
                                 subjectColor: subjectColor,
+                                progressSummary: viewModel.progressSummaries[material.id],
                                 canMoveUp: viewModel.materials.first?.id != material.id,
                                 canMoveDown: viewModel.materials.last?.id != material.id,
                                 onOpenHistory: {
@@ -283,6 +284,7 @@ private struct MaterialCardNew: View {
     let material: Material
     let subjectName: String
     let subjectColor: Int
+    let progressSummary: MaterialListProgressSummary?
     let canMoveUp: Bool
     let canMoveDown: Bool
     let onOpenHistory: () -> Void
@@ -294,7 +296,7 @@ private struct MaterialCardNew: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack(alignment: .top) {
+            HStack(alignment: .top, spacing: AppSpacing.sm) {
                 // Subject color accent
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color(hex: subjectColor))
@@ -309,6 +311,10 @@ private struct MaterialCardNew: View {
                 }
 
                 Spacer()
+
+                if let progressSummary {
+                    MaterialListProgressView(summary: progressSummary)
+                }
 
                 Menu {
                     Button(action: onMoveUp) {
@@ -365,6 +371,118 @@ private struct MaterialCardNew: View {
         .cardStyle()
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpenHistory)
+    }
+}
+
+private struct MaterialListProgressView: View {
+    let summary: MaterialListProgressSummary
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack {
+                MaterialProblemPieChart(summary: summary)
+                Text("\(summary.progressedPercent)%")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(AppColors.textPrimary)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(width: 52, height: 52)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel)
+
+            Text(latestStudyDateText)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(AppColors.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(width: 70)
+    }
+
+    private var latestStudyDateText: String {
+        guard let date = summary.latestStudyDate else {
+            return "最終 なし"
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M/d"
+        return "最終 \(formatter.string(from: date))"
+    }
+
+    private var accessibilityLabel: String {
+        "問題進捗 \(summary.progressedPercent)パーセント、正解 \(summary.correctCount)問、正誤混在 \(summary.mixedCount)問、未着手 \(summary.untouchedCount)問"
+    }
+}
+
+private struct MaterialProblemPieChart: View {
+    let summary: MaterialListProgressSummary
+
+    var body: some View {
+        ZStack {
+            ForEach(segments) { segment in
+                PieSliceShape(startFraction: segment.start, endFraction: segment.end)
+                    .fill(segment.color)
+            }
+            Circle()
+                .stroke(Color(.separator).opacity(0.18), lineWidth: 1)
+        }
+    }
+
+    private var segments: [PieSegment] {
+        guard summary.totalProblems > 0 else { return [] }
+        var start = 0.0
+        return [
+            PieSegment(id: 0, value: summary.correctCount, color: AppColors.success),
+            PieSegment(id: 1, value: summary.mixedCount, color: AppColors.warning),
+            PieSegment(id: 2, value: summary.untouchedCount, color: Color(.systemGray3))
+        ].compactMap { segment in
+            guard segment.value > 0 else { return nil }
+            let fraction = Double(segment.value) / Double(summary.totalProblems)
+            let visibleSegment = PieSegment(
+                id: segment.id,
+                value: segment.value,
+                color: segment.color,
+                start: start,
+                end: min(start + fraction, 1.0)
+            )
+            start += fraction
+            return visibleSegment
+        }
+    }
+}
+
+private struct PieSegment: Identifiable {
+    let id: Int
+    let value: Int
+    let color: Color
+    var start: Double = 0
+    var end: Double = 0
+}
+
+private struct PieSliceShape: Shape {
+    let startFraction: Double
+    let endFraction: Double
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) / 2
+        let sweep = max(endFraction - startFraction, 0)
+        let stepCount = max(Int(ceil(sweep * 96)), 1)
+
+        var path = Path()
+        path.move(to: center)
+        for step in 0...stepCount {
+            let fraction = startFraction + sweep * Double(step) / Double(stepCount)
+            let angle = fraction * 2 * Double.pi
+            let point = CGPoint(
+                x: center.x + radius * sin(angle),
+                y: center.y - radius * cos(angle)
+            )
+            path.addLine(to: point)
+        }
+        path.closeSubpath()
+        return path
     }
 }
 

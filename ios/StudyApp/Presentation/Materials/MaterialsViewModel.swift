@@ -5,6 +5,7 @@ import Foundation
 final class MaterialsViewModel: ScreenViewModel {
     @Published private(set) var subjects: [Subject] = []
     @Published private(set) var materials: [Material] = []
+    @Published private(set) var progressSummaries: [Int64: MaterialListProgressSummary] = [:]
     @Published var bookSearchResult: BookInfo?
     @Published var isShowingBookResult = false
     @Published private(set) var isSearchingBook = false
@@ -15,8 +16,27 @@ final class MaterialsViewModel: ScreenViewModel {
         do {
             async let subjectsTask = app.persistence.getAllSubjects()
             async let materialsTask = app.persistence.getAllMaterials()
+            async let sessionsTask = app.persistence.getAllSessions()
             subjects = try await subjectsTask
             materials = try await materialsTask
+            let sessions = try await sessionsTask
+            let sessionsByMaterialId = sessions.reduce(into: [Int64: [StudySession]]()) { result, session in
+                guard let materialId = session.materialId else { return }
+                result[materialId, default: []].append(session)
+            }
+            progressSummaries = Dictionary(
+                uniqueKeysWithValues: materials
+                    .filter { $0.totalProblems > 0 }
+                    .map { material in
+                        (
+                            material.id,
+                            MaterialListProgressSummary(
+                                material: material,
+                                sessions: sessionsByMaterialId[material.id] ?? []
+                            )
+                        )
+                    }
+            )
         } catch {
             app.present(error)
         }
@@ -152,5 +172,61 @@ final class MaterialsViewModel: ScreenViewModel {
             await self.load()
             self.app.bumpDataVersion()
         }
+    }
+}
+
+struct MaterialListProgressSummary: Hashable {
+    let totalProblems: Int
+    let correctCount: Int
+    let mixedCount: Int
+    let untouchedCount: Int
+    let latestStudyDate: Date?
+
+    var progressedCount: Int {
+        correctCount + mixedCount
+    }
+
+    var progressedRatio: Double {
+        guard totalProblems > 0 else { return 0 }
+        return min(max(Double(progressedCount) / Double(totalProblems), 0), 1)
+    }
+
+    var progressedPercent: Int {
+        Int((progressedRatio * 100).rounded())
+    }
+
+    init(material: Material, sessions: [StudySession]) {
+        let totalProblems = max(material.totalProblems, 0)
+        self.totalProblems = totalProblems
+        latestStudyDate = sessions.max(by: { $0.sessionStartTime < $1.sessionStartTime })?.startDate.startOfDay
+
+        guard totalProblems > 0 else {
+            correctCount = 0
+            mixedCount = 0
+            untouchedCount = 0
+            return
+        }
+
+        let resultsByNumber = sessions.reduce(into: [Int: [ProblemResult]]()) { result, session in
+            for record in session.problemRecords where (1...totalProblems).contains(record.number) {
+                result[record.number, default: []].append(record.result)
+            }
+        }
+
+        var correct = 0
+        var mixed = 0
+        for number in 1...totalProblems {
+            let results = resultsByNumber[number] ?? []
+            guard !results.isEmpty else { continue }
+            if results.contains(.wrong) {
+                mixed += 1
+            } else {
+                correct += 1
+            }
+        }
+
+        correctCount = correct
+        mixedCount = mixed
+        untouchedCount = max(totalProblems - correct - mixed, 0)
     }
 }
