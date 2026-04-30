@@ -176,7 +176,8 @@ struct MaterialsScreen: View {
                             subjectId: materialDraft.subjectId,
                             totalPages: parseDraftInt(materialDraft.totalPages),
                             currentPage: material.id > 0 ? material.currentPage : 0,
-                            totalProblems: parseDraftInt(materialDraft.totalProblems),
+                            totalProblems: materialDraft.effectiveTotalProblems,
+                            problemChapters: materialDraft.problemChaptersForSave,
                             note: materialDraft.note
                         )
                         editingMaterial = nil
@@ -356,7 +357,7 @@ private struct MaterialCardNew: View {
             }
 
             if material.totalProblems > 0 {
-                Text("全\(material.totalProblems)問")
+                Text(material.problemChapters.isEmpty ? "全\(material.totalProblems)問" : "全\(material.totalProblems)問 ・ \(material.problemChapters.count)章")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
             }
@@ -486,6 +487,11 @@ private struct PieSliceShape: Shape {
     }
 }
 
+private struct ProblemChapterSection {
+    let chapter: ProblemChapter
+    let startGlobalNumber: Int
+}
+
 private struct MaterialHistoryScreen: View {
     @StateObject private var viewModel: MaterialHistoryViewModel
     @State private var selectedTab: MaterialDetailTab = .history
@@ -532,6 +538,7 @@ private struct MaterialHistoryScreen: View {
                         } else {
                             MaterialProblemProgressCard(
                                 totalProblems: material.totalProblems,
+                                chapters: material.problemChapters,
                                 sessions: viewModel.sessions
                             )
                             .padding(.horizontal, AppSpacing.md)
@@ -572,7 +579,7 @@ private struct MaterialHistoryScreen: View {
                     .cardStyle()
             } else {
                 ForEach(viewModel.selectedDateSessions) { session in
-                    MaterialHistorySessionCard(session: session)
+                    MaterialHistorySessionCard(session: session, chapters: viewModel.material?.problemChapters ?? [])
                 }
             }
         }
@@ -658,7 +665,7 @@ private struct MaterialHistorySummaryCard: View {
             }
 
             if material.totalProblems > 0 {
-                Text("全問題数: \(material.totalProblems)問")
+                Text(material.problemChapters.isEmpty ? "全問題数: \(material.totalProblems)問" : "全問題数: \(material.totalProblems)問（\(material.problemChapters.count)章）")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
             }
@@ -704,6 +711,7 @@ private struct MaterialHistoryMetric: View {
 
 private struct MaterialProblemProgressCard: View {
     let totalProblems: Int
+    let chapters: [ProblemChapter]
     let sessions: [StudySession]
 
     @State private var selectedNumber: Int?
@@ -738,53 +746,10 @@ private struct MaterialProblemProgressCard: View {
                     .font(.caption2)
                     .foregroundStyle(AppColors.textSecondary)
 
-                VStack(spacing: 10) {
-                    ForEach(Array(problemRows.enumerated()), id: \.offset) { rowInfo in
-                        let row = rowInfo.element
-                        VStack(spacing: 8) {
-                            HStack(spacing: 10) {
-                                ForEach(row, id: \.self) { number in
-                                    let item = snapshot.item(for: number)
-                                    MaterialProblemStatusTile(
-                                        number: number,
-                                        appearance: item.appearance,
-                                        isSelected: selectedNumber == number,
-                                        hasDetail: item.detail != nil,
-                                        hasHistory: !item.entries.isEmpty,
-                                        isLatestWrong: item.latestResult == .wrong,
-                                        onTap: {
-                                            guard !item.entries.isEmpty else { return }
-                                            withAnimation(.easeInOut(duration: 0.18)) {
-                                                selectedNumber = selectedNumber == number ? nil : number
-                                            }
-                                        }
-                                    )
-                                }
-
-                                ForEach(0..<emptyTileCount(for: row), id: \.self) { _ in
-                                    Color.clear
-                                        .frame(maxWidth: .infinity)
-                                        .frame(minHeight: 52)
-                                        .aspectRatio(1, contentMode: .fit)
-                                }
-                            }
-
-                            if let selectedNumber, row.contains(selectedNumber) {
-                                let item = snapshot.item(for: selectedNumber)
-                                if !item.entries.isEmpty {
-                                    MaterialProblemHistoryAccordion(
-                                        number: selectedNumber,
-                                        entries: item.entries
-                                    )
-                                    .transition(.move(edge: .top).combined(with: .opacity))
-                                }
-                            }
-                        }
-                    }
-                }
+                progressGrid
 
                 if !snapshot.wrongNumbers.isEmpty {
-                    Text("不正解: \(snapshot.wrongNumbers.sorted().prefix(30).map(String.init).joined(separator: ", "))\(snapshot.wrongNumbers.count > 30 ? " ..." : "")")
+                    Text("不正解: \(snapshot.wrongNumbers.sorted().prefix(30).map { chapters.label(for: $0) }.joined(separator: ", "))\(snapshot.wrongNumbers.count > 30 ? " ..." : "")")
                         .font(.caption)
                         .foregroundStyle(AppColors.textSecondary)
                 }
@@ -802,6 +767,100 @@ private struct MaterialProblemProgressCard: View {
         return stride(from: 1, through: totalProblems, by: 5).map { start in
             Array(start...min(start + 4, totalProblems))
         }
+    }
+
+    @ViewBuilder
+    private var progressGrid: some View {
+        if chapters.totalProblemCount > 0 {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(chapterSections, id: \.chapter.id) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(section.chapter.title)
+                                .font(.caption.bold())
+                                .foregroundStyle(AppColors.textPrimary)
+                            Spacer()
+                            Text("\(section.chapter.problemCount)問")
+                                .font(.caption2.bold())
+                                .foregroundStyle(AppColors.textSecondary)
+                        }
+                        ForEach(Array(problemRows(start: section.startGlobalNumber, count: section.chapter.problemCount).enumerated()), id: \.offset) { rowInfo in
+                            progressRow(rowInfo.element)
+                        }
+                    }
+                }
+            }
+        } else {
+            VStack(spacing: 10) {
+                ForEach(Array(problemRows.enumerated()), id: \.offset) { rowInfo in
+                    progressRow(rowInfo.element)
+                }
+            }
+        }
+    }
+
+    private var chapterSections: [ProblemChapterSection] {
+        var start = 1
+        return chapters.filter { $0.problemCount > 0 }.map { chapter in
+            defer { start += chapter.problemCount }
+            return ProblemChapterSection(chapter: chapter, startGlobalNumber: start)
+        }
+    }
+
+    private func problemRows(start: Int, count: Int) -> [[Int]] {
+        guard count > 0 else { return [] }
+        let end = start + count - 1
+        return stride(from: start, through: end, by: 5).map { rowStart in
+            Array(rowStart...min(rowStart + 4, end))
+        }
+    }
+
+    private func progressRow(_ row: [Int]) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                ForEach(row, id: \.self) { number in
+                    let item = snapshot.item(for: number)
+                    MaterialProblemStatusTile(
+                        number: number,
+                        label: tileLabel(for: number),
+                        showsGlobalNumber: chapters.totalProblemCount > 0,
+                        appearance: item.appearance,
+                        isSelected: selectedNumber == number,
+                        hasDetail: item.detail != nil,
+                        hasHistory: !item.entries.isEmpty,
+                        isLatestWrong: item.latestResult == .wrong,
+                        onTap: {
+                            guard !item.entries.isEmpty else { return }
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                selectedNumber = selectedNumber == number ? nil : number
+                            }
+                        }
+                    )
+                }
+
+                ForEach(0..<emptyTileCount(for: row), id: \.self) { _ in
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 52)
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+
+            if let selectedNumber, row.contains(selectedNumber) {
+                let item = snapshot.item(for: selectedNumber)
+                if !item.entries.isEmpty {
+                    MaterialProblemHistoryAccordion(
+                        title: chapters.label(for: selectedNumber),
+                        entries: item.entries
+                    )
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+        }
+    }
+
+    private func tileLabel(for number: Int) -> String {
+        chapters.location(for: number).map { "\($0.localNumber)" } ?? "\(number)"
     }
 
     private var metricColumns: [GridItem] {
@@ -1021,6 +1080,8 @@ private struct MaterialProblemLegendItem: View {
 
 private struct MaterialProblemStatusTile: View {
     let number: Int
+    let label: String
+    let showsGlobalNumber: Bool
     let appearance: MaterialProblemAppearance
     let isSelected: Bool
     let hasDetail: Bool
@@ -1030,11 +1091,17 @@ private struct MaterialProblemStatusTile: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            Text("\(number)")
+            Text(label)
                 .font(.callout.bold())
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
+            if showsGlobalNumber {
+                Text("#\(number)")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(foreground.opacity(0.72))
+            }
             HStack(spacing: 4) {
                 if hasHistory {
                     Image(systemName: "clock.fill")
@@ -1153,10 +1220,11 @@ private struct MaterialProblemStatusTile: View {
     }
 
     private var accessibilityLabel: String {
+        let problemName = showsGlobalNumber ? "\(label)問目（通番 \(number)）" : "\(number)問目"
         if let recoveryStage = appearance.recoveryStage {
-            return "\(number)問目 \(appearance.status.accessibilityTitle) \(recoveryStage.accessibilityTitle)\(isLatestWrong ? " 最新は不正解" : "")"
+            return "\(problemName) \(appearance.status.accessibilityTitle) \(recoveryStage.accessibilityTitle)\(isLatestWrong ? " 最新は不正解" : "")"
         }
-        return "\(number)問目 \(appearance.status.accessibilityTitle)\(isLatestWrong ? " 最新は不正解" : "")"
+        return "\(problemName) \(appearance.status.accessibilityTitle)\(isLatestWrong ? " 最新は不正解" : "")"
     }
 
     private var accessibilityHint: String {
@@ -1175,13 +1243,13 @@ private struct ProblemHistoryEntry: Identifiable {
 }
 
 private struct MaterialProblemHistoryAccordion: View {
-    let number: Int
+    let title: String
     let entries: [ProblemHistoryEntry]
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
             HStack {
-                Label("\(number)問目", systemImage: "clock.arrow.circlepath")
+                Label(title, systemImage: "clock.arrow.circlepath")
                     .font(.caption.bold())
                 Spacer()
                 Text("\(entries.count)回")
@@ -1385,6 +1453,7 @@ private struct MaterialHistoryDayCell: View {
 
 private struct MaterialHistorySessionCard: View {
     let session: StudySession
+    let chapters: [ProblemChapter]
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -1409,7 +1478,7 @@ private struct MaterialHistorySessionCard: View {
             if session.problemRangeText != nil || session.wrongProblemCount != nil {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Label(session.problemRangeText ?? "範囲未入力", systemImage: "list.number")
+                        Label(problemRangeText, systemImage: "list.number")
                         Spacer()
                         Text("不正解 \(session.effectiveWrongProblemCount ?? 0)")
                     }
@@ -1424,7 +1493,7 @@ private struct MaterialHistorySessionCard: View {
             if !session.problemRecords.filter({ $0.detail?.nilIfBlank != nil }).isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(session.problemRecords.filter { $0.detail?.nilIfBlank != nil }) { record in
-                        Text("\(record.number)問目: \(record.detail ?? "")")
+                        Text("\(chapters.label(for: record.number)): \(record.detail ?? "")")
                     }
                 }
                 .font(.caption2)
@@ -1445,9 +1514,9 @@ private struct MaterialHistorySessionCard: View {
     }
 
     private func problemNumbersText(for records: [ProblemSessionRecord]) -> String {
-        let correct = records.filter { $0.result == .correct }.map(\.number)
-        let wrong = records.filter(\.isWrong).map(\.number)
-        let review = records.filter { $0.result == .reviewCorrect }.map(\.number)
+        let correct = records.filter { $0.result == .correct }.map { chapters.label(for: $0.number) }
+        let wrong = records.filter(\.isWrong).map { chapters.label(for: $0.number) }
+        let review = records.filter { $0.result == .reviewCorrect }.map { chapters.label(for: $0.number) }
         var parts: [String] = []
         if !wrong.isEmpty {
             parts.append("不正解 \(wrong.map(String.init).joined(separator: ", "))")
@@ -1459,6 +1528,16 @@ private struct MaterialHistorySessionCard: View {
             parts.append("復習 \(review.map(String.init).joined(separator: ", "))")
         }
         return parts.joined(separator: " / ")
+    }
+
+    private var problemRangeText: String {
+        if !session.problemRecords.isEmpty {
+            let numbers = session.problemRecords.map(\.number).sorted()
+            guard let first = numbers.first, let last = numbers.last else { return "範囲未入力" }
+            return first == last ? chapters.label(for: first) : "\(chapters.label(for: first)) - \(chapters.label(for: last))"
+        }
+        guard let start = session.problemStart, let end = session.problemEnd else { return session.problemRangeText ?? "範囲未入力" }
+        return start == end ? chapters.label(for: start) : "\(chapters.label(for: start)) - \(chapters.label(for: end))"
     }
 }
 
@@ -1482,8 +1561,60 @@ private struct MaterialEditorSheet: View {
                 }
                 TextField("総ページ数", text: $draft.totalPages)
                     .keyboardType(.numberPad)
-                TextField("全問題数", text: $draft.totalProblems)
-                    .keyboardType(.numberPad)
+                Section("問題番号設定") {
+                    TextField("全問題数", text: $draft.totalProblems)
+                        .keyboardType(.numberPad)
+                        .disabled(!draft.problemChapters.isEmpty)
+
+                    if draft.problemChapters.isEmpty {
+                        Text("章ごとに問題番号が1から始まる問題集は、章構成を追加してください。例: 1章 26問、2章 26問。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            draft.problemChapters = [
+                                ProblemChapterDraft(title: "1章", problemCount: draft.totalProblems.nilIfBlank ?? "")
+                            ]
+                            draft.totalProblems = ""
+                        } label: {
+                            Label("章構成を追加", systemImage: "list.bullet.rectangle")
+                        }
+                    } else {
+                        ForEach($draft.problemChapters) { $chapter in
+                            HStack {
+                                TextField("章名", text: $chapter.title)
+                                TextField("問題数", text: $chapter.problemCount)
+                                    .keyboardType(.numberPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .frame(width: 84)
+                            }
+                        }
+                        .onDelete { offsets in
+                            draft.problemChapters.remove(atOffsets: offsets)
+                        }
+
+                        Button {
+                            draft.problemChapters.append(
+                                ProblemChapterDraft(
+                                    title: "\(draft.problemChapters.count + 1)章",
+                                    problemCount: ""
+                                )
+                            )
+                        } label: {
+                            Label("章を追加", systemImage: "plus")
+                        }
+
+                        Text("章構成の合計: \(draft.effectiveTotalProblems)問")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Button(role: .destructive) {
+                            draft.totalProblems = draft.effectiveTotalProblems == 0 ? "" : "\(draft.effectiveTotalProblems)"
+                            draft.problemChapters = []
+                        } label: {
+                            Label("章構成を使わない", systemImage: "xmark.circle")
+                        }
+                    }
+                }
                 TextField("メモ", text: $draft.note, axis: .vertical)
             }
         }
@@ -1618,7 +1749,21 @@ private struct MaterialDraft {
     var subjectId: Int64 = 0
     var totalPages = ""
     var totalProblems = ""
+    var problemChapters: [ProblemChapterDraft] = []
     var note = ""
+
+    var problemChaptersForSave: [ProblemChapter] {
+        problemChapters.map { draft in
+            let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let count = parseDraftInt(draft.problemCount)
+            return ProblemChapter(id: draft.id.uuidString.lowercased(), title: title, problemCount: count)
+        }
+    }
+
+    var effectiveTotalProblems: Int {
+        let chapterTotal = problemChaptersForSave.totalProblemCount
+        return chapterTotal > 0 ? chapterTotal : parseDraftInt(totalProblems)
+    }
 
     init(subjectId: Int64 = 0) {
         self.subjectId = subjectId
@@ -1628,8 +1773,26 @@ private struct MaterialDraft {
         name = material.name
         subjectId = material.subjectId
         totalPages = "\(material.totalPages)"
-        totalProblems = material.totalProblems == 0 ? "" : "\(material.totalProblems)"
+        totalProblems = material.problemChapters.isEmpty && material.totalProblems > 0 ? "\(material.totalProblems)" : ""
+        problemChapters = material.problemChapters.map(ProblemChapterDraft.init(chapter:))
         note = material.note ?? ""
+    }
+}
+
+private struct ProblemChapterDraft: Identifiable, Hashable {
+    var id = UUID()
+    var title: String
+    var problemCount: String
+
+    init(title: String, problemCount: String) {
+        self.title = title
+        self.problemCount = problemCount
+    }
+
+    init(chapter: ProblemChapter) {
+        id = UUID(uuidString: chapter.id.uppercased()) ?? UUID()
+        title = chapter.title
+        problemCount = "\(chapter.problemCount)"
     }
 }
 

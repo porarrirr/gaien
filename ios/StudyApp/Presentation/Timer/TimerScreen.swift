@@ -107,6 +107,7 @@ struct TimerScreen: View {
                     problemRecords: $sessionProblemRecords,
                     problemCount: $sessionProblemCountDraft,
                     materialProblemCount: selectedMaterialTotalProblems,
+                    materialProblemChapters: selectedMaterialProblemChapters,
                     onSave: {
                         guard let rating = sessionRatingDraft else { return }
                         viewModel.savePendingSessionEvaluation(
@@ -364,7 +365,15 @@ struct TimerScreen: View {
               let material = viewModel.materials.first(where: { $0.id == materialId }) else {
             return 0
         }
-        return material.totalProblems
+        return material.effectiveTotalProblems
+    }
+
+    private var selectedMaterialProblemChapters: [ProblemChapter] {
+        guard let materialId = viewModel.selectedMaterialId,
+              let material = viewModel.materials.first(where: { $0.id == materialId }) else {
+            return []
+        }
+        return material.problemChapters
     }
 
     private func selectionMenuLabel(text: String, isPlaceholder: Bool) -> some View {
@@ -444,6 +453,7 @@ private struct SessionEvaluationSheet: View {
     @Binding var problemRecords: [ProblemSessionRecord]
     @Binding var problemCount: String
     let materialProblemCount: Int
+    let materialProblemChapters: [ProblemChapter]
     let onSave: () -> Void
     let onCancel: () -> Void
 
@@ -475,14 +485,18 @@ private struct SessionEvaluationSheet: View {
                     Text("問題集の記録")
                         .font(.subheadline.bold())
                     if materialProblemCount > 0 {
-                        Text("全\(materialProblemCount)問")
+                        Text(materialProblemChapters.isEmpty ? "全\(materialProblemCount)問" : "全\(materialProblemCount)問 ・ \(materialProblemChapters.count)章")
                             .font(.caption.bold())
                             .foregroundStyle(AppColors.textSecondary)
                     } else {
                         problemCountControls
                     }
                     if effectiveProblemCount > 0 {
-                        ProblemTileSelector(totalProblems: effectiveProblemCount, records: $problemRecords)
+                        ProblemTileSelector(
+                            totalProblems: effectiveProblemCount,
+                            chapters: materialProblemChapters,
+                            records: $problemRecords
+                        )
                         Text(problemRecordSummary)
                             .font(.caption)
                             .foregroundStyle(AppColors.textSecondary)

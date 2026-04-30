@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProblemTileSelector: View {
     let totalProblems: Int
+    var chapters: [ProblemChapter] = []
     @Binding var records: [ProblemSessionRecord]
     @State private var editingNumber: Int?
     @State private var editingStatus: ProblemTileEditStatus = .untouched
@@ -10,24 +11,41 @@ struct ProblemTileSelector: View {
     private let columns = Array(repeating: GridItem(.flexible(minimum: 48), spacing: 10), count: 5)
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(1...totalProblems, id: \.self) { number in
-                ProblemTile(
-                    number: number,
-                    record: records.first(where: { $0.number == number }),
-                    onCorrectTap: { toggleCorrect(number) },
-                    onWrongDoubleTap: { toggleWrong(number) },
-                    onLongPress: {
-                        let record = records.first(where: { $0.number == number })
-                        if let record {
-                            editingStatus = record.result.editStatus
-                        } else {
-                            editingStatus = .untouched
+        VStack(alignment: .leading, spacing: 12) {
+            if chapters.totalProblemCount > 0 {
+                ForEach(chapterSections, id: \.chapter.id) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(section.chapter.title)
+                                .font(.caption.bold())
+                                .foregroundStyle(AppColors.textPrimary)
+                            Spacer()
+                            Text("\(section.chapter.problemCount)問")
+                                .font(.caption2.bold())
+                                .foregroundStyle(AppColors.textSecondary)
                         }
-                        detailText = record?.detail ?? ""
-                        editingNumber = number
+                        LazyVGrid(columns: columns, spacing: 10) {
+                            ForEach(1...section.chapter.problemCount, id: \.self) { localNumber in
+                                let globalNumber = section.startGlobalNumber + localNumber - 1
+                                problemTile(
+                                    globalNumber: globalNumber,
+                                    localLabel: "\(localNumber)",
+                                    accessibilityPrefix: section.chapter.title
+                                )
+                            }
+                        }
                     }
-                )
+                }
+            } else if totalProblems > 0 {
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(1...totalProblems, id: \.self) { number in
+                        problemTile(
+                            globalNumber: number,
+                            localLabel: "\(number)",
+                            accessibilityPrefix: nil
+                        )
+                    }
+                }
             }
         }
         .sheet(item: Binding(
@@ -45,7 +63,7 @@ struct ProblemTileSelector: View {
                     TextField("大問・小問メモ（例: 大問2の(4)、計算ミス）", text: $detailText, axis: .vertical)
                         .keyboardType(.default)
                 }
-                .navigationTitle("\(target.number)問目")
+                .navigationTitle(editingTitle(for: target.number))
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("閉じる") { editingNumber = nil }
@@ -59,6 +77,39 @@ struct ProblemTileSelector: View {
                 }
             }
         }
+    }
+
+    private var chapterSections: [ProblemChapterSection] {
+        var start = 1
+        return chapters.filter { $0.problemCount > 0 }.map { chapter in
+            defer { start += chapter.problemCount }
+            return ProblemChapterSection(chapter: chapter, startGlobalNumber: start)
+        }
+    }
+
+    private func problemTile(globalNumber: Int, localLabel: String, accessibilityPrefix: String?) -> some View {
+        ProblemTile(
+            number: globalNumber,
+            label: localLabel,
+            accessibilityPrefix: accessibilityPrefix,
+            record: records.first(where: { $0.number == globalNumber }),
+            onCorrectTap: { toggleCorrect(globalNumber) },
+            onWrongDoubleTap: { toggleWrong(globalNumber) },
+            onLongPress: {
+                let record = records.first(where: { $0.number == globalNumber })
+                if let record {
+                    editingStatus = record.result.editStatus
+                } else {
+                    editingStatus = .untouched
+                }
+                detailText = record?.detail ?? ""
+                editingNumber = globalNumber
+            }
+        )
+    }
+
+    private func editingTitle(for number: Int) -> String {
+        chapters.label(for: number)
     }
 
     private func toggleCorrect(_ number: Int) {
@@ -133,8 +184,15 @@ private struct ProblemTileEditTarget: Identifiable {
     var id: Int { number }
 }
 
+private struct ProblemChapterSection {
+    let chapter: ProblemChapter
+    let startGlobalNumber: Int
+}
+
 private struct ProblemTile: View {
     let number: Int
+    let label: String
+    let accessibilityPrefix: String?
     let record: ProblemSessionRecord?
     let onCorrectTap: () -> Void
     let onWrongDoubleTap: () -> Void
@@ -144,9 +202,15 @@ private struct ProblemTile: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            Text("\(number)")
+            Text(label)
                 .font(.callout.bold())
                 .monospacedDigit()
+            if accessibilityPrefix != nil {
+                Text("#\(number)")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(foreground.opacity(0.72))
+            }
             if record?.detail?.nilIfBlank != nil {
                 Image(systemName: "text.bubble.fill")
                     .font(.system(size: 10, weight: .bold))
@@ -213,7 +277,8 @@ private struct ProblemTile: View {
     }
 
     private var accessibilityLabel: String {
-        guard let record else { return "\(number)問目 未着手" }
-        return "\(number)問目 \(record.result.title)"
+        let prefix = accessibilityPrefix.map { "\($0) \(label)問目" } ?? "\(number)問目"
+        guard let record else { return "\(prefix) 未着手" }
+        return "\(prefix) \(record.result.title)"
     }
 }

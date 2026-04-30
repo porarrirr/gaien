@@ -205,6 +205,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(Int64(material.totalProblems), forKey: "totalProblems")
+        record.setValue(Self.encodeProblemChapters(material.problemChapters), forKey: "problemChaptersData")
         record.setValue(Self.encodeProblemRecords(material.problemRecords), forKey: "problemRecordsData")
         record.setValue(material.color.map { Int64($0) }, forKey: "color")
         record.setValue(material.note, forKey: "note")
@@ -919,6 +920,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(Int64(material.totalProblems), forKey: "totalProblems")
+        record.setValue(encodeProblemChapters(material.problemChapters), forKey: "problemChaptersData")
         record.setValue(encodeProblemRecords(material.problemRecords), forKey: "problemRecordsData")
         record.setValue(material.color.map { Int64($0) }, forKey: "color")
         record.setValue(material.note, forKey: "note")
@@ -1313,6 +1315,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             totalPages: Int(record.value(forKey: "totalPages") as? Int64 ?? 0),
             currentPage: Int(record.value(forKey: "currentPage") as? Int64 ?? 0),
             totalProblems: Int(record.value(forKey: "totalProblems") as? Int64 ?? 0),
+            problemChapters: decodeProblemChapters(record.value(forKey: "problemChaptersData") as? String),
             problemRecords: decodeProblemRecords(record.value(forKey: "problemRecordsData") as? String),
             color: (record.value(forKey: "color") as? Int64).map(Int.init),
             note: record.value(forKey: "note") as? String,
@@ -1437,6 +1440,17 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return (try? JSONDecoder().decode([ProblemSessionRecord].self, from: data)) ?? []
     }
 
+    private static func encodeProblemChapters(_ chapters: [ProblemChapter]) -> String? {
+        guard !chapters.isEmpty else { return nil }
+        guard let data = try? JSONEncoder().encode(chapters) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeProblemChapters(_ value: String?) -> [ProblemChapter] {
+        guard let value, let data = value.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([ProblemChapter].self, from: data)) ?? []
+    }
+
     private static func makeManagedObjectModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         model.entities = [
@@ -1466,6 +1480,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "totalPages", type: .integer64AttributeType),
                     attribute(name: "currentPage", type: .integer64AttributeType),
                     attribute(name: "totalProblems", type: .integer64AttributeType, defaultValue: Int64(0)),
+                    attribute(name: "problemChaptersData", type: .stringAttributeType, optional: true),
                     attribute(name: "problemRecordsData", type: .stringAttributeType, optional: true),
                     attribute(name: "color", type: .integer64AttributeType, optional: true),
                     attribute(name: "note", type: .stringAttributeType, optional: true),

@@ -22,6 +22,7 @@ struct Material: Identifiable, Codable, Hashable {
     var totalPages: Int = 0
     var currentPage: Int = 0
     var totalProblems: Int = 0
+    var problemChapters: [ProblemChapter] = []
     var problemRecords: [ProblemSessionRecord] = []
     var color: Int?
     var note: String?
@@ -40,6 +41,7 @@ struct Material: Identifiable, Codable, Hashable {
         case totalPages
         case currentPage
         case totalProblems
+        case problemChapters
         case problemRecords
         case color
         case note
@@ -58,6 +60,15 @@ struct Material: Identifiable, Codable, Hashable {
         Int(progress * 100)
     }
 
+    var effectiveTotalProblems: Int {
+        let chapterTotal = problemChapters.totalProblemCount
+        return chapterTotal > 0 ? chapterTotal : totalProblems
+    }
+
+    func problemLabel(for number: Int) -> String {
+        problemChapters.label(for: number)
+    }
+
     init(
         id: Int64 = 0,
         syncId: String = UUID().uuidString.lowercased(),
@@ -68,6 +79,7 @@ struct Material: Identifiable, Codable, Hashable {
         totalPages: Int = 0,
         currentPage: Int = 0,
         totalProblems: Int = 0,
+        problemChapters: [ProblemChapter] = [],
         problemRecords: [ProblemSessionRecord] = [],
         color: Int? = nil,
         note: String? = nil,
@@ -85,6 +97,7 @@ struct Material: Identifiable, Codable, Hashable {
         self.totalPages = totalPages
         self.currentPage = currentPage
         self.totalProblems = totalProblems
+        self.problemChapters = problemChapters
         self.problemRecords = problemRecords
         self.color = color
         self.note = note
@@ -106,6 +119,7 @@ struct Material: Identifiable, Codable, Hashable {
         totalPages = try container.decodeIfPresent(Int.self, forKey: .totalPages) ?? 0
         currentPage = try container.decodeIfPresent(Int.self, forKey: .currentPage) ?? 0
         totalProblems = try container.decodeIfPresent(Int.self, forKey: .totalProblems) ?? 0
+        problemChapters = try container.decodeIfPresent([ProblemChapter].self, forKey: .problemChapters) ?? []
         problemRecords = try container.decodeIfPresent([ProblemSessionRecord].self, forKey: .problemRecords) ?? []
         color = try container.decodeIfPresent(Int.self, forKey: .color)
         note = try container.decodeIfPresent(String.self, forKey: .note)
@@ -126,6 +140,7 @@ struct Material: Identifiable, Codable, Hashable {
         try container.encode(totalPages, forKey: .totalPages)
         try container.encode(currentPage, forKey: .currentPage)
         try container.encode(totalProblems, forKey: .totalProblems)
+        try container.encode(problemChapters, forKey: .problemChapters)
         try container.encode(problemRecords, forKey: .problemRecords)
         try container.encodeIfPresent(color, forKey: .color)
         try container.encodeIfPresent(note, forKey: .note)
@@ -133,6 +148,72 @@ struct Material: Identifiable, Codable, Hashable {
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
         try container.encodeIfPresent(lastSyncedAt, forKey: .lastSyncedAt)
+    }
+}
+
+struct ProblemChapter: Identifiable, Codable, Hashable {
+    var id: String = UUID().uuidString.lowercased()
+    var title: String
+    var problemCount: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case problemCount
+    }
+
+    init(id: String = UUID().uuidString.lowercased(), title: String, problemCount: Int) {
+        self.id = id
+        self.title = title
+        self.problemCount = problemCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString.lowercased()
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "章"
+        problemCount = try container.decodeIfPresent(Int.self, forKey: .problemCount) ?? 0
+    }
+}
+
+struct ProblemNumberLocation: Hashable {
+    var globalNumber: Int
+    var chapterIndex: Int
+    var chapterTitle: String
+    var localNumber: Int
+
+    var displayText: String {
+        "\(chapterTitle) \(localNumber)問"
+    }
+}
+
+extension Array where Element == ProblemChapter {
+    var totalProblemCount: Int {
+        reduce(0) { $0 + max($1.problemCount, 0) }
+    }
+
+    func location(for globalNumber: Int) -> ProblemNumberLocation? {
+        guard globalNumber > 0 else { return nil }
+        var offset = 0
+        for (index, chapter) in enumerated() {
+            let count = max(chapter.problemCount, 0)
+            guard count > 0 else { continue }
+            let range = (offset + 1)...(offset + count)
+            if range.contains(globalNumber) {
+                return ProblemNumberLocation(
+                    globalNumber: globalNumber,
+                    chapterIndex: index,
+                    chapterTitle: chapter.title,
+                    localNumber: globalNumber - offset
+                )
+            }
+            offset += count
+        }
+        return nil
+    }
+
+    func label(for globalNumber: Int) -> String {
+        location(for: globalNumber)?.displayText ?? "\(globalNumber)問"
     }
 }
 
@@ -565,4 +646,3 @@ struct PlanItem: Identifiable, Codable, Hashable {
     var deletedAt: Int64?
     var lastSyncedAt: Int64?
 }
-

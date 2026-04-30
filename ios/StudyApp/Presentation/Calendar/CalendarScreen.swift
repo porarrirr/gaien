@@ -420,7 +420,7 @@ struct CalendarScreen: View {
                         }
                     }
                     if !material.problemRecords.isEmpty {
-                        Text(problemNumbersText(for: material.problemRecords))
+                        Text(problemNumbersText(for: material.problemRecords, chapters: problemChapters(for: material)))
                             .lineLimit(2)
                     }
                 }
@@ -542,18 +542,18 @@ struct CalendarScreen: View {
             if session.problemRangeText != nil || session.effectiveWrongProblemCount != nil {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Label(session.problemRangeText ?? "範囲未入力", systemImage: "list.number")
+                        Label(problemRangeText(for: session), systemImage: "list.number")
                         Spacer()
                         Text("不正解 \(session.effectiveWrongProblemCount ?? 0)")
                     }
                     if !session.problemRecords.isEmpty {
-                        Text(problemNumbersText(for: session.problemRecords))
+                        Text(problemNumbersText(for: session.problemRecords, chapters: viewModel.materialProblemChapters(for: session)))
                             .lineLimit(2)
                     } else if session.effectiveReviewCorrectProblemCount > 0 {
                         Text("復習 \(session.effectiveReviewCorrectProblemCount)")
                     }
                     ForEach(session.problemRecords.filter { $0.detail?.nilIfBlank != nil }) { record in
-                        Text("\(record.number)問目: \(record.detail ?? "")")
+                        Text("\(viewModel.materialProblemChapters(for: session).label(for: record.number)): \(record.detail ?? "")")
                             .lineLimit(2)
                     }
                 }
@@ -615,7 +615,8 @@ struct CalendarScreen: View {
     private func problemRecordEditor(for session: StudySession) -> some View {
         let totalProblems = editingTotalProblems(for: session)
         if viewModel.materialProblemCount(for: session) > 0 {
-            Text("全\(totalProblems)問")
+            let chapters = viewModel.materialProblemChapters(for: session)
+            Text(chapters.isEmpty ? "全\(totalProblems)問" : "全\(totalProblems)問 ・ \(chapters.count)章")
                 .font(.caption.bold())
                 .foregroundStyle(AppColors.textSecondary)
         } else {
@@ -647,7 +648,11 @@ struct CalendarScreen: View {
         }
 
         if totalProblems > 0 {
-            ProblemTileSelector(totalProblems: totalProblems, records: $editingProblemRecords)
+            ProblemTileSelector(
+                totalProblems: totalProblems,
+                chapters: viewModel.materialProblemChapters(for: session),
+                records: $editingProblemRecords
+            )
             Text(problemRecordEditSummary)
                 .font(.caption)
                 .foregroundStyle(AppColors.textSecondary)
@@ -692,10 +697,26 @@ struct CalendarScreen: View {
         return parseDraftInt(problemCountText)
     }
 
-    private func problemNumbersText(for records: [ProblemSessionRecord]) -> String {
-        let correct = records.filter { $0.result == .correct }.map(\.number)
-        let wrong = records.filter(\.isWrong).map(\.number)
-        let review = records.filter { $0.result == .reviewCorrect }.map(\.number)
+    private func problemChapters(for material: DayStudyMaterialSummary) -> [ProblemChapter] {
+        guard let session = material.sessions.first else { return [] }
+        return viewModel.materialProblemChapters(for: session)
+    }
+
+    private func problemRangeText(for session: StudySession) -> String {
+        let chapters = viewModel.materialProblemChapters(for: session)
+        if !session.problemRecords.isEmpty {
+            let numbers = session.problemRecords.map(\.number).sorted()
+            guard let first = numbers.first, let last = numbers.last else { return "範囲未入力" }
+            return first == last ? chapters.label(for: first) : "\(chapters.label(for: first)) - \(chapters.label(for: last))"
+        }
+        guard let start = session.problemStart, let end = session.problemEnd else { return "範囲未入力" }
+        return start == end ? chapters.label(for: start) : "\(chapters.label(for: start)) - \(chapters.label(for: end))"
+    }
+
+    private func problemNumbersText(for records: [ProblemSessionRecord], chapters: [ProblemChapter] = []) -> String {
+        let correct = records.filter { $0.result == .correct }.map { chapters.label(for: $0.number) }
+        let wrong = records.filter(\.isWrong).map { chapters.label(for: $0.number) }
+        let review = records.filter { $0.result == .reviewCorrect }.map { chapters.label(for: $0.number) }
         var parts: [String] = []
         if !wrong.isEmpty {
             parts.append("不正解 \(wrong.map(String.init).joined(separator: ", "))")

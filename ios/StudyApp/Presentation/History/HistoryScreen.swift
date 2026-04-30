@@ -10,6 +10,8 @@ struct HistoryScreen: View {
     @State private var problemStartDraft = ""
     @State private var problemEndDraft = ""
     @State private var wrongProblemCountDraft = ""
+    @State private var editingProblemRecords: [ProblemSessionRecord] = []
+    @State private var problemCountDraft = ""
     @State private var isShowingFilter = false
 
     init(app: StudyAppContainer) {
@@ -54,7 +56,10 @@ struct HistoryScreen: View {
                                     .padding(.horizontal, AppSpacing.md)
 
                                 ForEach(sessions) { session in
-                                    HistorySessionCardNew(session: session)
+                                    HistorySessionCardNew(
+                                        session: session,
+                                        problemChapters: viewModel.materialProblemChapters(for: session)
+                                    )
                                         .padding(.horizontal, AppSpacing.md)
                                         .contextMenu {
                                             Button {
@@ -65,6 +70,8 @@ struct HistoryScreen: View {
                                                 problemStartDraft = session.problemStart.map(String.init) ?? ""
                                                 problemEndDraft = session.problemEnd.map(String.init) ?? ""
                                                 wrongProblemCountDraft = session.wrongProblemCount.map(String.init) ?? ""
+                                                editingProblemRecords = session.problemRecords
+                                                problemCountDraft = initialProblemCountText(for: session)
                                             } label: {
                                                 Label("編集", systemImage: "pencil")
                                             }
@@ -117,14 +124,7 @@ struct HistoryScreen: View {
                         TextField("学習時間（分）", text: $durationDraft)
                             .keyboardType(.numberPad)
                         SessionRatingSelector(rating: $ratingDraft, allowsClearing: true)
-                        HStack {
-                            TextField("開始問題", text: $problemStartDraft)
-                                .keyboardType(.numberPad)
-                            TextField("終了問題", text: $problemEndDraft)
-                                .keyboardType(.numberPad)
-                            TextField("不正解", text: $wrongProblemCountDraft)
-                                .keyboardType(.numberPad)
-                        }
+                        problemEditor(for: session)
                         TextField("メモ", text: $noteDraft, axis: .vertical)
                     }
                 }
@@ -144,15 +144,16 @@ struct HistoryScreen: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("保存") {
+                            let normalizedRecords = editingProblemRecords.sorted { $0.number < $1.number }
                             viewModel.updateSession(
                                 session,
                                 durationMinutes: Int(durationDraft) ?? session.durationMinutes,
                                 note: noteDraft,
                                 rating: ratingDraft,
-                                problemStart: Int(problemStartDraft),
-                                problemEnd: Int(problemEndDraft),
-                                wrongProblemCount: Int(wrongProblemCountDraft),
-                                problemRecords: session.problemRecords
+                                problemStart: normalizedRecords.first?.number ?? Int(problemStartDraft),
+                                problemEnd: normalizedRecords.last?.number ?? Int(problemEndDraft),
+                                wrongProblemCount: normalizedRecords.isEmpty ? Int(wrongProblemCountDraft) : normalizedRecords.filter(\.isWrong).count,
+                                problemRecords: normalizedRecords
                             )
                             editingSession = nil
                         }
@@ -179,10 +180,65 @@ struct HistoryScreen: View {
             await viewModel.load()
         }
     }
+
+    @ViewBuilder
+    private func problemEditor(for session: StudySession) -> some View {
+        let totalProblems = editingTotalProblems(for: session)
+        if totalProblems > 0 {
+            let chapters = viewModel.materialProblemChapters(for: session)
+            Text(chapters.isEmpty ? "全\(totalProblems)問" : "全\(totalProblems)問 ・ \(chapters.count)章")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ProblemTileSelector(
+                totalProblems: totalProblems,
+                chapters: chapters,
+                records: $editingProblemRecords
+            )
+            Text(problemRecordEditSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            HStack {
+                TextField("開始問題", text: $problemStartDraft)
+                    .keyboardType(.numberPad)
+                TextField("終了問題", text: $problemEndDraft)
+                    .keyboardType(.numberPad)
+                TextField("不正解", text: $wrongProblemCountDraft)
+                    .keyboardType(.numberPad)
+            }
+        }
+    }
+
+    private func initialProblemCountText(for session: StudySession) -> String {
+        let materialProblemCount = viewModel.materialProblemCount(for: session)
+        if materialProblemCount > 0 {
+            return "\(materialProblemCount)"
+        }
+        let maxRecordedProblem = session.problemRecords.map(\.number).max() ?? 0
+        let count = max(maxRecordedProblem, session.problemEnd ?? 0)
+        return count > 0 ? "\(count)" : ""
+    }
+
+    private func editingTotalProblems(for session: StudySession) -> Int {
+        let materialProblemCount = viewModel.materialProblemCount(for: session)
+        if materialProblemCount > 0 {
+            return materialProblemCount
+        }
+        return parseDraftInt(problemCountDraft)
+    }
+
+    private var problemRecordEditSummary: String {
+        let done = editingProblemRecords.count
+        let correct = editingProblemRecords.filter { $0.result == .correct }.count
+        let wrong = editingProblemRecords.filter(\.isWrong).count
+        let review = editingProblemRecords.filter { $0.result == .reviewCorrect }.count
+        return "選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
+    }
 }
 
 private struct HistorySessionCardNew: View {
     let session: StudySession
+    let problemChapters: [ProblemChapter]
 
     var body: some View {
         HStack(spacing: AppSpacing.md) {
@@ -235,12 +291,12 @@ private struct HistorySessionCardNew: View {
 
     private func sessionProblemSummary(_ session: StudySession) -> String {
         guard !session.problemRecords.isEmpty else {
-            return "\(session.problemRangeText ?? "範囲未入力") / 不正解 \(session.effectiveWrongProblemCount ?? 0)"
+            return "\(problemRangeText) / 不正解 \(session.effectiveWrongProblemCount ?? 0)"
         }
-        let correct = session.problemRecords.filter { $0.result == .correct }.map(\.number)
-        let wrong = session.problemRecords.filter(\.isWrong).map(\.number)
-        let review = session.problemRecords.filter { $0.result == .reviewCorrect }.map(\.number)
-        var parts = [session.problemRangeText ?? "範囲未入力"]
+        let correct = session.problemRecords.filter { $0.result == .correct }.map { problemChapters.label(for: $0.number) }
+        let wrong = session.problemRecords.filter(\.isWrong).map { problemChapters.label(for: $0.number) }
+        let review = session.problemRecords.filter { $0.result == .reviewCorrect }.map { problemChapters.label(for: $0.number) }
+        var parts = [problemRangeText]
         if !wrong.isEmpty {
             parts.append("不正解 \(wrong.map(String.init).joined(separator: ", "))")
         }
@@ -251,5 +307,15 @@ private struct HistorySessionCardNew: View {
             parts.append("復習 \(review.map(String.init).joined(separator: ", "))")
         }
         return parts.joined(separator: " / ")
+    }
+
+    private var problemRangeText: String {
+        if !session.problemRecords.isEmpty {
+            let numbers = session.problemRecords.map(\.number).sorted()
+            guard let first = numbers.first, let last = numbers.last else { return "範囲未入力" }
+            return first == last ? problemChapters.label(for: first) : "\(problemChapters.label(for: first)) - \(problemChapters.label(for: last))"
+        }
+        guard let start = session.problemStart, let end = session.problemEnd else { return session.problemRangeText ?? "範囲未入力" }
+        return start == end ? problemChapters.label(for: start) : "\(problemChapters.label(for: start)) - \(problemChapters.label(for: end))"
     }
 }

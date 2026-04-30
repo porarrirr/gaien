@@ -47,8 +47,16 @@ final class CalendarViewModel: ScreenViewModel {
     }
 
     func materialProblemCount(for session: StudySession) -> Int {
-        guard let materialId = session.materialId else { return 0 }
-        return materials.first(where: { $0.id == materialId })?.totalProblems ?? 0
+        material(for: session)?.effectiveTotalProblems ?? 0
+    }
+
+    func materialProblemChapters(for session: StudySession) -> [ProblemChapter] {
+        material(for: session)?.problemChapters ?? []
+    }
+
+    func material(for session: StudySession) -> Material? {
+        guard let materialId = session.materialId else { return nil }
+        return materials.first(where: { $0.id == materialId })
     }
 
     func updateSession(

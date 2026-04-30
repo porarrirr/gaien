@@ -5,6 +5,7 @@ import Foundation
 final class HistoryViewModel: ScreenViewModel {
     @Published private(set) var sessions: [StudySession] = []
     @Published private(set) var subjects: [Subject] = []
+    @Published private(set) var materials: [Material] = []
     @Published var filterSubjectId: Int64?
 
     var filteredSessions: [StudySession] {
@@ -16,8 +17,10 @@ final class HistoryViewModel: ScreenViewModel {
         do {
             async let sessionsTask = app.persistence.getAllSessions()
             async let subjectsTask = app.persistence.getAllSubjects()
+            async let materialsTask = app.persistence.getAllMaterials()
             sessions = try await sessionsTask
             subjects = try await subjectsTask
+            materials = try await materialsTask
         } catch {
             app.present(error)
         }
@@ -25,6 +28,16 @@ final class HistoryViewModel: ScreenViewModel {
 
     func setFilter(_ subjectId: Int64?) {
         filterSubjectId = subjectId
+    }
+
+    func materialProblemChapters(for session: StudySession) -> [ProblemChapter] {
+        guard let materialId = session.materialId else { return [] }
+        return materials.first(where: { $0.id == materialId })?.problemChapters ?? []
+    }
+
+    func materialProblemCount(for session: StudySession) -> Int {
+        guard let materialId = session.materialId else { return 0 }
+        return materials.first(where: { $0.id == materialId })?.effectiveTotalProblems ?? 0
     }
 
     func updateSession(

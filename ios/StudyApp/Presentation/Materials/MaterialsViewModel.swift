@@ -26,7 +26,7 @@ final class MaterialsViewModel: ScreenViewModel {
             }
             progressSummaries = Dictionary(
                 uniqueKeysWithValues: materials
-                    .filter { $0.totalProblems > 0 }
+                    .filter { $0.effectiveTotalProblems > 0 }
                     .map { material in
                         (
                             material.id,
@@ -80,14 +80,28 @@ final class MaterialsViewModel: ScreenViewModel {
         totalPages: Int,
         currentPage: Int = 0,
         totalProblems: Int = 0,
+        problemChapters: [ProblemChapter] = [],
         note: String?
     ) {
         perform {
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedChapters = problemChapters.map { chapter in
+                ProblemChapter(
+                    id: chapter.id,
+                    title: chapter.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                    problemCount: chapter.problemCount
+                )
+            }
+            let chapterTotalProblems = normalizedChapters.totalProblemCount
+            let effectiveTotalProblems = chapterTotalProblems > 0 ? chapterTotalProblems : totalProblems
             guard !trimmed.isEmpty else { throw ValidationError(message: "教材名を入力してください") }
             guard totalPages >= 0 else { throw ValidationError(message: "ページ数は0以上で入力してください") }
             guard currentPage >= 0 else { throw ValidationError(message: "ページ数は0以上で入力してください") }
             guard totalProblems >= 0 else { throw ValidationError(message: "全問題数は0以上で入力してください") }
+            for chapter in normalizedChapters {
+                guard !chapter.title.isEmpty else { throw ValidationError(message: "章名を入力してください") }
+                guard chapter.problemCount > 0 else { throw ValidationError(message: "章ごとの問題数は1以上で入力してください") }
+            }
             guard totalPages == 0 || currentPage <= totalPages else { throw ValidationError(message: "現在のページは総ページ数以下にしてください") }
             if let id {
                 let existing = try await self.app.persistence.getAllMaterials().first(where: { $0.id == id })
@@ -103,7 +117,8 @@ final class MaterialsViewModel: ScreenViewModel {
                         sortOrder: existing?.sortOrder ?? Date().epochMilliseconds,
                         totalPages: totalPages,
                         currentPage: currentPage,
-                        totalProblems: totalProblems,
+                        totalProblems: effectiveTotalProblems,
+                        problemChapters: normalizedChapters,
                         problemRecords: existing?.problemRecords ?? [],
                         color: nil,
                         note: note?.nilIfBlank
@@ -123,7 +138,8 @@ final class MaterialsViewModel: ScreenViewModel {
                         sortOrder: nextOrder,
                         totalPages: totalPages,
                         currentPage: 0,
-                        totalProblems: totalProblems,
+                        totalProblems: effectiveTotalProblems,
+                        problemChapters: normalizedChapters,
                         color: nil,
                         note: note?.nilIfBlank
                     )
@@ -196,7 +212,7 @@ struct MaterialListProgressSummary: Hashable {
     }
 
     init(material: Material, sessions: [StudySession]) {
-        let totalProblems = max(material.totalProblems, 0)
+        let totalProblems = max(material.effectiveTotalProblems, 0)
         self.totalProblems = totalProblems
         latestStudyDate = sessions.max(by: { $0.sessionStartTime < $1.sessionStartTime })?.startDate.startOfDay
 
