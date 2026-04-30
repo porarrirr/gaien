@@ -4,7 +4,7 @@ struct HistoryScreen: View {
     @StateObject private var viewModel: HistoryViewModel
     @State private var editingSession: StudySession?
     @State private var pendingDeletionSession: StudySession?
-    @State private var durationDraft = ""
+    @State private var intervalDrafts: [StudySessionIntervalDraft] = []
     @State private var noteDraft = ""
     @State private var ratingDraft: Int? = nil
     @State private var problemStartDraft = ""
@@ -64,7 +64,9 @@ struct HistoryScreen: View {
                                         .contextMenu {
                                             Button {
                                                 editingSession = session
-                                                durationDraft = "\(session.durationMinutes)"
+                                                intervalDrafts = session.effectiveIntervals.enumerated().map {
+                                                    StudySessionIntervalDraft(interval: $0.element, index: $0.offset)
+                                                }
                                                 noteDraft = session.note ?? ""
                                                 ratingDraft = session.rating
                                                 problemStartDraft = session.problemStart.map(String.init) ?? ""
@@ -121,8 +123,17 @@ struct HistoryScreen: View {
                         }
                     }
                     Section("記録") {
-                        TextField("学習時間（分）", text: $durationDraft)
-                            .keyboardType(.numberPad)
+                        ForEach($intervalDrafts) { $interval in
+                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                if intervalDrafts.count > 1 {
+                                    Text("区間 \(interval.index + 1)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                DatePicker("開始時刻", selection: $interval.startDate, displayedComponents: .hourAndMinute)
+                                DatePicker("終了時刻", selection: $interval.endDate, displayedComponents: .hourAndMinute)
+                            }
+                        }
                         SessionRatingSelector(rating: $ratingDraft, allowsClearing: true)
                         problemEditor(for: session)
                         TextField("メモ", text: $noteDraft, axis: .vertical)
@@ -147,7 +158,7 @@ struct HistoryScreen: View {
                             let normalizedRecords = editingProblemRecords.sorted { $0.number < $1.number }
                             viewModel.updateSession(
                                 session,
-                                durationMinutes: Int(durationDraft) ?? session.durationMinutes,
+                                intervals: intervalDrafts.map(\.interval),
                                 note: noteDraft,
                                 rating: ratingDraft,
                                 problemStart: normalizedRecords.first?.number ?? Int(problemStartDraft),
@@ -157,6 +168,7 @@ struct HistoryScreen: View {
                             )
                             editingSession = nil
                         }
+                        .disabled(!areIntervalDraftsValid)
                     }
                 }
             }
@@ -233,6 +245,34 @@ struct HistoryScreen: View {
         let wrong = editingProblemRecords.filter(\.isWrong).count
         let review = editingProblemRecords.filter { $0.result == .reviewCorrect }.count
         return "選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
+    }
+
+    private var areIntervalDraftsValid: Bool {
+        guard !intervalDrafts.isEmpty else { return false }
+        let intervals = intervalDrafts.map(\.interval)
+        guard intervals.allSatisfy({ $0.endTime > $0.startTime }) else { return false }
+
+        for index in intervals.indices.dropFirst() where intervals[index].startTime < intervals[index - 1].endTime {
+            return false
+        }
+        return true
+    }
+}
+
+private struct StudySessionIntervalDraft: Identifiable, Hashable {
+    let id = UUID()
+    let index: Int
+    var startDate: Date
+    var endDate: Date
+
+    init(interval: StudySessionInterval, index: Int) {
+        self.index = index
+        startDate = Date(epochMilliseconds: interval.startTime)
+        endDate = Date(epochMilliseconds: interval.endTime)
+    }
+
+    var interval: StudySessionInterval {
+        StudySessionInterval(startTime: startDate.epochMilliseconds, endTime: endDate.epochMilliseconds)
     }
 }
 
