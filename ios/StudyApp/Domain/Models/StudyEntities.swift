@@ -189,14 +189,14 @@ struct ProblemNumberLocation: Hashable {
 
 extension Array where Element == ProblemChapter {
     var totalProblemCount: Int {
-        reduce(0) { $0 + max($1.problemCount, 0) }
+        reduce(0) { $0 + Swift.max($1.problemCount, 0) }
     }
 
     func location(for globalNumber: Int) -> ProblemNumberLocation? {
         guard globalNumber > 0 else { return nil }
         var offset = 0
         for (index, chapter) in enumerated() {
-            let count = max(chapter.problemCount, 0)
+            let count = Swift.max(chapter.problemCount, 0)
             guard count > 0 else { continue }
             let range = (offset + 1)...(offset + count)
             if range.contains(globalNumber) {

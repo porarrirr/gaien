@@ -298,13 +298,13 @@ private struct HistorySessionCardNew: View {
         let review = session.problemRecords.filter { $0.result == .reviewCorrect }.map { problemChapters.label(for: $0.number) }
         var parts = [problemRangeText]
         if !wrong.isEmpty {
-            parts.append("不正解 \(wrong.map(String.init).joined(separator: ", "))")
+            parts.append("不正解 \(wrong.map { String(describing: $0) }.joined(separator: ", "))")
         }
         if !correct.isEmpty {
-            parts.append("正解 \(correct.map(String.init).joined(separator: ", "))")
+            parts.append("正解 \(correct.map { String(describing: $0) }.joined(separator: ", "))")
         }
         if !review.isEmpty {
-            parts.append("復習 \(review.map(String.init).joined(separator: ", "))")
+            parts.append("復習 \(review.map { String(describing: $0) }.joined(separator: ", "))")
         }
         return parts.joined(separator: " / ")
     }
