@@ -100,12 +100,18 @@ struct MaterialsScreen: View {
                     SubjectsScreen(app: viewModel.app)
                 } label: {
                     Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.tint)
+                        .frame(width: 36, height: 36)
                 }
 
                 Button {
                     openBarcodeScanner()
                 } label: {
                     Image(systemName: "barcode.viewfinder")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.tint)
+                        .frame(width: 36, height: 36)
                 }
 
                 Menu {
@@ -122,6 +128,10 @@ struct MaterialsScreen: View {
                     }
                 } label: {
                     Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(.tint, in: Circle())
                 }
             }
         }
@@ -296,26 +306,55 @@ private struct MaterialCardNew: View {
     let onUpdateProgress: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+        HStack(alignment: .center, spacing: AppSpacing.md) {
             HStack(alignment: .top, spacing: AppSpacing.sm) {
-                // Subject color accent
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color(hex: subjectColor))
-                    .frame(width: 4, height: 44)
+                    .frame(width: 4, height: 56)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(material.name)
                         .font(.headline)
+                        .foregroundStyle(AppColors.textPrimary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(subjectName)
                         .font(.caption)
                         .foregroundStyle(AppColors.textSecondary)
-                }
+                    if material.totalProblems > 0 {
+                        Text(material.problemChapters.isEmpty ? "全\(material.totalProblems)問" : "全\(material.totalProblems)問 ・ \(material.problemChapters.count)章")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                    } else if material.totalPages > 0 {
+                        Text("全\(material.totalPages)ページ")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
 
-                Spacer()
-
-                if let progressSummary {
-                    MaterialListProgressView(summary: progressSummary)
+                    if let note = material.note, !note.isEmpty {
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                            .lineLimit(2)
+                    }
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(alignment: .center, spacing: AppSpacing.lg) {
+                VStack(alignment: .trailing, spacing: AppSpacing.xs) {
+                    if let progressSummary {
+                        MaterialListProgressView(summary: progressSummary)
+                    } else if material.totalPages > 0 {
+                        Text("\(material.progressPercent)%")
+                            .font(.headline.monospacedDigit())
+                            .foregroundStyle(Color(hex: subjectColor))
+                        Text("\(material.currentPage)/\(material.totalPages)")
+                            .font(.caption2)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+                }
+                .frame(width: 76, alignment: .trailing)
 
                 Menu {
                     Button(action: onMoveUp) {
@@ -333,40 +372,11 @@ private struct MaterialCardNew: View {
                     Button(role: .destructive) { onDelete() } label: { Label("削除", systemImage: "trash") }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .foregroundStyle(AppColors.textSecondary)
-                        .frame(width: 32, height: 32)
-                }
-            }
-
-            if material.totalPages > 0 {
-                AnimatedProgressBar(
-                    value: Double(material.currentPage),
-                    total: Double(material.totalPages),
-                    height: 8,
-                    barColor: Color(hex: subjectColor)
-                )
-                HStack {
-                    Text("\(material.currentPage)/\(material.totalPages)ページ")
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSecondary)
-                    Spacer()
-                    Text("\(material.progressPercent)%")
                         .font(.caption.bold())
-                        .foregroundStyle(Color(hex: subjectColor))
+                        .foregroundStyle(AppColors.textSecondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
-            }
-
-            if material.totalProblems > 0 {
-                Text(material.problemChapters.isEmpty ? "全\(material.totalProblems)問" : "全\(material.totalProblems)問 ・ \(material.problemChapters.count)章")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-            }
-
-            if let note = material.note, !note.isEmpty {
-                Text(note)
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .lineLimit(2)
             }
         }
         .cardStyle()

@@ -27,15 +27,15 @@ enum AppTab: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .home:
-            return "house.fill"
+            return "house"
         case .timer:
             return "timer"
         case .materials:
-            return "book.closed.fill"
+            return "book.closed"
         case .calendar:
             return "calendar"
         case .reports:
-            return "chart.bar.fill"
+            return "chart.bar"
         }
     }
 
