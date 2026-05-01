@@ -481,6 +481,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             plans: mergePlans(local.plans, remote.plans),
             timetablePeriods: merge(local.timetablePeriods, remote.timetablePeriods, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
             timetableEntries: merge(local.timetableEntries, remote.timetableEntries, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            timetableTerms: merge(local.timetableTerms, remote.timetableTerms, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            timetableReviewRecords: merge(local.timetableReviewRecords, remote.timetableReviewRecords, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
             exportDate: max(local.exportDate, remote.exportDate)
         )
     }
@@ -534,6 +536,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             },
             timetablePeriods: appData.timetablePeriods.map { var value = $0; value.lastSyncedAt = timestamp; return value },
             timetableEntries: appData.timetableEntries.map { var value = $0; value.lastSyncedAt = timestamp; return value },
+            timetableTerms: appData.timetableTerms.map { var value = $0; value.lastSyncedAt = timestamp; return value },
+            timetableReviewRecords: appData.timetableReviewRecords.map { var value = $0; value.lastSyncedAt = timestamp; return value },
             exportDate: timestamp
         )
     }
@@ -548,6 +552,8 @@ private extension AppData {
         exams.isEmpty &&
         plans.isEmpty &&
         timetablePeriods.isEmpty &&
-        timetableEntries.isEmpty
+        timetableEntries.isEmpty &&
+        timetableTerms.isEmpty &&
+        timetableReviewRecords.isEmpty
     }
 }

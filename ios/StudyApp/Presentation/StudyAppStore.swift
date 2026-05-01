@@ -143,6 +143,8 @@ final class StudyAppContainer: ObservableObject {
                     return
                 }
                 try await reminderScheduler.scheduleDailyReminder(hour: preferences.reminderHour, minute: preferences.reminderMinute)
+                let overdueCount = try await persistence.overdueTimetableReviewCount()
+                try await reminderScheduler.scheduleTimetableReviewReminder(overdueCount: overdueCount)
                 savePreferences { $0.reminderEnabled = true }
             } catch {
                 present(error)
@@ -161,6 +163,8 @@ final class StudyAppContainer: ObservableObject {
         do {
             if preferences.reminderEnabled {
                 try await reminderScheduler.scheduleDailyReminder(hour: hour, minute: minute)
+                let overdueCount = try await persistence.overdueTimetableReviewCount()
+                try await reminderScheduler.scheduleTimetableReviewReminder(overdueCount: overdueCount)
             }
             savePreferences {
                 $0.reminderHour = hour
@@ -184,6 +188,9 @@ final class StudyAppContainer: ObservableObject {
         if shouldScheduleAutoSync {
             scheduleAutoSync(reason: "data-version-\(dataVersion)")
         }
+        if preferences.reminderEnabled {
+            Task { await refreshTimetableReviewReminder() }
+        }
     }
 
     func clearError() {
@@ -200,6 +207,15 @@ final class StudyAppContainer: ObservableObject {
 
     func scheduleAutoSync(reason: String) {
         autoSyncCoordinator.schedule(reason: reason)
+    }
+
+    func refreshTimetableReviewReminder() async {
+        do {
+            let overdueCount = try await persistence.overdueTimetableReviewCount()
+            try await reminderScheduler.scheduleTimetableReviewReminder(overdueCount: overdueCount)
+        } catch {
+            present(error)
+        }
     }
 
     func recordManualSyncApplied() {

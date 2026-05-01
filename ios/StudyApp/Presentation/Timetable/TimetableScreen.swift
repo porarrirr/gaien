@@ -3,7 +3,10 @@ import SwiftUI
 struct TimetableScreen: View {
     @StateObject private var viewModel: TimetableViewModel
     @State private var isShowingPeriodSettings = false
+    @State private var isShowingTermEditor = false
+    @State private var isCreatingTerm = false
     @State private var editorContext: TimetableEditorContext?
+    @State private var reviewEditorContext: TimetableReviewOccurrence?
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: TimetableViewModel(app: app))
@@ -15,6 +18,15 @@ struct TimetableScreen: View {
                 timetableHeader
                     .padding(.horizontal, AppSpacing.md)
 
+                termOverview
+                    .padding(.horizontal, AppSpacing.md)
+
+                reviewCalendar
+                    .padding(.horizontal, AppSpacing.md)
+
+                selectedDateLessons
+                    .padding(.horizontal, AppSpacing.md)
+
                 timetableGrid
             }
             .padding(.vertical, AppSpacing.md)
@@ -22,6 +34,14 @@ struct TimetableScreen: View {
         .background(AppColors.subtleBackground)
         .navigationTitle("時間割")
         .toolbar {
+            Button {
+                isCreatingTerm = true
+                isShowingTermEditor = true
+            } label: {
+                Image(systemName: "calendar.badge.plus")
+            }
+            .accessibilityLabel("学期設定")
+
             Button {
                 isShowingPeriodSettings = true
             } label: {
@@ -39,6 +59,22 @@ struct TimetableScreen: View {
                     },
                     onCancel: {
                         isShowingPeriodSettings = false
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $isShowingTermEditor) {
+            NavigationStack {
+                TimetableTermEditorSheet(
+                    term: isCreatingTerm ? nil : viewModel.selectedTerm,
+                    onSave: { term in
+                        viewModel.saveTerm(term)
+                        isCreatingTerm = false
+                        isShowingTermEditor = false
+                    },
+                    onCancel: {
+                        isCreatingTerm = false
+                        isShowingTermEditor = false
                     }
                 )
             }
@@ -61,6 +97,28 @@ struct TimetableScreen: View {
                 )
             }
         }
+        .sheet(item: $reviewEditorContext) { occurrence in
+            NavigationStack {
+                TimetableReviewEditorSheet(
+                    occurrence: occurrence,
+                    onSave: { reviewed, note in
+                        viewModel.setReviewed(occurrence, reviewed: reviewed, note: note)
+                        reviewEditorContext = nil
+                    },
+                    onExclude: {
+                        viewModel.setExcluded(occurrence, excluded: true)
+                        reviewEditorContext = nil
+                    },
+                    onRestore: {
+                        viewModel.setExcluded(occurrence, excluded: false)
+                        reviewEditorContext = nil
+                    },
+                    onCancel: {
+                        reviewEditorContext = nil
+                    }
+                )
+            }
+        }
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
         }
@@ -77,6 +135,14 @@ struct TimetableScreen: View {
             }
             Spacer()
             Button {
+                isCreatingTerm = false
+                isShowingTermEditor = true
+            } label: {
+                Label("学期", systemImage: "calendar")
+                    .font(.subheadline.bold())
+            }
+            .buttonStyle(.bordered)
+            Button {
                 isShowingPeriodSettings = true
             } label: {
                 Label("時限", systemImage: "clock")
@@ -85,6 +151,90 @@ struct TimetableScreen: View {
             .buttonStyle(.bordered)
         }
         .cardStyle()
+    }
+
+    private var termOverview: some View {
+        let summary = viewModel.termSummary
+        return VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.selectedTerm?.name ?? "学期未設定")
+                        .font(.headline)
+                    Text(viewModel.selectedTerm?.dateRangeText ?? "学期を設定してください")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                Spacer()
+                if !viewModel.terms.isEmpty {
+                    Menu {
+                        ForEach(viewModel.terms) { term in
+                            Button(term.name) {
+                                viewModel.selectTerm(term)
+                            }
+                        }
+                    } label: {
+                        Label("切替", systemImage: "chevron.down.circle")
+                    }
+                }
+                Button {
+                    isCreatingTerm = true
+                    isShowingTermEditor = true
+                } label: {
+                    Label("追加", systemImage: "plus.circle")
+                }
+            }
+
+            ProgressView(value: summary.completionRate)
+                .tint(summary.pending > 0 ? AppColors.danger : .green)
+
+            HStack(spacing: AppSpacing.sm) {
+                TimetableSummaryBadge(title: "復習済み", value: summary.reviewed, color: .green)
+                TimetableSummaryBadge(title: "未復習", value: summary.pending, color: AppColors.danger)
+                TimetableSummaryBadge(title: "対象外", value: summary.excluded, color: .secondary)
+            }
+        }
+        .cardStyle()
+    }
+
+    private var reviewCalendar: some View {
+        DatePicker(
+            "復習確認日",
+            selection: Binding(
+                get: { viewModel.selectedDate },
+                set: { viewModel.selectDate($0) }
+            ),
+            displayedComponents: .date
+        )
+        .datePickerStyle(.graphical)
+        .padding(AppSpacing.sm)
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(viewModel.isDateInSelectedTerm(viewModel.selectedDate) ? Color.clear : AppColors.danger.opacity(0.35))
+        }
+    }
+
+    private var selectedDateLessons: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack {
+                SectionHeaderView(title: "この日の授業復習", icon: "checklist.checked")
+                Spacer()
+            }
+
+            if viewModel.selectedDateOccurrences.isEmpty {
+                Text(viewModel.isDateInSelectedTerm(viewModel.selectedDate) ? "この日の授業はありません" : "選択日は学期の範囲外です")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .cardStyle()
+            } else {
+                ForEach(viewModel.selectedDateOccurrences) { occurrence in
+                    TimetableReviewOccurrenceRow(occurrence: occurrence) {
+                        reviewEditorContext = occurrence
+                    }
+                }
+            }
+        }
     }
 
     private var timetableGrid: some View {
@@ -106,7 +256,7 @@ struct TimetableScreen: View {
                         ForEach(columns) { period in
                             let entry = slotMap[TimetableSlotKey(day: day, periodId: period.id)]
                             TimetableCell(entry: entry) {
-                                editorContext = TimetableEditorContext(day: day, period: period, entry: entry)
+                                editorContext = TimetableEditorContext(term: viewModel.selectedTerm, day: day, period: period, entry: entry)
                             }
                             .contextMenu {
                                 if let entry {
@@ -212,9 +362,113 @@ private struct TimetableCell: View {
 
 struct TimetableEditorContext: Identifiable {
     let id = UUID()
+    var term: TimetableTerm?
     var day: StudyWeekday
     var period: TimetablePeriod
     var entry: TimetableEntry?
+}
+
+private struct TimetableSummaryBadge: View {
+    let title: String
+    let value: Int
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text("\(value)")
+                .font(.headline)
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(AppColors.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private struct TimetableReviewOccurrenceRow: View {
+    let occurrence: TimetableReviewOccurrence
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: AppSpacing.md) {
+                Image(systemName: iconName)
+                    .font(.title3)
+                    .foregroundStyle(statusColor)
+                    .frame(width: 30)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(occurrence.entry.subjectName)
+                            .font(.headline)
+                            .foregroundStyle(AppColors.textPrimary)
+                        Spacer()
+                        Text(statusText)
+                            .font(.caption.bold())
+                            .foregroundStyle(statusColor)
+                    }
+                    Text("\(occurrence.period.name) \(occurrence.period.timeRangeText)")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                    if let course = occurrence.entry.courseName, !course.isEmpty {
+                        Text(course)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+                    if let note = occurrence.record?.note, !note.isEmpty {
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                            .lineLimit(2)
+                    }
+                }
+            }
+            .padding(AppSpacing.sm)
+            .background(statusColor.opacity(backgroundOpacity), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(statusColor.opacity(0.35), lineWidth: occurrence.status == .pending || occurrence.status == .overdue ? 1 : 0)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var iconName: String {
+        switch occurrence.status {
+        case .notAvailable: return "clock"
+        case .pending: return "exclamationmark.circle.fill"
+        case .overdue: return "exclamationmark.triangle.fill"
+        case .reviewed: return "checkmark.circle.fill"
+        case .excluded: return "slash.circle.fill"
+        }
+    }
+
+    private var statusText: String {
+        switch occurrence.status {
+        case .notAvailable: return "授業後に記録可"
+        case .pending: return "未復習"
+        case .overdue: return "期限超過"
+        case .reviewed: return "復習済み"
+        case .excluded: return "対象外"
+        }
+    }
+
+    private var statusColor: Color {
+        switch occurrence.status {
+        case .notAvailable: return AppColors.textSecondary
+        case .pending, .overdue: return AppColors.danger
+        case .reviewed: return .green
+        case .excluded: return .secondary
+        }
+    }
+
+    private var backgroundOpacity: Double {
+        switch occurrence.status {
+        case .pending, .overdue: return 0.18
+        default: return 0.10
+        }
+    }
 }
 
 private struct TimetableEntryEditorSheet: View {
@@ -257,6 +511,11 @@ private struct TimetableEntryEditorSheet: View {
                 TextField("科目", text: $subjectName)
                 TextField("講座名", text: $courseName)
                 TextField("教室", text: $roomName)
+                if context.entry != nil {
+                    Text("保存すると、過去の復習履歴はそのまま残し、今後の時間割だけを新しい内容にします。")
+                        .font(.footnote)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
             }
 
             if let entry = context.entry {
@@ -281,12 +540,16 @@ private struct TimetableEntryEditorSheet: View {
                         TimetableEntry(
                             id: context.entry?.id ?? 0,
                             syncId: context.entry?.syncId ?? UUID().uuidString.lowercased(),
+                            termId: context.term?.id,
+                            termSyncId: context.term?.syncId,
                             dayOfWeek: context.day,
                             periodId: context.period.id,
                             periodSyncId: context.period.syncId,
                             subjectName: subjectName.trimmingCharacters(in: .whitespacesAndNewlines),
                             courseName: courseName.nilIfBlank,
                             roomName: roomName.nilIfBlank,
+                            validFromDate: context.entry?.validFromDate,
+                            validToDate: context.entry?.validToDate,
                             createdAt: context.entry?.createdAt ?? now,
                             updatedAt: now,
                             deletedAt: context.entry?.deletedAt,
@@ -297,6 +560,153 @@ private struct TimetableEntryEditorSheet: View {
                 .disabled(subjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
+    }
+}
+
+private struct TimetableTermEditorSheet: View {
+    let term: TimetableTerm?
+    let onSave: (TimetableTerm) -> Void
+    let onCancel: () -> Void
+
+    @State private var name: String
+    @State private var startDate: Date
+    @State private var endDate: Date
+    @State private var errorMessage: String?
+
+    init(term: TimetableTerm?, onSave: @escaping (TimetableTerm) -> Void, onCancel: @escaping () -> Void) {
+        self.term = term
+        self.onSave = onSave
+        self.onCancel = onCancel
+        _name = State(initialValue: term?.name ?? "新しい学期")
+        _startDate = State(initialValue: term?.startDateValue ?? Date().startOfDay)
+        _endDate = State(initialValue: term?.endDateValue ?? (Calendar.current.date(byAdding: .month, value: 6, to: Date().startOfDay) ?? Date().startOfDay))
+    }
+
+    var body: some View {
+        Form {
+            if let errorMessage {
+                Text(errorMessage)
+                    .foregroundStyle(AppColors.danger)
+            }
+
+            Section("学期") {
+                TextField("学期名", text: $name)
+                DatePicker("開始日", selection: $startDate, displayedComponents: .date)
+                DatePicker("終了日", selection: $endDate, displayedComponents: .date)
+            }
+        }
+        .navigationTitle(term == nil ? "学期を追加" : "学期を編集")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("キャンセル", action: onCancel)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("保存") {
+                    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else {
+                        errorMessage = "学期名を入力してください"
+                        return
+                    }
+                    guard startDate.startOfDay <= endDate.startOfDay else {
+                        errorMessage = "終了日は開始日以降にしてください"
+                        return
+                    }
+                    let now = Date().epochMilliseconds
+                    onSave(
+                        TimetableTerm(
+                            id: term?.id ?? 0,
+                            syncId: term?.syncId ?? UUID().uuidString.lowercased(),
+                            name: trimmed,
+                            startDate: startDate.startOfDay.epochDay,
+                            endDate: endDate.startOfDay.epochDay,
+                            isActive: true,
+                            createdAt: term?.createdAt ?? now,
+                            updatedAt: now,
+                            deletedAt: term?.deletedAt,
+                            lastSyncedAt: term?.lastSyncedAt
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct TimetableReviewEditorSheet: View {
+    let occurrence: TimetableReviewOccurrence
+    let onSave: (Bool, String?) -> Void
+    let onExclude: () -> Void
+    let onRestore: () -> Void
+    let onCancel: () -> Void
+
+    @State private var note: String
+
+    init(
+        occurrence: TimetableReviewOccurrence,
+        onSave: @escaping (Bool, String?) -> Void,
+        onExclude: @escaping () -> Void,
+        onRestore: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.occurrence = occurrence
+        self.onSave = onSave
+        self.onExclude = onExclude
+        self.onRestore = onRestore
+        self.onCancel = onCancel
+        _note = State(initialValue: occurrence.record?.note ?? "")
+    }
+
+    var body: some View {
+        Form {
+            Section("授業") {
+                LabeledContent("科目", value: occurrence.entry.subjectName)
+                LabeledContent("日時", value: "\(formattedDate) \(occurrence.period.name) \(occurrence.period.timeRangeText)")
+                if let course = occurrence.entry.courseName, !course.isEmpty {
+                    LabeledContent("講座", value: course)
+                }
+                if let room = occurrence.entry.roomName, !room.isEmpty {
+                    LabeledContent("教室", value: room)
+                }
+            }
+
+            Section("復習メモ") {
+                TextEditor(text: $note)
+                    .frame(minHeight: 96)
+            }
+
+            Section {
+                Button {
+                    onSave(true, note)
+                } label: {
+                    Label("復習済みにする", systemImage: "checkmark.circle.fill")
+                }
+                .disabled(!occurrence.canReview)
+
+                if occurrence.isReviewed {
+                    Button {
+                        onSave(false, note)
+                    } label: {
+                        Label("未復習に戻す", systemImage: "arrow.uturn.backward.circle")
+                    }
+                }
+
+                if occurrence.isExcluded {
+                    Button("対象外を解除", action: onRestore)
+                } else {
+                    Button("この日は授業なし（対象外）", action: onExclude)
+                }
+            }
+        }
+        .navigationTitle("復習記録")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("閉じる", action: onCancel)
+            }
+        }
+    }
+
+    private var formattedDate: String {
+        occurrence.date.formatted(date: .abbreviated, time: .omitted)
     }
 }
 

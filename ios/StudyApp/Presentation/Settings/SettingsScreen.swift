@@ -56,6 +56,9 @@ struct SettingsScreen: View {
                     displayedComponents: .hourAndMinute
                 )
                 .disabled(!viewModel.app.preferences.reminderEnabled)
+                Text("時間割の未復習が48時間を超えた場合、この設定がONなら毎日20時にまとめて通知します。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             } header: {
                 Label("通知", systemImage: "bell.fill")
             }

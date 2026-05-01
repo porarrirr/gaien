@@ -37,16 +37,89 @@ struct TimetablePeriod: Identifiable, Codable, Hashable {
 struct TimetableEntry: Identifiable, Codable, Hashable {
     var id: Int64 = 0
     var syncId: String = UUID().uuidString.lowercased()
+    var termId: Int64?
+    var termSyncId: String?
     var dayOfWeek: StudyWeekday
     var periodId: Int64
     var periodSyncId: String?
     var subjectName: String
     var courseName: String?
     var roomName: String?
+    var validFromDate: Int64?
+    var validToDate: Int64?
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
     var deletedAt: Int64?
     var lastSyncedAt: Int64?
+}
+
+struct TimetableTerm: Identifiable, Codable, Hashable {
+    var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
+    var name: String
+    var startDate: Int64
+    var endDate: Int64
+    var isActive: Bool = true
+    var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
+
+    var startDateValue: Date {
+        Date(epochDay: startDate)
+    }
+
+    var endDateValue: Date {
+        Date(epochDay: endDate)
+    }
+
+    var dateRangeText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return "\(formatter.string(from: startDateValue)) - \(formatter.string(from: endDateValue))"
+    }
+
+    func contains(_ date: Date) -> Bool {
+        let day = date.startOfDay.epochDay
+        return startDate <= day && day <= endDate
+    }
+}
+
+struct TimetableReviewRecord: Identifiable, Codable, Hashable {
+    var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
+    var termId: Int64
+    var termSyncId: String?
+    var entryId: Int64
+    var entrySyncId: String?
+    var periodId: Int64
+    var periodSyncId: String?
+    var occurrenceDate: Int64
+    var dayOfWeek: StudyWeekday
+    var periodName: String
+    var periodStartMinute: Int
+    var periodEndMinute: Int
+    var subjectName: String
+    var courseName: String?
+    var roomName: String?
+    var isReviewed: Bool = false
+    var note: String?
+    var isExcluded: Bool = false
+    var reviewedAt: Int64?
+    var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
+
+    var occurrenceDateValue: Date {
+        Date(epochDay: occurrenceDate)
+    }
+
+    var periodTimeRangeText: String {
+        "\(TimetablePeriod.timeText(periodStartMinute))-\(TimetablePeriod.timeText(periodEndMinute))"
+    }
 }
 
 struct TimetableLesson: Hashable {

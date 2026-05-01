@@ -4,6 +4,7 @@ import UserNotifications
 @MainActor
 final class ReminderScheduler {
     static let notificationIdentifier = "studyapp.daily.reminder"
+    static let timetableReviewNotificationIdentifier = "studyapp.timetable.review.overdue"
 
     private let center: UNUserNotificationCenter
 
@@ -39,8 +40,30 @@ final class ReminderScheduler {
         try await center.add(request)
     }
 
+    func scheduleTimetableReviewReminder(overdueCount: Int) async throws {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.timetableReviewNotificationIdentifier])
+        guard overdueCount > 0 else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "授業の復習が残っています"
+        content.body = "48時間を超えた未復習の授業が\(overdueCount)件あります。時間割で確認しましょう。"
+        content.sound = .default
+
+        var components = DateComponents()
+        components.hour = 20
+        components.minute = 0
+
+        let request = UNNotificationRequest(
+            identifier: Self.timetableReviewNotificationIdentifier,
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        )
+
+        try await center.add(request)
+    }
+
     func cancelReminder() {
-        center.removePendingNotificationRequests(withIdentifiers: [Self.notificationIdentifier])
-        center.removeDeliveredNotifications(withIdentifiers: [Self.notificationIdentifier])
+        center.removePendingNotificationRequests(withIdentifiers: [Self.notificationIdentifier, Self.timetableReviewNotificationIdentifier])
+        center.removeDeliveredNotifications(withIdentifiers: [Self.notificationIdentifier, Self.timetableReviewNotificationIdentifier])
     }
 }

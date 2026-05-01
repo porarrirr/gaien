@@ -54,9 +54,15 @@ protocol TimetableRepository {
     func getAllTimetablePeriods() async throws -> [TimetablePeriod]
     func saveTimetablePeriod(_ period: TimetablePeriod) async throws -> Int64
     func deleteTimetablePeriod(_ period: TimetablePeriod) async throws
+    func getAllTimetableTerms() async throws -> [TimetableTerm]
+    func saveTimetableTerm(_ term: TimetableTerm) async throws -> Int64
+    func deleteTimetableTerm(_ term: TimetableTerm) async throws
     func getAllTimetableEntries() async throws -> [TimetableEntry]
     func saveTimetableEntry(_ entry: TimetableEntry) async throws -> Int64
     func deleteTimetableEntry(_ entry: TimetableEntry) async throws
+    func getAllTimetableReviewRecords() async throws -> [TimetableReviewRecord]
+    func saveTimetableReviewRecord(_ record: TimetableReviewRecord) async throws -> Int64
+    func deleteTimetableReviewRecord(_ record: TimetableReviewRecord) async throws
 }
 
 protocol AppPreferencesRepository {

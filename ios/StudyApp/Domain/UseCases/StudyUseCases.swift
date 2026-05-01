@@ -35,6 +35,7 @@ struct GetHomeDataUseCase {
         async let upcomingExamsTask = examRepository.getUpcomingExams(now: clock.now())
         async let timetablePeriodsTask = timetableRepository.getAllTimetablePeriods()
         async let timetableEntriesTask = timetableRepository.getAllTimetableEntries()
+        async let timetableTermsTask = timetableRepository.getAllTimetableTerms()
 
         let todaySessions = try await todaySessionsTask
         let goals = try await goalsTask
@@ -42,6 +43,7 @@ struct GetHomeDataUseCase {
         let upcomingExams = try await upcomingExamsTask
         let timetablePeriods = try await timetablePeriodsTask
         let timetableEntries = try await timetableEntriesTask
+        let timetableTerms = try await timetableTermsTask
         let todayGoal = goals.latestActiveDailyGoal(for: todayWeekday)
         let weeklyGoal = goals.latestActiveWeeklyGoal()
 
@@ -65,6 +67,7 @@ struct GetHomeDataUseCase {
             timetableLesson: nextTimetableLesson(
                 periods: timetablePeriods,
                 entries: timetableEntries,
+                terms: timetableTerms,
                 reference: clock.now()
             )
         )
@@ -73,6 +76,7 @@ struct GetHomeDataUseCase {
     private func nextTimetableLesson(
         periods: [TimetablePeriod],
         entries: [TimetableEntry],
+        terms: [TimetableTerm],
         reference: Date
     ) -> TimetableLesson? {
         let activePeriods = periods
@@ -81,8 +85,14 @@ struct GetHomeDataUseCase {
         guard !activePeriods.isEmpty else { return nil }
 
         let periodMap = Dictionary(uniqueKeysWithValues: activePeriods.map { ($0.id, $0) })
+        let activeTerm = terms.first(where: { $0.deletedAt == nil && $0.isActive && $0.contains(reference) })
+            ?? terms.filter { $0.deletedAt == nil && $0.isActive }.sorted { $0.endDate > $1.endDate }.first
+        let referenceDay = reference.startOfDay.epochDay
         let activeEntries = entries.filter {
             $0.deletedAt == nil &&
+            ($0.termId == activeTerm?.id || $0.termId == nil) &&
+            ($0.validFromDate.map { referenceDay >= $0 } ?? true) &&
+            ($0.validToDate.map { referenceDay <= $0 } ?? true) &&
             StudyWeekday.timetableDays.contains($0.dayOfWeek) &&
             periodMap[$0.periodId] != nil
         }
@@ -90,7 +100,7 @@ struct GetHomeDataUseCase {
 
         let calendar = Calendar.current
         let currentMinutes = (calendar.component(.hour, from: reference) * 60) + calendar.component(.minute, from: reference)
-        let referenceDay = StudyWeekday.from(calendarWeekday: calendar.component(.weekday, from: reference))
+        let referenceWeekday = StudyWeekday.from(calendarWeekday: calendar.component(.weekday, from: reference))
 
         for offset in 0..<7 {
             guard let date = calendar.date(byAdding: .day, value: offset, to: reference) else { continue }
@@ -108,7 +118,7 @@ struct GetHomeDataUseCase {
             for pair in dayEntries {
                 let entry = pair.0
                 let period = pair.1
-                if offset == 0, day == referenceDay {
+                if offset == 0, day == referenceWeekday {
                     if currentMinutes >= period.startMinute && currentMinutes < period.endMinute {
                         return TimetableLesson(entry: entry, period: period, dayOfWeek: day, date: date, isCurrent: true)
                     }
