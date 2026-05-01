@@ -89,7 +89,7 @@ final class TimetableViewModel: ScreenViewModel {
             if entry.id > 0 {
                 let today = Date().startOfDay.epochDay
                 let yesterday = today - 1
-                var archivedEntry = entries.first(where: { $0.id == entry.id }) ?? entry
+                var archivedEntry = self.entries.first(where: { $0.id == entry.id }) ?? entry
                 archivedEntry.validToDate = yesterday
                 archivedEntry.updatedAt = Date().epochMilliseconds
                 var futureEntry = entry
