@@ -138,6 +138,7 @@ struct CalendarScreen: View {
                 if let day = selectedDay {
                     let sessions = viewModel.sessions(for: day)
                     let subjectSummaries = viewModel.subjectSummaries(for: day)
+                    let timelineItems = viewModel.timelineItems(for: day)
                     let totalMins = viewModel.totalMinutes(for: day)
 
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -159,7 +160,7 @@ struct CalendarScreen: View {
                             }
                         }
 
-                        if sessions.isEmpty {
+                        if sessions.isEmpty && timelineItems.isEmpty {
                             // Empty state
                             VStack(spacing: AppSpacing.sm) {
                                 Image(systemName: "book.closed")
@@ -176,14 +177,14 @@ struct CalendarScreen: View {
                             .padding(.vertical, AppSpacing.lg)
                             .cardStyle()
                         } else {
-                            switch detailDisplayMode {
+                            switch sessions.isEmpty ? CalendarDetailDisplayMode.timeline : detailDisplayMode {
                             case .summary:
                                 ForEach(subjectSummaries) { subject in
                                     subjectSummarySection(subject)
                                 }
                             case .timeline:
-                                ForEach(sessions) { session in
-                                    sessionCard(session)
+                                ForEach(timelineItems) { item in
+                                    timelineItemView(item)
                                 }
                             }
                         }
@@ -514,6 +515,98 @@ struct CalendarScreen: View {
         }
     }
 
+    @ViewBuilder
+    private func timelineItemView(_ item: CalendarTimelineItem) -> some View {
+        switch item {
+        case .gap(let gap):
+            timelineGapCard(gap)
+        case .lesson(let lesson):
+            timelineLessonCard(lesson)
+        case .study(let session):
+            sessionCard(session)
+        }
+    }
+
+    private func timelineGapCard(_ gap: CalendarTimelineGap) -> some View {
+        HStack(spacing: AppSpacing.sm) {
+            Image(systemName: "pause.circle")
+                .font(.caption.bold())
+                .foregroundStyle(AppColors.textSecondary)
+            Text("\(timeString(from: gap.startTime))〜\(timeString(from: gap.endTime))")
+                .font(.caption.bold())
+                .foregroundStyle(AppColors.textSecondary)
+            Spacer(minLength: AppSpacing.xs)
+            Text(durationText(milliseconds: gap.durationMilliseconds))
+                .font(.caption.bold())
+                .foregroundStyle(AppColors.textPrimary)
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, AppSpacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(.systemGray6))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color(.separator).opacity(0.6), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("空き時間 \(durationText(milliseconds: gap.durationMilliseconds))")
+    }
+
+    private func timelineLessonCard(_ lesson: CalendarTimelineLesson) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack(alignment: .top, spacing: AppSpacing.sm) {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(Color(hex: 0x2196F3))
+                    .frame(width: 6, height: 28)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: AppSpacing.xs) {
+                        Text(lesson.period.name)
+                            .font(.caption.bold())
+                            .foregroundStyle(Color(hex: 0x2196F3))
+                        Text(lesson.entry.subjectName.isEmpty ? "授業" : lesson.entry.subjectName)
+                            .font(.headline)
+                            .foregroundStyle(AppColors.textPrimary)
+                    }
+                    if let courseName = lesson.entry.courseName?.nilIfBlank {
+                        Text(courseName)
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+                    HStack(spacing: AppSpacing.xs) {
+                        Text("\(timeString(from: lesson.startTime))〜\(timeString(from: lesson.endTime))")
+                        Text(durationText(milliseconds: lesson.endTime - lesson.startTime))
+                    }
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                }
+                Spacer()
+                Text("授業")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color(hex: 0x2196F3))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: 0x2196F3).opacity(0.12), in: Capsule())
+            }
+            if let roomName = lesson.entry.roomName?.nilIfBlank {
+                Label(roomName, systemImage: "mappin.and.ellipse")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+        }
+        .padding(AppSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(hex: 0x2196F3).opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(hex: 0x2196F3).opacity(0.25), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
     private func sessionCard(_ session: StudySession) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             // Subject + Duration badge
@@ -758,6 +851,26 @@ struct CalendarScreen: View {
 
     private func intervalText(_ interval: StudySessionInterval) -> String {
         "\(timeString(from: interval.startTime))~\(timeString(from: interval.endTime))"
+    }
+
+    private func durationText(milliseconds: Int64) -> String {
+        let totalSeconds = max(Int(milliseconds / 1_000), 0)
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 && minutes > 0 {
+            return "\(hours)時間 \(minutes)分"
+        }
+        if hours > 0 {
+            return "\(hours)時間"
+        }
+        if minutes > 0 && seconds > 0 {
+            return "\(minutes)分 \(seconds)秒"
+        }
+        if minutes > 0 {
+            return "\(minutes)分"
+        }
+        return "\(seconds)秒"
     }
 
     private func sessionIntervalText(_ session: StudySession) -> String {

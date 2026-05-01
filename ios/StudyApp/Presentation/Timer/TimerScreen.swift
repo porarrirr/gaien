@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 // MARK: - TimerScreen
 
@@ -16,6 +17,7 @@ struct TimerScreen: View {
     @State private var sessionProblemCountDraft = ""
     @State private var initializedEvaluationId: UUID?
     @State private var ringScale: CGFloat = 1.0
+    @State private var previousIdleTimerDisabled = false
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: TimerViewModel(app: app))
@@ -147,6 +149,13 @@ struct TimerScreen: View {
         }
         .onChange(of: viewModel.selectedMaterialId) { _ in
             viewModel.handleMaterialSelectionChange()
+        }
+        .onAppear {
+            previousIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = previousIdleTimerDisabled
         }
     }
 
