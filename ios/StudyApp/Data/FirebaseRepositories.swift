@@ -479,6 +479,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             goals: merge(local.goals, remote.goals, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
             exams: merge(local.exams, remote.exams, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
             plans: mergePlans(local.plans, remote.plans),
+            timetablePeriods: merge(local.timetablePeriods, remote.timetablePeriods, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            timetableEntries: merge(local.timetableEntries, remote.timetableEntries, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
             exportDate: max(local.exportDate, remote.exportDate)
         )
     }
@@ -530,6 +532,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 }
                 return PlanData(plan: plan, items: items)
             },
+            timetablePeriods: appData.timetablePeriods.map { var value = $0; value.lastSyncedAt = timestamp; return value },
+            timetableEntries: appData.timetableEntries.map { var value = $0; value.lastSyncedAt = timestamp; return value },
             exportDate: timestamp
         )
     }
@@ -542,6 +546,8 @@ private extension AppData {
         sessions.isEmpty &&
         goals.isEmpty &&
         exams.isEmpty &&
-        plans.isEmpty
+        plans.isEmpty &&
+        timetablePeriods.isEmpty &&
+        timetableEntries.isEmpty
     }
 }

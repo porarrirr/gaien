@@ -4,6 +4,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     case home
     case timer
     case materials
+    case timetable
     case calendar
     case reports
 
@@ -17,6 +18,8 @@ enum AppTab: String, CaseIterable, Identifiable {
             return "タイマー"
         case .materials:
             return "教材"
+        case .timetable:
+            return "時間割"
         case .calendar:
             return "カレンダー"
         case .reports:
@@ -32,6 +35,8 @@ enum AppTab: String, CaseIterable, Identifiable {
             return "timer"
         case .materials:
             return "book.closed"
+        case .timetable:
+            return "tablecells"
         case .calendar:
             return "calendar"
         case .reports:
@@ -48,6 +53,8 @@ enum AppTab: String, CaseIterable, Identifiable {
             TimerScreen(app: app)
         case .materials:
             MaterialsScreen(app: app)
+        case .timetable:
+            TimetableScreen(app: app)
         case .calendar:
             CalendarScreen(app: app)
         case .reports:

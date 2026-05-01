@@ -19,6 +19,7 @@ struct GetHomeDataUseCase {
     let studySessionRepository: StudySessionRepository
     let goalRepository: GoalRepository
     let examRepository: ExamRepository
+    let timetableRepository: TimetableRepository
     let clock: Clock
 
     func execute() async throws -> HomeData {
@@ -32,11 +33,15 @@ struct GetHomeDataUseCase {
         async let goalsTask = goalRepository.getAllGoals()
         async let weeklySessionsTask = studySessionRepository.getSessionsBetweenDates(start: weekStart, end: weekStart + weekMs)
         async let upcomingExamsTask = examRepository.getUpcomingExams(now: clock.now())
+        async let timetablePeriodsTask = timetableRepository.getAllTimetablePeriods()
+        async let timetableEntriesTask = timetableRepository.getAllTimetableEntries()
 
         let todaySessions = try await todaySessionsTask
         let goals = try await goalsTask
         let weeklySessions = try await weeklySessionsTask
         let upcomingExams = try await upcomingExamsTask
+        let timetablePeriods = try await timetablePeriodsTask
+        let timetableEntries = try await timetableEntriesTask
         let todayGoal = goals.latestActiveDailyGoal(for: todayWeekday)
         let weeklyGoal = goals.latestActiveWeeklyGoal()
 
@@ -52,12 +57,70 @@ struct GetHomeDataUseCase {
                         duration: $0.duration,
                         startTime: $0.startTime
                     )
-                },
+            },
             todayGoal: todayGoal,
             weeklyGoal: weeklyGoal,
             weeklyStudyMinutes: weeklySessions.reduce(0) { $0 + $1.durationMinutes },
-            upcomingExams: upcomingExams.sorted { $0.date < $1.date }
+            upcomingExams: upcomingExams.sorted { $0.date < $1.date },
+            timetableLesson: nextTimetableLesson(
+                periods: timetablePeriods,
+                entries: timetableEntries,
+                reference: clock.now()
+            )
         )
+    }
+
+    private func nextTimetableLesson(
+        periods: [TimetablePeriod],
+        entries: [TimetableEntry],
+        reference: Date
+    ) -> TimetableLesson? {
+        let activePeriods = periods
+            .filter { $0.isActive && $0.deletedAt == nil && $0.startMinute < $0.endMinute }
+            .sorted { $0.sortOrder == $1.sortOrder ? $0.startMinute < $1.startMinute : $0.sortOrder < $1.sortOrder }
+        guard !activePeriods.isEmpty else { return nil }
+
+        let periodMap = Dictionary(uniqueKeysWithValues: activePeriods.map { ($0.id, $0) })
+        let activeEntries = entries.filter {
+            $0.deletedAt == nil &&
+            StudyWeekday.timetableDays.contains($0.dayOfWeek) &&
+            periodMap[$0.periodId] != nil
+        }
+        guard !activeEntries.isEmpty else { return nil }
+
+        let calendar = Calendar.current
+        let currentMinutes = (calendar.component(.hour, from: reference) * 60) + calendar.component(.minute, from: reference)
+        let referenceDay = StudyWeekday.from(calendarWeekday: calendar.component(.weekday, from: reference))
+
+        for offset in 0..<7 {
+            guard let date = calendar.date(byAdding: .day, value: offset, to: reference) else { continue }
+            let day = StudyWeekday.from(calendarWeekday: calendar.component(.weekday, from: date))
+            guard StudyWeekday.timetableDays.contains(day) else { continue }
+
+            let dayEntries = activeEntries
+                .filter { $0.dayOfWeek == day }
+                .compactMap { entry -> (TimetableEntry, TimetablePeriod)? in
+                    guard let period = periodMap[entry.periodId] else { return nil }
+                    return (entry, period)
+                }
+                .sorted { $0.1.startMinute < $1.1.startMinute }
+
+            for pair in dayEntries {
+                let entry = pair.0
+                let period = pair.1
+                if offset == 0, day == referenceDay {
+                    if currentMinutes >= period.startMinute && currentMinutes < period.endMinute {
+                        return TimetableLesson(entry: entry, period: period, dayOfWeek: day, date: date, isCurrent: true)
+                    }
+                    if currentMinutes >= period.endMinute {
+                        continue
+                    }
+                }
+                return TimetableLesson(entry: entry, period: period, dayOfWeek: day, date: date, isCurrent: false)
+            }
+        }
+
+        return nil
     }
 }
 

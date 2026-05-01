@@ -50,6 +50,15 @@ protocol PlanRepository {
     func deletePlan(_ plan: StudyPlan) async throws
 }
 
+protocol TimetableRepository {
+    func getAllTimetablePeriods() async throws -> [TimetablePeriod]
+    func saveTimetablePeriod(_ period: TimetablePeriod) async throws -> Int64
+    func deleteTimetablePeriod(_ period: TimetablePeriod) async throws
+    func getAllTimetableEntries() async throws -> [TimetableEntry]
+    func saveTimetableEntry(_ entry: TimetableEntry) async throws -> Int64
+    func deleteTimetableEntry(_ entry: TimetableEntry) async throws
+}
+
 protocol AppPreferencesRepository {
     func loadPreferences() -> AppPreferences
     func savePreferences(_ preferences: AppPreferences)

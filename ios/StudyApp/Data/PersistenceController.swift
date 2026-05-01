@@ -2,7 +2,7 @@ import CoreData
 import Foundation
 
 @MainActor
-final class PersistenceController: SubjectRepository, MaterialRepository, StudySessionRepository, GoalRepository, ExamRepository, PlanRepository, AppDataRepository {
+final class PersistenceController: SubjectRepository, MaterialRepository, StudySessionRepository, GoalRepository, ExamRepository, PlanRepository, TimetableRepository, AppDataRepository {
     static let shared = PersistenceController()
 
     private let container: NSPersistentContainer
@@ -497,6 +497,130 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try saveContext()
     }
 
+    func getAllTimetablePeriods() async throws -> [TimetablePeriod] {
+        try await ensureLoaded()
+        return try fetch(
+            entity: "TimetablePeriodRecord",
+            sort: [NSSortDescriptor(key: "sortOrder", ascending: true), NSSortDescriptor(key: "startMinute", ascending: true)]
+        ).map(Self.timetablePeriod).filter { $0.deletedAt == nil && $0.isActive }
+    }
+
+    func saveTimetablePeriod(_ period: TimetablePeriod) async throws -> Int64 {
+        try await ensureLoaded()
+        guard period.startMinute < period.endMinute else {
+            throw ValidationError(message: "終了時刻は開始時刻より後にしてください")
+        }
+        let now = Date().epochMilliseconds
+        if period.id > 0, let record = try fetchOne(entity: "TimetablePeriodRecord", id: period.id) {
+            var updated = period
+            updated.syncId = (record.value(forKey: "syncId") as? String)?.nilIfBlank ?? period.syncId
+            updated.createdAt = record.value(forKey: "createdAt") as? Int64 ?? period.createdAt
+            updated.updatedAt = now
+            Self.apply(updated, assignedId: period.id, now: now, to: record)
+            try saveContext()
+            return period.id
+        }
+
+        let id = try nextIdentifier(ifNeeded: period.id)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "TimetablePeriodRecord", into: container.viewContext)
+        Self.apply(period, assignedId: id, now: now, to: record)
+        try saveContext()
+        return id
+    }
+
+    func deleteTimetablePeriod(_ period: TimetablePeriod) async throws {
+        try await ensureLoaded()
+        let now = Date().epochMilliseconds
+        if let record = try fetchOne(entity: "TimetablePeriodRecord", id: period.id) {
+            record.setValue(now, forKey: "deletedAt")
+            record.setValue(now, forKey: "updatedAt")
+        }
+        let entries = try fetch(entity: "TimetableEntryRecord", predicate: NSPredicate(format: "periodId == %lld", period.id))
+        for entry in entries {
+            entry.setValue(now, forKey: "deletedAt")
+            entry.setValue(now, forKey: "updatedAt")
+        }
+        try saveContext()
+    }
+
+    func getAllTimetableEntries() async throws -> [TimetableEntry] {
+        try await ensureLoaded()
+        return try fetch(
+            entity: "TimetableEntryRecord",
+            sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true), NSSortDescriptor(key: "periodId", ascending: true)]
+        ).map(Self.timetableEntry).filter { $0.deletedAt == nil }
+    }
+
+    func saveTimetableEntry(_ entry: TimetableEntry) async throws -> Int64 {
+        try await ensureLoaded()
+        let subjectName = entry.subjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !subjectName.isEmpty else {
+            throw ValidationError(message: "科目名を入力してください")
+        }
+        guard StudyWeekday.timetableDays.contains(entry.dayOfWeek) else {
+            throw ValidationError(message: "時間割は月曜から土曜の範囲で設定してください")
+        }
+        guard let period = try fetchOne(entity: "TimetablePeriodRecord", id: entry.periodId).map(Self.timetablePeriod),
+              period.deletedAt == nil,
+              period.isActive else {
+            throw ValidationError(message: "有効な時限を選択してください")
+        }
+
+        let now = Date().epochMilliseconds
+        let existing = try fetch(
+            entity: "TimetableEntryRecord",
+            predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "dayOfWeek == %@", entry.dayOfWeek.rawValue),
+                NSPredicate(format: "periodId == %lld", entry.periodId),
+                NSPredicate(format: "deletedAt == NIL")
+            ])
+        ).first
+
+        let currentRecord: NSManagedObject?
+        if let existing {
+            currentRecord = existing
+        } else if entry.id > 0 {
+            currentRecord = try fetchOne(entity: "TimetableEntryRecord", id: entry.id)
+        } else {
+            currentRecord = nil
+        }
+
+        if let record = currentRecord {
+            let assignedId = record.value(forKey: "id") as? Int64 ?? entry.id
+            var updated = entry
+            updated.syncId = (record.value(forKey: "syncId") as? String)?.nilIfBlank ?? entry.syncId
+            updated.periodSyncId = period.syncId
+            updated.subjectName = subjectName
+            updated.courseName = entry.courseName?.nilIfBlank
+            updated.roomName = entry.roomName?.nilIfBlank
+            updated.createdAt = record.value(forKey: "createdAt") as? Int64 ?? entry.createdAt
+            updated.updatedAt = now
+            Self.apply(updated, assignedId: assignedId, periodId: period.id, periodSyncId: period.syncId, now: now, to: record)
+            try saveContext()
+            return assignedId
+        }
+
+        var inserted = entry
+        inserted.subjectName = subjectName
+        inserted.courseName = entry.courseName?.nilIfBlank
+        inserted.roomName = entry.roomName?.nilIfBlank
+        inserted.periodSyncId = period.syncId
+        let id = try nextIdentifier(ifNeeded: entry.id)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "TimetableEntryRecord", into: container.viewContext)
+        Self.apply(inserted, assignedId: id, periodId: period.id, periodSyncId: period.syncId, now: now, to: record)
+        try saveContext()
+        return id
+    }
+
+    func deleteTimetableEntry(_ entry: TimetableEntry) async throws {
+        try await ensureLoaded()
+        guard let record = try fetchOne(entity: "TimetableEntryRecord", id: entry.id) else { return }
+        let now = Date().epochMilliseconds
+        record.setValue(now, forKey: "deletedAt")
+        record.setValue(now, forKey: "updatedAt")
+        try saveContext()
+    }
+
     func exportData() async throws -> AppData {
         try await ensureLoaded()
         try backfillMissingSyncMetadataIfNeeded()
@@ -506,6 +630,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let goals = try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(Self.goal)
         let exams = try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(Self.exam)
         let plans = try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(Self.plan)
+        let timetablePeriods = try fetch(entity: "TimetablePeriodRecord", sort: [NSSortDescriptor(key: "sortOrder", ascending: true)]).map(Self.timetablePeriod)
+        let timetableEntries = try fetch(entity: "TimetableEntryRecord", sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true)]).map(Self.timetableEntry)
 
         var planData = [PlanData]()
         for plan in plans {
@@ -524,6 +650,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             goals: goals,
             exams: exams,
             plans: planData,
+            timetablePeriods: timetablePeriods,
+            timetableEntries: timetableEntries,
             exportDate: Date().epochMilliseconds
         )
     }
@@ -662,6 +790,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let existingExamIds = try existingIdMap(entity: "ExamRecord")
         let existingPlanIds = try existingIdMap(entity: "StudyPlanRecord")
         let existingPlanItemIds = try existingIdMap(entity: "PlanItemRecord")
+        let existingTimetablePeriodIds = try existingIdMap(entity: "TimetablePeriodRecord")
+        let existingTimetableEntryIds = try existingIdMap(entity: "TimetableEntryRecord")
 
         // Delete all existing records in-memory (not yet committed)
         for entityName in Self.entityNames {
@@ -679,7 +809,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             appData.goals.map(\.id).max() ?? 0,
             appData.exams.map(\.id).max() ?? 0,
             importedPlanIds.max() ?? 0,
-            importedPlanItemIds.max() ?? 0
+            importedPlanItemIds.max() ?? 0,
+            appData.timetablePeriods.map(\.id).max() ?? 0,
+            appData.timetableEntries.map(\.id).max() ?? 0
         ]
         let maxImportedId = importedIdCandidates.max() ?? 0
         var nextId = maxImportedId + 1
@@ -707,6 +839,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         var materialOldMap:  [Int64: Int64]   = [:]
         var planSyncMap: [String: Int64] = [:]
         var planOldMap:  [Int64: Int64]   = [:]
+        var timetablePeriodSyncMap: [String: Int64] = [:]
+        var timetablePeriodOldMap:  [Int64: Int64]   = [:]
 
         // --- Subjects ---
         for subject in appData.subjects {
@@ -802,6 +936,31 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     to: ir
                 )
             }
+        }
+
+        // --- TimetablePeriods ---
+        for period in appData.timetablePeriods {
+            let localId = allocateId(preferred: existingTimetablePeriodIds[period.syncId] ?? period.id)
+            timetablePeriodSyncMap[period.syncId] = localId
+            if period.id > 0 { timetablePeriodOldMap[period.id] = localId }
+
+            let r = NSEntityDescription.insertNewObject(forEntityName: "TimetablePeriodRecord", into: ctx)
+            Self.apply(period, assignedId: localId, now: now, to: r)
+        }
+
+        // --- TimetableEntries ---
+        for entry in appData.timetableEntries {
+            let localId = allocateId(preferred: existingTimetableEntryIds[entry.syncId] ?? entry.id)
+            let periodId = Self.resolveFK(
+                syncId: entry.periodSyncId,
+                syncMap: timetablePeriodSyncMap,
+                oldId: entry.periodId,
+                oldMap: timetablePeriodOldMap
+            )
+            let periodSyncId = entry.periodSyncId ?? appData.timetablePeriods.first(where: { $0.id == entry.periodId })?.syncId
+
+            let r = NSEntityDescription.insertNewObject(forEntityName: "TimetableEntryRecord", into: ctx)
+            Self.apply(entry, assignedId: localId, periodId: periodId, periodSyncId: periodSyncId, now: now, to: r)
         }
 
         // Commit atomically; rollback on failure preserves original data
@@ -1032,6 +1191,42 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(item.lastSyncedAt, forKey: "lastSyncedAt")
     }
 
+    private static func apply(_ period: TimetablePeriod, assignedId: Int64, now: Int64, to record: NSManagedObject) {
+        record.setValue(assignedId, forKey: "id")
+        record.setValue(period.syncId, forKey: "syncId")
+        record.setValue(period.name, forKey: "name")
+        record.setValue(Int64(period.startMinute), forKey: "startMinute")
+        record.setValue(Int64(period.endMinute), forKey: "endMinute")
+        record.setValue(Int64(period.sortOrder), forKey: "sortOrder")
+        record.setValue(period.isActive, forKey: "isActive")
+        record.setValue(period.createdAt == 0 ? now : period.createdAt, forKey: "createdAt")
+        record.setValue(period.updatedAt == 0 ? now : period.updatedAt, forKey: "updatedAt")
+        record.setValue(period.deletedAt, forKey: "deletedAt")
+        record.setValue(period.lastSyncedAt, forKey: "lastSyncedAt")
+    }
+
+    private static func apply(
+        _ entry: TimetableEntry,
+        assignedId: Int64,
+        periodId: Int64,
+        periodSyncId: String?,
+        now: Int64,
+        to record: NSManagedObject
+    ) {
+        record.setValue(assignedId, forKey: "id")
+        record.setValue(entry.syncId, forKey: "syncId")
+        record.setValue(entry.dayOfWeek.rawValue, forKey: "dayOfWeek")
+        record.setValue(periodId, forKey: "periodId")
+        record.setValue(periodSyncId, forKey: "periodSyncId")
+        record.setValue(entry.subjectName, forKey: "subjectName")
+        record.setValue(entry.courseName, forKey: "courseName")
+        record.setValue(entry.roomName, forKey: "roomName")
+        record.setValue(entry.createdAt == 0 ? now : entry.createdAt, forKey: "createdAt")
+        record.setValue(entry.updatedAt == 0 ? now : entry.updatedAt, forKey: "updatedAt")
+        record.setValue(entry.deletedAt, forKey: "deletedAt")
+        record.setValue(entry.lastSyncedAt, forKey: "lastSyncedAt")
+    }
+
     private func apply(_ session: StudySession, to record: NSManagedObject) {
         Self.apply(
             session,
@@ -1244,6 +1439,25 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             )
         }
 
+        let timetablePeriodRecords = try fetch(entity: "TimetablePeriodRecord")
+        var timetablePeriodSyncIds = [Int64: String]()
+        for record in timetablePeriodRecords {
+            let id = record.value(forKey: "id") as? Int64 ?? 0
+            timetablePeriodSyncIds[id] = ensureSyncId(on: record, didChange: &didChange)
+        }
+
+        let timetableEntryRecords = try fetch(entity: "TimetableEntryRecord")
+        for record in timetableEntryRecords {
+            _ = ensureSyncId(on: record, didChange: &didChange)
+            let periodId = record.value(forKey: "periodId") as? Int64 ?? 0
+            ensureStringValue(
+                on: record,
+                key: "periodSyncId",
+                value: timetablePeriodSyncIds[periodId],
+                didChange: &didChange
+            )
+        }
+
         for entity in ["GoalRecord", "ExamRecord"] {
             let records = try fetch(entity: entity)
             for record in records {
@@ -1417,6 +1631,39 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         )
     }
 
+    private static func timetablePeriod(_ record: NSManagedObject) -> TimetablePeriod {
+        TimetablePeriod(
+            id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? "",
+            name: record.value(forKey: "name") as? String ?? "",
+            startMinute: Int(record.value(forKey: "startMinute") as? Int64 ?? 0),
+            endMinute: Int(record.value(forKey: "endMinute") as? Int64 ?? 0),
+            sortOrder: Int(record.value(forKey: "sortOrder") as? Int64 ?? 0),
+            isActive: record.value(forKey: "isActive") as? Bool ?? true,
+            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
+        )
+    }
+
+    private static func timetableEntry(_ record: NSManagedObject) -> TimetableEntry {
+        TimetableEntry(
+            id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? "",
+            dayOfWeek: StudyWeekday(rawValue: record.value(forKey: "dayOfWeek") as? String ?? StudyWeekday.monday.rawValue) ?? .monday,
+            periodId: record.value(forKey: "periodId") as? Int64 ?? 0,
+            periodSyncId: record.value(forKey: "periodSyncId") as? String,
+            subjectName: record.value(forKey: "subjectName") as? String ?? "",
+            courseName: record.value(forKey: "courseName") as? String,
+            roomName: record.value(forKey: "roomName") as? String,
+            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
+        )
+    }
+
     private static func encodeIntervals(_ intervals: [StudySessionInterval]) -> String? {
         guard !intervals.isEmpty else { return nil }
         let encoder = JSONEncoder()
@@ -1582,6 +1829,39 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
                     attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
                 ]
+            ),
+            entity(
+                name: "TimetablePeriodRecord",
+                attributes: [
+                    attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
+                    attribute(name: "name", type: .stringAttributeType),
+                    attribute(name: "startMinute", type: .integer64AttributeType),
+                    attribute(name: "endMinute", type: .integer64AttributeType),
+                    attribute(name: "sortOrder", type: .integer64AttributeType),
+                    attribute(name: "isActive", type: .booleanAttributeType, defaultValue: true),
+                    attribute(name: "createdAt", type: .integer64AttributeType),
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
+                ]
+            ),
+            entity(
+                name: "TimetableEntryRecord",
+                attributes: [
+                    attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
+                    attribute(name: "dayOfWeek", type: .stringAttributeType),
+                    attribute(name: "periodId", type: .integer64AttributeType),
+                    attribute(name: "periodSyncId", type: .stringAttributeType, optional: true),
+                    attribute(name: "subjectName", type: .stringAttributeType),
+                    attribute(name: "courseName", type: .stringAttributeType, optional: true),
+                    attribute(name: "roomName", type: .stringAttributeType, optional: true),
+                    attribute(name: "createdAt", type: .integer64AttributeType),
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
+                ]
             )
         ]
         return model
@@ -1616,7 +1896,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         "GoalRecord",
         "ExamRecord",
         "StudyPlanRecord",
-        "PlanItemRecord"
+        "PlanItemRecord",
+        "TimetablePeriodRecord",
+        "TimetableEntryRecord"
     ]
 }
 

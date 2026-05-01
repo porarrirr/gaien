@@ -17,6 +17,7 @@
 		A40000000000000000000007 /* StudyUseCases.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000007 /* StudyUseCases.swift */; };
 		A40000000000000000000008 /* FoundationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000008 /* FoundationExtensions.swift */; };
 		A40000000000000000000009 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
+		A4000000000000000000000A /* TimetableModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000009 /* TimetableModels.swift */; };
 		A10000000000000000000003 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* PersistenceController.swift */; };
 		A10000000000000000000004 /* GoogleBooksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* GoogleBooksService.swift */; };
 		A10000000000000000000018 /* FirebaseRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseRepositories.swift */; };
@@ -70,6 +71,8 @@
 		A30000000000000000000022 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000022 /* MainTabView.swift */; };
 		A30000000000000000000023 /* StudyFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000023 /* StudyFormatters.swift */; };
 		A30000000000000000000024 /* ProblemTileSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000024 /* ProblemTileSelector.swift */; };
+		A30000000000000000000025 /* TimetableScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000025 /* TimetableScreen.swift */; };
+		A30000000000000000000026 /* TimetableViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000026 /* TimetableViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -83,6 +86,7 @@
 		B40000000000000000000006 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
 		B40000000000000000000007 /* StudyUseCases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyUseCases.swift; sourceTree = "<group>"; };
 		B40000000000000000000008 /* FoundationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationExtensions.swift; sourceTree = "<group>"; };
+		B40000000000000000000009 /* TimetableModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* FirebaseRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseRepositories.swift; sourceTree = "<group>"; };
@@ -134,6 +138,8 @@
 		B30000000000000000000022 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		B30000000000000000000023 /* StudyFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyFormatters.swift; sourceTree = "<group>"; };
 		B30000000000000000000024 /* ProblemTileSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemTileSelector.swift; sourceTree = "<group>"; };
+		B30000000000000000000025 /* TimetableScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000026 /* TimetableViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -233,6 +239,7 @@
 				B40000000000000000000003 /* SupportingModels.swift */,
 				B40000000000000000000004 /* GoalCollectionExtensions.swift */,
 				B40000000000000000000005 /* AppDataModels.swift */,
+				B40000000000000000000009 /* TimetableModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -291,6 +298,7 @@
 				D10000000000000000000010 /* Materials */,
 				D10000000000000000000011 /* History */,
 				D10000000000000000000012 /* Plans */,
+				D3000000000000000000000A /* Timetable */,
 				D10000000000000000000013 /* Settings */,
 				D10000000000000000000009 /* Subjects */,
 			);
@@ -341,6 +349,15 @@
 				B30000000000000000000020 /* SettingsViewModel.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		D3000000000000000000000A /* Timetable */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000025 /* TimetableScreen.swift */,
+				B30000000000000000000026 /* TimetableViewModel.swift */,
+			);
+			path = Timetable;
 			sourceTree = "<group>";
 		};
 		D10000000000000000000007 /* Services */ = {
@@ -612,6 +629,7 @@
 				A40000000000000000000006 /* RepositoryProtocols.swift in Sources */,
 				A40000000000000000000007 /* StudyUseCases.swift in Sources */,
 				A40000000000000000000008 /* FoundationExtensions.swift in Sources */,
+				A4000000000000000000000A /* TimetableModels.swift in Sources */,
 				A10000000000000000000003 /* PersistenceController.swift in Sources */,
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,
 				A10000000000000000000018 /* FirebaseRepositories.swift in Sources */,
@@ -647,6 +665,8 @@
 				A30000000000000000000022 /* MainTabView.swift in Sources */,
 				A30000000000000000000023 /* StudyFormatters.swift in Sources */,
 				A30000000000000000000024 /* ProblemTileSelector.swift in Sources */,
+				A30000000000000000000025 /* TimetableScreen.swift in Sources */,
+				A30000000000000000000026 /* TimetableViewModel.swift in Sources */,
 				A10000000000000000000010 /* MaterialsScreen.swift in Sources */,
 				A10000000000000000000011 /* HistoryScreen.swift in Sources */,
 				A10000000000000000000012 /* PlanScreen.swift in Sources */,

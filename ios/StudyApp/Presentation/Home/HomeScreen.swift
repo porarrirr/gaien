@@ -34,6 +34,9 @@ struct HomeScreen: View {
                 weeklyGoalSection
                     .padding(.horizontal, AppSpacing.md)
 
+                timetableSection
+                    .padding(.horizontal, AppSpacing.md)
+
                 // Today's Sessions
                 todaySessionsSection
                     .padding(.horizontal, AppSpacing.md)
@@ -124,6 +127,44 @@ struct HomeScreen: View {
                     .foregroundStyle(AppColors.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .cardStyle()
+            }
+        }
+    }
+
+    private var timetableSection: some View {
+        Group {
+            if let lesson = viewModel.homeData.timetableLesson {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: lesson.statusTitle, icon: lesson.isCurrent ? "play.circle.fill" : "calendar.badge.clock")
+                    HStack(spacing: AppSpacing.md) {
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.14))
+                            .frame(width: 44, height: 44)
+                            .overlay {
+                                Image(systemName: "building.columns.fill")
+                                    .foregroundStyle(.tint)
+                            }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(lesson.entry.subjectName)
+                                .font(.headline)
+                            if let course = lesson.entry.courseName, !course.isEmpty {
+                                Text(course)
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textSecondary)
+                            }
+                            HStack(spacing: AppSpacing.sm) {
+                                Text("\(lesson.dayOfWeek.japaneseShortTitle) \(lesson.period.name) \(lesson.period.timeRangeText)")
+                                if let room = lesson.entry.roomName, !room.isEmpty {
+                                    Text("教室 \(room)")
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                        }
+                        Spacer()
+                    }
+                    .cardStyle()
+                }
             }
         }
     }
@@ -243,6 +284,9 @@ struct HomeScreen: View {
                 }
                 QuickNavButton(icon: "calendar.badge.plus", label: "計画") {
                     PlanScreen(app: viewModel.app)
+                }
+                QuickNavButton(icon: "tablecells", label: "時間割") {
+                    TimetableScreen(app: viewModel.app)
                 }
                 QuickNavButton(icon: "gearshape.fill", label: "設定") {
                     SettingsScreen(app: viewModel.app)

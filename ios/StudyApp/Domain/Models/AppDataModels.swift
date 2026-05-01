@@ -22,6 +22,7 @@ struct HomeData: Hashable {
     var weeklyGoal: Goal?
     var weeklyStudyMinutes: Int
     var upcomingExams: [Exam]
+    var timetableLesson: TimetableLesson? = nil
 }
 
 struct TodaySession: Identifiable, Hashable {
@@ -59,5 +60,54 @@ struct AppData: Codable, Hashable {
     var goals: [Goal]
     var exams: [Exam]
     var plans: [PlanData]
+    var timetablePeriods: [TimetablePeriod]
+    var timetableEntries: [TimetableEntry]
     var exportDate: Int64
+
+    private enum CodingKeys: String, CodingKey {
+        case subjects
+        case materials
+        case sessions
+        case goals
+        case exams
+        case plans
+        case timetablePeriods
+        case timetableEntries
+        case exportDate
+    }
+
+    init(
+        subjects: [Subject],
+        materials: [Material],
+        sessions: [StudySession],
+        goals: [Goal],
+        exams: [Exam],
+        plans: [PlanData],
+        timetablePeriods: [TimetablePeriod] = [],
+        timetableEntries: [TimetableEntry] = [],
+        exportDate: Int64
+    ) {
+        self.subjects = subjects
+        self.materials = materials
+        self.sessions = sessions
+        self.goals = goals
+        self.exams = exams
+        self.plans = plans
+        self.timetablePeriods = timetablePeriods
+        self.timetableEntries = timetableEntries
+        self.exportDate = exportDate
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        subjects = try container.decodeIfPresent([Subject].self, forKey: .subjects) ?? []
+        materials = try container.decodeIfPresent([Material].self, forKey: .materials) ?? []
+        sessions = try container.decodeIfPresent([StudySession].self, forKey: .sessions) ?? []
+        goals = try container.decodeIfPresent([Goal].self, forKey: .goals) ?? []
+        exams = try container.decodeIfPresent([Exam].self, forKey: .exams) ?? []
+        plans = try container.decodeIfPresent([PlanData].self, forKey: .plans) ?? []
+        timetablePeriods = try container.decodeIfPresent([TimetablePeriod].self, forKey: .timetablePeriods) ?? []
+        timetableEntries = try container.decodeIfPresent([TimetableEntry].self, forKey: .timetableEntries) ?? []
+        exportDate = try container.decodeIfPresent(Int64.self, forKey: .exportDate) ?? Date().epochMilliseconds
+    }
 }
