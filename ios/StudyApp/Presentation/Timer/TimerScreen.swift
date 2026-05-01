@@ -68,9 +68,9 @@ struct TimerScreen: View {
                         }
                     }
 
-                    timerProblemProgressSection
-
                     controlButtonsSection
+
+                    timerProblemProgressSection
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, AppSpacing.md)

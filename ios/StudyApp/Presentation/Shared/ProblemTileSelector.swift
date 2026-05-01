@@ -7,46 +7,25 @@ struct ProblemTileSelector: View {
     @State private var editingNumber: Int?
     @State private var editingStatus: ProblemTileEditStatus = .untouched
     @State private var detailText = ""
+    @State private var selectedPageIndex = 0
 
+    private let pageSize = 50
     private let columns = Array(repeating: GridItem(.flexible(minimum: 48), spacing: 10), count: 5)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if chapters.totalProblemCount > 0 {
-                ForEach(chapterSections, id: \.chapter.id) { section in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(section.chapter.title)
-                                .font(.caption.bold())
-                                .foregroundStyle(AppColors.textPrimary)
-                            Spacer()
-                            Text("\(section.chapter.problemCount)問")
-                                .font(.caption2.bold())
-                                .foregroundStyle(AppColors.textSecondary)
-                        }
-                        LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(1...section.chapter.problemCount, id: \.self) { localNumber in
-                                let globalNumber = section.startGlobalNumber + localNumber - 1
-                                problemTile(
-                                    globalNumber: globalNumber,
-                                    localLabel: "\(localNumber)",
-                                    accessibilityPrefix: section.chapter.title
-                                )
-                            }
-                        }
-                    }
-                }
-            } else if totalProblems > 0 {
-                LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(1...totalProblems, id: \.self) { number in
-                        problemTile(
-                            globalNumber: number,
-                            localLabel: "\(number)",
-                            accessibilityPrefix: nil
-                        )
-                    }
+            if effectiveTotalProblems > 0 {
+                if chapters.totalProblemCount > 0 {
+                    chapterSelector
+                    selectedChapterGrid
+                } else {
+                    pageSelector
+                    plainPagedGrid
                 }
             }
+        }
+        .onChange(of: effectiveTotalProblems) { _ in
+            clampSelectedGroup()
         }
         .sheet(item: Binding(
             get: { editingNumber.map(ProblemTileEditTarget.init(number:)) },
@@ -79,11 +58,150 @@ struct ProblemTileSelector: View {
         }
     }
 
+    @ViewBuilder
+    private var chapterSelector: some View {
+        if chapterSections.count > 1 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(chapterSections.indices, id: \.self) { index in
+                        let section = chapterSections[index]
+                        Button {
+                            selectedPageIndex = index
+                        } label: {
+                            VStack(spacing: 2) {
+                                Text(section.chapter.title)
+                                    .lineLimit(1)
+                                Text("\(section.chapter.problemCount)問")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .monospacedDigit()
+                            }
+                            .font(.caption.bold())
+                            .foregroundStyle(selectedPageIndex == index ? Color.white : Color.accentColor)
+                            .padding(.horizontal, 12)
+                            .frame(height: 44)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(selectedPageIndex == index ? Color.accentColor : Color.accentColor.opacity(0.08))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var pageSelector: some View {
+        if pages.count > 1 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(pages.indices, id: \.self) { index in
+                        let page = pages[index]
+                        Button {
+                            selectedPageIndex = index
+                        } label: {
+                            Text("\(page.start)〜\(page.end)")
+                                .font(.caption.bold())
+                                .monospacedDigit()
+                                .foregroundStyle(selectedPageIndex == index ? Color.white : Color.accentColor)
+                                .padding(.horizontal, 12)
+                                .frame(height: 36)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(selectedPageIndex == index ? Color.accentColor : Color.accentColor.opacity(0.08))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    private var selectedChapterGrid: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let section = selectedChapterSection
+            HStack {
+                Text(section.chapter.title)
+                    .font(.caption.bold())
+                    .foregroundStyle(AppColors.textPrimary)
+                Spacer()
+                Text("\(section.chapter.problemCount)問")
+                    .font(.caption2.bold())
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(1...section.chapter.problemCount, id: \.self) { localNumber in
+                    let globalNumber = section.startGlobalNumber + localNumber - 1
+                    problemTile(
+                        globalNumber: globalNumber,
+                        localLabel: "\(localNumber)",
+                        accessibilityPrefix: section.chapter.title
+                    )
+                }
+            }
+        }
+    }
+
+    private var selectedChapterSection: ProblemChapterSection {
+        let sections = chapterSections
+        guard !sections.isEmpty else {
+            return ProblemChapterSection(
+                chapter: ProblemChapter(title: "1章", problemCount: 1),
+                startGlobalNumber: 1
+            )
+        }
+        return sections[min(selectedPageIndex, sections.count - 1)]
+    }
+
+    private var plainPagedGrid: some View {
+        LazyVGrid(columns: columns, spacing: 10) {
+            ForEach(selectedPage.start...selectedPage.end, id: \.self) { number in
+                problemTile(
+                    globalNumber: number,
+                    localLabel: "\(number)",
+                    accessibilityPrefix: nil
+                )
+            }
+        }
+    }
+
+    private var effectiveTotalProblems: Int {
+        let chapterTotal = chapters.totalProblemCount
+        return chapterTotal > 0 ? chapterTotal : max(totalProblems, 0)
+    }
+
+    private var pages: [ProblemPage] {
+        guard effectiveTotalProblems > 0 else { return [] }
+        return stride(from: 1, through: effectiveTotalProblems, by: pageSize).map { start in
+            ProblemPage(start: start, end: min(start + pageSize - 1, effectiveTotalProblems))
+        }
+    }
+
+    private var selectedPage: ProblemPage {
+        guard !pages.isEmpty else { return ProblemPage(start: 1, end: 1) }
+        return pages[min(selectedPageIndex, pages.count - 1)]
+    }
+
     private var chapterSections: [ProblemChapterSection] {
         var start = 1
         return chapters.filter { $0.problemCount > 0 }.map { chapter in
             defer { start += chapter.problemCount }
             return ProblemChapterSection(chapter: chapter, startGlobalNumber: start)
+        }
+    }
+
+    private func clampSelectedGroup() {
+        let count = chapters.totalProblemCount > 0 ? chapterSections.count : pages.count
+        guard count > 0 else {
+            selectedPageIndex = 0
+            return
+        }
+        if selectedPageIndex >= count {
+            selectedPageIndex = count - 1
         }
     }
 
@@ -187,6 +305,11 @@ private struct ProblemTileEditTarget: Identifiable {
 private struct ProblemChapterSection {
     let chapter: ProblemChapter
     let startGlobalNumber: Int
+}
+
+private struct ProblemPage {
+    let start: Int
+    let end: Int
 }
 
 private struct ProblemTile: View {
