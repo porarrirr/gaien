@@ -4,8 +4,8 @@ enum AppTab: String, CaseIterable, Identifiable {
     case home
     case timer
     case materials
-    case timetable
     case calendar
+    case timetable
     case reports
 
     var id: String { rawValue }
