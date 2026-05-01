@@ -104,6 +104,8 @@ struct TimerSnapshot: Codable, Equatable {
     var completedIntervals: [StudySessionInterval] = []
     var mode: Mode = .stopwatch
     var targetDurationMilliseconds: Int64?
+    var problemRecords: [ProblemSessionRecord] = []
+    var problemCountDraft: String = ""
     var isRunning: Bool
 
     private enum CodingKeys: String, CodingKey {
@@ -114,6 +116,8 @@ struct TimerSnapshot: Codable, Equatable {
         case completedIntervals
         case mode
         case targetDurationMilliseconds
+        case problemRecords
+        case problemCountDraft
         case isRunning
     }
 
@@ -151,6 +155,8 @@ struct TimerSnapshot: Codable, Equatable {
         completedIntervals: [StudySessionInterval] = [],
         mode: Mode = .stopwatch,
         targetDurationMilliseconds: Int64? = nil,
+        problemRecords: [ProblemSessionRecord] = [],
+        problemCountDraft: String = "",
         isRunning: Bool
     ) {
         self.subjectId = subjectId
@@ -160,6 +166,8 @@ struct TimerSnapshot: Codable, Equatable {
         self.completedIntervals = completedIntervals
         self.mode = mode
         self.targetDurationMilliseconds = targetDurationMilliseconds
+        self.problemRecords = problemRecords
+        self.problemCountDraft = problemCountDraft
         self.isRunning = isRunning
     }
 
@@ -172,6 +180,8 @@ struct TimerSnapshot: Codable, Equatable {
         completedIntervals = try container.decodeIfPresent([StudySessionInterval].self, forKey: .completedIntervals) ?? []
         mode = try container.decodeIfPresent(Mode.self, forKey: .mode) ?? .stopwatch
         targetDurationMilliseconds = try container.decodeIfPresent(Int64.self, forKey: .targetDurationMilliseconds)
+        problemRecords = try container.decodeIfPresent([ProblemSessionRecord].self, forKey: .problemRecords) ?? []
+        problemCountDraft = try container.decodeIfPresent(String.self, forKey: .problemCountDraft) ?? ""
         isRunning = try container.decode(Bool.self, forKey: .isRunning)
     }
 
@@ -184,6 +194,8 @@ struct TimerSnapshot: Codable, Equatable {
         try container.encode(completedIntervals, forKey: .completedIntervals)
         try container.encode(mode, forKey: .mode)
         try container.encodeIfPresent(targetDurationMilliseconds, forKey: .targetDurationMilliseconds)
+        try container.encode(problemRecords, forKey: .problemRecords)
+        try container.encode(problemCountDraft, forKey: .problemCountDraft)
         try container.encode(isRunning, forKey: .isRunning)
     }
 }

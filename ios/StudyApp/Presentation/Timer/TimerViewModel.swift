@@ -12,6 +12,8 @@ final class TimerViewModel: ScreenViewModel {
     @Published var selectedMaterialId: Int64?
     @Published var mode: TimerSnapshot.Mode = .stopwatch
     @Published var countdownMinutes: Int = 25
+    @Published private(set) var timerProblemRecords: [ProblemSessionRecord] = []
+    @Published private(set) var timerProblemCountDraft = ""
 
     private var cancellable: AnyCancellable?
 
@@ -28,6 +30,8 @@ final class TimerViewModel: ScreenViewModel {
             remainingMilliseconds = activeTimer?.remainingTime() ?? 0
             mode = activeTimer?.mode ?? .stopwatch
             countdownMinutes = Int(((activeTimer?.targetDurationMilliseconds ?? Int64(countdownMinutes) * 60_000) / 60_000))
+            timerProblemRecords = activeTimer?.problemRecords ?? []
+            timerProblemCountDraft = activeTimer?.problemCountDraft ?? ""
             syncActiveTimerSelection()
             configureTicker()
         } catch {
@@ -80,9 +84,13 @@ final class TimerViewModel: ScreenViewModel {
                 completedIntervals: completedIntervals,
                 mode: self.mode,
                 targetDurationMilliseconds: self.mode == .timer ? Int64(self.countdownMinutes * 60_000) : nil,
+                problemRecords: current?.problemRecords ?? self.timerProblemRecords,
+                problemCountDraft: current?.problemCountDraft ?? self.timerProblemCountDraft,
                 isRunning: true
             )
             self.app.updateActiveTimer(next)
+            self.timerProblemRecords = next.problemRecords
+            self.timerProblemCountDraft = next.problemCountDraft
             self.elapsedMilliseconds = next.elapsedTime()
             self.remainingMilliseconds = next.remainingTime()
             self.configureTicker()
@@ -139,11 +147,19 @@ final class TimerViewModel: ScreenViewModel {
     func handleSubjectSelectionChange() {
         selectedSubjectId = effectiveSelectedSubjectId
         selectedMaterialId = resolveSelectedMaterialId(activeTimer: app.preferences.activeTimer, subjectId: selectedSubjectId)
+        if app.preferences.activeTimer == nil {
+            timerProblemRecords = []
+            timerProblemCountDraft = ""
+        }
         syncActiveTimerSelection()
     }
 
     func handleMaterialSelectionChange() {
         selectedMaterialId = resolveSelectedMaterialId(activeTimer: app.preferences.activeTimer, subjectId: selectedSubjectId)
+        if app.preferences.activeTimer == nil {
+            timerProblemRecords = []
+            timerProblemCountDraft = ""
+        }
         syncActiveTimerSelection()
     }
 
@@ -180,10 +196,32 @@ final class TimerViewModel: ScreenViewModel {
                     sessionType: timer.sessionType,
                     startTime: start,
                     endTime: end,
-                    intervals: intervals
+                    intervals: intervals,
+                    problemRecords: timer.problemRecords.sorted { $0.number < $1.number }
                 )
             )
         }
+    }
+
+    func updateTimerProblemRecords(_ records: [ProblemSessionRecord], totalProblems: Int) {
+        let normalizedRecords = records
+            .filter { totalProblems <= 0 || $0.number <= totalProblems }
+            .sorted { $0.number < $1.number }
+        timerProblemRecords = normalizedRecords
+        guard var timer = app.preferences.activeTimer else { return }
+        timer.problemRecords = normalizedRecords
+        app.updateActiveTimer(timer)
+    }
+
+    func updateTimerProblemCountDraft(_ draft: String, totalProblems: Int) {
+        timerProblemCountDraft = draft
+        if totalProblems > 0 {
+            timerProblemRecords.removeAll { $0.number > totalProblems }
+        }
+        guard var timer = app.preferences.activeTimer else { return }
+        timer.problemCountDraft = draft
+        timer.problemRecords = timerProblemRecords
+        app.updateActiveTimer(timer)
     }
 
     func savePendingSessionEvaluation(
@@ -228,6 +266,8 @@ final class TimerViewModel: ScreenViewModel {
             _ = try await self.app.persistence.insertSession(draft.session)
             self.pendingSessionEvaluation = nil
             self.app.updateActiveTimer(nil)
+            self.timerProblemRecords = []
+            self.timerProblemCountDraft = ""
             self.elapsedMilliseconds = 0
             self.remainingMilliseconds = 0
             self.configureTicker()
@@ -340,10 +380,17 @@ final class TimerViewModel: ScreenViewModel {
         let materialId = selectedMaterialId
         guard timer.subjectId != subjectId || timer.materialId != materialId else { return }
 
+        let materialChanged = timer.materialId != materialId
         timer.subjectId = subjectId
         timer.materialId = materialId
         timer.mode = mode
         timer.targetDurationMilliseconds = mode == .timer ? Int64(countdownMinutes * 60_000) : nil
+        if materialChanged {
+            timer.problemRecords = []
+            timer.problemCountDraft = ""
+            timerProblemRecords = []
+            timerProblemCountDraft = ""
+        }
         app.updateActiveTimer(timer)
     }
 }

@@ -68,6 +68,8 @@ struct TimerScreen: View {
                         }
                     }
 
+                    timerProblemProgressSection
+
                     controlButtonsSection
                 }
                 .frame(maxWidth: .infinity)
@@ -134,7 +136,7 @@ struct TimerScreen: View {
                 sessionProblemEndDraft = draft.session.problemEnd.map(String.init) ?? ""
                 sessionWrongCountDraft = draft.session.wrongProblemCount.map(String.init) ?? ""
                 sessionProblemRecords = draft.session.problemRecords
-                sessionProblemCountDraft = selectedMaterialTotalProblems > 0 ? "\(selectedMaterialTotalProblems)" : ""
+                sessionProblemCountDraft = selectedMaterialTotalProblems > 0 ? "\(selectedMaterialTotalProblems)" : viewModel.timerProblemCountDraft
             }
         }
         .task(id: viewModel.app.dataVersion) {
@@ -331,6 +333,52 @@ struct TimerScreen: View {
         }
     }
 
+    private var timerProblemProgressSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(spacing: AppSpacing.xs) {
+                Image(systemName: "checklist.checked")
+                    .foregroundStyle(.tint)
+                Text("問題進捗（仮）")
+                    .font(.headline)
+                Spacer()
+                if !viewModel.timerProblemRecords.isEmpty {
+                    Text("\(viewModel.timerProblemRecords.count)問")
+                        .font(.caption.bold())
+                        .foregroundStyle(.tint)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(.tint.opacity(0.10), in: Capsule())
+                }
+            }
+
+            if let material = selectedMaterial {
+                ProblemProgressEditor(
+                    records: Binding(
+                        get: { viewModel.timerProblemRecords },
+                        set: { viewModel.updateTimerProblemRecords($0, totalProblems: timerProblemProgressTotalProblems) }
+                    ),
+                    problemCount: Binding(
+                        get: { viewModel.timerProblemCountDraft },
+                        set: { newValue in
+                            let totalProblems = selectedMaterialTotalProblems > 0 ? selectedMaterialTotalProblems : parseDraftInt(newValue)
+                            viewModel.updateTimerProblemCountDraft(newValue, totalProblems: totalProblems)
+                        }
+                    ),
+                    materialProblemCount: material.effectiveTotalProblems,
+                    materialProblemChapters: material.problemChapters
+                )
+            } else {
+                Text("教材を選択すると問題進捗を入力できます")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, AppSpacing.xs)
+            }
+        }
+        .padding(AppSpacing.md)
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
     private func selectionRow<Content: View>(icon: String, title: String, @ViewBuilder content: () -> Content) -> some View {
         HStack {
             Image(systemName: icon)
@@ -361,19 +409,26 @@ struct TimerScreen: View {
     }
 
     private var selectedMaterialTotalProblems: Int {
-        guard let materialId = viewModel.selectedMaterialId,
-              let material = viewModel.materials.first(where: { $0.id == materialId }) else {
+        guard let material = selectedMaterial else {
             return 0
         }
         return material.effectiveTotalProblems
     }
 
     private var selectedMaterialProblemChapters: [ProblemChapter] {
-        guard let materialId = viewModel.selectedMaterialId,
-              let material = viewModel.materials.first(where: { $0.id == materialId }) else {
+        guard let material = selectedMaterial else {
             return []
         }
         return material.problemChapters
+    }
+
+    private var selectedMaterial: Material? {
+        guard let materialId = viewModel.selectedMaterialId else { return nil }
+        return viewModel.materials.first(where: { $0.id == materialId })
+    }
+
+    private var timerProblemProgressTotalProblems: Int {
+        selectedMaterialTotalProblems > 0 ? selectedMaterialTotalProblems : parseDraftInt(viewModel.timerProblemCountDraft)
     }
 
     private func selectionMenuLabel(text: String, isPlaceholder: Bool) -> some View {
@@ -440,6 +495,98 @@ private struct ManualEntrySheet: View {
                 .disabled(manualEndTime <= manualStartTime)
             }
         }
+    }
+}
+
+private struct ProblemProgressEditor: View {
+    @Binding var records: [ProblemSessionRecord]
+    @Binding var problemCount: String
+    let materialProblemCount: Int
+    let materialProblemChapters: [ProblemChapter]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            if materialProblemCount > 0 {
+                Text(materialProblemChapters.isEmpty ? "全\(materialProblemCount)問" : "全\(materialProblemCount)問 ・ \(materialProblemChapters.count)章")
+                    .font(.caption.bold())
+                    .foregroundStyle(AppColors.textSecondary)
+            } else {
+                problemCountControls
+            }
+
+            if effectiveProblemCount > 0 {
+                ProblemTileSelector(
+                    totalProblems: effectiveProblemCount,
+                    chapters: materialProblemChapters,
+                    records: $records
+                )
+                Text(problemRecordSummary)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+        }
+        .onChange(of: problemCount) { _ in
+            let count = effectiveProblemCount
+            guard count > 0 else { return }
+            records.removeAll { $0.number > count }
+        }
+    }
+
+    private var problemRecordSummary: String {
+        let done = records.count
+        let correct = records.filter { $0.result == .correct }.count
+        let wrong = records.filter(\.isWrong).count
+        let review = records.filter { $0.result == .reviewCorrect }.count
+        return "タップで正解、ダブルタップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
+    }
+
+    private var effectiveProblemCount: Int {
+        materialProblemCount > 0 ? materialProblemCount : parseDraftInt(problemCount)
+    }
+
+    private var problemCountControls: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack {
+                Button {
+                    decrementProblemCount()
+                } label: {
+                    Image(systemName: "minus")
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.bordered)
+                .disabled(effectiveProblemCount <= 0)
+
+                Text("全\(effectiveProblemCount)問")
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity)
+
+                Button {
+                    setProblemCount(effectiveProblemCount + 1)
+                } label: {
+                    Image(systemName: "plus")
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.bordered)
+            }
+
+            HStack(spacing: AppSpacing.xs) {
+                ForEach([10, 20, 50], id: \.self) { count in
+                    Button("\(count)問") {
+                        setProblemCount(count)
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.caption.bold())
+                }
+            }
+        }
+    }
+
+    private func setProblemCount(_ count: Int) {
+        problemCount = "\(max(count, 0))"
+    }
+
+    private func decrementProblemCount() {
+        setProblemCount(max(effectiveProblemCount - 1, 0))
     }
 }
 
