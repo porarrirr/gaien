@@ -1,11 +1,13 @@
 package com.studyapp.presentation.materials
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,8 +48,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -134,6 +138,24 @@ fun MaterialsScreen(
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.common_add))
             }
         },
+        bottomBar = {
+            if (!uiState.isLoading && uiState.subjects.isEmpty()) {
+                androidx.compose.material3.Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shadowElevation = 4.dp
+                ) {
+                    Button(
+                        onClick = onNavigateToSubjects,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text("先に科目を作成")
+                    }
+                }
+            }
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         when {
@@ -160,10 +182,13 @@ fun MaterialsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(uiState.materials, key = { it.id }) { material ->
-                        val subjectName = uiState.subjects.find { it.id == material.subjectId }?.name ?: ""
+                        val subject = remember(material.subjectId, uiState.subjects) {
+                            uiState.subjects.find { it.id == material.subjectId }
+                        }
                         MaterialCard(
                             material = material,
-                            subjectName = subjectName,
+                            subjectName = subject?.name ?: "",
+                            subjectColor = subject?.color ?: 0xFF4CAF50.toInt(),
                             canMoveUp = uiState.materials.firstOrNull()?.id != material.id,
                             canMoveDown = uiState.materials.lastOrNull()?.id != material.id,
                             onOpenHistory = { onOpenMaterialHistory(material.id) },
@@ -171,7 +196,7 @@ fun MaterialsScreen(
                             onMoveDown = { viewModel.moveMaterial(material.id, 1) },
                             onEdit = { editingMaterial = material },
                             onDelete = { viewModel.deleteMaterial(material) },
-                            onUpdateProgress = { page -> 
+                            onUpdateProgress = { page ->
                                 viewModel.updateProgress(material.id, page)
                             }
                         )
@@ -185,8 +210,8 @@ fun MaterialsScreen(
         AddEditMaterialDialog(
             subjects = uiState.subjects,
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, subjectId, totalPages ->
-                viewModel.addMaterial(name, subjectId, totalPages)
+            onConfirm = { name, subjectId, totalPages, totalProblems, note ->
+                viewModel.addMaterial(name, subjectId, totalPages, totalProblems, note)
                 showAddDialog = false
             },
             onNavigateToSubjects = {
@@ -201,11 +226,13 @@ fun MaterialsScreen(
             material = material,
             subjects = uiState.subjects,
             onDismiss = { editingMaterial = null },
-            onConfirm = { name, subjectId, totalPages ->
+            onConfirm = { name, subjectId, totalPages, totalProblems, note ->
                 viewModel.updateMaterial(material.copy(
                     name = name,
                     subjectId = subjectId,
-                    totalPages = totalPages
+                    totalPages = totalPages,
+                    totalProblems = totalProblems,
+                    note = note.takeIf { it.isNotBlank() }
                 ))
                 editingMaterial = null
             },
@@ -257,6 +284,7 @@ fun MaterialsScreen(
 private fun MaterialCard(
     material: Material,
     subjectName: String,
+    subjectColor: Int = 0xFF4CAF50.toInt(),
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onOpenHistory: () -> Unit,
@@ -274,11 +302,18 @@ private fun MaterialCard(
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         onClick = onOpenHistory
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .defaultMinSize(minHeight = 100.dp)
+                    .background(Color(subjectColor))
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp)
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -295,6 +330,15 @@ private fun MaterialCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (material.note?.isNotBlank() == true) {
+                        Text(
+                            text = material.note!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 
                 Row {
@@ -336,17 +380,26 @@ private fun MaterialCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 val progressColor = when {
-                    material.progress < 0.3f -> MaterialTheme.colorScheme.error
-                    material.progress < 0.7f -> MaterialTheme.colorScheme.tertiary
+                    material.progress < 0.3 -> MaterialTheme.colorScheme.error
+                    material.progress < 0.7 -> MaterialTheme.colorScheme.tertiary
                     else -> MaterialTheme.colorScheme.primary
                 }
                 AnimatedProgressBar(
-                    progress = material.progress,
+                    progress = material.progress.toFloat(),
                     modifier = Modifier.fillMaxWidth(),
                     height = 10.dp,
                     progressColor = progressColor
                 )
                 
+                if (material.totalProblems > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val solvedCount = material.problemRecords.count { it.result == com.studyapp.domain.model.ProblemResult.CORRECT || it.result == com.studyapp.domain.model.ProblemResult.REVIEW_CORRECT }
+                    Text(
+                        text = "問題: ${solvedCount}/${material.totalProblems}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -369,6 +422,7 @@ private fun MaterialCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
             }
         }
     }

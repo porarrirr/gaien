@@ -33,3 +33,14 @@ data class SubjectStudyData(
     val minutes: Long,
     val color: Int
 )
+
+data class RatingAverageSummary(
+    val average: Double? = null,
+    val ratedMinutes: Int = 0
+)
+
+data class RatingAveragesData(
+    val today: RatingAverageSummary = RatingAverageSummary(),
+    val week: RatingAverageSummary = RatingAverageSummary(),
+    val month: RatingAverageSummary = RatingAverageSummary()
+)

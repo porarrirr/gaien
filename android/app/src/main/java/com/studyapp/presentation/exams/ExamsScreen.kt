@@ -97,7 +97,7 @@ fun ExamsScreen(
             exam = exam,
             onDismiss = { editingExam = null },
             onConfirm = { name, date, note ->
-                viewModel.updateExam(exam.copy(name = name, date = date, note = note))
+                viewModel.updateExam(exam.copy(name = name, date = date.toEpochDay(), note = note))
                 editingExam = null
             }
         )
@@ -112,8 +112,8 @@ private fun ExamCard(
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val dateFormat = SimpleDateFormat("yyyy年M月d日", Locale.JAPANESE)
-    val examDateMillis = exam.date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    val daysRemaining = exam.getDaysRemaining(LocalDate.now())
+    val examDateMillis = LocalDate.ofEpochDay(exam.date).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val daysRemaining = exam.daysRemaining(LocalDate.now())
 
     val urgencyColor = when {
         daysRemaining < 0 -> MaterialTheme.colorScheme.surfaceVariant
@@ -184,7 +184,7 @@ private fun ExamCard(
                     ) {
                         Text(
                             text = if (daysRemaining < 0) "終了"
-                                   else if (daysRemaining == 0L) "今日"
+                                    else if (daysRemaining == 0) "今日"
                                    else "あと${daysRemaining}日",
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelLarge,
@@ -249,7 +249,7 @@ private fun AddEditExamDialog(
     onConfirm: (name: String, date: LocalDate, note: String?) -> Unit
 ) {
     var name by remember { mutableStateOf(exam?.name ?: "") }
-    var selectedDate by remember { mutableStateOf(exam?.date ?: LocalDate.now()) }
+    var selectedDate by remember { mutableStateOf(exam?.dateValue ?: LocalDate.now()) }
     var note by remember { mutableStateOf(exam?.note ?: "") }
     var showDatePicker by remember { mutableStateOf(false) }
     

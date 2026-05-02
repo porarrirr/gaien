@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -130,6 +132,10 @@ fun HistoryScreen(
             onConfirm = { updatedSession ->
                 viewModel.updateSession(updatedSession)
                 editingSession = null
+            },
+            onDelete = {
+                viewModel.deleteSession(session)
+                editingSession = null
             }
         )
     }
@@ -211,6 +217,36 @@ private fun SessionCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+
+            if (session.rating != null && session.rating > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    repeat(session.rating) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            val problemText = session.problemRangeText
+            if (!problemText.isNullOrBlank()) {
+                Text(
+                    text = problemText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            val wrongCount = session.effectiveWrongProblemCount
+            if (wrongCount != null && wrongCount > 0) {
+                Text(
+                    text = "不正解: $wrongCount",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
 
             if (!session.note.isNullOrBlank()) {
@@ -321,13 +357,32 @@ private fun EditSessionDialog(
     session: StudySession,
     subjects: List<Subject>,
     onDismiss: () -> Unit,
-    onConfirm: (StudySession) -> Unit
+    onConfirm: (StudySession) -> Unit,
+    onDelete: () -> Unit
 ) {
-    var durationMinutes by remember { 
-        mutableStateOf((session.duration / 60000).toString()) 
-    }
     var note by remember { mutableStateOf(session.note ?: "") }
-    
+    var rating by remember { mutableStateOf(session.rating ?: 0) }
+    var problemStart by remember { mutableStateOf(session.problemStart?.toString() ?: "") }
+    var problemEnd by remember { mutableStateOf(session.problemEnd?.toString() ?: "") }
+    var wrongProblemCount by remember { mutableStateOf(session.wrongProblemCount?.toString() ?: "") }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    var intervals by remember(session) {
+        mutableStateOf(
+            session.effectiveIntervals.map { interval ->
+                Pair(
+                    SimpleDateFormat("HH:mm", Locale.JAPANESE).format(Date(interval.startTime)),
+                    SimpleDateFormat("HH:mm", Locale.JAPANESE).format(Date(interval.endTime))
+                )
+            }
+        )
+    }
+
+    val sessionDate = remember(session) {
+        Instant.ofEpochMilli(session.startTime)
+            .atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("学習記録を編集") },
@@ -335,14 +390,111 @@ private fun EditSessionDialog(
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Column {
+                    Text(
+                        text = session.subjectName.ifBlank { "不明な科目" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (session.materialName.isNotBlank()) {
+                        Text(
+                            text = session.materialName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Column {
+                    Text(
+                        text = "評価",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row {
+                        for (i in 1..5) {
+                            IconButton(
+                                onClick = { rating = if (rating == i) 0 else i },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (i <= rating) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = "$i",
+                                    tint = if (i <= rating) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "学習区間",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    intervals.forEachIndexed { index, (start, end) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = start,
+                                onValueChange = { newStart ->
+                                    intervals = intervals.toMutableList().apply {
+                                        set(index, Pair(newStart, end))
+                                    }
+                                },
+                                label = { Text("開始") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = end,
+                                onValueChange = { newEnd ->
+                                    intervals = intervals.toMutableList().apply {
+                                        set(index, Pair(start, newEnd))
+                                    }
+                                },
+                                label = { Text("終了") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = problemStart,
+                        onValueChange = { problemStart = it.filter { c -> c.isDigit() } },
+                        label = { Text("開始問題") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = problemEnd,
+                        onValueChange = { problemEnd = it.filter { c -> c.isDigit() } },
+                        label = { Text("終了問題") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+
                 OutlinedTextField(
-                    value = durationMinutes,
-                    onValueChange = { durationMinutes = it.filter { c -> c.isDigit() } },
-                    label = { Text("学習時間（分）") },
+                    value = wrongProblemCount,
+                    onValueChange = { wrongProblemCount = it.filter { c -> c.isDigit() } },
+                    label = { Text("不正解数") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                
+
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
@@ -350,23 +502,68 @@ private fun EditSessionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3
                 )
+
+                TextButton(
+                    onClick = { showDeleteConfirm = true },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("削除")
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    val minutes = durationMinutes.toLongOrNull() ?: 0
-                    val newDuration = minutes * 60000
-                    onConfirm(session.copy(
-                        endTime = session.startTime + newDuration,
-                        intervals = listOf(
+                    val timeFormat = SimpleDateFormat("HH:mm", Locale.JAPANESE)
+                    val parsedIntervals = intervals.mapNotNull { (startStr, endStr) ->
+                        try {
+                            val startDate = timeFormat.parse(startStr) ?: return@mapNotNull null
+                            val endDate = timeFormat.parse(endStr) ?: return@mapNotNull null
+                            val startCal = java.util.Calendar.getInstance().apply {
+                                time = startDate
+                                set(java.util.Calendar.YEAR, sessionDate.year)
+                                set(java.util.Calendar.MONTH, sessionDate.monthValue - 1)
+                                set(java.util.Calendar.DAY_OF_MONTH, sessionDate.dayOfMonth)
+                            }
+                            val endCal = java.util.Calendar.getInstance().apply {
+                                time = endDate
+                                set(java.util.Calendar.YEAR, sessionDate.year)
+                                set(java.util.Calendar.MONTH, sessionDate.monthValue - 1)
+                                set(java.util.Calendar.DAY_OF_MONTH, sessionDate.dayOfMonth)
+                            }
+                            if (endCal.timeInMillis <= startCal.timeInMillis) {
+                                endCal.add(java.util.Calendar.DAY_OF_MONTH, 1)
+                            }
                             StudySessionInterval(
-                                startTime = session.startTime,
-                                endTime = session.startTime + newDuration
+                                startTime = startCal.timeInMillis,
+                                endTime = endCal.timeInMillis
                             )
-                        ),
-                        note = note.ifBlank { null }
-                    ))
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    if (parsedIntervals.isNotEmpty()) {
+                        val newStartTime = parsedIntervals.minOf { it.startTime }
+                        val newEndTime = parsedIntervals.maxOf { it.endTime }
+                        onConfirm(session.copy(
+                            startTime = newStartTime,
+                            endTime = newEndTime,
+                            intervals = parsedIntervals,
+                            note = note.ifBlank { null },
+                            rating = if (rating > 0) rating else null,
+                            problemStart = problemStart.toIntOrNull(),
+                            problemEnd = problemEnd.toIntOrNull(),
+                            wrongProblemCount = wrongProblemCount.toIntOrNull()
+                        ))
+                    }
                 }
             ) {
                 Text("保存")
@@ -378,4 +575,27 @@ private fun EditSessionDialog(
             }
         }
     )
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("削除確認") },
+            text = { Text("この学習記録を削除しますか？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteConfirm = false
+                    }
+                ) {
+                    Text("削除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("キャンセル")
+                }
+            }
+        )
+    }
 }

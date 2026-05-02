@@ -8,6 +8,7 @@ import com.studyapp.data.local.db.entity.WeeklyPlanSummary as DaoWeeklyPlanSumma
 import com.studyapp.domain.model.DailyPlanSummary
 import com.studyapp.domain.model.PlanItem
 import com.studyapp.domain.model.StudyPlan
+import com.studyapp.domain.model.StudyWeekday
 import com.studyapp.domain.model.WeeklyPlanSummary
 import com.studyapp.domain.repository.PlanRepository
 import com.studyapp.domain.util.Clock
@@ -17,7 +18,6 @@ import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
-import java.time.DayOfWeek
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -51,8 +51,8 @@ class PlanRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun getPlanItemsByDay(planId: Long, dayOfWeek: DayOfWeek): Flow<Result<List<PlanItem>>> {
-        return planDao.getPlanItemsByDay(planId, dayOfWeek.value).map { entities ->
+    override fun getPlanItemsByDay(planId: Long, dayOfWeek: StudyWeekday): Flow<Result<List<PlanItem>>> {
+        return planDao.getPlanItemsByDay(planId, dayOfWeek.ordinal + 1).map { entities ->
             Result.Success(entities.map { it.toDomain() })
         }
     }
@@ -78,7 +78,7 @@ class PlanRepositoryImpl @Inject constructor(
                     planSyncId = item.planSyncId ?: plan.syncId,
                     subjectId = item.subjectId,
                     subjectSyncId = item.subjectSyncId,
-                    dayOfWeek = item.dayOfWeek.value,
+                    dayOfWeek = item.dayOfWeek.ordinal + 1,
                     targetMinutes = item.targetMinutes,
                     actualMinutes = item.actualMinutes,
                     timeSlot = item.timeSlot,
@@ -163,7 +163,7 @@ class PlanRepositoryImpl @Inject constructor(
                         planSyncId = item.planSyncId,
                         subjectId = item.subjectId,
                         subjectSyncId = item.subjectSyncId,
-                        dayOfWeek = item.dayOfWeek.value,
+                        dayOfWeek = item.dayOfWeek.ordinal + 1,
                         targetMinutes = item.targetMinutes,
                         actualMinutes = item.actualMinutes,
                         timeSlot = item.timeSlot,
@@ -193,7 +193,7 @@ class PlanRepositoryImpl @Inject constructor(
                         planSyncId = item.planSyncId,
                         subjectId = item.subjectId,
                         subjectSyncId = item.subjectSyncId,
-                        dayOfWeek = item.dayOfWeek.value,
+                        dayOfWeek = item.dayOfWeek.ordinal + 1,
                         targetMinutes = item.targetMinutes,
                         actualMinutes = item.actualMinutes,
                         timeSlot = item.timeSlot,
@@ -224,7 +224,7 @@ class PlanRepositoryImpl @Inject constructor(
                         planSyncId = item.planSyncId,
                         subjectId = item.subjectId,
                         subjectSyncId = item.subjectSyncId,
-                        dayOfWeek = item.dayOfWeek.value,
+                        dayOfWeek = item.dayOfWeek.ordinal + 1,
                         targetMinutes = item.targetMinutes,
                         actualMinutes = item.actualMinutes,
                         timeSlot = item.timeSlot,
@@ -258,16 +258,16 @@ class PlanRepositoryImpl @Inject constructor(
     override suspend fun getWeeklyPlanSummary(planId: Long): Result<WeeklyPlanSummary?> {
         return try {
             val summaries = planDao.getWeeklyPlanSummary(planId).first()
-            
+
             if (summaries.isEmpty()) {
                 return Result.Success(null)
             }
 
             val totalTargetMinutes = summaries.sumOf { it.totalTargetMinutes }
             val totalActualMinutes = summaries.sumOf { it.totalActualMinutes }
-            
+
             val dailyBreakdown = summaries.associate { summary ->
-                val dayOfWeek = DayOfWeek.of(summary.dayOfWeek)
+                val dayOfWeek = StudyWeekday.entries.getOrNull(summary.dayOfWeek - 1) ?: StudyWeekday.MONDAY
                 val completionRate = if (summary.totalTargetMinutes > 0) {
                     summary.totalActualMinutes.toFloat() / summary.totalTargetMinutes.toFloat()
                 } else {
@@ -319,7 +319,7 @@ class PlanRepositoryImpl @Inject constructor(
         planSyncId = planSyncId,
         subjectId = subjectId,
         subjectSyncId = subjectSyncId,
-        dayOfWeek = DayOfWeek.of(dayOfWeek),
+        dayOfWeek = StudyWeekday.entries.getOrNull(dayOfWeek - 1) ?: StudyWeekday.MONDAY,
         targetMinutes = targetMinutes,
         actualMinutes = actualMinutes,
         timeSlot = timeSlot,

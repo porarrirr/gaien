@@ -9,14 +9,13 @@ import com.studyapp.domain.util.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import javax.inject.Inject
 
 data class PlanUiState(
     val activePlan: StudyPlan? = null,
     val planItems: List<PlanItem> = emptyList(),
     val subjects: List<Subject> = emptyList(),
-    val weeklySchedule: Map<DayOfWeek, List<PlanItemWithSubject>> = emptyMap(),
+    val weeklySchedule: Map<StudyWeekday, List<PlanItemWithSubject>> = emptyMap(),
     val totalTargetMinutes: Int = 0,
     val totalActualMinutes: Int = 0,
     val isLoading: Boolean = true,
@@ -84,10 +83,10 @@ class PlanViewModel @Inject constructor(
     private fun buildWeeklySchedule(
         items: List<PlanItem>,
         subjects: List<Subject>
-    ): Map<DayOfWeek, List<PlanItemWithSubject>> {
+    ): Map<StudyWeekday, List<PlanItemWithSubject>> {
         val subjectMap = subjects.associateBy { it.id }
         
-        return DayOfWeek.entries.associateWith { day ->
+        return StudyWeekday.entries.associateWith { day ->
             items
                 .filter { it.dayOfWeek == day }
                 .mapNotNull { item ->
@@ -130,7 +129,7 @@ class PlanViewModel @Inject constructor(
         }
     }
     
-    fun addPlanItem(subjectId: Long, dayOfWeek: DayOfWeek, targetMinutes: Int, timeSlot: String?) {
+    fun addPlanItem(subjectId: Long, dayOfWeek: StudyWeekday, targetMinutes: Int, timeSlot: String?) {
         viewModelScope.launch {
             val plan = _uiState.value.activePlan ?: return@launch
             val subjectSyncId = _uiState.value.subjects.firstOrNull { it.id == subjectId }?.syncId

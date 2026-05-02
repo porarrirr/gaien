@@ -26,8 +26,8 @@ import com.studyapp.domain.model.PlanItem
 import com.studyapp.domain.model.PlanItemWithSubject
 import com.studyapp.domain.model.Subject
 import com.studyapp.presentation.components.EmptyState
+import com.studyapp.domain.model.StudyWeekday
 import java.text.SimpleDateFormat
-import java.time.DayOfWeek
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,7 +38,7 @@ fun PlanScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
     var showAddItemDialog by remember { mutableStateOf(false) }
-    var selectedDay by remember { mutableStateOf<DayOfWeek?>(null) }
+    var selectedDay by remember { mutableStateOf<StudyWeekday?>(null) }
     var showDeletePlanDialog by remember { mutableStateOf(false) }
     
     Scaffold(
@@ -291,17 +291,17 @@ private fun StatChip(
 
 @Composable
 private fun WeeklyScheduleView(
-    weeklySchedule: Map<DayOfWeek, List<PlanItemWithSubject>>,
-    onDayClick: (DayOfWeek) -> Unit
+    weeklySchedule: Map<StudyWeekday, List<PlanItemWithSubject>>,
+    onDayClick: (StudyWeekday) -> Unit
 ) {
     val dayNames = listOf(
-        DayOfWeek.MONDAY to "月",
-        DayOfWeek.TUESDAY to "火",
-        DayOfWeek.WEDNESDAY to "水",
-        DayOfWeek.THURSDAY to "木",
-        DayOfWeek.FRIDAY to "金",
-        DayOfWeek.SATURDAY to "土",
-        DayOfWeek.SUNDAY to "日"
+        StudyWeekday.MONDAY to "月",
+        StudyWeekday.TUESDAY to "火",
+        StudyWeekday.WEDNESDAY to "水",
+        StudyWeekday.THURSDAY to "木",
+        StudyWeekday.FRIDAY to "金",
+        StudyWeekday.SATURDAY to "土",
+        StudyWeekday.SUNDAY to "日"
     )
     
     LazyColumn(
@@ -325,11 +325,11 @@ private fun WeeklyScheduleView(
 @Composable
 private fun DayScheduleCard(
     dayName: String,
-    dayOfWeek: DayOfWeek,
+    dayOfWeek: StudyWeekday,
     items: List<PlanItemWithSubject>,
     onClick: () -> Unit
 ) {
-    val isToday = java.time.LocalDate.now().dayOfWeek == dayOfWeek
+    val isToday = StudyWeekday.fromDayOfWeek(java.time.LocalDate.now().dayOfWeek) == dayOfWeek
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -516,21 +516,21 @@ private fun CreatePlanDialog(
 private fun AddPlanItemDialog(
     subjects: List<Subject>,
     onDismiss: () -> Unit,
-    onAdd: (subjectId: Long, dayOfWeek: DayOfWeek, minutes: Int, timeSlot: String?) -> Unit
+    onAdd: (subjectId: Long, dayOfWeek: StudyWeekday, minutes: Int, timeSlot: String?) -> Unit
 ) {
     var selectedSubject by remember { mutableStateOf<Subject?>(null) }
-    var selectedDay by remember { mutableStateOf(DayOfWeek.MONDAY) }
+    var selectedDay by remember { mutableStateOf(StudyWeekday.MONDAY) }
     var minutes by remember { mutableStateOf("60") }
     var timeSlot by remember { mutableStateOf("") }
     
     val days = listOf(
-        DayOfWeek.MONDAY to "月曜日",
-        DayOfWeek.TUESDAY to "火曜日",
-        DayOfWeek.WEDNESDAY to "水曜日",
-        DayOfWeek.THURSDAY to "木曜日",
-        DayOfWeek.FRIDAY to "金曜日",
-        DayOfWeek.SATURDAY to "土曜日",
-        DayOfWeek.SUNDAY to "日曜日"
+        StudyWeekday.MONDAY to "月曜日",
+        StudyWeekday.TUESDAY to "火曜日",
+        StudyWeekday.WEDNESDAY to "水曜日",
+        StudyWeekday.THURSDAY to "木曜日",
+        StudyWeekday.FRIDAY to "金曜日",
+        StudyWeekday.SATURDAY to "土曜日",
+        StudyWeekday.SUNDAY to "日曜日"
     )
     
     AlertDialog(

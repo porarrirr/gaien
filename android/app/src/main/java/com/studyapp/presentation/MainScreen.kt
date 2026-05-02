@@ -33,6 +33,7 @@ import com.studyapp.presentation.history.HistoryScreen
 import com.studyapp.presentation.settings.SettingsScreen
 import com.studyapp.presentation.goals.GoalsScreen
 import com.studyapp.presentation.plans.PlanScreen
+import com.studyapp.presentation.timetable.TimetableScreen
 import com.studyapp.presentation.navigation.Screen
 import com.studyapp.presentation.navigation.bottomScreens
 
@@ -125,7 +126,9 @@ fun MainScreen() {
                     onNavigateToGoals = { navController.navigate(Screen.Goals.route) },
                     onNavigateToHistory = { navController.navigate(Screen.History.route) },
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                    onNavigateToPlan = { navController.navigate(Screen.Plan.route) }
+                    onNavigateToPlan = { navController.navigate(Screen.Plan.route) },
+                    onNavigateToTimetable = { navController.navigate(Screen.Timetable.route) },
+                    onNavigateToSubjects = { navController.navigate(Screen.Subjects.route) }
                 )
             }
             composable(Screen.Timer.route) {
@@ -149,6 +152,9 @@ fun MainScreen() {
             }
             composable(Screen.Calendar.route) {
                 CalendarScreen()
+            }
+            composable(Screen.Timetable.route) {
+                TimetableScreen()
             }
             composable(Screen.Reports.route) {
                 ReportsScreen()

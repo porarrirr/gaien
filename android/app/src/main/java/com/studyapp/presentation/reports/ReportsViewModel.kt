@@ -11,6 +11,7 @@ import com.studyapp.domain.util.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -20,10 +21,12 @@ data class ReportsUiState(
     val totalTime: Long = 0,
     val averageTime: Long = 0,
     val streakDays: Int = 0,
+    val bestStreak: Int = 0,
     val dailyData: List<DailyStudyData> = emptyList(),
     val weeklyData: List<WeeklyStudyData> = emptyList(),
     val monthlyData: List<MonthlyStudyData> = emptyList(),
     val subjectBreakdown: List<SubjectStudyData> = emptyList(),
+    val ratingAverages: RatingAveragesData = RatingAveragesData(),
     val isLoading: Boolean = true,
     val error: String? = null
 )
@@ -95,6 +98,8 @@ class ReportsViewModel @Inject constructor(
                 0L
             }
             val streakDays = calculateStreak()
+            val bestStreak = calculateBestStreak()
+            val ratingAverages = calculateRatingAverages()
             
             _uiState.update { state ->
                 state.copy(
@@ -105,6 +110,8 @@ class ReportsViewModel @Inject constructor(
                     totalTime = totalMinutes,
                     averageTime = averageTime,
                     streakDays = streakDays,
+                    bestStreak = bestStreak,
+                    ratingAverages = ratingAverages,
                     isLoading = false,
                     error = null
                 )
@@ -205,7 +212,7 @@ class ReportsViewModel @Inject constructor(
         return subjects.mapNotNull { subject ->
             val minutes = sessions
                 .filter { it.subjectId == subject.id }
-                .sumOf { it.durationMinutes }
+                .sumOf { it.durationMinutes.toLong() }
             if (minutes <= 0) {
                 null
             } else {
@@ -317,6 +324,63 @@ class ReportsViewModel @Inject constructor(
         
         return streak
     }
+
+    private suspend fun calculateBestStreak(): Int {
+        var bestStreak = 0
+        var currentStreak = 0
+        var currentDate = clock.startOfToday()
+
+        for (i in 0 until 365) {
+            val dayDuration = when (val result = studySessionRepository.getTotalDurationByDate(currentDate)) {
+                is Result.Success -> result.data
+                is Result.Error -> break
+            }
+
+            if (dayDuration > 0) {
+                currentStreak++
+                if (currentStreak > bestStreak) bestStreak = currentStreak
+            } else {
+                currentStreak = 0
+            }
+            currentDate -= DAY_MS
+        }
+
+        return bestStreak
+    }
+
+    private suspend fun calculateRatingAverages(): RatingAveragesData {
+        val todayStart = clock.startOfToday()
+        val weekStart = clock.startOfWeek()
+        val monthStart = clock.startOfMonth()
+
+        fun weightedAverage(sessions: List<StudySession>): RatingAverageSummary {
+            val ratedSessions = sessions.filter { it.rating != null && it.rating > 0 }
+            if (ratedSessions.isEmpty()) return RatingAverageSummary()
+            val totalWeightedRating = ratedSessions.sumOf { it.rating!! * it.durationMinutes.toLong() }
+            val totalMinutes = ratedSessions.sumOf { it.durationMinutes.toLong() }
+            val avg = if (totalMinutes > 0) totalWeightedRating.toDouble() / totalMinutes.toDouble() else null
+            return RatingAverageSummary(average = avg, ratedMinutes = totalMinutes.toInt())
+        }
+
+        val todaySessions = when (val r = studySessionRepository.getSessionsBetweenDates(todayStart, todayStart + DAY_MS).first()) {
+            is Result.Success -> r.data
+            else -> emptyList()
+        }
+        val weekSessions = when (val r = studySessionRepository.getSessionsBetweenDates(weekStart, weekStart + WEEK_MS).first()) {
+            is Result.Success -> r.data
+            else -> emptyList()
+        }
+        val monthSessions = when (val r = studySessionRepository.getSessionsBetweenDates(monthStart, monthStart + MONTH_MS).first()) {
+            is Result.Success -> r.data
+            else -> emptyList()
+        }
+
+        return RatingAveragesData(
+            today = weightedAverage(todaySessions),
+            week = weightedAverage(weekSessions),
+            month = weightedAverage(monthSessions)
+        )
+    }
     
     fun refresh() {
         loadReports()
@@ -328,5 +392,7 @@ class ReportsViewModel @Inject constructor(
 
     companion object {
         private const val DAY_MS = 24 * 60 * 60 * 1000L
+        private const val WEEK_MS = 7 * DAY_MS
+        private const val MONTH_MS = 30 * DAY_MS
     }
 }

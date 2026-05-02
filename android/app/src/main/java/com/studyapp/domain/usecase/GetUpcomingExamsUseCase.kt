@@ -17,7 +17,7 @@ class GetUpcomingExamsUseCase @Inject constructor(
         
         return examRepository.getUpcomingExams().map { result ->
             val exams = result.getOrNull() ?: emptyList()
-            val sorted = exams.sortedBy { it.date.toEpochDay() }
+            val sorted = exams.sortedBy { it.date }
             Log.i(TAG, "Found ${sorted.size} upcoming exams")
             sorted
         }
@@ -29,7 +29,7 @@ class GetUpcomingExamsUseCase @Inject constructor(
         return examRepository.getUpcomingExams().map { result ->
             val exams = result.getOrNull() ?: emptyList()
             val sorted = exams
-                .sortedBy { it.date.toEpochDay() }
+                .sortedBy { it.date }
                 .take(limit)
             Log.i(TAG, "Found ${sorted.size} upcoming exams (limit=$limit)")
             sorted

@@ -54,7 +54,7 @@ class ExamsViewModel @Inject constructor(
             
             val exam = Exam(
                 name = name,
-                date = date,
+                date = date.toEpochDay(),
                 note = note
             )
             

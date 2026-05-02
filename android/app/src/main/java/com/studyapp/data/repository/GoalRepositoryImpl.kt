@@ -5,6 +5,7 @@ import com.studyapp.data.local.db.dao.GoalDao
 import com.studyapp.data.local.db.entity.GoalEntity
 import com.studyapp.domain.model.Goal
 import com.studyapp.domain.model.GoalType
+import com.studyapp.domain.model.StudyWeekday
 import com.studyapp.domain.repository.GoalRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
@@ -12,7 +13,6 @@ import com.studyapp.sync.AppDataWriteLock
 import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import java.time.DayOfWeek
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -102,8 +102,8 @@ class GoalRepositoryImpl @Inject constructor(
             syncId = syncId,
             type = type,
             targetMinutes = targetMinutes,
-            dayOfWeek = dayOfWeek.takeIf { it in 1..7 }?.let(DayOfWeek::of),
-            weekStartDay = DayOfWeek.of(weekStartDay),
+            dayOfWeek = dayOfWeek.takeIf { it in 1..7 }?.let { StudyWeekday.entries[it - 1] },
+            weekStartDay = StudyWeekday.entries.getOrNull(weekStartDay - 1) ?: StudyWeekday.MONDAY,
             isActive = isActive,
             createdAt = createdAt,
             updatedAt = updatedAt,
@@ -118,8 +118,8 @@ class GoalRepositoryImpl @Inject constructor(
             syncId = syncId,
             type = type,
             targetMinutes = targetMinutes,
-            dayOfWeek = dayOfWeek?.value ?: 0,
-            weekStartDay = weekStartDay.value,
+            dayOfWeek = dayOfWeek?.ordinal?.plus(1) ?: 0,
+            weekStartDay = weekStartDay.ordinal + 1,
             isActive = isActive,
             createdAt = createdAt,
             updatedAt = updatedAt,

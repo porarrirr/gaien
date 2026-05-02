@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -43,7 +44,7 @@ import com.studyapp.domain.model.Goal
 import com.studyapp.presentation.components.AnimatedProgressBar
 import com.studyapp.presentation.components.CircularProgressRing
 import com.studyapp.presentation.components.SectionHeader
-import java.time.DayOfWeek
+import com.studyapp.domain.model.StudyWeekday
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,15 +91,14 @@ fun GoalsScreen(
         }
     }
 }
-
 @Composable
 private fun DailyGoalSection(
-    dailyGoals: Map<DayOfWeek, Goal>,
-    todayDayOfWeek: DayOfWeek,
+    dailyGoals: Map<StudyWeekday, Goal>,
+    todayDayOfWeek: StudyWeekday,
     currentMinutes: Long,
-    onUpdate: (DayOfWeek, Int) -> Unit
+    onUpdate: (StudyWeekday, Int) -> Unit
 ) {
-    var editingDay by remember { mutableStateOf<DayOfWeek?>(null) }
+    var editingDay by remember { mutableStateOf<StudyWeekday?>(null) }
     val todayGoal = dailyGoals[todayDayOfWeek]
     val todayTargetMinutes = todayGoal?.targetMinutes ?: 0
     val progress = if (todayTargetMinutes > 0) {
@@ -134,7 +134,7 @@ private fun DailyGoalSection(
 
                     Column {
                         Text(
-                            text = todayDayOfWeek.toJapaneseTitle(),
+                            text = todayDayOfWeek.japaneseTitle,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -153,7 +153,7 @@ private fun DailyGoalSection(
                     progressColor = MaterialTheme.colorScheme.primary
                 )
 
-                DayOfWeek.values().forEach { day ->
+                StudyWeekday.entries.forEach { day ->
                     val goal = dailyGoals[day]
                     val isToday = day == todayDayOfWeek
                     Surface(
@@ -170,7 +170,7 @@ private fun DailyGoalSection(
                         ) {
                             Column {
                                 Text(
-                                    text = day.toJapaneseTitle(),
+                                    text = day.japaneseTitle,
                                     fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium
                                 )
                                 Text(
@@ -213,7 +213,7 @@ private fun DailyGoalSection(
                             }
                             Spacer(modifier = Modifier.size(8.dp))
                             Text(
-                                text = "${todayDayOfWeek.toJapaneseShortLabel()}の目標を達成しました",
+                                text = "${todayDayOfWeek.japaneseShortTitle}の目標を達成しました",
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 style = MaterialTheme.typography.titleMedium
@@ -227,7 +227,7 @@ private fun DailyGoalSection(
 
     editingDay?.let { day ->
         GoalEditDialog(
-            title = "${day.toJapaneseTitle()}の目標を設定",
+            title = "${day.japaneseTitle}の目標を設定",
             currentMinutes = dailyGoals[day]?.targetMinutes ?: 60,
             onDismiss = { editingDay = null },
             onConfirm = { minutes ->
@@ -280,7 +280,8 @@ private fun WeeklyGoalSection(
                             progress = progress,
                             size = 64.dp,
                             strokeWidth = 6.dp,
-                            progressColor = MaterialTheme.colorScheme.tertiary
+                            progressColor = if (progress >= 1f) Color(0xFF4CAF50)
+                            else MaterialTheme.colorScheme.tertiary
                         )
 
                         Column {
@@ -396,15 +397,3 @@ private fun GoalEditDialog(
         }
     )
 }
-
-private fun DayOfWeek.toJapaneseShortLabel(): String = when (this) {
-    DayOfWeek.MONDAY -> "月"
-    DayOfWeek.TUESDAY -> "火"
-    DayOfWeek.WEDNESDAY -> "水"
-    DayOfWeek.THURSDAY -> "木"
-    DayOfWeek.FRIDAY -> "金"
-    DayOfWeek.SATURDAY -> "土"
-    DayOfWeek.SUNDAY -> "日"
-}
-
-private fun DayOfWeek.toJapaneseTitle(): String = "${toJapaneseShortLabel()}曜日"

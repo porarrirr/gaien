@@ -17,9 +17,26 @@ enum class SubjectIcon {
     HISTORY,
     OTHER;
 
+    val systemImage: String
+        get() = when (this) {
+            BOOK -> "book.closed.fill"
+            CALCULATOR -> "function"
+            FLASK -> "testtube.2"
+            GLOBE -> "globe.asia.australia.fill"
+            PALETTE -> "paintpalette.fill"
+            MUSIC -> "music.note"
+            CODE -> "chevron.left.forwardslash.chevron.right"
+            ATOM -> "atom"
+            DNA -> "cross.case.fill"
+            BRAIN -> "brain.head.profile"
+            LANGUAGE -> "character.book.closed.fill"
+            HISTORY -> "clock.arrow.circlepath"
+            OTHER -> "square.grid.2x2.fill"
+        }
+
     companion object {
         fun fromName(name: String?): SubjectIcon? {
-            return name?.let { 
+            return name?.let {
                 entries.find { it.name.equals(name, ignoreCase = true) }
             }
         }
@@ -28,7 +45,7 @@ enum class SubjectIcon {
 
 data class Subject(
     val id: Long = 0,
-    val syncId: String = UUID.randomUUID().toString(),
+    val syncId: String = UUID.randomUUID().toString().lowercase(),
     val name: String,
     val color: Int,
     val icon: SubjectIcon? = null,

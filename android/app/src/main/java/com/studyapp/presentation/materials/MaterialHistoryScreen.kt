@@ -23,15 +23,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -43,7 +46,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.studyapp.domain.model.ProblemResult
 import com.studyapp.domain.model.StudySession
 import com.studyapp.presentation.components.EmptyState
 import com.studyapp.presentation.components.LoadingState
@@ -120,6 +127,7 @@ fun MaterialHistoryScreen(
                 )
             }
             else -> {
+                var selectedTab by remember { mutableIntStateOf(0) }
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -131,29 +139,60 @@ fun MaterialHistoryScreen(
                         MaterialHistorySummary(uiState)
                     }
                     item {
-                        MaterialHistoryCalendar(
-                            displayedMonth = uiState.displayedMonth,
-                            selectedDate = uiState.selectedDate,
-                            studyMinutesByDay = uiState.studyMinutesByDay,
-                            onPrevious = viewModel::previousMonth,
-                            onNext = viewModel::nextMonth,
-                            onDateSelect = viewModel::selectDate
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = selectedTab == 0,
+                                onClick = { selectedTab = 0 },
+                                label = { Text("履歴") }
+                            )
+                            FilterChip(
+                                selected = selectedTab == 1,
+                                onClick = { selectedTab = 1 },
+                                label = { Text("問題集") }
+                            )
+                        }
                     }
-                    item {
-                        SelectedDateHeader(
-                            selectedDate = uiState.selectedDate,
-                            totalMinutes = uiState.selectedDateMinutes,
-                            sessionCount = uiState.selectedDateSessions.size
-                        )
-                    }
-                    if (uiState.selectedDateSessions.isEmpty()) {
+                    if (selectedTab == 0) {
                         item {
-                            EmptySelectedDateCard()
+                            MaterialHistoryCalendar(
+                                displayedMonth = uiState.displayedMonth,
+                                selectedDate = uiState.selectedDate,
+                                studyMinutesByDay = uiState.studyMinutesByDay,
+                                onPrevious = viewModel::previousMonth,
+                                onNext = viewModel::nextMonth,
+                                onDateSelect = viewModel::selectDate
+                            )
+                        }
+                        item {
+                            SelectedDateHeader(
+                                selectedDate = uiState.selectedDate,
+                                totalMinutes = uiState.selectedDateMinutes,
+                                sessionCount = uiState.selectedDateSessions.size
+                            )
+                        }
+                        item {
+                            DateJumpButtons { days ->
+                                viewModel.selectDate(uiState.selectedDate.plusDays(days))
+                            }
+                        }
+                        if (uiState.selectedDateSessions.isEmpty()) {
+                            item {
+                                EmptySelectedDateCard()
+                            }
+                        } else {
+                            items(uiState.selectedDateSessions, key = { it.id }) { session ->
+                                MaterialSessionCard(session = session)
+                            }
                         }
                     } else {
-                        items(uiState.selectedDateSessions, key = { it.id }) { session ->
-                            MaterialSessionCard(session = session)
+                        item {
+                            ProblemProgressSection(
+                                material = uiState.material,
+                                sessions = uiState.sessions
+                            )
                         }
                     }
                 }
@@ -190,7 +229,7 @@ private fun MaterialHistorySummary(uiState: MaterialHistoryUiState) {
 
             if (material.totalPages > 0) {
                 LinearProgressIndicator(
-                    progress = { material.progress.coerceIn(0f, 1f) },
+                    progress = { material.progress.toFloat().coerceIn(0f, 1f) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
@@ -369,6 +408,33 @@ private fun MaterialHistoryDayCell(
 }
 
 @Composable
+private fun DateJumpButtons(onJump: (Long) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedButton(
+            onClick = { onJump(-1) },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("前日", style = MaterialTheme.typography.labelMedium)
+        }
+        OutlinedButton(
+            onClick = { onJump(-7) },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("1週間前", style = MaterialTheme.typography.labelMedium)
+        }
+        OutlinedButton(
+            onClick = { onJump(-30) },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("1か月前", style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
 private fun SelectedDateHeader(
     selectedDate: LocalDate,
     totalMinutes: Long,
@@ -438,7 +504,7 @@ private fun MaterialSessionCard(session: StudySession) {
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Text(
-                        text = formatDuration(session.durationMinutes),
+                        text = formatDuration(session.durationMinutes.toLong()),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -458,6 +524,35 @@ private fun MaterialSessionCard(session: StudySession) {
                     MaterialTheme.colorScheme.onSurface
                 }
             )
+
+            val problemText = session.problemRangeText
+            if (!problemText.isNullOrBlank()) {
+                Text(
+                    text = "問題: $problemText",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            val wrongCount = session.effectiveWrongProblemCount
+            if (wrongCount != null && wrongCount > 0) {
+                Text(
+                    text = "不正解: $wrongCount",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            if (session.rating != null && session.rating > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    repeat(session.rating) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -495,4 +590,204 @@ private fun formatDuration(minutes: Long): String {
 
 private fun LocalDate.formatJapaneseDate(): String {
     return "${monthValue}月${dayOfMonth}日"
+}
+
+@Composable
+private fun ProblemProgressSection(
+    material: com.studyapp.domain.model.Material?,
+    sessions: List<StudySession>
+) {
+    if (material == null) return
+    val totalProblems = material.effectiveTotalProblems
+    if (totalProblems <= 0) {
+        OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            Text(
+                text = "問題数が設定されていません",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            )
+        }
+        return
+    }
+
+    val latestRecords = remember(material, sessions) {
+        buildLatestProblemRecords(material, sessions)
+    }
+
+    val correctCount = latestRecords.count { it.value == ProblemResult.CORRECT }
+    val wrongCount = latestRecords.count { it.value == ProblemResult.WRONG }
+    val reviewCorrectCount = latestRecords.count { it.value == ProblemResult.REVIEW_CORRECT }
+    val unattemptedCount = totalProblems - latestRecords.size
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "問題集",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ProblemStatPill(
+                    label = "正解",
+                    value = "$correctCount",
+                    color = Color(0xFF4CAF50),
+                    modifier = Modifier.weight(1f)
+                )
+                ProblemStatPill(
+                    label = "不正解",
+                    value = "$wrongCount",
+                    color = Color(0xFFE53935),
+                    modifier = Modifier.weight(1f)
+                )
+                ProblemStatPill(
+                    label = "復習正解",
+                    value = "$reviewCorrectCount",
+                    color = Color(0xFF2196F3),
+                    modifier = Modifier.weight(1f)
+                )
+                ProblemStatPill(
+                    label = "未着手",
+                    value = "$unattemptedCount",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+
+            Text(
+                text = "問題一覧",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+
+            val columns = 6
+            val rows = (totalProblems + columns - 1) / columns
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (row in 0 until rows) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        for (col in 0 until columns) {
+                            val problemNum = row * columns + col + 1
+                            if (problemNum <= totalProblems) {
+                                val result = latestRecords[problemNum]
+                                ProblemTile(
+                                    number = problemNum,
+                                    result = result,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProblemStatPill(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        color = color.copy(alpha = 0.12f)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = color.copy(alpha = 0.8f)
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProblemTile(
+    number: Int,
+    result: ProblemResult?,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = when (result) {
+        ProblemResult.CORRECT -> Color(0xFF4CAF50)
+        ProblemResult.WRONG -> Color(0xFFE53935)
+        ProblemResult.REVIEW_CORRECT -> Color(0xFF2196F3)
+        null -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val textColor = if (result != null) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(6.dp))
+            .background(backgroundColor)
+            .border(
+                width = 1.dp,
+                color = backgroundColor.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(6.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "$number",
+            color = textColor,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+private fun buildLatestProblemRecords(
+    material: com.studyapp.domain.model.Material,
+    sessions: List<StudySession>
+): Map<Int, ProblemResult> {
+    val records = mutableMapOf<Int, ProblemResult>()
+    val sortedSessions = sessions.sortedByDescending { it.startTime }
+    for (session in sortedSessions) {
+        for (record in session.problemRecords) {
+            if (record.number !in records) {
+                records[record.number] = record.result
+            }
+        }
+        for (record in material.problemRecords) {
+            if (record.number !in records) {
+                records[record.number] = record.result
+            }
+        }
+    }
+    return records
 }

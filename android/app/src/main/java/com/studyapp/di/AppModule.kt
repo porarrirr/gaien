@@ -35,11 +35,11 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-    
+
     @Provides
     @Singleton
     fun provideClock(): Clock = SystemClock()
-    
+
     @Provides
     @Singleton
     fun provideTimerStateStore(@ApplicationContext context: Context): TimerStateStore {
@@ -53,12 +53,18 @@ object AppModule {
     @Provides
     @Singleton
     fun provideFirebaseFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+
+    @Provides
+    @Singleton
+    fun provideAppPreferencesRepository(@ApplicationContext context: Context): AppPreferencesRepository {
+        return AppPreferencesRepositoryImpl(context)
+    }
 }
 
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-    
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): StudyDatabase {
@@ -70,42 +76,62 @@ object DatabaseModule {
             .addMigrations(*ALL_MIGRATIONS)
             .build()
     }
-    
+
     @Provides
     fun provideSubjectDao(database: StudyDatabase): SubjectDao {
         return database.subjectDao()
     }
-    
+
     @Provides
     fun provideMaterialDao(database: StudyDatabase): MaterialDao {
         return database.materialDao()
     }
-    
+
     @Provides
     fun provideStudySessionDao(database: StudyDatabase): StudySessionDao {
         return database.studySessionDao()
     }
-    
+
     @Provides
     fun provideGoalDao(database: StudyDatabase): GoalDao {
         return database.goalDao()
     }
-    
+
     @Provides
     fun provideExamDao(database: StudyDatabase): ExamDao {
         return database.examDao()
     }
-    
+
     @Provides
     fun providePlanDao(database: StudyDatabase): PlanDao {
         return database.planDao()
+    }
+
+    @Provides
+    fun provideTimetablePeriodDao(database: StudyDatabase): TimetablePeriodDao {
+        return database.timetablePeriodDao()
+    }
+
+    @Provides
+    fun provideTimetableTermDao(database: StudyDatabase): TimetableTermDao {
+        return database.timetableTermDao()
+    }
+
+    @Provides
+    fun provideTimetableEntryDao(database: StudyDatabase): TimetableEntryDao {
+        return database.timetableEntryDao()
+    }
+
+    @Provides
+    fun provideTimetableReviewRecordDao(database: StudyDatabase): TimetableReviewRecordDao {
+        return database.timetableReviewRecordDao()
     }
 }
 
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-    
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
@@ -128,7 +154,7 @@ object NetworkModule {
             .writeTimeout(15, TimeUnit.SECONDS)
             .build()
     }
-    
+
     @Provides
     @Singleton
     fun provideGoogleBooksService(okHttpClient: OkHttpClient): GoogleBooksService {
@@ -150,31 +176,31 @@ interface RepositoryModule {
     @Binds
     @Singleton
     fun bindAppUsageStatsReader(impl: AndroidAppUsageStatsReader): AppUsageStatsReader
-    
+
     @Binds
     @Singleton
     fun bindSubjectRepository(impl: SubjectRepositoryImpl): SubjectRepository
-    
+
     @Binds
     @Singleton
     fun bindMaterialRepository(impl: MaterialRepositoryImpl): MaterialRepository
-    
+
     @Binds
     @Singleton
     fun bindStudySessionRepository(impl: StudySessionRepositoryImpl): StudySessionRepository
-    
+
     @Binds
     @Singleton
     fun bindGoalRepository(impl: GoalRepositoryImpl): GoalRepository
-    
+
     @Binds
     @Singleton
     fun bindExamRepository(impl: ExamRepositoryImpl): ExamRepository
-    
+
     @Binds
     @Singleton
     fun bindPlanRepository(impl: PlanRepositoryImpl): PlanRepository
-    
+
     @Binds
     @Singleton
     fun bindTimerServiceManager(impl: TimerServiceManagerImpl): TimerServiceManager
@@ -186,23 +212,32 @@ interface RepositoryModule {
     @Binds
     @Singleton
     fun bindSyncRepository(impl: FirebaseSyncRepository): SyncRepository
+
+    @Binds
+    @Singleton
+    fun bindTimetableRepository(impl: TimetableRepositoryImpl): TimetableRepository
+
+    @Binds
+    @Singleton
+    fun bindBookSearchRepository(impl: BookSearchRepositoryImpl): BookSearchRepository
 }
 
 @Module
 @InstallIn(SingletonComponent::class)
 object UseCaseModule {
-    
+
     @Provides
     @Singleton
     fun provideGetHomeDataUseCase(
         studySessionRepository: StudySessionRepository,
         goalRepository: GoalRepository,
         examRepository: ExamRepository,
+        timetableRepository: TimetableRepository,
         clock: Clock
     ): GetHomeDataUseCase {
-        return GetHomeDataUseCase(studySessionRepository, goalRepository, examRepository, clock)
+        return GetHomeDataUseCase(studySessionRepository, goalRepository, examRepository, timetableRepository, clock)
     }
-    
+
     @Provides
     @Singleton
     fun provideManageMaterialsUseCase(
@@ -211,7 +246,7 @@ object UseCaseModule {
     ): ManageMaterialsUseCase {
         return ManageMaterialsUseCase(materialRepository, clock)
     }
-    
+
     @Provides
     @Singleton
     fun provideManageGoalsUseCase(
@@ -219,7 +254,7 @@ object UseCaseModule {
     ): ManageGoalsUseCase {
         return ManageGoalsUseCase(goalRepository)
     }
-    
+
     @Provides
     @Singleton
     fun provideGetUpcomingExamsUseCase(
@@ -228,7 +263,7 @@ object UseCaseModule {
     ): GetUpcomingExamsUseCase {
         return GetUpcomingExamsUseCase(examRepository, clock)
     }
-    
+
     @Provides
     @Singleton
     fun provideSaveStudySessionUseCase(
@@ -239,7 +274,7 @@ object UseCaseModule {
     ): SaveStudySessionUseCase {
         return SaveStudySessionUseCase(studySessionRepository, subjectRepository, materialRepository, clock)
     }
-    
+
     @Provides
     @Singleton
     fun provideGetReportsDataUseCase(
@@ -248,7 +283,7 @@ object UseCaseModule {
     ): GetReportsDataUseCase {
         return GetReportsDataUseCase(studySessionRepository, clock)
     }
-    
+
     @Provides
     @Singleton
     fun provideManagePlansUseCase(
@@ -256,7 +291,7 @@ object UseCaseModule {
     ): ManagePlansUseCase {
         return ManagePlansUseCase(planRepository)
     }
-    
+
     @Provides
     @Singleton
     fun provideGetRecentMaterialsUseCase(
@@ -266,7 +301,7 @@ object UseCaseModule {
     ): GetRecentMaterialsUseCase {
         return GetRecentMaterialsUseCase(studySessionRepository, materialRepository, subjectRepository)
     }
-    
+
     @Provides
     @Singleton
     fun provideExportImportDataUseCase(
@@ -276,6 +311,7 @@ object UseCaseModule {
         goalRepository: GoalRepository,
         examRepository: ExamRepository,
         planRepository: PlanRepository,
+        timetableRepository: TimetableRepository,
         database: StudyDatabase,
         writeLock: com.studyapp.sync.AppDataWriteLock
     ): ExportImportDataUseCase {
@@ -286,6 +322,7 @@ object UseCaseModule {
             goalRepository,
             examRepository,
             planRepository,
+            timetableRepository,
             database,
             writeLock
         )

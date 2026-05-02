@@ -18,6 +18,17 @@ class SaveStudySessionUseCase @Inject constructor(
     private val materialRepository: MaterialRepository,
     private val clock: Clock
 ) {
+    suspend operator fun invoke(session: StudySession): Result<Long> {
+        return try {
+            if (session.duration <= 0) {
+                return Result.Error(IllegalArgumentException("Duration must be positive"), "学習時間は0より大きくしてください")
+            }
+            studySessionRepository.insertSession(session)
+        } catch (e: Exception) {
+            Result.Error(e, "学習記録の保存に失敗しました")
+        }
+    }
+
     suspend operator fun invoke(
         subjectId: Long,
         materialId: Long?,

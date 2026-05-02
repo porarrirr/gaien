@@ -1,9 +1,14 @@
 package com.studyapp.presentation.timer
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,30 +19,41 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -136,7 +152,8 @@ fun TimerScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                        .padding(16.dp),
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     MaterialSelector(
@@ -196,6 +213,16 @@ fun TimerScreen(
                         onStop = { viewModel.stopTimer() }
                     )
 
+                    if (!uiState.isRunning && uiState.selectedMaterial != null) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        ProblemProgressSection(
+                            problemCount = uiState.problemCount,
+                            problemStates = uiState.problemStates,
+                            onSetCount = viewModel::setProblemCount,
+                            onToggleState = viewModel::toggleProblemState
+                        )
+                    }
+
                     Spacer(modifier = Modifier.weight(1f))
 
                     val recentMaterials = uiState.recentMaterials
@@ -237,6 +264,25 @@ fun TimerScreen(
             onSelectMaterial = { material, subject ->
                 viewModel.selectMaterial(material, subject)
                 showMaterialPicker = false
+            }
+        )
+    }
+
+    uiState.pendingSessionEvaluation?.let { evaluation ->
+        SessionEvaluationSheet(
+            session = evaluation.session,
+            onSave = { rating, note, problemRecords, problemStart, problemEnd, wrongCount ->
+                viewModel.savePendingSessionEvaluation(
+                    rating = rating,
+                    note = note,
+                    problemRecords = problemRecords,
+                    problemStart = problemStart,
+                    problemEnd = problemEnd,
+                    wrongProblemCount = wrongCount
+                )
+            },
+            onCancel = {
+                viewModel.cancelPendingSessionEvaluation()
             }
         )
     }
@@ -485,6 +531,284 @@ private fun RecentMaterialsSection(
                         )
                     }
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProblemProgressSection(
+    problemCount: Int,
+    problemStates: Map<Int, ProblemTileState>,
+    onSetCount: (Int) -> Unit,
+    onToggleState: (Int) -> Unit
+) {
+    val correctCount = problemStates.count { it.value == ProblemTileState.CORRECT }
+    val wrongCount = problemStates.count { it.value == ProblemTileState.WRONG }
+    val untouchedCount = problemCount - correctCount - wrongCount
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "問題進捗",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (problemCount > 0) {
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(
+                            text = "$problemCount",
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(10, 20, 50).forEach { preset ->
+                    FilterChip(
+                        selected = problemCount == preset,
+                        onClick = { onSetCount(preset) },
+                        label = { Text("$preset") }
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(
+                    onClick = { onSetCount((problemCount - 1).coerceAtLeast(0)) }
+                ) {
+                    Text(
+                        text = "−",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    text = "$problemCount",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(
+                    onClick = { onSetCount(problemCount + 1) }
+                ) {
+                    Text(
+                        text = "+",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            if (problemCount > 0) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    for (i in 1..problemCount) {
+                        val state = problemStates[i] ?: ProblemTileState.UNTOUCHED
+                        val bgColor = when (state) {
+                            ProblemTileState.UNTOUCHED -> MaterialTheme.colorScheme.surfaceVariant
+                            ProblemTileState.CORRECT -> Color(0xFF4CAF50)
+                            ProblemTileState.WRONG -> Color(0xFFE53935)
+                        }
+                        val textColor = when (state) {
+                            ProblemTileState.UNTOUCHED -> MaterialTheme.colorScheme.onSurfaceVariant
+                            else -> Color.White
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(bgColor)
+                                .clickable { onToggleState(i) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "$i",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = textColor
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    text = "正解: $correctCount  不正解: $wrongCount  未着手: $untouchedCount",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SessionEvaluationSheet(
+    session: com.studyapp.domain.model.StudySession,
+    onSave: (rating: Int, note: String?, problemRecords: List<com.studyapp.domain.model.ProblemSessionRecord>, problemStart: Int?, problemEnd: Int?, wrongCount: Int?) -> Unit,
+    onCancel: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var rating by remember { mutableStateOf(session.rating ?: 5) }
+    var note by remember { mutableStateOf(session.note ?: "") }
+    var problemStart by remember { mutableStateOf(session.problemStart?.toString() ?: "") }
+    var problemEnd by remember { mutableStateOf(session.problemEnd?.toString() ?: "") }
+    var wrongCount by remember { mutableStateOf(session.wrongProblemCount?.toString() ?: "") }
+
+    ModalBottomSheet(
+        onDismissRequest = onCancel,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "セッション評価",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Column {
+                Text(
+                    text = session.subjectName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (session.materialName.isNotBlank()) {
+                    Text(
+                        text = session.materialName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = session.durationFormatted,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "評価",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    for (i in 1..5) {
+                        IconButton(
+                            onClick = { rating = i }
+                        ) {
+                            Icon(
+                                imageVector = if (i <= rating) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "$i",
+                                tint = if (i <= rating) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "問題進捗（任意）",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = problemStart,
+                        onValueChange = { problemStart = it.filter { c -> c.isDigit() } },
+                        label = { Text("開始") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = problemEnd,
+                        onValueChange = { problemEnd = it.filter { c -> c.isDigit() } },
+                        label = { Text("終了") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = wrongCount,
+                        onValueChange = { wrongCount = it.filter { c -> c.isDigit() } },
+                        label = { Text("不正解") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text("メモ（任意）") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp),
+                maxLines = 4
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("スキップ")
+                }
+                Button(
+                    onClick = {
+                        onSave(
+                            rating,
+                            note.takeIf { it.isNotBlank() },
+                            emptyList(),
+                            problemStart.toIntOrNull(),
+                            problemEnd.toIntOrNull(),
+                            wrongCount.toIntOrNull()
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("保存")
+                }
             }
         }
     }

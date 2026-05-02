@@ -182,7 +182,7 @@ class MaterialHistoryViewModel @Inject constructor(
     ): MaterialHistoryUiState {
         val monthSessions = sessions.filter { YearMonth.from(it.localDate()) == displayedMonth }
         val studyMinutesByDay = monthSessions.groupBy { it.localDate().dayOfMonth }
-            .mapValues { (_, daySessions) -> daySessions.sumOf { it.durationMinutes } }
+            .mapValues { (_, daySessions) -> daySessions.sumOf { it.durationMinutes.toLong() } }
         val selectedDateSessions = sessions
             .filter { it.localDate() == selectedDate }
             .sortedBy { it.startTime }
@@ -194,8 +194,8 @@ class MaterialHistoryViewModel @Inject constructor(
             selectedDate = selectedDate,
             studyMinutesByDay = studyMinutesByDay,
             selectedDateSessions = selectedDateSessions,
-            selectedDateMinutes = selectedDateSessions.sumOf { it.durationMinutes },
-            totalMinutes = sessions.sumOf { it.durationMinutes },
+            selectedDateMinutes = selectedDateSessions.sumOf { it.durationMinutes.toLong() },
+            totalMinutes = sessions.sumOf { it.durationMinutes.toLong() },
             latestStudyDate = latestStudyDate,
             isLoading = false,
             error = null

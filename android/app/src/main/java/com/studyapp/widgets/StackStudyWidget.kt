@@ -51,8 +51,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.MainActivity
 import com.studyapp.R
-import com.studyapp.presentation.settings.ColorTheme
-import com.studyapp.presentation.settings.ThemeMode
+import com.studyapp.domain.model.ColorTheme
+import com.studyapp.domain.model.ThemeMode
 import com.studyapp.presentation.settings.ThemePreferences
 import com.studyapp.presentation.theme.StudyAppTheme
 import dagger.hilt.android.AndroidEntryPoint

@@ -111,10 +111,16 @@ private fun OverviewSection(uiState: ReportsUiState) {
     SummaryStatsCard(
         totalTime = uiState.totalTime,
         averageTime = uiState.averageTime,
-        streak = uiState.streakDays
+        streak = uiState.streakDays,
+        bestStreak = uiState.bestStreak
     )
     
     Spacer(modifier = Modifier.height(16.dp))
+
+    if (uiState.ratingAverages != RatingAveragesData()) {
+        RatingSummaryCard(ratingAverages = uiState.ratingAverages)
+        Spacer(modifier = Modifier.height(16.dp))
+    }
     
     if (uiState.dailyData.isNotEmpty()) {
         ElevatedCard(
@@ -179,7 +185,8 @@ private fun OverviewSection(uiState: ReportsUiState) {
 private fun SummaryStatsCard(
     totalTime: Long,
     averageTime: Long,
-    streak: Int
+    streak: Int,
+    bestStreak: Int = 0
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -225,6 +232,7 @@ private fun SummaryStatsCard(
                     icon = Icons.Default.LocalFireDepartment,
                     label = "連続学習",
                     value = "${streak}日",
+                    subValue = if (bestStreak > 0) "最長${bestStreak}日" else null,
                     color = MaterialTheme.colorScheme.tertiary
                 )
             }
@@ -283,6 +291,86 @@ private fun StatItem(
                     modifier = Modifier.padding(bottom = 2.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun RatingSummaryCard(ratingAverages: RatingAveragesData) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "評価サマリー",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                RatingAverageItem(
+                    label = "今日",
+                    summary = ratingAverages.today
+                )
+                RatingAverageItem(
+                    label = "今週",
+                    summary = ratingAverages.week
+                )
+                RatingAverageItem(
+                    label = "今月",
+                    summary = ratingAverages.month
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RatingAverageItem(
+    label: String,
+    summary: RatingAverageSummary
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        if (summary.average != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = String.format("%.1f", summary.average),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Text(
+                text = "${summary.ratedMinutes}分",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Text(
+                text = "-",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

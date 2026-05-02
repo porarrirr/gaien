@@ -3,6 +3,7 @@ package com.studyapp.widgets
 import android.content.Context
 import android.util.Log
 import com.studyapp.domain.model.GoalType
+import com.studyapp.domain.model.StudyWeekday
 import com.studyapp.domain.repository.ExamRepository
 import com.studyapp.domain.repository.GoalRepository
 import com.studyapp.domain.repository.StudySessionRepository
@@ -35,7 +36,7 @@ class StudyWidgetSnapshotBuilder @Inject constructor(
         val sessions = studySessionRepository.getAllSessions().first().getOrNull().orEmpty()
         val dailyGoal = goalRepository.getActiveGoals().first().getOrNull()
             .orEmpty()
-            .firstOrNull { it.type == GoalType.DAILY && it.dayOfWeek == today.dayOfWeek }
+            .firstOrNull { it.type == GoalType.DAILY && it.dayOfWeek == StudyWeekday.fromDayOfWeek(today.dayOfWeek) }
         val weeklyGoal = goalRepository.getActiveGoalByType(GoalType.WEEKLY).first().getOrNull()
         val upcomingExams = examRepository.getUpcomingExams().first().getOrNull().orEmpty()
 
@@ -45,18 +46,18 @@ class StudyWidgetSnapshotBuilder @Inject constructor(
         val weeklySessions = sessions.filter { session ->
             session.startTime >= weekStart && session.startTime < weekStart + WEEK_MS
         }
-        val studyDates = sessions.map { it.date }.distinct().sorted()
+        val studyDates = sessions.map { LocalDate.ofEpochDay(it.date) }.distinct().sorted()
         val minutesByDate = sessions
-            .groupBy { it.date }
-            .mapValues { (_, daySessions) -> daySessions.sumOf { it.durationMinutes } }
+            .groupBy { LocalDate.ofEpochDay(it.date) }
+            .mapValues { (_, daySessions) -> daySessions.sumOf { it.durationMinutes.toLong() } }
 
         return StudyWidgetSnapshot(
             generatedAt = nowMillis,
-            todayStudyMinutes = todaySessions.sumOf { it.durationMinutes },
+            todayStudyMinutes = todaySessions.sumOf { it.durationMinutes.toLong() },
             todaySessionCount = todaySessions.size,
             dailyGoalMinutes = dailyGoal?.targetMinutes,
             weeklyGoalMinutes = weeklyGoal?.targetMinutes,
-            weeklyStudyMinutes = weeklySessions.sumOf { it.durationMinutes },
+            weeklyStudyMinutes = weeklySessions.sumOf { it.durationMinutes.toLong() },
             streakDays = calculateStreak(today, studyDates),
             bestStreak = calculateBestStreak(studyDates),
             upcomingExams = upcomingExams
@@ -65,8 +66,8 @@ class StudyWidgetSnapshotBuilder @Inject constructor(
                 .map { exam ->
                     WidgetExamSummary(
                         name = exam.name,
-                        epochDay = exam.date.toEpochDay(),
-                        daysRemaining = exam.getDaysRemaining(today)
+                        epochDay = exam.date,
+                        daysRemaining = exam.daysRemaining(today).toLong()
                     )
                 },
             weekActivity = buildWeekActivity(today, minutesByDate)

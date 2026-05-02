@@ -13,9 +13,13 @@ import com.studyapp.data.local.db.entity.*
         GoalEntity::class,
         ExamEntity::class,
         PlanEntity::class,
-        PlanItemEntity::class
+        PlanItemEntity::class,
+        TimetablePeriodEntity::class,
+        TimetableTermEntity::class,
+        TimetableEntryEntity::class,
+        TimetableReviewRecordEntity::class
     ],
-    version = 7,
+    version = 11,
     exportSchema = true
 )
 abstract class StudyDatabase : RoomDatabase() {
@@ -25,4 +29,8 @@ abstract class StudyDatabase : RoomDatabase() {
     abstract fun goalDao(): GoalDao
     abstract fun examDao(): ExamDao
     abstract fun planDao(): PlanDao
+    abstract fun timetablePeriodDao(): TimetablePeriodDao
+    abstract fun timetableTermDao(): TimetableTermDao
+    abstract fun timetableEntryDao(): TimetableEntryDao
+    abstract fun timetableReviewRecordDao(): TimetableReviewRecordDao
 }

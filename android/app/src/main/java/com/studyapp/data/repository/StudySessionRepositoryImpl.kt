@@ -4,6 +4,8 @@ import android.util.Log
 import com.studyapp.data.local.db.dao.StudySessionDao
 import com.studyapp.data.local.db.entity.StudySessionEntity
 import com.studyapp.data.local.db.entity.StudySessionWithDetails
+import com.studyapp.domain.model.ProblemResult
+import com.studyapp.domain.model.ProblemSessionRecord
 import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.repository.StudySessionRepository
@@ -15,7 +17,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
-import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -159,7 +160,12 @@ class StudySessionRepositoryImpl @Inject constructor(
             startTime = session.startTime,
             endTime = session.endTime,
             intervals = session.intervalsJson.toIntervals(),
+            rating = session.rating,
             note = session.note,
+            problemStart = session.problemStart,
+            problemEnd = session.problemEnd,
+            wrongProblemCount = session.wrongProblemCount,
+            problemRecords = session.problemRecordsJson.toProblemRecords(),
             createdAt = session.createdAt,
             updatedAt = session.updatedAt,
             deletedAt = session.deletedAt,
@@ -181,7 +187,12 @@ class StudySessionRepositoryImpl @Inject constructor(
             startTime = startTime,
             endTime = endTime,
             intervals = intervalsJson.toIntervals(),
+            rating = rating,
             note = note,
+            problemStart = problemStart,
+            problemEnd = problemEnd,
+            wrongProblemCount = wrongProblemCount,
+            problemRecords = problemRecordsJson.toProblemRecords(),
             createdAt = createdAt,
             updatedAt = updatedAt,
             deletedAt = deletedAt,
@@ -190,7 +201,6 @@ class StudySessionRepositoryImpl @Inject constructor(
     }
 
     private fun StudySession.toEntity(): StudySessionEntity {
-        val localDateMillis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         return StudySessionEntity(
             id = id,
             syncId = syncId,
@@ -202,9 +212,14 @@ class StudySessionRepositoryImpl @Inject constructor(
             startTime = sessionStartTime,
             endTime = sessionEndTime,
             duration = duration,
-            date = localDateMillis,
-            intervalsJson = intervals.toJson(),
+            date = date,
+            intervalsJson = intervals.intervalsToJson(),
+            rating = rating,
             note = note,
+            problemStart = problemStart,
+            problemEnd = problemEnd,
+            wrongProblemCount = wrongProblemCount,
+            problemRecordsJson = problemRecords.recordsToJson(),
             createdAt = createdAt,
             updatedAt = updatedAt,
             deletedAt = deletedAt,
@@ -213,32 +228,73 @@ class StudySessionRepositoryImpl @Inject constructor(
     }
 
     private fun String?.toIntervals(): List<StudySessionInterval> {
-        if (this.isNullOrBlank()) {
-            return emptyList()
-        }
-        val jsonArray = JSONArray(this)
-        return buildList(jsonArray.length()) {
-            for (index in 0 until jsonArray.length()) {
-                val item = jsonArray.optJSONObject(index) ?: continue
-                add(
-                    StudySessionInterval(
-                        startTime = item.optLong("startTime"),
-                        endTime = item.optLong("endTime")
+        if (this.isNullOrBlank()) return emptyList()
+        return try {
+            val jsonArray = JSONArray(this)
+            buildList(jsonArray.length()) {
+                for (index in 0 until jsonArray.length()) {
+                    val item = jsonArray.optJSONObject(index) ?: continue
+                    add(
+                        StudySessionInterval(
+                            startTime = item.optLong("startTime"),
+                            endTime = item.optLong("endTime")
+                        )
                     )
-                )
+                }
             }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
-    private fun List<StudySessionInterval>.toJson(): String? {
-        if (isEmpty()) {
-            return null
-        }
+    private fun List<StudySessionInterval>.intervalsToJson(): String? {
+        if (isEmpty()) return null
         return JSONArray(
             map { interval ->
                 JSONObject().apply {
                     put("startTime", interval.startTime)
                     put("endTime", interval.endTime)
+                }
+            }
+        ).toString()
+    }
+
+    private fun String?.toProblemRecords(): List<ProblemSessionRecord> {
+        if (this.isNullOrBlank()) return emptyList()
+        return try {
+            val jsonArray = JSONArray(this)
+            buildList(jsonArray.length()) {
+                for (index in 0 until jsonArray.length()) {
+                    val item = jsonArray.optJSONObject(index) ?: continue
+                    val resultStr = item.optString("result", "CORRECT")
+                    val result = try {
+                        ProblemResult.valueOf(resultStr)
+                    } catch (_: Exception) {
+                        if (item.optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT
+                    }
+                    add(
+                        ProblemSessionRecord(
+                            number = item.optInt("number"),
+                            result = result,
+                            detail = item.optString("detail", null)
+                        )
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun List<ProblemSessionRecord>.recordsToJson(): String? {
+        if (isEmpty()) return null
+        return JSONArray(
+            map { record ->
+                JSONObject().apply {
+                    put("number", record.number)
+                    put("result", record.result.name)
+                    put("isWrong", record.isWrong)
+                    record.detail?.let { put("detail", it) }
                 }
             }
         ).toString()

@@ -73,7 +73,7 @@ class MaterialsViewModel @Inject constructor(
         .launchIn(viewModelScope)
     }
     
-    fun addMaterial(name: String, subjectId: Long, totalPages: Int) {
+    fun addMaterial(name: String, subjectId: Long, totalPages: Int, totalProblems: Int = 0, note: String = "") {
         viewModelScope.launch {
             val subjectSyncId = _uiState.value.subjects.firstOrNull { it.id == subjectId }?.syncId
             manageMaterialsUseCase.addMaterial(
@@ -82,7 +82,9 @@ class MaterialsViewModel @Inject constructor(
                     subjectId = subjectId,
                     subjectSyncId = subjectSyncId,
                     sortOrder = (_uiState.value.materials.maxOfOrNull { it.sortOrder } ?: -1L) + 1L,
-                    totalPages = totalPages
+                    totalPages = totalPages,
+                    totalProblems = totalProblems,
+                    note = note.takeIf { it.isNotBlank() }
                 )
             ).onError { error ->
                 _uiState.update { it.copy(error = error.message ?: "教材の追加に失敗しました") }

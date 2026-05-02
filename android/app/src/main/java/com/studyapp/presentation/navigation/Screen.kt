@@ -15,6 +15,7 @@ sealed class Screen(
     object MaterialHistory : Screen("materials/{materialId}/history", "教材の履歴", Icons.Default.History) {
         fun createRoute(materialId: Long): String = "materials/$materialId/history"
     }
+    object Timetable : Screen("timetable", "時間割", Icons.Default.GridView)
     object Calendar : Screen("calendar", "カレンダー", Icons.Default.CalendarMonth)
     object Reports : Screen("reports", "レポート", Icons.Default.BarChart)
     object Exams : Screen("exams", "テスト", Icons.Default.Event)
@@ -29,6 +30,7 @@ val bottomScreens = listOf(
     Screen.Home,
     Screen.Timer,
     Screen.Materials,
+    Screen.Timetable,
     Screen.Calendar,
     Screen.Reports
 )

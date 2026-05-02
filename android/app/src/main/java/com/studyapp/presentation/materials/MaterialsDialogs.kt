@@ -160,12 +160,14 @@ fun AddEditMaterialDialog(
     material: Material? = null,
     subjects: List<Subject>,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, subjectId: Long, totalPages: Int) -> Unit,
+    onConfirm: (name: String, subjectId: Long, totalPages: Int, totalProblems: Int, note: String) -> Unit,
     onNavigateToSubjects: () -> Unit = {}
 ) {
     var name by remember { mutableStateOf(material?.name ?: "") }
     var selectedSubjectId by remember { mutableStateOf(material?.subjectId) }
     var totalPages by remember { mutableStateOf(material?.totalPages?.toString() ?: "") }
+    var totalProblems by remember { mutableStateOf(material?.totalProblems?.toString() ?: "") }
+    var note by remember { mutableStateOf(material?.note ?: "") }
     var expanded by remember { mutableStateOf(false) }
     
     if (subjects.isEmpty()) {
@@ -251,14 +253,31 @@ fun AddEditMaterialDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+
+                OutlinedTextField(
+                    value = totalProblems,
+                    onValueChange = { totalProblems = it.filter { c -> c.isDigit() } },
+                    label = { Text("全問題数（任意）") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text("メモ（任意）") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3
+                )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     val pages = totalPages.toIntOrNull() ?: 0
+                    val problems = totalProblems.toIntOrNull() ?: 0
                     if (name.isNotBlank() && selectedSubjectId != null) {
-                        onConfirm(name, selectedSubjectId!!, pages)
+                        onConfirm(name, selectedSubjectId!!, pages, problems, note.trim())
                     }
                 },
                 enabled = name.isNotBlank() && selectedSubjectId != null

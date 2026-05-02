@@ -17,8 +17,8 @@ import com.studyapp.presentation.MainScreen
 import com.studyapp.presentation.onboarding.OnboardingScreen
 import com.studyapp.presentation.onboarding.OnboardingUiState
 import com.studyapp.presentation.onboarding.OnboardingViewModel
-import com.studyapp.presentation.settings.ColorTheme
-import com.studyapp.presentation.settings.ThemeMode
+import com.studyapp.domain.model.ColorTheme
+import com.studyapp.domain.model.ThemeMode
 import com.studyapp.presentation.settings.ThemePreferences
 import com.studyapp.presentation.theme.StudyAppTheme
 import dagger.hilt.android.AndroidEntryPoint

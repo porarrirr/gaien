@@ -20,11 +20,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
@@ -40,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -67,6 +72,8 @@ import com.studyapp.domain.model.AnkiIntegrationStatus
 import com.studyapp.domain.model.AnkiTodayStats
 import com.studyapp.domain.model.Exam
 import com.studyapp.domain.model.Goal
+import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.TimetableLesson
 import com.studyapp.domain.usecase.TodaySession
 import com.studyapp.presentation.components.CircularProgressRing
 import com.studyapp.presentation.components.SectionHeader
@@ -87,7 +94,9 @@ fun HomeScreen(
     onNavigateToGoals: () -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
-    onNavigateToPlan: () -> Unit = {}
+    onNavigateToPlan: () -> Unit = {},
+    onNavigateToTimetable: () -> Unit = {},
+    onNavigateToSubjects: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -195,6 +204,22 @@ fun HomeScreen(
                     }
                 }
 
+                // Today's sessions section
+                if (uiState.todaySessions.isNotEmpty()) {
+                    item {
+                        SlideInCard(visible = true, delayMillis = 50) {
+                            Column {
+                                SectionHeader(
+                                    title = "今日のセッション",
+                                    icon = Icons.Default.Timer
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                TodaySessionsSection(sessions = uiState.todaySessions)
+                            }
+                        }
+                    }
+                }
+
                 // Weekly goal section
                 item {
                     SlideInCard(visible = true, delayMillis = 100) {
@@ -239,6 +264,25 @@ fun HomeScreen(
                     }
                 }
 
+                // Timetable lesson section
+                uiState.timetableLesson?.let { lesson ->
+                    item {
+                        SlideInCard(visible = true, delayMillis = 250) {
+                            Column {
+                                SectionHeader(
+                                    title = lesson.statusTitle,
+                                    icon = Icons.Default.GridView
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                TimetableLessonCard(
+                                    lesson = lesson,
+                                    onClick = onNavigateToTimetable
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Upcoming exams section
                 if (uiState.upcomingExams.isNotEmpty()) {
                     item {
@@ -250,6 +294,22 @@ fun HomeScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 ExamsSection(exams = uiState.upcomingExams)
+                            }
+                        }
+                    }
+                }
+
+                // Recent materials section
+                if (uiState.recentMaterials.isNotEmpty()) {
+                    item {
+                        SlideInCard(visible = true, delayMillis = 350) {
+                            Column {
+                                SectionHeader(
+                                    title = "最近使った教材",
+                                    icon = Icons.Default.Book
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                RecentMaterialsHomeSection(materials = uiState.recentMaterials)
                             }
                         }
                     }
@@ -269,7 +329,10 @@ fun HomeScreen(
                                 onAddMaterial = onNavigateToMaterials,
                                 onViewExams = onNavigateToExams,
                                 onViewGoals = onNavigateToGoals,
-                                onViewPlan = onNavigateToPlan
+                                onViewPlan = onNavigateToPlan,
+                                onViewTimetable = onNavigateToTimetable,
+                                onViewSubjects = onNavigateToSubjects,
+                                onViewHistory = onNavigateToHistory
                             )
                         }
                     }
@@ -532,6 +595,11 @@ private fun TodayStudySection(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                            )
                         }
                     }
                 )
@@ -581,6 +649,104 @@ private fun subjectColor(name: String): Color {
         Color(0xFFFF5722), Color(0xFF3F51B5)
     )
     return palette[name.hashCode().absoluteValue % palette.size]
+}
+
+@Composable
+private fun TodaySessionsSection(sessions: List<TodaySession>) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            sessions.forEach { session ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(subjectColor(session.subjectName))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = session.subjectName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (session.materialName.isNotBlank()) {
+                                Text(
+                                    text = session.materialName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "${session.duration / 60000}分",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentMaterialsHomeSection(materials: List<Pair<Material, com.studyapp.domain.model.Subject>>) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            materials.take(5).forEach { (material, subject) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(Color(subject.color))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = material.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = subject.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (material.totalPages > 0) {
+                        Text(
+                            text = "${material.progressPercent}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -651,7 +817,7 @@ private fun ExamsSection(exams: List<Exam>) {
                 .padding(16.dp)
         ) {
             exams.take(3).forEach { exam ->
-                val daysRemaining = exam.getDaysRemaining(LocalDate.now())
+                val daysRemaining = exam.daysRemaining(LocalDate.now())
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -677,14 +843,19 @@ private fun QuickActionsSection(
     onAddMaterial: () -> Unit,
     onViewExams: () -> Unit = {},
     onViewGoals: () -> Unit = {},
-    onViewPlan: () -> Unit = {}
+    onViewPlan: () -> Unit = {},
+    onViewTimetable: () -> Unit = {},
+    onViewSubjects: () -> Unit = {},
+    onViewHistory: () -> Unit = {}
 ) {
     val actions = listOf(
         Triple(Icons.Default.Timer, R.string.home_quick_timer, onStartTimer),
         Triple(Icons.Default.Add, R.string.home_quick_material, onAddMaterial),
         Triple(Icons.Default.Flag, R.string.home_quick_goals, onViewGoals),
         Triple(Icons.Default.Event, R.string.home_quick_exams, onViewExams),
-        Triple(Icons.AutoMirrored.Filled.EventNote, R.string.home_quick_plan, onViewPlan)
+        Triple(Icons.AutoMirrored.Filled.EventNote, R.string.home_quick_plan, onViewPlan),
+        Triple(Icons.Default.GridView, R.string.home_quick_timetable, onViewTimetable),
+        Triple(Icons.Default.Category, R.string.home_quick_subjects, onViewSubjects)
     )
 
     // 2-column grid layout
@@ -706,6 +877,87 @@ private fun QuickActionsSection(
                 if (rowItems.size == 1) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimetableLessonCard(
+    lesson: TimetableLesson,
+    onClick: () -> Unit
+) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        if (lesson.isCurrent) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.secondary
+                    )
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = lesson.entry.subjectName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                lesson.entry.courseName?.takeIf { it.isNotBlank() }?.let { course ->
+                    Text(
+                        text = course,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = lesson.period.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = lesson.period.timeRangeText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    lesson.entry.roomName?.takeIf { it.isNotBlank() }?.let { room ->
+                        Text(
+                            text = room,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (lesson.isCurrent) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Text(
+                    text = lesson.statusTitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (lesson.isCurrent) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
             }
         }
     }

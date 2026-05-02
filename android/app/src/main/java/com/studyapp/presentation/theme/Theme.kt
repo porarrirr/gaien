@@ -14,8 +14,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.studyapp.presentation.settings.ColorTheme
-import com.studyapp.presentation.settings.ThemeMode
+import com.studyapp.domain.model.ColorTheme
+import com.studyapp.domain.model.ThemeMode
 
 // ── Typography ──────────────────────────────────────────────────────────────
 
@@ -263,68 +263,6 @@ private fun blueDarkScheme() = darkColorScheme(
     surfaceTint = Color(0xFFA6C8FF)
 )
 
-private fun purpleLightScheme() = lightColorScheme(
-    primary = Color(0xFF7B1FA2),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFF3DAFF),
-    onPrimaryContainer = Color(0xFF2D004E),
-    secondary = Color(0xFF665A6E),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFEDDDF5),
-    onSecondaryContainer = Color(0xFF211829),
-    tertiary = Color(0xFF805158),
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFFD9DD),
-    onTertiaryContainer = Color(0xFF321017),
-    error = Color(0xFFBA1A1A),
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFFFF7FF),
-    onBackground = Color(0xFF1E1A20),
-    surface = Color(0xFFFFFBFF),
-    onSurface = Color(0xFF1E1A20),
-    surfaceVariant = Color(0xFFE9DFEA),
-    onSurfaceVariant = Color(0xFF4B454D),
-    outline = Color(0xFF7C757E),
-    outlineVariant = Color(0xFFCDC3CE),
-    inverseSurface = Color(0xFF332F35),
-    inverseOnSurface = Color(0xFFF6EEF6),
-    inversePrimary = Color(0xFFE1B6FF),
-    surfaceTint = Color(0xFF7B1FA2)
-)
-
-private fun purpleDarkScheme() = darkColorScheme(
-    primary = Color(0xFFE1B6FF),
-    onPrimary = Color(0xFF49007C),
-    primaryContainer = Color(0xFF6200AD),
-    onPrimaryContainer = Color(0xFFF3DAFF),
-    secondary = Color(0xFFD0C1D9),
-    onSecondary = Color(0xFF372C3F),
-    secondaryContainer = Color(0xFF4E4256),
-    onSecondaryContainer = Color(0xFFEDDDF5),
-    tertiary = Color(0xFFF4B7BE),
-    onTertiary = Color(0xFF4B252C),
-    tertiaryContainer = Color(0xFF653A41),
-    onTertiaryContainer = Color(0xFFFFD9DD),
-    error = Color(0xFFFFB4AB),
-    onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF161217),
-    onBackground = Color(0xFFE9E0E8),
-    surface = Color(0xFF161217),
-    onSurface = Color(0xFFE9E0E8),
-    surfaceVariant = Color(0xFF4B454D),
-    onSurfaceVariant = Color(0xFFCDC3CE),
-    outline = Color(0xFF968E98),
-    outlineVariant = Color(0xFF4B454D),
-    inverseSurface = Color(0xFFE9E0E8),
-    inverseOnSurface = Color(0xFF332F35),
-    inversePrimary = Color(0xFF7B1FA2),
-    surfaceTint = Color(0xFFE1B6FF)
-)
-
 private fun orangeLightScheme() = lightColorScheme(
     primary = Color(0xFFE65100),
     onPrimary = Color.White,
@@ -387,130 +325,6 @@ private fun orangeDarkScheme() = darkColorScheme(
     surfaceTint = Color(0xFFFFB68B)
 )
 
-private fun redLightScheme() = lightColorScheme(
-    primary = Color(0xFFC62828),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFDAD6),
-    onPrimaryContainer = Color(0xFF410002),
-    secondary = Color(0xFF775653),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFFFDAD6),
-    onSecondaryContainer = Color(0xFF2C1513),
-    tertiary = Color(0xFF755A2F),
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFFDDB1),
-    onTertiaryContainer = Color(0xFF291800),
-    error = Color(0xFFBA1A1A),
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFFFF8F7),
-    onBackground = Color(0xFF221B1A),
-    surface = Color(0xFFFFFBFF),
-    onSurface = Color(0xFF221B1A),
-    surfaceVariant = Color(0xFFF5DDDA),
-    onSurfaceVariant = Color(0xFF534341),
-    outline = Color(0xFF857370),
-    outlineVariant = Color(0xFFD8C2BF),
-    inverseSurface = Color(0xFF382F2E),
-    inverseOnSurface = Color(0xFFFEEDEB),
-    inversePrimary = Color(0xFFFFB4AB),
-    surfaceTint = Color(0xFFC62828)
-)
-
-private fun redDarkScheme() = darkColorScheme(
-    primary = Color(0xFFFFB4AB),
-    onPrimary = Color(0xFF690005),
-    primaryContainer = Color(0xFF9B0D10),
-    onPrimaryContainer = Color(0xFFFFDAD6),
-    secondary = Color(0xFFE7BDB8),
-    onSecondary = Color(0xFF442927),
-    secondaryContainer = Color(0xFF5D3F3C),
-    onSecondaryContainer = Color(0xFFFFDAD6),
-    tertiary = Color(0xFFE5C18D),
-    onTertiary = Color(0xFF412D06),
-    tertiaryContainer = Color(0xFF5B431A),
-    onTertiaryContainer = Color(0xFFFFDDB1),
-    error = Color(0xFFFFB4AB),
-    onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF1A1110),
-    onBackground = Color(0xFFF1DFDC),
-    surface = Color(0xFF1A1110),
-    onSurface = Color(0xFFF1DFDC),
-    surfaceVariant = Color(0xFF534341),
-    onSurfaceVariant = Color(0xFFD8C2BF),
-    outline = Color(0xFFA08C8A),
-    outlineVariant = Color(0xFF534341),
-    inverseSurface = Color(0xFFF1DFDC),
-    inverseOnSurface = Color(0xFF382F2E),
-    inversePrimary = Color(0xFFC62828),
-    surfaceTint = Color(0xFFFFB4AB)
-)
-
-private fun tealLightScheme() = lightColorScheme(
-    primary = Color(0xFF00695C),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFA7F3EB),
-    onPrimaryContainer = Color(0xFF00201C),
-    secondary = Color(0xFF4A635F),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFCDE8E2),
-    onSecondaryContainer = Color(0xFF06201C),
-    tertiary = Color(0xFF446179),
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFC9E6FF),
-    onTertiaryContainer = Color(0xFF001E30),
-    error = Color(0xFFBA1A1A),
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFF4FBF8),
-    onBackground = Color(0xFF171D1B),
-    surface = Color(0xFFF9FDFB),
-    onSurface = Color(0xFF171D1B),
-    surfaceVariant = Color(0xFFDAE5E1),
-    onSurfaceVariant = Color(0xFF3F4946),
-    outline = Color(0xFF6F7976),
-    outlineVariant = Color(0xFFBEC9C5),
-    inverseSurface = Color(0xFF2C3230),
-    inverseOnSurface = Color(0xFFECF2EF),
-    inversePrimary = Color(0xFF55DBCb),
-    surfaceTint = Color(0xFF00695C)
-)
-
-private fun tealDarkScheme() = darkColorScheme(
-    primary = Color(0xFF55DBCB),
-    onPrimary = Color(0xFF003731),
-    primaryContainer = Color(0xFF005048),
-    onPrimaryContainer = Color(0xFFA7F3EB),
-    secondary = Color(0xFFB1CCC6),
-    onSecondary = Color(0xFF1C3531),
-    secondaryContainer = Color(0xFF334B47),
-    onSecondaryContainer = Color(0xFFCDE8E2),
-    tertiary = Color(0xFFABCAE4),
-    onTertiary = Color(0xFF123348),
-    tertiaryContainer = Color(0xFF2B4960),
-    onTertiaryContainer = Color(0xFFC9E6FF),
-    error = Color(0xFFFFB4AB),
-    onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF0F1513),
-    onBackground = Color(0xFFDEE4E1),
-    surface = Color(0xFF0F1513),
-    onSurface = Color(0xFFDEE4E1),
-    surfaceVariant = Color(0xFF3F4946),
-    onSurfaceVariant = Color(0xFFBEC9C5),
-    outline = Color(0xFF899390),
-    outlineVariant = Color(0xFF3F4946),
-    inverseSurface = Color(0xFFDEE4E1),
-    inverseOnSurface = Color(0xFF2C3230),
-    inversePrimary = Color(0xFF00695C),
-    surfaceTint = Color(0xFF55DBCB)
-)
-
 // ── Theme Composable ────────────────────────────────────────────────────────
 
 @Composable
@@ -529,19 +343,13 @@ fun StudyAppTheme(
         when (colorTheme) {
             ColorTheme.GREEN -> greenDarkScheme()
             ColorTheme.BLUE -> blueDarkScheme()
-            ColorTheme.PURPLE -> purpleDarkScheme()
             ColorTheme.ORANGE -> orangeDarkScheme()
-            ColorTheme.RED -> redDarkScheme()
-            ColorTheme.TEAL -> tealDarkScheme()
         }
     } else {
         when (colorTheme) {
             ColorTheme.GREEN -> greenLightScheme()
             ColorTheme.BLUE -> blueLightScheme()
-            ColorTheme.PURPLE -> purpleLightScheme()
             ColorTheme.ORANGE -> orangeLightScheme()
-            ColorTheme.RED -> redLightScheme()
-            ColorTheme.TEAL -> tealLightScheme()
         }
     }
 

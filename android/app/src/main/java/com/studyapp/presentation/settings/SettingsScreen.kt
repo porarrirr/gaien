@@ -22,6 +22,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.AnkiIntegrationStatus
 import com.studyapp.domain.model.AnkiTodayStats
+import com.studyapp.domain.model.ColorTheme
+import com.studyapp.domain.model.ThemeMode
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -42,7 +50,8 @@ fun SettingsScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     var showDeleteDataDialog by remember { mutableStateOf(false) }
-    
+    var showDebugLog by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -122,7 +131,7 @@ fun SettingsScreen(
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             
-            AboutSection()
+            AboutSection(onShowDebugLog = { showDebugLog = true })
         }
     }
     
@@ -153,6 +162,14 @@ fun SettingsScreen(
                 viewModel.deleteAllData()
                 showDeleteDataDialog = false
             }
+        )
+    }
+
+    if (showDebugLog) {
+        DebugLogSheet(
+            logs = uiState.debugLogs,
+            onDismiss = { showDebugLog = false },
+            onClear = { viewModel.clearDebugLogs() }
         )
     }
 }
@@ -488,13 +505,13 @@ private fun ThemeSection(
                         FilterChip(
                             selected = selectedColorTheme == theme,
                             onClick = { onColorThemeChange(theme) },
-                            label = { Text(theme.displayName) },
+                            label = { Text(theme.title) },
                             leadingIcon = {
                                 Box(
                                     modifier = Modifier
                                         .size(28.dp)
                                         .clip(CircleShape)
-                                        .background(androidx.compose.ui.graphics.Color(theme.colorValue))
+                                        .background(androidx.compose.ui.graphics.Color(0xFF000000 or theme.hex))
                                 )
                             }
                         )
@@ -705,7 +722,12 @@ private fun DataSection(
 }
 
 @Composable
-private fun AboutSection() {
+private fun AboutSection(
+    onShowDebugLog: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    var tapCount by remember { mutableIntStateOf(0) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -732,9 +754,21 @@ private fun AboutSection() {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "バージョン 1.0.0",
+                    text = try {
+                        val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                        "バージョン ${pInfo.versionName}"
+                    } catch (e: Exception) {
+                        "バージョン 1.0.0"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable {
+                        tapCount++
+                        if (tapCount >= 5) {
+                            tapCount = 0
+                            onShowDebugLog()
+                        }
+                    }
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -745,6 +779,97 @@ private fun AboutSection() {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DebugLogSheet(
+    logs: List<DebugLogEntry>,
+    onDismiss: () -> Unit,
+    onClear: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("デバッグログ (${logs.size})")
+                Row {
+                    TextButton(onClick = onClear) {
+                        Text("クリア", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        },
+        text = {
+            if (logs.isEmpty()) {
+                Text(
+                    text = "ログエントリがありません",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    textAlign = TextAlign.Center
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(logs.reversed()) { entry ->
+                        LogEntryRow(entry)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("閉じる")
+            }
+        }
+    )
+}
+
+@Composable
+private fun LogEntryRow(entry: DebugLogEntry) {
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.JAPANESE) }
+    val levelColor = when (entry.level) {
+        "ERROR" -> MaterialTheme.colorScheme.error
+        "WARN" -> Color(0xFFFF9800)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                RoundedCornerShape(4.dp)
+            )
+            .padding(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = timeFormat.format(Date(entry.timestamp)),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = entry.level,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = levelColor
+            )
+        }
+        Text(
+            text = "[${entry.category}] ${entry.message}",
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 

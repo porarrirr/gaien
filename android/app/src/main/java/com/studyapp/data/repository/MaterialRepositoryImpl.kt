@@ -5,12 +5,17 @@ import com.studyapp.data.local.db.dao.MaterialDao
 import com.studyapp.data.local.db.entity.MaterialEntity
 import com.studyapp.data.local.db.entity.MaterialWithSubject
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.ProblemChapter
+import com.studyapp.domain.model.ProblemResult
+import com.studyapp.domain.model.ProblemSessionRecord
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AppDataWriteLock
 import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -136,6 +141,9 @@ class MaterialRepositoryImpl @Inject constructor(
             sortOrder = material.sortOrder,
             totalPages = material.totalPages,
             currentPage = material.currentPage,
+            totalProblems = material.totalProblems,
+            problemChapters = material.problemChaptersJson.toProblemChapters(),
+            problemRecords = material.problemRecordsJson.toProblemRecords(),
             color = material.color,
             note = material.note,
             createdAt = material.createdAt,
@@ -155,6 +163,9 @@ class MaterialRepositoryImpl @Inject constructor(
             sortOrder = sortOrder,
             totalPages = totalPages,
             currentPage = currentPage,
+            totalProblems = totalProblems,
+            problemChapters = problemChaptersJson.toProblemChapters(),
+            problemRecords = problemRecordsJson.toProblemRecords(),
             color = color,
             note = note,
             createdAt = createdAt,
@@ -174,6 +185,9 @@ class MaterialRepositoryImpl @Inject constructor(
             sortOrder = sortOrder,
             totalPages = totalPages,
             currentPage = currentPage,
+            totalProblems = totalProblems,
+            problemChaptersJson = problemChapters.chaptersToJson(),
+            problemRecordsJson = problemRecords.recordsToJson(),
             color = color,
             note = note,
             createdAt = createdAt,
@@ -181,5 +195,80 @@ class MaterialRepositoryImpl @Inject constructor(
             deletedAt = deletedAt,
             lastSyncedAt = lastSyncedAt
         )
+    }
+
+    private fun String?.toProblemChapters(): List<ProblemChapter> {
+        if (this.isNullOrBlank()) return emptyList()
+        return try {
+            val jsonArray = JSONArray(this)
+            buildList(jsonArray.length()) {
+                for (index in 0 until jsonArray.length()) {
+                    val item = jsonArray.optJSONObject(index) ?: continue
+                    add(
+                        ProblemChapter(
+                            id = item.optString("id", ""),
+                            title = item.optString("title", "章"),
+                            problemCount = item.optInt("problemCount", 0)
+                        )
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun List<ProblemChapter>.chaptersToJson(): String? {
+        if (isEmpty()) return null
+        return JSONArray(
+            map { chapter ->
+                JSONObject().apply {
+                    put("id", chapter.id)
+                    put("title", chapter.title)
+                    put("problemCount", chapter.problemCount)
+                }
+            }
+        ).toString()
+    }
+
+    private fun String?.toProblemRecords(): List<ProblemSessionRecord> {
+        if (this.isNullOrBlank()) return emptyList()
+        return try {
+            val jsonArray = JSONArray(this)
+            buildList(jsonArray.length()) {
+                for (index in 0 until jsonArray.length()) {
+                    val item = jsonArray.optJSONObject(index) ?: continue
+                    val resultStr = item.optString("result", "CORRECT")
+                    val result = try {
+                        ProblemResult.valueOf(resultStr)
+                    } catch (_: Exception) {
+                        if (item.optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT
+                    }
+                    add(
+                        ProblemSessionRecord(
+                            number = item.optInt("number"),
+                            result = result,
+                            detail = item.optString("detail", null)
+                        )
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun List<ProblemSessionRecord>.recordsToJson(): String? {
+        if (isEmpty()) return null
+        return JSONArray(
+            map { record ->
+                JSONObject().apply {
+                    put("number", record.number)
+                    put("result", record.result.name)
+                    put("isWrong", record.isWrong)
+                    record.detail?.let { put("detail", it) }
+                }
+            }
+        ).toString()
     }
 }

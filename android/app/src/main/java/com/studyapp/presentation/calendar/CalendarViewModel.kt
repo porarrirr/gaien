@@ -3,7 +3,12 @@ package com.studyapp.presentation.calendar
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.model.TimetableEntry
+import com.studyapp.domain.model.TimetablePeriod
+import com.studyapp.domain.model.TimetableTerm
+import com.studyapp.domain.model.StudyWeekday
 import com.studyapp.domain.repository.StudySessionRepository
+import com.studyapp.domain.repository.TimetableRepository
 import com.studyapp.domain.util.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -12,13 +17,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.util.Calendar
 import java.util.Date
 import javax.inject.Inject
+
+enum class CalendarDetailMode { SUMMARY, TIMELINE }
 
 data class CalendarUiState(
     val currentYear: Int = Calendar.getInstance().get(Calendar.YEAR),
@@ -27,11 +36,44 @@ data class CalendarUiState(
     val studyDataByDate: Map<Int, Long> = emptyMap(),
     val selectedDateMinutes: Long = 0,
     val selectedDateSessions: List<StudySession> = emptyList(),
+    val selectedDateTimeline: List<TimelineItem> = emptyList(),
     val isLoading: Boolean = true,
     val isDetailLoading: Boolean = false,
     val updatingSessionId: Long? = null,
-    val error: String? = null
+    val error: String? = null,
+    val detailMode: CalendarDetailMode = CalendarDetailMode.TIMELINE,
+    val monthlyStudyDays: Int = 0,
+    val monthlyTotalMinutes: Long = 0
 )
+
+sealed class TimelineItem {
+    abstract val sortMinute: Int
+
+    data class Lesson(
+        val entry: TimetableEntry,
+        val period: TimetablePeriod
+    ) : TimelineItem() {
+        override val sortMinute: Int get() = period.startMinute
+    }
+
+    data class Session(
+        val session: StudySession
+    ) : TimelineItem() {
+        override val sortMinute: Int
+            get() {
+                val cal = Calendar.getInstance()
+                cal.timeInMillis = session.startTime
+                return cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+            }
+    }
+
+    data class Gap(
+        val startMinute: Int,
+        val endMinute: Int
+    ) : TimelineItem() {
+        override val sortMinute: Int get() = startMinute
+    }
+}
 
 private data class SelectedDateSessionsState(
     val selectedDate: Date?,
@@ -41,7 +83,8 @@ private data class SelectedDateSessionsState(
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
-    private val studySessionRepository: StudySessionRepository
+    private val studySessionRepository: StudySessionRepository,
+    private val timetableRepository: TimetableRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CalendarUiState())
@@ -80,15 +123,20 @@ class CalendarViewModel @Inject constructor(
                         is Result.Success -> {
                             val studyData = mutableMapOf<Int, Long>()
                             result.data.forEach { session ->
-                                val day = session.date.dayOfMonth
-                                studyData[day] = (studyData[day] ?: 0L) + session.durationMinutes
+                                val day = LocalDate.ofEpochDay(session.date).dayOfMonth
+                                studyData[day] = (studyData[day] ?: 0L) + session.durationMinutes.toLong()
                             }
+
+                            val monthlyTotalMinutes = studyData.values.sum()
+                            val monthlyStudyDays = studyData.size
 
                             _uiState.update { state ->
                                 state.copy(
                                     currentYear = year,
                                     currentMonth = month,
                                     studyDataByDate = studyData,
+                                    monthlyTotalMinutes = monthlyTotalMinutes,
+                                    monthlyStudyDays = monthlyStudyDays,
                                     isLoading = false,
                                     error = null
                                 )
@@ -134,11 +182,13 @@ class CalendarViewModel @Inject constructor(
                     when (val result = detailState.result) {
                         is Result.Success -> {
                             val sessions = result.data.sortedBy { it.startTime }
+                            val timeline = buildTimeline(detailState.selectedDate, sessions)
                             _uiState.update { state ->
                                 state.copy(
                                     selectedDate = detailState.selectedDate,
                                     selectedDateSessions = sessions,
-                                    selectedDateMinutes = sessions.sumOf { it.durationMinutes },
+                                    selectedDateMinutes = sessions.sumOf { it.durationMinutes.toLong() },
+                                    selectedDateTimeline = timeline,
                                     isDetailLoading = false,
                                     error = null
                                 )
@@ -156,6 +206,77 @@ class CalendarViewModel @Inject constructor(
                     }
                 }
         }
+    }
+
+    private suspend fun buildTimeline(date: Date?, sessions: List<StudySession>): List<TimelineItem> {
+        if (date == null) return emptyList()
+        val localDate = LocalDate.ofEpochDay(date.startOfDayMillis() / (24 * 60 * 60 * 1000L))
+        val weekday = StudyWeekday.fromDayOfWeek(localDate.dayOfWeek)
+        if (!StudyWeekday.timetableDays.contains(weekday)) {
+            return sessions.map { TimelineItem.Session(it) }
+        }
+
+        val periodsResult = timetableRepository.getAllPeriods()
+        val entriesResult = timetableRepository.getAllEntries()
+        val termsResult = timetableRepository.getAllTerms()
+
+        val periods = when (val r = periodsResult.first()) {
+            is Result.Success -> r.data.filter { it.deletedAt == null && it.isActive }
+            else -> emptyList()
+        }
+        val entries = when (val r = entriesResult.first()) {
+            is Result.Success -> r.data.filter { it.deletedAt == null }
+            else -> emptyList()
+        }
+        val terms = when (val r = termsResult.first()) {
+            is Result.Success -> r.data.filter { it.deletedAt == null }
+            else -> emptyList()
+        }
+
+        val epochDay = localDate.toEpochDay()
+        val activeTerm = terms.firstOrNull { it.isActive && it.contains(localDate) }
+        val periodMap = periods.associateBy { it.id }
+
+        val lessons = entries
+            .filter { entry ->
+                entry.dayOfWeek == weekday &&
+                (entry.termId == activeTerm?.id || entry.termId == null) &&
+                (entry.validFromDate?.let { epochDay >= it } ?: true) &&
+                (entry.validToDate?.let { epochDay <= it } ?: true) &&
+                periodMap[entry.periodId] != null
+            }
+            .mapNotNull { entry ->
+                val period = periodMap[entry.periodId] ?: return@mapNotNull null
+                TimelineItem.Lesson(entry, period)
+            }
+            .sortedBy { it.period.startMinute }
+
+        val sessionItems = sessions.map { TimelineItem.Session(it) }
+        val allItems = (lessons + sessionItems).sortedBy { it.sortMinute }
+
+        val result = mutableListOf<TimelineItem>()
+        var lastEndMinute = 0
+        for (item in allItems) {
+            val startMinute = when (item) {
+                is TimelineItem.Lesson -> item.period.startMinute
+                is TimelineItem.Session -> item.sortMinute
+                is TimelineItem.Gap -> item.startMinute
+            }
+            if (startMinute > lastEndMinute + 5) {
+                result.add(TimelineItem.Gap(lastEndMinute, startMinute))
+            }
+            result.add(item)
+            lastEndMinute = when (item) {
+                is TimelineItem.Lesson -> item.period.endMinute
+                is TimelineItem.Session -> {
+                    val cal = Calendar.getInstance()
+                    cal.timeInMillis = item.session.endTime
+                    cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+                }
+                is TimelineItem.Gap -> item.endMinute
+            }
+        }
+        return result
     }
 
     fun previousMonth() {
@@ -225,6 +346,60 @@ class CalendarViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    fun setDetailMode(mode: CalendarDetailMode) {
+        _uiState.update { state -> state.copy(detailMode = mode) }
+    }
+
+    fun deleteSession(session: StudySession) {
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(updatingSessionId = session.id)
+            }
+
+            when (val result = studySessionRepository.deleteSession(session)) {
+                is Result.Success -> {
+                    _uiState.update { state ->
+                        state.copy(updatingSessionId = null)
+                    }
+                }
+
+                is Result.Error -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            updatingSessionId = null,
+                            error = result.message ?: result.exception.message
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun updateSession(session: StudySession) {
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(updatingSessionId = session.id)
+            }
+
+            when (val result = studySessionRepository.updateSession(session)) {
+                is Result.Success -> {
+                    _uiState.update { state ->
+                        state.copy(updatingSessionId = null)
+                    }
+                }
+
+                is Result.Error -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            updatingSessionId = null,
+                            error = result.message ?: result.exception.message
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun clearSelectedDate() {

@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.studyapp.domain.model.AnkiTodayStats
 import com.studyapp.domain.model.Exam
 import com.studyapp.domain.model.Goal
+import com.studyapp.domain.model.TimetableLesson
 import com.studyapp.domain.repository.AnkiRepository
+import com.studyapp.domain.model.Material
 import com.studyapp.domain.usecase.GetHomeDataUseCase
+import com.studyapp.domain.usecase.GetRecentMaterialsUseCase
 import com.studyapp.domain.usecase.HomeData
 import com.studyapp.domain.usecase.TodaySession
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,13 +33,16 @@ data class HomeUiState(
     val weeklyGoal: Goal? = null,
     val weeklyStudyMinutes: Long = 0,
     val upcomingExams: List<Exam> = emptyList(),
+    val timetableLesson: TimetableLesson? = null,
     val ankiStats: AnkiTodayStats = AnkiTodayStats(),
-    val isRefreshingAnkiStats: Boolean = true
+    val isRefreshingAnkiStats: Boolean = true,
+    val recentMaterials: List<Pair<Material, com.studyapp.domain.model.Subject>> = emptyList()
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val getHomeDataUseCase: GetHomeDataUseCase,
+    private val getRecentMaterialsUseCase: GetRecentMaterialsUseCase,
     private val ankiRepository: AnkiRepository
 ) : ViewModel() {
     
@@ -62,7 +68,8 @@ class HomeViewModel @Inject constructor(
                         todayGoal = data.todayGoal,
                         weeklyGoal = data.weeklyGoal,
                         weeklyStudyMinutes = data.weeklyStudyMinutes,
-                        upcomingExams = data.upcomingExams
+                        upcomingExams = data.upcomingExams,
+                        timetableLesson = data.timetableLesson
                     )
                 }
             }
@@ -73,6 +80,12 @@ class HomeViewModel @Inject constructor(
                         error = e.message ?: "データの読み込みに失敗しました"
                     )
                 }
+            }
+            .launchIn(viewModelScope)
+
+        getRecentMaterialsUseCase()
+            .onEach { materials ->
+                _uiState.update { it.copy(recentMaterials = materials) }
             }
             .launchIn(viewModelScope)
     }

@@ -7,6 +7,7 @@ import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.usecase.ManageGoalsUseCase
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
+import com.studyapp.domain.model.StudyWeekday
 import java.time.DayOfWeek
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -14,9 +15,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class GoalsUiState(
-    val dailyGoals: Map<DayOfWeek, Goal> = emptyMap(),
+    val dailyGoals: Map<StudyWeekday, Goal> = emptyMap(),
     val weeklyGoal: Goal? = null,
-    val todayDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
+    val todayDayOfWeek: StudyWeekday = StudyWeekday.MONDAY,
     val todayMinutes: Long = 0,
     val weekMinutes: Long = 0,
     val isLoading: Boolean = true,
@@ -34,7 +35,7 @@ class GoalsViewModel @Inject constructor(
     val uiState: StateFlow<GoalsUiState> = _uiState.asStateFlow()
     
     init {
-        _uiState.update { it.copy(todayDayOfWeek = clock.currentLocalDate().dayOfWeek) }
+        _uiState.update { it.copy(todayDayOfWeek = StudyWeekday.fromDayOfWeek(clock.currentLocalDate().dayOfWeek)) }
         observeData()
     }
     
@@ -81,7 +82,7 @@ class GoalsViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
     
-    fun updateDailyGoal(dayOfWeek: DayOfWeek, minutes: Int) {
+    fun updateDailyGoal(dayOfWeek: StudyWeekday, minutes: Int) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             

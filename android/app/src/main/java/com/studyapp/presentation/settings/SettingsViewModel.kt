@@ -7,6 +7,8 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.studyapp.domain.model.AnkiTodayStats
+import com.studyapp.domain.model.ColorTheme
+import com.studyapp.domain.model.ThemeMode
 import com.studyapp.domain.repository.AnkiRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.usecase.ExportImportDataUseCase
@@ -33,6 +35,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 import javax.inject.Inject
 
+data class DebugLogEntry(
+    val timestamp: Long = System.currentTimeMillis(),
+    val level: String = "INFO",
+    val category: String = "App",
+    val message: String
+)
+
 data class SettingsUiState(
     val reminderEnabled: Boolean = false,
     val reminderTime: String = "19:00",
@@ -48,7 +57,8 @@ data class SettingsUiState(
     val lastSyncAt: Long? = null,
     val syncError: String? = null,
     val ankiStats: AnkiTodayStats = AnkiTodayStats(),
-    val isRefreshingAnkiStats: Boolean = true
+    val isRefreshingAnkiStats: Boolean = true,
+    val debugLogs: List<DebugLogEntry> = emptyList()
 )
 
 @HiltViewModel
@@ -116,7 +126,7 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { 
                 it.copy(
                     totalSessions = sessions.size,
-                    totalStudyTime = totalMinutes
+                    totalStudyTime = totalMinutes.toLong()
                 )
             }
         }
@@ -352,6 +362,10 @@ class SettingsViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun clearDebugLogs() {
+        _uiState.update { it.copy(debugLogs = emptyList()) }
     }
 
     fun refreshAnkiStats() {

@@ -12,6 +12,26 @@ struct TimetableScreen: View {
         _viewModel = StateObject(wrappedValue: TimetableViewModel(app: app))
     }
 
+    private var calendar: Calendar { Calendar.current }
+    private let weekdayLabels = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
+
+    private var displayYear: Int {
+        calendar.component(.year, from: viewModel.displayedMonth)
+    }
+
+    private var displayMonth: Int {
+        calendar.component(.month, from: viewModel.displayedMonth)
+    }
+
+    private var daysInMonth: Int {
+        calendar.range(of: .day, in: .month, for: viewModel.displayedMonth)?.count ?? 30
+    }
+
+    private var firstWeekday: Int {
+        guard let firstOfMonth = calendar.date(from: DateComponents(year: displayYear, month: displayMonth, day: 1)) else { return 0 }
+        return calendar.component(.weekday, from: firstOfMonth) - 1
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -197,21 +217,74 @@ struct TimetableScreen: View {
     }
 
     private var reviewCalendar: some View {
-        DatePicker(
-            "復習確認日",
-            selection: Binding(
-                get: { viewModel.selectedDate },
-                set: { viewModel.selectDate($0) }
-            ),
-            displayedComponents: .date
-        )
-        .datePickerStyle(.graphical)
-        .padding(AppSpacing.sm)
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            HStack {
+                Text(calendarMonthTitle)
+                    .font(.title3.bold())
+                Spacer()
+                Button {
+                    viewModel.moveDisplayedMonth(by: -1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.title3.bold())
+                        .foregroundStyle(.tint)
+                        .frame(width: 32, height: 32)
+                }
+                Button {
+                    viewModel.moveDisplayedMonth(by: 1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.title3.bold())
+                        .foregroundStyle(.tint)
+                        .frame(width: 32, height: 32)
+                }
+            }
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 12) {
+                ForEach(weekdayLabels, id: \.self) { label in
+                    Text(label)
+                        .font(.caption.bold())
+                        .foregroundStyle(AppColors.textSecondary)
+                        .frame(maxWidth: .infinity)
+                }
+
+                ForEach(0..<(firstWeekday + daysInMonth), id: \.self) { index in
+                    if index < firstWeekday {
+                        Color.clear
+                            .frame(height: 40)
+                    } else {
+                        let day = index - firstWeekday + 1
+                        let date = dateForDay(day)
+                        TimetableReviewCalendarDayCell(
+                            day: day,
+                            isSelected: calendar.isDate(date, inSameDayAs: viewModel.selectedDate),
+                            isToday: calendar.isDateInToday(date),
+                            hasPendingReview: viewModel.pendingOccurrenceDaysInDisplayedMonth.contains(day),
+                            isInSelectedTerm: viewModel.isDateInSelectedTerm(date)
+                        )
+                        .onTapGesture {
+                            viewModel.selectDate(date)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(AppSpacing.md)
         .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(viewModel.isDateInSelectedTerm(viewModel.selectedDate) ? Color.clear : AppColors.danger.opacity(0.35))
         }
+    }
+
+    private var calendarMonthTitle: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: viewModel.displayedMonth)
+    }
+
+    private func dateForDay(_ day: Int) -> Date {
+        calendar.date(from: DateComponents(year: displayYear, month: displayMonth, day: day))?.startOfDay ?? viewModel.displayedMonth
     }
 
     private var selectedDateLessons: some View {
@@ -274,6 +347,51 @@ struct TimetableScreen: View {
             .padding(.horizontal, AppSpacing.md)
             .padding(.bottom, AppSpacing.sm)
         }
+    }
+}
+
+private struct TimetableReviewCalendarDayCell: View {
+    let day: Int
+    let isSelected: Bool
+    let isToday: Bool
+    let hasPendingReview: Bool
+    let isInSelectedTerm: Bool
+
+    var body: some View {
+        Text("\(day)")
+            .font(.title3.weight(isSelected ? .bold : .regular))
+            .foregroundStyle(foregroundColor)
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(backgroundView)
+            .opacity(isInSelectedTerm ? 1 : 0.35)
+    }
+
+    @ViewBuilder
+    private var backgroundView: some View {
+        if isSelected {
+            Circle()
+                .fill(hasPendingReview ? AppColors.danger : Color.accentColor)
+                .frame(width: 40, height: 40)
+        } else if hasPendingReview {
+            Circle()
+                .fill(AppColors.danger.opacity(0.16))
+                .frame(width: 40, height: 40)
+        } else if isToday {
+            Circle()
+                .stroke(Color.accentColor.opacity(0.45), lineWidth: 1.5)
+                .frame(width: 40, height: 40)
+        }
+    }
+
+    private var foregroundColor: Color {
+        if isSelected {
+            return .white
+        }
+        if hasPendingReview {
+            return AppColors.danger
+        }
+        return AppColors.textPrimary
     }
 }
 

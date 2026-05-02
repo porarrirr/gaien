@@ -234,4 +234,138 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE study_sessions ADD COLUMN rating INTEGER")
+        db.execSQL("ALTER TABLE study_sessions ADD COLUMN problemStart INTEGER")
+        db.execSQL("ALTER TABLE study_sessions ADD COLUMN problemEnd INTEGER")
+        db.execSQL("ALTER TABLE study_sessions ADD COLUMN wrongProblemCount INTEGER")
+        db.execSQL("ALTER TABLE study_sessions ADD COLUMN problemRecordsJson TEXT")
+    }
+}
+
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE materials ADD COLUMN totalProblems INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE materials ADD COLUMN problemChaptersJson TEXT")
+        db.execSQL("ALTER TABLE materials ADD COLUMN problemRecordsJson TEXT")
+    }
+}
+
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS timetable_periods (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                syncId TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL,
+                startMinute INTEGER NOT NULL,
+                endMinute INTEGER NOT NULL,
+                sortOrder INTEGER NOT NULL,
+                isActive INTEGER NOT NULL DEFAULT 1,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER,
+                lastSyncedAt INTEGER
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS timetable_terms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                syncId TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL,
+                startDate INTEGER NOT NULL,
+                endDate INTEGER NOT NULL,
+                isActive INTEGER NOT NULL DEFAULT 1,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER,
+                lastSyncedAt INTEGER
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS timetable_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                syncId TEXT NOT NULL DEFAULT '',
+                termId INTEGER,
+                termSyncId TEXT,
+                dayOfWeek INTEGER NOT NULL,
+                periodId INTEGER NOT NULL,
+                periodSyncId TEXT,
+                subjectName TEXT NOT NULL,
+                courseName TEXT,
+                roomName TEXT,
+                validFromDate INTEGER,
+                validToDate INTEGER,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER,
+                lastSyncedAt INTEGER,
+                FOREIGN KEY (periodId) REFERENCES timetable_periods(id) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS timetable_review_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                syncId TEXT NOT NULL DEFAULT '',
+                termId INTEGER NOT NULL,
+                termSyncId TEXT,
+                entryId INTEGER NOT NULL,
+                entrySyncId TEXT,
+                periodId INTEGER NOT NULL,
+                periodSyncId TEXT,
+                occurrenceDate INTEGER NOT NULL,
+                dayOfWeek INTEGER NOT NULL,
+                periodName TEXT NOT NULL,
+                periodStartMinute INTEGER NOT NULL,
+                periodEndMinute INTEGER NOT NULL,
+                subjectName TEXT NOT NULL,
+                courseName TEXT,
+                roomName TEXT,
+                isReviewed INTEGER NOT NULL DEFAULT 0,
+                note TEXT,
+                isExcluded INTEGER NOT NULL DEFAULT 0,
+                reviewedAt INTEGER,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER,
+                lastSyncedAt INTEGER
+            )
+            """.trimIndent()
+        )
+    }
+}
+
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_periods_syncId ON timetable_periods(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_periods_isActive ON timetable_periods(isActive)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_terms_syncId ON timetable_terms(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_terms_isActive ON timetable_terms(isActive)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_entries_syncId ON timetable_entries(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_entries_periodId ON timetable_entries(periodId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_entries_termId ON timetable_entries(termId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_entries_dayOfWeek ON timetable_entries(dayOfWeek)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_review_records_syncId ON timetable_review_records(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_review_records_termId ON timetable_review_records(termId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_review_records_entryId ON timetable_review_records(entryId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_review_records_occurrenceDate ON timetable_review_records(occurrenceDate)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_timetable_review_records_periodId ON timetable_review_records(periodId)")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(
+    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+    MIGRATION_9_10, MIGRATION_10_11
+)

@@ -9,6 +9,7 @@ final class TimetableViewModel: ScreenViewModel {
     @Published private(set) var reviewRecords: [TimetableReviewRecord] = []
     @Published var selectedTermId: Int64?
     @Published var selectedDate = Date().startOfDay
+    @Published var displayedMonth = Date().startOfMonth
 
     var entriesBySlot: [TimetableSlotKey: TimetableEntry] {
         entriesForSelectedTerm(activeOn: Date().startOfDay).reduce(into: [TimetableSlotKey: TimetableEntry]()) { result, entry in
@@ -41,6 +42,28 @@ final class TimetableViewModel: ScreenViewModel {
         return summary(for: selectedTerm)
     }
 
+    var pendingOccurrenceDaysInDisplayedMonth: Set<Int> {
+        guard let selectedTerm else { return [] }
+        let calendar = Calendar.current
+        guard let monthInterval = calendar.dateInterval(of: .month, for: displayedMonth) else { return [] }
+
+        let monthStart = max(selectedTerm.startDateValue, monthInterval.start.startOfDay)
+        let rawMonthEnd = calendar.date(byAdding: .day, value: -1, to: monthInterval.end)?.startOfDay ?? monthInterval.start.startOfDay
+        let monthEnd = min(selectedTerm.endDateValue, rawMonthEnd, Date().startOfDay)
+        guard monthStart <= monthEnd else { return [] }
+
+        var days = Set<Int>()
+        var date = monthStart
+        while date <= monthEnd {
+            if occurrences(on: date, in: selectedTerm).contains(where: { $0.status == .pending || $0.status == .overdue }) {
+                days.insert(calendar.component(.day, from: date))
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
+            date = next
+        }
+        return days
+    }
+
     func load() async {
         do {
             var loadedPeriods = try await app.persistence.getAllTimetablePeriods()
@@ -64,6 +87,7 @@ final class TimetableViewModel: ScreenViewModel {
             }
             entries = try await app.persistence.getAllTimetableEntries()
             reviewRecords = try await app.persistence.getAllTimetableReviewRecords()
+            syncDisplayedMonthWithSelectedDateIfNeeded()
         } catch {
             app.present(error)
         }
@@ -131,10 +155,17 @@ final class TimetableViewModel: ScreenViewModel {
         if !term.contains(selectedDate) {
             selectedDate = term.contains(Date()) ? Date().startOfDay : term.startDateValue
         }
+        syncDisplayedMonthWithSelectedDateIfNeeded()
     }
 
     func selectDate(_ date: Date) {
         selectedDate = date.startOfDay
+        syncDisplayedMonthWithSelectedDateIfNeeded()
+    }
+
+    func moveDisplayedMonth(by value: Int) {
+        guard let next = Calendar.current.date(byAdding: .month, value: value, to: displayedMonth) else { return }
+        displayedMonth = next.startOfMonth
     }
 
     func setReviewed(_ occurrence: TimetableReviewOccurrence, reviewed: Bool, note: String?) {
@@ -224,6 +255,13 @@ final class TimetableViewModel: ScreenViewModel {
         allEntriesForSelectedTerm.filter { $0.deletedAt == nil && isEntry($0, activeOn: date) }
     }
 
+    private func syncDisplayedMonthWithSelectedDateIfNeeded() {
+        let selectedMonth = selectedDate.startOfMonth
+        if !Calendar.current.isDate(displayedMonth, equalTo: selectedMonth, toGranularity: .month) {
+            displayedMonth = selectedMonth
+        }
+    }
+
     private static func defaultTerm() -> TimetableTerm {
         let today = Date().startOfDay
         let end = Calendar.current.date(byAdding: .month, value: 6, to: today) ?? today
@@ -235,6 +273,14 @@ final class TimetableViewModel: ScreenViewModel {
             return current
         }
         return terms.sorted { $0.endDate > $1.endDate }.first
+    }
+}
+
+private extension Date {
+    var startOfMonth: Date {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month], from: self)
+        return calendar.date(from: components)?.startOfDay ?? startOfDay
     }
 }
 

@@ -6,6 +6,7 @@ import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
 import kotlinx.coroutines.flow.first
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.temporal.WeekFields
 import java.util.Locale
 import javax.inject.Inject
@@ -76,7 +77,7 @@ class GetReportsDataUseCase @Inject constructor(
             .map { (date, daySessions) ->
                 DailyStudyData(
                     date = daySessions.first().startTime,
-                    dayOfWeek = date.dayOfWeek,
+                    dayOfWeek = LocalDate.ofEpochDay(date).dayOfWeek,
                     totalMinutes = daySessions.sumOf { it.duration / 60000 }
                 )
             }
@@ -91,7 +92,7 @@ class GetReportsDataUseCase @Inject constructor(
         
         return sessions
             .groupBy { session ->
-                val localDate = session.date
+                val localDate = LocalDate.ofEpochDay(session.date)
                 val weekFields = WeekFields.of(Locale.getDefault()).firstDayOfWeek
                 val startOfWeek = localDate.with(weekFields)
                 startOfWeek.toEpochDay() * DAY_MS
@@ -115,7 +116,7 @@ class GetReportsDataUseCase @Inject constructor(
         
         return sessions
             .groupBy { session ->
-                val localDate = session.date
+                val localDate = LocalDate.ofEpochDay(session.date)
                 localDate.withDayOfMonth(1).toEpochDay() * DAY_MS
             }
             .map { (monthStart, monthSessions) ->
@@ -153,7 +154,7 @@ class GetReportsDataUseCase @Inject constructor(
         if (sessions.isEmpty()) return 0
         
         val studyDates = sessions
-            .map { it.date.toEpochDay() * DAY_MS }
+            .map { it.date * DAY_MS }
             .distinct()
             .sorted()
         

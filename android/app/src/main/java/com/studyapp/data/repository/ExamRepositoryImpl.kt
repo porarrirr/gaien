@@ -11,7 +11,7 @@ import com.studyapp.sync.AppDataWriteLock
 import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,8 +35,8 @@ class ExamRepositoryImpl @Inject constructor(
     }
 
     override fun getUpcomingExams(): Flow<Result<List<Exam>>> {
-        val currentTime = clock.currentTimeMillis()
-        return examDao.getUpcomingExams(currentTime).map { entities ->
+        val todayEpochDay = LocalDate.now().toEpochDay()
+        return examDao.getUpcomingExams(todayEpochDay * 86400000L).map { entities ->
             Result.Success(entities.map { it.toDomain() })
         }
     }
@@ -96,7 +96,7 @@ class ExamRepositoryImpl @Inject constructor(
             id = id,
             syncId = syncId,
             name = name,
-            date = Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).toLocalDate(),
+            date = date / 86400000L,
             note = note,
             createdAt = createdAt,
             updatedAt = updatedAt,
@@ -110,7 +110,7 @@ class ExamRepositoryImpl @Inject constructor(
             id = id,
             syncId = syncId,
             name = name,
-            date = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            date = date * 86400000L,
             note = note,
             createdAt = createdAt,
             updatedAt = updatedAt,

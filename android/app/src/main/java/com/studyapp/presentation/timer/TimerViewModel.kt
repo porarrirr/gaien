@@ -3,6 +3,9 @@ package com.studyapp.presentation.timer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.PendingSessionEvaluation
+import com.studyapp.domain.model.ProblemSessionRecord
+import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.StudySessionType
 import com.studyapp.domain.model.Subject
@@ -24,6 +27,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class ProblemTileState { UNTOUCHED, CORRECT, WRONG }
+
 data class TimerUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
@@ -37,7 +42,10 @@ data class TimerUiState(
     val subjects: List<Subject> = emptyList(),
     val materialsBySubject: Map<Long, List<Material>> = emptyMap(),
     val recentMaterials: List<Pair<Material, Subject>> = emptyList(),
-    val isServiceBound: Boolean = false
+    val isServiceBound: Boolean = false,
+    val pendingSessionEvaluation: PendingSessionEvaluation? = null,
+    val problemCount: Int = 0,
+    val problemStates: Map<Int, ProblemTileState> = emptyMap()
 )
 
 @HiltViewModel
@@ -237,24 +245,92 @@ class TimerViewModel @Inject constructor(
     fun stopTimer() {
         val stopResult = timerServiceManager.stopTimer()
         val subject = _uiState.value.selectedSubject
-        val materialId = _uiState.value.selectedMaterial?.id
+        val material = _uiState.value.selectedMaterial
         
         if (stopResult.elapsed > 0 && subject != null) {
-            saveSession(
+            val now = System.currentTimeMillis()
+            val session = StudySession(
+                id = 0,
+                syncId = java.util.UUID.randomUUID().toString().lowercase(),
+                materialId = material?.id,
+                materialSyncId = material?.syncId,
+                materialName = material?.name ?: "",
                 subjectId = subject.id,
-                materialId = materialId,
-                duration = stopResult.elapsed,
+                subjectSyncId = subject.syncId,
+                subjectName = subject.name,
+                sessionType = stopResult.sessionType,
+                startTime = now - stopResult.elapsed,
+                endTime = now,
                 intervals = stopResult.intervals,
-                sessionType = stopResult.sessionType
+                rating = null,
+                note = null,
+                problemStart = null,
+                problemEnd = null,
+                wrongProblemCount = null,
+                problemRecords = emptyList(),
+                createdAt = now,
+                updatedAt = now,
+                deletedAt = null,
+                lastSyncedAt = null
             )
+            _uiState.update { state ->
+                state.copy(
+                    isRunning = false,
+                    elapsedTime = 0L,
+                    remainingTime = 0L,
+                    pendingSessionEvaluation = PendingSessionEvaluation(session = session)
+                )
+            }
+        } else {
+            _uiState.update { state ->
+                state.copy(
+                    isRunning = false,
+                    elapsedTime = 0L,
+                    remainingTime = 0L
+                )
+            }
         }
-        
-        _uiState.update { state ->
-            state.copy(
-                isRunning = false,
-                elapsedTime = 0L,
-                remainingTime = 0L
-            )
+    }
+
+    fun savePendingSessionEvaluation(
+        rating: Int,
+        note: String?,
+        problemRecords: List<ProblemSessionRecord>,
+        problemStart: Int?,
+        problemEnd: Int?,
+        wrongProblemCount: Int?
+    ) {
+        val pending = _uiState.value.pendingSessionEvaluation ?: return
+        val session = pending.session.copy(
+            rating = rating,
+            note = note?.takeIf { it.isNotBlank() },
+            problemRecords = problemRecords,
+            problemStart = problemStart,
+            problemEnd = problemEnd,
+            wrongProblemCount = wrongProblemCount,
+            updatedAt = System.currentTimeMillis()
+        )
+        _uiState.update { it.copy(pendingSessionEvaluation = null) }
+        viewModelScope.launch {
+            saveStudySessionUseCase(session)
+                .onError { error ->
+                    _uiState.update { state ->
+                        state.copy(error = error.message ?: "学習記録の保存に失敗しました")
+                    }
+                }
+        }
+    }
+
+    fun cancelPendingSessionEvaluation() {
+        val pending = _uiState.value.pendingSessionEvaluation ?: return
+        _uiState.update { it.copy(pendingSessionEvaluation = null) }
+        viewModelScope.launch {
+            saveStudySessionUseCase(pending.session)
+                .onError { error ->
+                    _uiState.update { state ->
+                        state.copy(error = error.message ?: "学習記録の保存に失敗しました")
+                    }
+                }
         }
     }
     
@@ -319,6 +395,28 @@ class TimerViewModel @Inject constructor(
     
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    fun setProblemCount(count: Int) {
+        val newCount = count.coerceIn(0, 200)
+        _uiState.update { state ->
+            val newStates = (1..newCount).associateWith { num ->
+                state.problemStates[num] ?: ProblemTileState.UNTOUCHED
+            }
+            state.copy(problemCount = newCount, problemStates = newStates)
+        }
+    }
+
+    fun toggleProblemState(number: Int) {
+        _uiState.update { state ->
+            val current = state.problemStates[number] ?: ProblemTileState.UNTOUCHED
+            val next = when (current) {
+                ProblemTileState.UNTOUCHED -> ProblemTileState.CORRECT
+                ProblemTileState.CORRECT -> ProblemTileState.WRONG
+                ProblemTileState.WRONG -> ProblemTileState.UNTOUCHED
+            }
+            state.copy(problemStates = state.problemStates + (number to next))
+        }
     }
 
     private data class TimerDataState(
