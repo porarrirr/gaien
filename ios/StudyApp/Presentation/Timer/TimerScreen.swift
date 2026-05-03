@@ -531,7 +531,8 @@ private struct LandscapeTimerFocusView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             timerPane
-                .frame(width: 260, maxHeight: .infinity)
+                .frame(width: 260)
+                .frame(maxHeight: .infinity)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
