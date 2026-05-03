@@ -134,6 +134,10 @@ final class StudyAppContainer: ObservableObject {
         savePreferences { $0.liveActivityDisplayPreset = preset }
     }
 
+    func setLandscapeTimerDisplayPreset(_ preset: LandscapeTimerDisplayPreset) {
+        savePreferences { $0.landscapeTimerDisplayPreset = preset }
+    }
+
     func setReminderEnabled(_ enabled: Bool) async {
         if enabled {
             do {

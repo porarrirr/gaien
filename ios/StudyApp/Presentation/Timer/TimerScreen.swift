@@ -25,68 +25,103 @@ struct TimerScreen: View {
 
     var body: some View {
         GeometryReader { geometry in
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: AppSpacing.xl) {
-                    selectorSection
+            if shouldShowLandscapeFocus(size: geometry.size) {
+                switch viewModel.app.preferences.landscapeTimerDisplayPreset {
+                case .problemProgress:
+                    LandscapeTimerFocusView(
+                        viewModel: viewModel,
+                        material: selectedMaterial,
+                        materialProblemCount: selectedMaterialTotalProblems,
+                        materialProblemChapters: selectedMaterialProblemChapters,
+                        totalProblems: timerProblemProgressTotalProblems,
+                        timerText: durationString(milliseconds: viewModel.displayMilliseconds),
+                        modeText: viewModel.mode == .timer ? "カウントダウン" : "記録中",
+                        progress: timerProgress,
+                        onPauseToggle: {
+                            viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
+                        },
+                        onStop: {
+                            viewModel.stop()
+                        }
+                    )
+                case .clockOnly:
+                    LandscapeClockOnlyTimerView(
+                        viewModel: viewModel,
+                        timerText: durationString(milliseconds: viewModel.displayMilliseconds),
+                        modeText: viewModel.mode == .timer ? "カウントダウン" : "記録中",
+                        progress: timerProgress,
+                        onPauseToggle: {
+                            viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
+                        },
+                        onStop: {
+                            viewModel.stop()
+                        }
+                    )
+                }
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: AppSpacing.xl) {
+                        selectorSection
 
-                    timerModeSection
+                        timerModeSection
 
-                    ZStack {
-                        ProgressRing(
-                            progress: timerProgress,
-                            size: timerRingSize(for: geometry.size),
-                            lineWidth: 16,
-                            ringColor: viewModel.isRunning ? Color.accentColor : Color.secondary.opacity(0.4),
-                            showPercentage: false
-                        )
-                        .scaleEffect(ringScale)
+                        ZStack {
+                            ProgressRing(
+                                progress: timerProgress,
+                                size: timerRingSize(for: geometry.size),
+                                lineWidth: 16,
+                                ringColor: viewModel.isRunning ? Color.accentColor : Color.secondary.opacity(0.4),
+                                showPercentage: false
+                            )
+                            .scaleEffect(ringScale)
 
-                        VStack(spacing: AppSpacing.xs) {
-                            Text(durationString(milliseconds: viewModel.displayMilliseconds))
-                                .font(.system(size: 48, weight: .bold, design: .rounded))
-                                .monospacedDigit()
-                                .foregroundStyle(AppColors.textPrimary)
-                            if viewModel.isRunning {
-                                Text(viewModel.mode == .timer ? "カウントダウン中" : "記録中")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.tint)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 4)
-                                    .background(.tint.opacity(0.12), in: Capsule())
-                                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                            VStack(spacing: AppSpacing.xs) {
+                                Text(durationString(milliseconds: viewModel.displayMilliseconds))
+                                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                                    .monospacedDigit()
+                                    .foregroundStyle(AppColors.textPrimary)
+                                if viewModel.isRunning {
+                                    Text(viewModel.mode == .timer ? "カウントダウン中" : "記録中")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.tint)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 4)
+                                        .background(.tint.opacity(0.12), in: Capsule())
+                                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                                }
+                            }
+                            .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
+                        }
+                        .onChange(of: viewModel.isRunning) { running in
+                            if running {
+                                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                                    ringScale = 1.02
+                                }
+                            } else {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    ringScale = 1.0
+                                }
                             }
                         }
-                        .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
-                    }
-                    .onChange(of: viewModel.isRunning) { running in
-                        if running {
-                            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                                ringScale = 1.02
-                            }
-                        } else {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                ringScale = 1.0
-                            }
-                        }
-                    }
 
-                    controlButtonsSection
+                        controlButtonsSection
 
-                    timerProblemProgressSection
+                        timerProblemProgressSection
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.top, AppSpacing.lg)
+                    .padding(.bottom, AppSpacing.xl)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, AppSpacing.md)
-                .padding(.top, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.xl)
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 0) {
-                    Divider()
-                    manualEntryButton
-                        .padding(.horizontal, AppSpacing.md)
-                        .padding(.vertical, 12)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    VStack(spacing: 0) {
+                        Divider()
+                        manualEntryButton
+                            .padding(.horizontal, AppSpacing.md)
+                            .padding(.vertical, 12)
+                    }
+                    .background(AppColors.subtleBackground)
                 }
-                .background(AppColors.subtleBackground)
             }
         }
         .background(AppColors.subtleBackground)
@@ -440,6 +475,10 @@ struct TimerScreen: View {
         selectedMaterialTotalProblems > 0 ? selectedMaterialTotalProblems : parseDraftInt(viewModel.timerProblemCountDraft)
     }
 
+    private func shouldShowLandscapeFocus(size: CGSize) -> Bool {
+        viewModel.isRunning && size.width > size.height && size.height < 520
+    }
+
     private func selectionMenuLabel(text: String, isPlaceholder: Bool) -> some View {
         HStack(spacing: AppSpacing.xs) {
             Text(text)
@@ -457,6 +496,282 @@ struct TimerScreen: View {
         let widthLimited = min(size.width - (AppSpacing.md * 2), 300)
         let heightLimited = min(max(size.height * 0.34, 220), 300)
         return max(220, min(widthLimited, heightLimited))
+    }
+}
+
+private struct LandscapeTimerFocusView: View {
+    @ObservedObject var viewModel: TimerViewModel
+    let material: Material?
+    let materialProblemCount: Int
+    let materialProblemChapters: [ProblemChapter]
+    let totalProblems: Int
+    let timerText: String
+    let modeText: String
+    let progress: Double
+    let onPauseToggle: () -> Void
+    let onStop: () -> Void
+
+    private var effectiveTotalProblems: Int {
+        materialProblemCount > 0 ? materialProblemCount : totalProblems
+    }
+
+    private var completionText: String {
+        let done = viewModel.timerProblemRecords.count
+        let wrong = viewModel.timerProblemRecords.filter(\.isWrong).count
+        let review = viewModel.timerProblemRecords.filter { $0.result == .reviewCorrect }.count
+        if review > 0 {
+            return "\(done)問 / 不正解 \(wrong) / 復習 \(review)"
+        }
+        return "\(done)問 / 不正解 \(wrong)"
+    }
+
+    var body: some View {
+        HStack(spacing: 18) {
+            problemInputPane
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            timerPane
+                .frame(width: 260, maxHeight: .infinity)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(landscapeBackground)
+        .preferredColorScheme(.dark)
+    }
+
+    private var problemInputPane: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(material?.name ?? "問題集")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    Text(materialProgressSubtitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.56))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Text(completionText)
+                    .font(.caption.bold())
+                    .monospacedDigit()
+                    .foregroundStyle(Color(hex: 0xA7F3D0))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color(hex: 0x4CAF50).opacity(0.16), in: Capsule())
+            }
+
+            if effectiveTotalProblems > 0 {
+                ScrollView(showsIndicators: false) {
+                    ProblemTileSelector(
+                        totalProblems: effectiveTotalProblems,
+                        chapters: materialProblemChapters,
+                        records: Binding(
+                            get: { viewModel.timerProblemRecords },
+                            set: { viewModel.updateTimerProblemRecords($0, totalProblems: effectiveTotalProblems) }
+                        )
+                    )
+                    .tint(Color(hex: 0x4CAF50))
+                    .padding(.top, 2)
+                }
+                .scrollDismissesKeyboard(.interactively)
+            } else {
+                VStack(spacing: 10) {
+                    Image(systemName: "square.grid.3x3.fill")
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.34))
+                    Text("教材の問題数を設定すると、番号タップで進捗を記録できます")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .padding(14)
+        .background(focusPanelBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+        }
+    }
+
+    private var timerPane: some View {
+        VStack(spacing: 14) {
+            Spacer(minLength: 0)
+
+            ZStack {
+                ProgressRing(
+                    progress: progress,
+                    size: 164,
+                    lineWidth: 10,
+                    ringColor: Color(hex: 0x4CAF50),
+                    trackColor: .white.opacity(0.08),
+                    showPercentage: false
+                )
+                VStack(spacing: 4) {
+                    Text(timerText)
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .minimumScaleFactor(0.72)
+                        .lineLimit(1)
+                    Text(modeText)
+                        .font(.caption.bold())
+                        .foregroundStyle(Color(hex: 0x93C5FD))
+                }
+            }
+
+            HStack(spacing: 10) {
+                focusIconButton(
+                    systemImage: viewModel.isRunning ? "pause.fill" : "play.fill",
+                    tint: Color(hex: 0x2196F3),
+                    action: onPauseToggle
+                )
+                focusIconButton(
+                    systemImage: "stop.fill",
+                    tint: AppColors.danger,
+                    action: onStop
+                )
+            }
+
+            Text("集中モード")
+                .font(.caption.bold())
+                .foregroundStyle(.white.opacity(0.42))
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(focusPanelBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+        }
+    }
+
+    private var materialProgressSubtitle: String {
+        if materialProblemCount > 0 {
+            if materialProblemChapters.isEmpty {
+                return "全\(materialProblemCount)問"
+            }
+            return "全\(materialProblemCount)問 ・ \(materialProblemChapters.count)章"
+        }
+        return "タップで正解、ダブルタップで不正解、長押しで詳細"
+    }
+
+    private var landscapeBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(hex: 0x070A0E),
+                Color(hex: 0x10151C),
+                Color(hex: 0x07110D)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    private var focusPanelBackground: Color {
+        Color(hex: 0x121820).opacity(0.92)
+    }
+
+    private func focusIconButton(systemImage: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 46, height: 42)
+                .background(tint.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct LandscapeClockOnlyTimerView: View {
+    @ObservedObject var viewModel: TimerViewModel
+    let timerText: String
+    let modeText: String
+    let progress: Double
+    let onPauseToggle: () -> Void
+    let onStop: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Spacer(minLength: 0)
+
+            ZStack {
+                ProgressRing(
+                    progress: progress,
+                    size: 230,
+                    lineWidth: 10,
+                    ringColor: Color(hex: 0x4CAF50),
+                    trackColor: .white.opacity(0.07),
+                    showPercentage: false
+                )
+                VStack(spacing: 6) {
+                    Text(timerText)
+                        .font(.system(size: 58, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .minimumScaleFactor(0.64)
+                        .lineLimit(1)
+                    Text(modeText)
+                        .font(.caption.bold())
+                        .foregroundStyle(Color(hex: 0x93C5FD).opacity(0.86))
+                }
+            }
+
+            HStack(spacing: 12) {
+                clockOnlyButton(
+                    systemImage: viewModel.isRunning ? "pause.fill" : "play.fill",
+                    tint: Color(hex: 0x2196F3),
+                    action: onPauseToggle
+                )
+                clockOnlyButton(
+                    systemImage: "stop.fill",
+                    tint: AppColors.danger,
+                    action: onStop
+                )
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 18)
+        .background(clockOnlyBackground)
+        .preferredColorScheme(.dark)
+    }
+
+    private var clockOnlyBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(hex: 0x05070A),
+                Color(hex: 0x0E1319),
+                Color(hex: 0x07100C)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    private func clockOnlyButton(systemImage: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 38)
+                .background(tint.opacity(0.78), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(.white.opacity(0.08), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
     }
 }
 

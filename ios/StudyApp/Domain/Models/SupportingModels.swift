@@ -209,6 +209,7 @@ struct AppPreferences: Codable, Equatable {
     var selectedThemeMode: ThemeMode = .system
     var liveActivityEnabled = true
     var liveActivityDisplayPreset: LiveActivityDisplayPreset = .standard
+    var landscapeTimerDisplayPreset: LandscapeTimerDisplayPreset = .problemProgress
     var activeTimer: TimerSnapshot?
 
     private enum CodingKeys: String, CodingKey {
@@ -220,6 +221,7 @@ struct AppPreferences: Codable, Equatable {
         case selectedThemeMode
         case liveActivityEnabled
         case liveActivityDisplayPreset
+        case landscapeTimerDisplayPreset
         case activeTimer
     }
 
@@ -232,6 +234,7 @@ struct AppPreferences: Codable, Equatable {
         selectedThemeMode: ThemeMode = .system,
         liveActivityEnabled: Bool = true,
         liveActivityDisplayPreset: LiveActivityDisplayPreset = .standard,
+        landscapeTimerDisplayPreset: LandscapeTimerDisplayPreset = .problemProgress,
         activeTimer: TimerSnapshot? = nil
     ) {
         self.onboardingCompleted = onboardingCompleted
@@ -242,6 +245,7 @@ struct AppPreferences: Codable, Equatable {
         self.selectedThemeMode = selectedThemeMode
         self.liveActivityEnabled = liveActivityEnabled
         self.liveActivityDisplayPreset = liveActivityDisplayPreset
+        self.landscapeTimerDisplayPreset = landscapeTimerDisplayPreset
         self.activeTimer = activeTimer
     }
 
@@ -255,6 +259,7 @@ struct AppPreferences: Codable, Equatable {
         selectedThemeMode = try container.decodeIfPresent(ThemeMode.self, forKey: .selectedThemeMode) ?? .system
         liveActivityEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivityEnabled) ?? true
         liveActivityDisplayPreset = try container.decodeIfPresent(LiveActivityDisplayPreset.self, forKey: .liveActivityDisplayPreset) ?? .standard
+        landscapeTimerDisplayPreset = try container.decodeIfPresent(LandscapeTimerDisplayPreset.self, forKey: .landscapeTimerDisplayPreset) ?? .problemProgress
         activeTimer = try container.decodeIfPresent(TimerSnapshot.self, forKey: .activeTimer)
     }
 
@@ -268,6 +273,7 @@ struct AppPreferences: Codable, Equatable {
         try container.encode(selectedThemeMode, forKey: .selectedThemeMode)
         try container.encode(liveActivityEnabled, forKey: .liveActivityEnabled)
         try container.encode(liveActivityDisplayPreset, forKey: .liveActivityDisplayPreset)
+        try container.encode(landscapeTimerDisplayPreset, forKey: .landscapeTimerDisplayPreset)
         try container.encodeIfPresent(activeTimer, forKey: .activeTimer)
     }
 }

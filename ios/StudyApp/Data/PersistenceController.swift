@@ -2341,6 +2341,7 @@ private struct LegacySnapshot: Codable {
     var selectedThemeMode: ThemeMode = .system
     var liveActivityEnabled = true
     var liveActivityDisplayPreset: LiveActivityDisplayPreset = .standard
+    var landscapeTimerDisplayPreset: LandscapeTimerDisplayPreset = .problemProgress
     var activeTimer: LegacyTimerSnapshot?
 
     private enum CodingKeys: String, CodingKey {
@@ -2359,6 +2360,7 @@ private struct LegacySnapshot: Codable {
         case selectedThemeMode
         case liveActivityEnabled
         case liveActivityDisplayPreset
+        case landscapeTimerDisplayPreset
         case activeTimer
     }
 
@@ -2381,6 +2383,7 @@ private struct LegacySnapshot: Codable {
         selectedThemeMode = try container.decodeIfPresent(ThemeMode.self, forKey: .selectedThemeMode) ?? .system
         liveActivityEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivityEnabled) ?? true
         liveActivityDisplayPreset = try container.decodeIfPresent(LiveActivityDisplayPreset.self, forKey: .liveActivityDisplayPreset) ?? .standard
+        landscapeTimerDisplayPreset = try container.decodeIfPresent(LandscapeTimerDisplayPreset.self, forKey: .landscapeTimerDisplayPreset) ?? .problemProgress
         activeTimer = try container.decodeIfPresent(LegacyTimerSnapshot.self, forKey: .activeTimer)
     }
 
@@ -2394,6 +2397,7 @@ private struct LegacySnapshot: Codable {
             selectedThemeMode: selectedThemeMode,
             liveActivityEnabled: liveActivityEnabled,
             liveActivityDisplayPreset: liveActivityDisplayPreset,
+            landscapeTimerDisplayPreset: landscapeTimerDisplayPreset,
             activeTimer: activeTimer?.model
         )
     }

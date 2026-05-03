@@ -184,3 +184,24 @@ enum LiveActivityDisplayPreset: String, CaseIterable, Codable, Identifiable, Has
         }
     }
 }
+
+enum LandscapeTimerDisplayPreset: String, CaseIterable, Codable, Identifiable, Hashable {
+    case problemProgress
+    case clockOnly
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .problemProgress: return "問題集つき"
+        case .clockOnly: return "時計のみ"
+        }
+    }
+
+    var settingsDescription: String {
+        switch self {
+        case .problemProgress: return "横向き時に問題番号タイルと時計を並べて表示します。"
+        case .clockOnly: return "横向き時は時計と小さい操作ボタンだけを表示します。"
+        }
+    }
+}

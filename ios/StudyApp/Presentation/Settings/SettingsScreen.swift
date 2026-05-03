@@ -64,6 +64,41 @@ struct SettingsScreen: View {
             }
 
             Section {
+                Picker(
+                    "横向き表示",
+                    selection: Binding(
+                        get: { viewModel.app.preferences.landscapeTimerDisplayPreset },
+                        set: { viewModel.app.setLandscapeTimerDisplayPreset($0) }
+                    )
+                ) {
+                    ForEach(LandscapeTimerDisplayPreset.allCases) { preset in
+                        Text(preset.title).tag(preset)
+                    }
+                }
+
+                ForEach(LandscapeTimerDisplayPreset.allCases) { preset in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(preset.title)
+                                .font(.subheadline.weight(.semibold))
+                            if preset == viewModel.app.preferences.landscapeTimerDisplayPreset {
+                                Spacer()
+                                Text("選択中")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.tint)
+                            }
+                        }
+                        Text(preset.settingsDescription)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+            } header: {
+                Label("タイマー横向き表示", systemImage: "rectangle.landscape")
+            }
+
+            Section {
                 if liveActivityFeatureIncludedInBuild, liveActivitySettingsAvailable {
                     Toggle(
                         "ライブアクティビティを使用",
