@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Color Extensions
 
@@ -137,6 +140,38 @@ struct CardStyle: ViewModifier {
 extension View {
     func cardStyle(padding: CGFloat = AppSpacing.md) -> some View {
         modifier(CardStyle(padding: padding))
+    }
+}
+
+struct DiagnosticLogCopyButton: View {
+    let logger: AppLogger
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            copyLogs()
+        } label: {
+            HStack(spacing: AppSpacing.sm) {
+                Image(systemName: copied ? "checkmark.circle.fill" : "doc.on.doc")
+                Text(copied ? "診断ログをコピーしました" : "診断ログをコピー")
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: AppSpacing.sm)
+            }
+            .foregroundStyle(copied ? AppColors.success : AppColors.textPrimary)
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.vertical, AppSpacing.sm)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func copyLogs() {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = logger.exportText()
+        #endif
+        logger.log(category: .app, message: "Diagnostic logs copied from quick button", details: "entryCount=\(logger.recentEntries().count)")
+        copied = true
     }
 }
 

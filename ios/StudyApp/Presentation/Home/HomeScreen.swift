@@ -26,6 +26,9 @@ struct HomeScreen: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: AppSpacing.md) {
+                DiagnosticLogCopyButton(logger: viewModel.app.logger)
+                    .padding(.horizontal, AppSpacing.md)
+
                 // Hero Section
                 heroSection
                     .padding(.horizontal, AppSpacing.md)

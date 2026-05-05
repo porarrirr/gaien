@@ -17,7 +17,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if !app.isLoaded {
-                LoadingSplash()
+                LoadingSplash(logger: app.logger)
             } else if !app.preferences.onboardingCompleted {
                 OnboardingScreen(app: app)
             } else {
@@ -40,6 +40,7 @@ struct RootView: View {
     }
 }
 private struct LoadingSplash: View {
+    let logger: AppLogger
     @State private var pulse = false
 
     var body: some View {
@@ -53,6 +54,8 @@ private struct LoadingSplash: View {
                 .font(.title2.bold())
                 .foregroundStyle(AppColors.textPrimary)
             ProgressView()
+            DiagnosticLogCopyButton(logger: logger)
+                .padding(.horizontal, AppSpacing.xl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColors.subtleBackground)
