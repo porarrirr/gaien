@@ -7,7 +7,7 @@ struct StudyAppApp: App {
     @StateObject private var app: StudyAppContainer
 
     init() {
-        AppCheck.setAppCheckProviderFactory(AppAttestProviderFactory())
+        AppCheck.setAppCheckProviderFactory(DeviceCheckProviderFactory())
         FirebaseBootstrap.configureIfAvailable()
         _app = StateObject(wrappedValue: StudyAppContainer())
     }
