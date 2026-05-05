@@ -10,6 +10,8 @@ final class AutoSyncCoordinator {
     private var delayTask: Task<Void, Never>?
     private var lastSyncedDataVersion: Int?
     private let blockedKey = "studyapp.sync.autoSyncBlockedUntilLocalChange"
+    private let lastLifecycleSyncKey = "studyapp.sync.lastLifecycleAutoSyncAt"
+    private let lifecycleSyncMinimumInterval: TimeInterval = 5 * 60
     private var pendingRequest: (reason: String, dataVersion: Int)?
     private var isRunning = false
 
@@ -38,7 +40,12 @@ final class AutoSyncCoordinator {
         }
 
         let dataVersion = currentDataVersion()
-        if lastSyncedDataVersion == dataVersion, reason != "scene-active", reason != "app-load" {
+        if isLifecycleSyncReason(reason), shouldThrottleLifecycleSync(now: Date()) {
+            logger.log(category: .sync, message: "Auto sync skipped", details: "reason=\(reason) recentlySynced=true")
+            return
+        }
+
+        if lastSyncedDataVersion == dataVersion, !isLifecycleSyncReason(reason) {
             return
         }
 
@@ -53,6 +60,7 @@ final class AutoSyncCoordinator {
 
     func recordManualSyncApplied() {
         lastSyncedDataVersion = currentDataVersion()
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastLifecycleSyncKey)
         isBlockedUntilLocalChange = false
     }
 
@@ -84,6 +92,7 @@ final class AutoSyncCoordinator {
                 try await syncRepository.syncNow()
                 onSyncStatusChanged()
                 lastSyncedDataVersion = request.dataVersion
+                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastLifecycleSyncKey)
                 logger.log(
                     category: .sync,
                     message: "Auto sync completed",
@@ -105,5 +114,19 @@ final class AutoSyncCoordinator {
     private var isBlockedUntilLocalChange: Bool {
         get { UserDefaults.standard.bool(forKey: blockedKey) }
         set { UserDefaults.standard.set(newValue, forKey: blockedKey) }
+    }
+
+    private func isLifecycleSyncReason(_ reason: String) -> Bool {
+        reason == "scene-active" || reason == "app-load"
+    }
+
+    private func shouldThrottleLifecycleSync(now: Date) -> Bool {
+        guard let lastSyncAt = syncRepository.status.lastSyncAt else { return false }
+        let lastSyncDate = Date(timeIntervalSince1970: TimeInterval(lastSyncAt) / 1000)
+        guard now.timeIntervalSince(lastSyncDate) < lifecycleSyncMinimumInterval else { return false }
+
+        let lastLifecycleSyncAt = UserDefaults.standard.double(forKey: lastLifecycleSyncKey)
+        guard lastLifecycleSyncAt > 0 else { return false }
+        return now.timeIntervalSince1970 - lastLifecycleSyncAt < lifecycleSyncMinimumInterval
     }
 }
