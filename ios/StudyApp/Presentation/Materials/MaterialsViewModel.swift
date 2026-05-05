@@ -189,6 +189,20 @@ final class MaterialsViewModel: ScreenViewModel {
             self.app.bumpDataVersion()
         }
     }
+
+    func moveMaterials(from source: IndexSet, to destination: Int) {
+        perform {
+            var materials = try await self.app.persistence.getAllMaterials()
+            materials.move(fromOffsets: source, toOffset: destination)
+            for (index, material) in materials.enumerated() {
+                var updated = material
+                updated.sortOrder = Int64(index)
+                try await self.app.persistence.updateMaterial(updated)
+            }
+            await self.load()
+            self.app.bumpDataVersion()
+        }
+    }
 }
 
 struct MaterialListProgressSummary: Hashable {

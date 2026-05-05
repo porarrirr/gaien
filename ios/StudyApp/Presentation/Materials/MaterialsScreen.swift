@@ -47,44 +47,53 @@ struct MaterialsScreen: View {
                     onAction: viewModel.subjects.isEmpty ? nil : nil
                 )
             } else {
-                ScrollView {
-                    LazyVStack(spacing: AppSpacing.sm) {
-                        ForEach(viewModel.materials) { material in
-                            let subject = viewModel.subjects.first(where: { $0.id == material.subjectId })
-                            let subjectName = subject?.name ?? ""
-                            let subjectColor = subject?.color ?? 0x4CAF50
-                            MaterialCardNew(
-                                material: material,
-                                subjectName: subjectName,
-                                subjectColor: subjectColor,
-                                progressSummary: viewModel.progressSummaries[material.id],
-                                canMoveUp: viewModel.materials.first?.id != material.id,
-                                canMoveDown: viewModel.materials.last?.id != material.id,
-                                onOpenHistory: {
-                                    historyMaterial = material
-                                },
-                                onMoveUp: {
-                                    viewModel.moveMaterial(material.id, direction: -1)
-                                },
-                                onMoveDown: {
-                                    viewModel.moveMaterial(material.id, direction: 1)
-                                },
-                                onEdit: {
-                                    editingMaterial = material
-                                    materialDraft = MaterialDraft(material: material)
-                                },
-                                onDelete: {
-                                    viewModel.deleteMaterial(material)
-                                },
-                                onUpdateProgress: {
-                                    progressMaterial = material
-                                }
+                List {
+                    ForEach(viewModel.materials) { material in
+                        let subject = viewModel.subjects.first(where: { $0.id == material.subjectId })
+                        let subjectName = subject?.name ?? ""
+                        let subjectColor = subject?.color ?? 0x4CAF50
+                        MaterialCardNew(
+                            material: material,
+                            subjectName: subjectName,
+                            subjectColor: subjectColor,
+                            progressSummary: viewModel.progressSummaries[material.id],
+                            canMoveUp: viewModel.materials.first?.id != material.id,
+                            canMoveDown: viewModel.materials.last?.id != material.id,
+                            onOpenHistory: {
+                                historyMaterial = material
+                            },
+                            onMoveUp: {
+                                viewModel.moveMaterial(material.id, direction: -1)
+                            },
+                            onMoveDown: {
+                                viewModel.moveMaterial(material.id, direction: 1)
+                            },
+                            onEdit: {
+                                editingMaterial = material
+                                materialDraft = MaterialDraft(material: material)
+                            },
+                            onDelete: {
+                                viewModel.deleteMaterial(material)
+                            },
+                            onUpdateProgress: {
+                                progressMaterial = material
+                            }
+                        )
+                        .listRowInsets(
+                            EdgeInsets(
+                                top: AppSpacing.xs,
+                                leading: AppSpacing.md,
+                                bottom: AppSpacing.xs,
+                                trailing: AppSpacing.md
                             )
-                            .padding(.horizontal, AppSpacing.md)
-                        }
+                        )
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(AppColors.subtleBackground)
                     }
-                    .padding(.vertical, AppSpacing.md)
+                    .onMove(perform: viewModel.moveMaterials)
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .background(AppColors.subtleBackground)
@@ -95,6 +104,10 @@ struct MaterialsScreen: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                EditButton()
+            }
+
             ToolbarItemGroup(placement: .topBarTrailing) {
                 NavigationLink {
                     SubjectsScreen(app: viewModel.app)
