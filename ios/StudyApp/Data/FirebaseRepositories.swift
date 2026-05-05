@@ -834,15 +834,37 @@ private struct SyncDataSummary {
     let problemReviewRecords: Int
     let activeProblemReviewRecords: Int
 
+    init(
+        subjects: Int,
+        materials: Int,
+        sessions: Int,
+        sessionProblemRecords: Int,
+        materialProblemRecords: Int,
+        materialsWithProblemTotals: Int,
+        problemReviewRecords: Int,
+        activeProblemReviewRecords: Int
+    ) {
+        self.subjects = subjects
+        self.materials = materials
+        self.sessions = sessions
+        self.sessionProblemRecords = sessionProblemRecords
+        self.materialProblemRecords = materialProblemRecords
+        self.materialsWithProblemTotals = materialsWithProblemTotals
+        self.problemReviewRecords = problemReviewRecords
+        self.activeProblemReviewRecords = activeProblemReviewRecords
+    }
+
     init(appData: AppData) {
-        subjects = appData.subjects.count
-        materials = appData.materials.count
-        sessions = appData.sessions.count
-        sessionProblemRecords = appData.sessions.reduce(0) { $0 + $1.problemRecords.count }
-        materialProblemRecords = appData.materials.reduce(0) { $0 + $1.problemRecords.count }
-        materialsWithProblemTotals = appData.materials.filter { $0.effectiveTotalProblems > 0 }.count
-        problemReviewRecords = appData.problemReviewRecords.count
-        activeProblemReviewRecords = appData.problemReviewRecords.filter { $0.deletedAt == nil }.count
+        self.init(
+            subjects: appData.subjects.count,
+            materials: appData.materials.count,
+            sessions: appData.sessions.count,
+            sessionProblemRecords: appData.sessions.reduce(0) { $0 + $1.problemRecords.count },
+            materialProblemRecords: appData.materials.reduce(0) { $0 + $1.problemRecords.count },
+            materialsWithProblemTotals: appData.materials.filter { $0.effectiveTotalProblems > 0 }.count,
+            problemReviewRecords: appData.problemReviewRecords.count,
+            activeProblemReviewRecords: appData.problemReviewRecords.filter { $0.deletedAt == nil }.count
+        )
     }
 
     init(payload: String) {
@@ -850,14 +872,16 @@ private struct SyncDataSummary {
            let appData = try? JSONDecoder().decode(AppData.self, from: data) {
             self.init(appData: appData)
         } else {
-            subjects = 0
-            materials = 0
-            sessions = 0
-            sessionProblemRecords = 0
-            materialProblemRecords = 0
-            materialsWithProblemTotals = 0
-            problemReviewRecords = 0
-            activeProblemReviewRecords = 0
+            self.init(
+                subjects: 0,
+                materials: 0,
+                sessions: 0,
+                sessionProblemRecords: 0,
+                materialProblemRecords: 0,
+                materialsWithProblemTotals: 0,
+                problemReviewRecords: 0,
+                activeProblemReviewRecords: 0
+            )
         }
     }
 
