@@ -281,7 +281,9 @@ class SettingsViewModel @Inject constructor(
                         }
 
                         val fileName = "studyapp_backup_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.${format}"
-                        val file = File(context.cacheDir, fileName)
+                        val exportDir = File(context.cacheDir, "exports")
+                        exportDir.mkdirs()
+                        val file = File(exportDir, fileName)
                         FileOutputStream(file).use { it.write(content.toByteArray()) }
 
                         val uri = FileProvider.getUriForFile(

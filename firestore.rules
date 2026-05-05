@@ -2,26 +2,118 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isIntInRange(value, min, max) {
+      return value is int && value >= min && value <= max;
+    }
+
     function isSignedInOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    function validCounts(counts) {
+      return counts is map &&
+        counts.keys().hasOnly([
+          "subjects",
+          "materials",
+          "sessions",
+          "sessionProblemRecords",
+          "materialProblemRecords",
+          "materialsWithProblemTotals",
+          "problemReviewRecords",
+          "activeProblemReviewRecords"
+        ]) &&
+        isIntInRange(counts.subjects, 0, 20000) &&
+        isIntInRange(counts.materials, 0, 20000) &&
+        isIntInRange(counts.sessions, 0, 100000) &&
+        isIntInRange(counts.sessionProblemRecords, 0, 500000) &&
+        isIntInRange(counts.materialProblemRecords, 0, 500000) &&
+        isIntInRange(counts.materialsWithProblemTotals, 0, 20000) &&
+        isIntInRange(counts.problemReviewRecords, 0, 500000) &&
+        isIntInRange(counts.activeProblemReviewRecords, 0, 500000);
+    }
+
+    function validManifestFields(data) {
+      return data.format == "chunked-v2" &&
+        isIntInRange(data.schemaVersion, 1, 20) &&
+        data.supportsProblemRecords is bool &&
+        isIntInRange(data.version, 1, 1000000000) &&
+        isIntInRange(data.updatedAt, 0, 4102444800000) &&
+        isIntInRange(data.chunkCount, 1, 50) &&
+        isIntInRange(data.payloadBytes, 1, 10000000) &&
+        isIntInRange(data.retentionDays, 1, 30) &&
+        validCounts(data.counts);
+    }
+
+    function validManifest(data) {
+      return data.keys().hasOnly([
+          "format",
+          "schemaVersion",
+          "supportsProblemRecords",
+          "version",
+          "updatedAt",
+          "chunkCount",
+          "payloadBytes",
+          "retentionDays",
+          "counts"
+        ]) &&
+        validManifestFields(data);
+    }
+
+    function validSnapshot(data, snapshotId) {
+      return data.keys().hasOnly([
+          "format",
+          "schemaVersion",
+          "supportsProblemRecords",
+          "version",
+          "updatedAt",
+          "chunkCount",
+          "payloadBytes",
+          "retentionDays",
+          "counts",
+          "snapshotId",
+          "createdAt"
+        ]) &&
+        data.snapshotId == snapshotId &&
+        isIntInRange(data.createdAt, 0, 4102444800000) &&
+        validManifestFields(data);
+    }
+
+    function validChunk(data, chunkId) {
+      return chunkId.matches("[0-9]{6}") &&
+        data.keys().hasOnly(["version", "index", "payloadPart"]) &&
+        isIntInRange(data.version, 1, 1000000000) &&
+        isIntInRange(data.index, 0, 49) &&
+        data.payloadPart is string &&
+        data.payloadPart.size() <= 200000;
+    }
+
     match /users/{userId} {
-      allow read, write: if isSignedInOwner(userId);
+      allow read: if isSignedInOwner(userId);
+      allow write: if false;
 
       match /sync/{docId} {
-        allow read, write: if isSignedInOwner(userId);
+        allow read, delete: if isSignedInOwner(userId);
+        allow create, update: if isSignedInOwner(userId) &&
+          docId == "default" &&
+          validManifest(request.resource.data);
 
         match /chunks/{chunkId} {
-          allow read, write: if isSignedInOwner(userId);
+          allow read, delete: if isSignedInOwner(userId);
+          allow create, update: if isSignedInOwner(userId) &&
+            validChunk(request.resource.data, chunkId);
         }
       }
 
       match /sync_snapshots/{snapshotId} {
-        allow read, write: if isSignedInOwner(userId);
+        allow read, delete: if isSignedInOwner(userId);
+        allow create, update: if isSignedInOwner(userId) &&
+          snapshotId.matches("[0-9]{20}") &&
+          validSnapshot(request.resource.data, snapshotId);
 
         match /chunks/{chunkId} {
-          allow read, write: if isSignedInOwner(userId);
+          allow read, delete: if isSignedInOwner(userId);
+          allow create, update: if isSignedInOwner(userId) &&
+            validChunk(request.resource.data, chunkId);
         }
       }
     }

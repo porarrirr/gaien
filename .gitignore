@@ -16,6 +16,9 @@ ios/StudyApp/Resources/GoogleService-Info.plist
 
 # Local release artifacts
 tmp-release-*/
+*.ipa
+*.apk
+*.aab
 
 # Gradle user home used by local builds
 .gradle-user/

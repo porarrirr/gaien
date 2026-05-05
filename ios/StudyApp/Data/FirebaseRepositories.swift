@@ -452,7 +452,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(appData)
-        try data.write(to: url, options: .atomic)
+        try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try protectLocalBackupItem(at: url)
         try pruneLocalBackups(in: backupRoot, now: timestamp)
         logger.log(
             category: .sync,
@@ -466,7 +467,19 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             ?? FileManager.default.temporaryDirectory
         let directory = base.appendingPathComponent("StudyApp/SyncBackups", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try protectLocalBackupItem(at: directory)
         return directory
+    }
+
+    private func protectLocalBackupItem(at url: URL) throws {
+        var mutableURL = url
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        try mutableURL.setResourceValues(resourceValues)
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            ofItemAtPath: url.path
+        )
     }
 
     private func pruneLocalBackups(in directory: URL, now: Int64) throws {

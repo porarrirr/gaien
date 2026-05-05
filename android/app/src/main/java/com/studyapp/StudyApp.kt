@@ -8,6 +8,8 @@ import android.os.Build
 import android.os.StrictMode
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.studyapp.services.ReminderWorker
 import com.studyapp.sync.AutoSyncManager
 import com.studyapp.widgets.StudyWidgetRefreshManager
@@ -33,10 +35,17 @@ class StudyApp : Application(), Configuration.Provider {
     
     override fun onCreate() {
         super.onCreate()
+        configureFirebaseAppCheck()
         createNotificationChannels()
         setupStrictMode()
         autoSyncManager.start()
         studyWidgetRefreshManager.start()
+    }
+
+    private fun configureFirebaseAppCheck() {
+        FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
+            PlayIntegrityAppCheckProviderFactory.getInstance()
+        )
     }
     
     private fun createNotificationChannels() {
