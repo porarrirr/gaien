@@ -944,7 +944,7 @@ private struct MaterialProblemProgressSnapshot {
             return
         }
 
-        let entriesByNumber = sessions.reduce(into: [Int: [ProblemHistoryEntry]]()) { result, session in
+        var entriesByNumber = sessions.reduce(into: [Int: [ProblemHistoryEntry]]()) { result, session in
             for record in session.problemRecords {
                 guard (1...totalProblems).contains(record.number) else { continue }
                 result[record.number, default: []].append(
