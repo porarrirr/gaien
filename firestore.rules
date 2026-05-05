@@ -16,6 +16,14 @@ service cloud.firestore {
           allow read, write: if isSignedInOwner(userId);
         }
       }
+
+      match /sync_snapshots/{snapshotId} {
+        allow read, write: if isSignedInOwner(userId);
+
+        match /chunks/{chunkId} {
+          allow read, write: if isSignedInOwner(userId);
+        }
+      }
     }
   }
 }

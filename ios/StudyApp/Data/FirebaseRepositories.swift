@@ -151,8 +151,11 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
     private static let maxChunkBytes = 200_000
     private static let maxSyncRetries = 3
+    private static let syncSchemaVersion = AppData.currentSchemaVersion
+    private static let backupRetentionDays = 30
     private static let alreadySyncingMessage = "同期はすでに実行中です。完了までお待ちください。"
     private static let accountSwitchMessage = "この端末のローカルデータは別の同期アカウントに紐づいています。全データを削除してから再度同期してください。"
+    private static let destructiveSyncMessage = "同期により問題集の進捗履歴が大きく減少するため停止しました。自動バックアップを確認してください。"
 
     @Published private(set) var status = SyncStatus()
 
@@ -232,6 +235,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             for attempt in 0..<Self.maxSyncRetries {
                 logger.log(category: .sync, message: "syncNow attempt started", details: "attempt=\(attempt + 1)")
                 let local = try await persistence.exportData()
+                try saveLocalBackup(local, reason: "before-syncNow")
                 try ensureLocalSyncOwnership(session: session, local: local)
                 let remotePayload = try await loadSnapshot(userId: session.localId)
                 let localChangeToken = persistence.changeToken
@@ -244,6 +248,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     )
                     do {
                         let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
+                        try ensureRemoteCanMerge(remote)
                         logger.log(
                             category: .sync,
                             message: "Remote snapshot decoded",
@@ -259,6 +264,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     merged = local
                 }
                 let synced = markSynced(merged, at: Date().epochMilliseconds)
+                try ensureNoProblemProgressLoss(from: local, to: synced, operation: "syncNow")
                 let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
                 logger.log(
                     category: .sync,
@@ -318,9 +324,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         }
         do {
             for attempt in 0..<Self.maxSyncRetries {
-                _ = try await loadSnapshot(userId: session.localId)
                 let localData = try await persistence.exportData()
+                try saveLocalBackup(localData, reason: "before-importLocalDataToCloud")
                 try ensureLocalSyncOwnership(session: session, local: localData)
+                if let remotePayload = try await loadSnapshot(userId: session.localId) {
+                    let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
+                    try ensureRemoteCanMerge(remote)
+                    try ensureNoProblemProgressLoss(from: remote, to: localData, operation: "importLocalDataToCloud")
+                }
                 let local = markSynced(localData, at: Date().epochMilliseconds)
                 let localChangeToken = persistence.changeToken
                 let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
@@ -392,6 +403,81 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         throw ValidationError(message: Self.accountSwitchMessage)
     }
 
+    private func ensureRemoteCanMerge(_ remote: AppData) throws {
+        if remote.schemaVersion < Self.syncSchemaVersion && !remote.supportsProblemRecords {
+            logger.log(
+                category: .sync,
+                level: .warning,
+                message: "Remote snapshot uses legacy problem-progress schema",
+                details: "schemaVersion=\(remote.schemaVersion) supportsProblemRecords=\(remote.supportsProblemRecords)"
+            )
+        }
+    }
+
+    private func ensureNoProblemProgressLoss(from source: AppData, to destination: AppData, operation: String) throws {
+        let sourceSummary = SyncDataSummary(appData: source)
+        let destinationSummary = SyncDataSummary(appData: destination)
+        guard sourceSummary.hasProblemProgress else { return }
+
+        let lostSessionRecords = destinationSummary.sessionProblemRecords < sourceSummary.sessionProblemRecords
+        let lostMaterialRecords = destinationSummary.materialProblemRecords < sourceSummary.materialProblemRecords
+        let lostReviewRecords = destinationSummary.activeProblemReviewRecords < sourceSummary.activeProblemReviewRecords
+        let lostProblemTotal = destinationSummary.materialsWithProblemTotals < sourceSummary.materialsWithProblemTotals
+
+        guard lostSessionRecords || lostMaterialRecords || lostReviewRecords || lostProblemTotal else { return }
+        logger.log(
+            category: .sync,
+            level: .error,
+            message: "Sync blocked to protect problem progress",
+            details: "operation=\(operation) before=\(sourceSummary.logDescription) after=\(destinationSummary.logDescription)"
+        )
+        throw ValidationError(message: Self.destructiveSyncMessage)
+    }
+
+    private func saveLocalBackup(_ appData: AppData, reason: String) throws {
+        let backupRoot = try localBackupDirectory()
+        let timestamp = Date().epochMilliseconds
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let fileName = "sync-\(reason)-\(formatter.string(from: Date(epochMilliseconds: timestamp))).json"
+        let url = backupRoot.appendingPathComponent(fileName)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(appData)
+        try data.write(to: url, options: .atomic)
+        try pruneLocalBackups(in: backupRoot, now: timestamp)
+        logger.log(
+            category: .sync,
+            message: "Local sync backup saved",
+            details: "file=\(fileName) bytes=\(data.count) \(SyncDataSummary(appData: appData).logDescription)"
+        )
+    }
+
+    private func localBackupDirectory() throws -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let directory = base.appendingPathComponent("StudyApp/SyncBackups", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    private func pruneLocalBackups(in directory: URL, now: Int64) throws {
+        let cutoff = now - Int64(Self.backupRetentionDays) * 24 * 60 * 60 * 1000
+        let files = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        )
+        for file in files where file.pathExtension == "json" {
+            let values = try file.resourceValues(forKeys: [.contentModificationDateKey])
+            guard let modified = values.contentModificationDate else { continue }
+            if modified.epochMilliseconds < cutoff {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
+    }
+
     // MARK: - Chunked snapshot I/O (backward-compatible with legacy payload format)
 
     private func loadSnapshot(userId: String) async throws -> String? {
@@ -449,6 +535,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             .collection("sync").document("default")
         let chunks = Self.splitPayloadIntoChunks(payload)
         let newChunkCount = chunks.count
+        let payloadSummary = SyncDataSummary(payload: payload)
+        let payloadBytes = payload.lengthOfBytes(using: .utf8)
 
         let result = try await db.runTransaction { transaction, errorPointer -> Any? in
             let manifestSnap: DocumentSnapshot
@@ -471,13 +559,30 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             }
 
             let newVersion = currentVersion + 1
-
-            transaction.setData([
+            let snapshotId = Self.snapshotId(for: newVersion)
+            let snapshotRef = db.collection("users").document(userId)
+                .collection("sync_snapshots").document(snapshotId)
+            let snapshotChunksCol = snapshotRef.collection("chunks")
+            let manifestData: [String: Any] = [
                 "format": "chunked-v2",
+                "schemaVersion": Self.syncSchemaVersion,
+                "supportsProblemRecords": true,
                 "version": newVersion,
                 "updatedAt": updatedAt,
-                "chunkCount": newChunkCount
-            ], forDocument: manifestRef)
+                "chunkCount": newChunkCount,
+                "payloadBytes": payloadBytes,
+                "retentionDays": Self.backupRetentionDays,
+                "counts": payloadSummary.firestoreData
+            ]
+
+            transaction.setData(manifestData, forDocument: manifestRef)
+            transaction.setData(
+                manifestData.merging([
+                    "snapshotId": snapshotId,
+                    "createdAt": updatedAt
+                ]) { current, _ in current },
+                forDocument: snapshotRef
+            )
 
             let chunksCol = manifestRef.collection("chunks")
             for (i, part) in chunks.enumerated() {
@@ -487,6 +592,13 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     "index": i,
                     "payloadPart": part
                 ], forDocument: chunkRef)
+
+                let snapshotChunkRef = snapshotChunksCol.document(String(format: "%06d", i))
+                transaction.setData([
+                    "version": newVersion,
+                    "index": i,
+                    "payloadPart": part
+                ], forDocument: snapshotChunkRef)
             }
 
             // Remove stale chunks if count shrank
@@ -499,8 +611,36 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         }
         if let version = result as? NSNumber {
             lastLoadedVersion = version.int64Value
+            try await pruneRemoteSnapshots(userId: userId, now: updatedAt)
             logger.log(category: .sync, message: "Saved sync manifest", details: "uid=\(userId) version=\(lastLoadedVersion) chunkCount=\(newChunkCount) payloadBytes=\(payload.lengthOfBytes(using: .utf8)) updatedAt=\(updatedAt)")
         }
+    }
+
+    private func pruneRemoteSnapshots(userId: String, now: Int64) async throws {
+        let cutoff = now - Int64(Self.backupRetentionDays) * 24 * 60 * 60 * 1000
+        let snapshots = try await firestore.collection("users").document(userId)
+            .collection("sync_snapshots")
+            .whereField("createdAt", isLessThan: cutoff)
+            .getDocuments()
+        guard !snapshots.documents.isEmpty else { return }
+
+        for snapshot in snapshots.documents {
+            let chunks = try await snapshot.reference.collection("chunks").getDocuments()
+            var batch = firestore.batch()
+            var writeCount = 0
+            for chunk in chunks.documents {
+                batch.deleteDocument(chunk.reference)
+                writeCount += 1
+                if writeCount >= 450 {
+                    try await batch.commit()
+                    batch = firestore.batch()
+                    writeCount = 0
+                }
+            }
+            batch.deleteDocument(snapshot.reference)
+            try await batch.commit()
+        }
+        logger.log(category: .sync, message: "Pruned remote sync snapshots", details: "count=\(snapshots.documents.count) cutoff=\(cutoff)")
     }
 
     private func readInteger(_ value: Any?) -> Int64? {
@@ -536,6 +676,10 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             start = end
         }
         return chunks
+    }
+
+    private static func snapshotId(for version: Int64) -> String {
+        String(format: "%020lld", version)
     }
 
     // MARK: - Merge helpers
@@ -677,6 +821,68 @@ private extension AppData {
         timetableTerms.isEmpty &&
         timetableReviewRecords.isEmpty &&
         problemReviewRecords.isEmpty
+    }
+}
+
+private struct SyncDataSummary {
+    let subjects: Int
+    let materials: Int
+    let sessions: Int
+    let sessionProblemRecords: Int
+    let materialProblemRecords: Int
+    let materialsWithProblemTotals: Int
+    let problemReviewRecords: Int
+    let activeProblemReviewRecords: Int
+
+    init(appData: AppData) {
+        subjects = appData.subjects.count
+        materials = appData.materials.count
+        sessions = appData.sessions.count
+        sessionProblemRecords = appData.sessions.reduce(0) { $0 + $1.problemRecords.count }
+        materialProblemRecords = appData.materials.reduce(0) { $0 + $1.problemRecords.count }
+        materialsWithProblemTotals = appData.materials.filter { $0.effectiveTotalProblems > 0 }.count
+        problemReviewRecords = appData.problemReviewRecords.count
+        activeProblemReviewRecords = appData.problemReviewRecords.filter { $0.deletedAt == nil }.count
+    }
+
+    init(payload: String) {
+        if let data = payload.data(using: .utf8),
+           let appData = try? JSONDecoder().decode(AppData.self, from: data) {
+            self.init(appData: appData)
+        } else {
+            subjects = 0
+            materials = 0
+            sessions = 0
+            sessionProblemRecords = 0
+            materialProblemRecords = 0
+            materialsWithProblemTotals = 0
+            problemReviewRecords = 0
+            activeProblemReviewRecords = 0
+        }
+    }
+
+    var hasProblemProgress: Bool {
+        sessionProblemRecords > 0 ||
+        materialProblemRecords > 0 ||
+        activeProblemReviewRecords > 0 ||
+        materialsWithProblemTotals > 0
+    }
+
+    var firestoreData: [String: Any] {
+        [
+            "subjects": subjects,
+            "materials": materials,
+            "sessions": sessions,
+            "sessionProblemRecords": sessionProblemRecords,
+            "materialProblemRecords": materialProblemRecords,
+            "materialsWithProblemTotals": materialsWithProblemTotals,
+            "problemReviewRecords": problemReviewRecords,
+            "activeProblemReviewRecords": activeProblemReviewRecords
+        ]
+    }
+
+    var logDescription: String {
+        "subjects=\(subjects) materials=\(materials) sessions=\(sessions) sessionProblemRecords=\(sessionProblemRecords) materialProblemRecords=\(materialProblemRecords) problemReviewRecords=\(problemReviewRecords) activeProblemReviewRecords=\(activeProblemReviewRecords) materialsWithProblemTotals=\(materialsWithProblemTotals)"
     }
 }
 

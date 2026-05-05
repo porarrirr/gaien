@@ -50,6 +50,8 @@ import com.studyapp.sync.AppDataWriteLock
 import javax.inject.Inject
 
 data class AppData(
+    val schemaVersion: Int = CURRENT_SCHEMA_VERSION,
+    val supportsProblemRecords: Boolean = true,
     val subjects: List<Subject>,
     val materials: List<Material>,
     val sessions: List<StudySession>,
@@ -65,6 +67,8 @@ data class AppData(
 ) {
     fun toJson(): JSONObject {
         return JSONObject().apply {
+            put("schemaVersion", schemaVersion)
+            put("supportsProblemRecords", supportsProblemRecords)
             put("subjects", JSONArray(subjects.map { it.toJson() }))
             put("materials", JSONArray(materials.map { it.toJson() }))
             put("sessions", JSONArray(sessions.map { it.toJson() }))
@@ -83,6 +87,8 @@ data class AppData(
     companion object {
         fun fromJson(json: JSONObject): AppData {
             return AppData(
+                schemaVersion = json.optInt("schemaVersion", 1),
+                supportsProblemRecords = json.optBoolean("supportsProblemRecords", false),
                 subjects = json.optJSONArray("subjects")?.let { arr ->
                     (0 until arr.length()).mapNotNull { arr.getJSONObject(it).toSubject() }
                 } ?: emptyList(),
@@ -119,6 +125,8 @@ data class AppData(
                 exportDate = json.optLong("exportDate", System.currentTimeMillis())
             )
         }
+
+        const val CURRENT_SCHEMA_VERSION = 2
     }
 }
 

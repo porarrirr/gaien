@@ -18,7 +18,6 @@ import com.studyapp.domain.usecase.PlanData
 import com.studyapp.domain.util.Result
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Transaction
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,13 +52,18 @@ class FirebaseSyncRepository @Inject constructor(
                 var lastConflict: Throwable? = null
                 repeat(MAX_SYNC_ATTEMPTS) { attempt ->
                     val local = exportLocalData()
+                    val localBackupTime = System.currentTimeMillis()
+                    syncPreferences.saveLocalBackup(local.toJson().toString(), localBackupTime, "before-syncNow")
                     ensureLocalSyncOwnership(session, local)
                     val remoteSnapshot = loadSnapshot(session.localId)
                     val merged = remoteSnapshot.payload?.let { remotePayload ->
-                        merge(local, AppData.fromJson(JSONObject(remotePayload)))
+                        val remote = AppData.fromJson(JSONObject(remotePayload))
+                        merge(local, remote)
                     } ?: local
                     val now = System.currentTimeMillis()
-                    val payload = markSynced(merged, now).toJson().toString()
+                    val synced = markSynced(merged, now)
+                    ensureNoProblemProgressLoss(local, synced, "syncNow")
+                    val payload = synced.toJson().toString()
 
                     try {
                         saveSnapshot(
@@ -100,8 +104,14 @@ class FirebaseSyncRepository @Inject constructor(
             setSyncing(true)
             writeLock.withLock {
                 val local = exportLocalData()
+                val localBackupTime = System.currentTimeMillis()
+                syncPreferences.saveLocalBackup(local.toJson().toString(), localBackupTime, "before-importLocalDataToCloud")
                 ensureLocalSyncOwnership(session, local)
                 val remoteSnapshot = loadSnapshot(session.localId)
+                remoteSnapshot.payload?.let { remotePayload ->
+                    val remote = AppData.fromJson(JSONObject(remotePayload))
+                    ensureNoProblemProgressLoss(remote, local, "importLocalDataToCloud")
+                }
                 val now = System.currentTimeMillis()
                 val payload = markSynced(local, now).toJson().toString()
                 saveSnapshot(
@@ -177,8 +187,10 @@ class FirebaseSyncRepository @Inject constructor(
     ): Long {
         val manifestRef = manifestDocument(userId)
         val chunks = splitPayloadIntoChunks(payload)
+        val summary = SyncDataSummary.fromPayload(payload)
+        val payloadBytes = payload.toByteArray(Charsets.UTF_8).size
 
-        return firebaseFirestore.runTransaction { transaction ->
+        val savedVersion = firebaseFirestore.runTransaction { transaction ->
             val manifestSnapshot = transaction.get(manifestRef)
             val currentVersion = manifestSnapshot.getLong("version") ?: 0L
             val currentChunkCount = (manifestSnapshot.getLong("chunkCount") ?: 0L).toInt()
@@ -187,9 +199,29 @@ class FirebaseSyncRepository @Inject constructor(
             }
 
             val nextVersion = currentVersion + 1
+            val snapshotRef = syncSnapshotDocument(userId, nextVersion)
+            val manifestData = mapOf(
+                "format" to SNAPSHOT_FORMAT,
+                "schemaVersion" to AppData.CURRENT_SCHEMA_VERSION,
+                "supportsProblemRecords" to true,
+                "version" to nextVersion,
+                "updatedAt" to updatedAt,
+                "chunkCount" to chunks.size,
+                "payloadBytes" to payloadBytes,
+                "retentionDays" to BACKUP_RETENTION_DAYS,
+                "counts" to summary.toFirestoreMap()
+            )
             chunks.forEachIndexed { index, chunk ->
                 transaction.set(
                     chunkDocument(userId, index),
+                    mapOf(
+                        "version" to nextVersion,
+                        "index" to index,
+                        "payloadPart" to chunk
+                    )
+                )
+                transaction.set(
+                    syncSnapshotChunkDocument(userId, nextVersion, index),
                     mapOf(
                         "version" to nextVersion,
                         "index" to index,
@@ -200,17 +232,12 @@ class FirebaseSyncRepository @Inject constructor(
             for (index in chunks.size until currentChunkCount) {
                 transaction.delete(chunkDocument(userId, index))
             }
-            transaction.set(
-                manifestRef,
-                mapOf(
-                    "format" to SNAPSHOT_FORMAT,
-                    "version" to nextVersion,
-                    "updatedAt" to updatedAt,
-                    "chunkCount" to chunks.size
-                )
-            )
+            transaction.set(manifestRef, manifestData)
+            transaction.set(snapshotRef, manifestData + mapOf("snapshotId" to snapshotId(nextVersion), "createdAt" to updatedAt))
             nextVersion
         }.await()
+        pruneRemoteSnapshots(userId, updatedAt)
+        return savedVersion
     }
 
     private fun merge(local: AppData, remote: AppData): AppData {
@@ -315,6 +342,8 @@ class FirebaseSyncRepository @Inject constructor(
 
     private fun markSynced(appData: AppData, syncedAt: Long): AppData {
         return appData.copy(
+            schemaVersion = AppData.CURRENT_SCHEMA_VERSION,
+            supportsProblemRecords = true,
             subjects = appData.subjects.map { it.copy(lastSyncedAt = syncedAt) },
             materials = appData.materials.map { it.copy(lastSyncedAt = syncedAt) },
             sessions = appData.sessions.map { it.copy(lastSyncedAt = syncedAt) },
@@ -333,6 +362,23 @@ class FirebaseSyncRepository @Inject constructor(
             problemReviewRecords = appData.problemReviewRecords.map { it.copy(lastSyncedAt = syncedAt) },
             exportDate = syncedAt
         )
+    }
+
+    private fun ensureNoProblemProgressLoss(source: AppData, destination: AppData, operation: String) {
+        val before = SyncDataSummary(source)
+        val after = SyncDataSummary(destination)
+        if (!before.hasProblemProgress) return
+
+        val losesProblemProgress = after.sessionProblemRecords < before.sessionProblemRecords ||
+            after.materialProblemRecords < before.materialProblemRecords ||
+            after.activeProblemReviewRecords < before.activeProblemReviewRecords ||
+            after.materialsWithProblemTotals < before.materialsWithProblemTotals
+
+        if (losesProblemProgress) {
+            throw IllegalStateException(
+                "$DESTRUCTIVE_SYNC_MESSAGE operation=$operation before=${before.logDescription()} after=${after.logDescription()}"
+            )
+        }
     }
 
     private fun ensureLocalSyncOwnership(session: AuthSession, localData: AppData) {
@@ -370,6 +416,47 @@ class FirebaseSyncRepository @Inject constructor(
         .document(chunkId(index))
 
     private fun chunkId(index: Int): String = index.toString().padStart(6, '0')
+
+    private fun syncSnapshotDocument(userId: String, version: Long) = firebaseFirestore
+        .collection("users")
+        .document(userId)
+        .collection("sync_snapshots")
+        .document(snapshotId(version))
+
+    private fun syncSnapshotChunkDocument(userId: String, version: Long, index: Int) =
+        syncSnapshotDocument(userId, version)
+            .collection("chunks")
+            .document(chunkId(index))
+
+    private fun snapshotId(version: Long): String = version.toString().padStart(20, '0')
+
+    private suspend fun pruneRemoteSnapshots(userId: String, now: Long) {
+        val cutoff = now - BACKUP_RETENTION_MILLIS
+        val snapshots = firebaseFirestore
+            .collection("users")
+            .document(userId)
+            .collection("sync_snapshots")
+            .whereLessThan("createdAt", cutoff)
+            .get()
+            .await()
+
+        snapshots.documents.forEach { snapshot ->
+            val chunks = snapshot.reference.collection("chunks").get().await()
+            var batch = firebaseFirestore.batch()
+            var writeCount = 0
+            chunks.documents.forEach { chunk ->
+                batch.delete(chunk.reference)
+                writeCount += 1
+                if (writeCount >= 450) {
+                    batch.commit().await()
+                    batch = firebaseFirestore.batch()
+                    writeCount = 0
+                }
+            }
+            batch.delete(snapshot.reference)
+            batch.commit().await()
+        }
+    }
 
     private fun isConcurrentSnapshotUpdate(throwable: Throwable): Boolean {
         return throwable is ConcurrentSnapshotUpdateException ||
@@ -444,6 +531,70 @@ class FirebaseSyncRepository @Inject constructor(
             problemReviewRecords.isEmpty()
     }
 
+    private data class SyncDataSummary(
+        val subjects: Int,
+        val materials: Int,
+        val sessions: Int,
+        val sessionProblemRecords: Int,
+        val materialProblemRecords: Int,
+        val materialsWithProblemTotals: Int,
+        val problemReviewRecords: Int,
+        val activeProblemReviewRecords: Int
+    ) {
+        constructor(appData: AppData) : this(
+            subjects = appData.subjects.size,
+            materials = appData.materials.size,
+            sessions = appData.sessions.size,
+            sessionProblemRecords = appData.sessions.sumOf { it.problemRecords.size },
+            materialProblemRecords = appData.materials.sumOf { it.problemRecords.size },
+            materialsWithProblemTotals = appData.materials.count { it.effectiveTotalProblems > 0 },
+            problemReviewRecords = appData.problemReviewRecords.size,
+            activeProblemReviewRecords = appData.problemReviewRecords.count { it.deletedAt == null }
+        )
+
+        val hasProblemProgress: Boolean
+            get() = sessionProblemRecords > 0 ||
+                materialProblemRecords > 0 ||
+                activeProblemReviewRecords > 0 ||
+                materialsWithProblemTotals > 0
+
+        fun toFirestoreMap(): Map<String, Any> = mapOf(
+            "subjects" to subjects,
+            "materials" to materials,
+            "sessions" to sessions,
+            "sessionProblemRecords" to sessionProblemRecords,
+            "materialProblemRecords" to materialProblemRecords,
+            "materialsWithProblemTotals" to materialsWithProblemTotals,
+            "problemReviewRecords" to problemReviewRecords,
+            "activeProblemReviewRecords" to activeProblemReviewRecords
+        )
+
+        fun logDescription(): String {
+            return "subjects=$subjects materials=$materials sessions=$sessions " +
+                "sessionProblemRecords=$sessionProblemRecords materialProblemRecords=$materialProblemRecords " +
+                "problemReviewRecords=$problemReviewRecords activeProblemReviewRecords=$activeProblemReviewRecords " +
+                "materialsWithProblemTotals=$materialsWithProblemTotals"
+        }
+
+        companion object {
+            fun fromPayload(payload: String): SyncDataSummary {
+                return runCatching { SyncDataSummary(AppData.fromJson(JSONObject(payload))) }
+                    .getOrElse {
+                        SyncDataSummary(
+                            subjects = 0,
+                            materials = 0,
+                            sessions = 0,
+                            sessionProblemRecords = 0,
+                            materialProblemRecords = 0,
+                            materialsWithProblemTotals = 0,
+                            problemReviewRecords = 0,
+                            activeProblemReviewRecords = 0
+                        )
+                    }
+            }
+        }
+    }
+
     private data class RemoteSnapshot(
         val payload: String? = null,
         val version: Long = 0L,
@@ -456,7 +607,11 @@ class FirebaseSyncRepository @Inject constructor(
         const val MAX_SYNC_ATTEMPTS = 3
         const val SNAPSHOT_FORMAT = "chunked-v2"
         const val SNAPSHOT_CHUNK_BYTES = 200_000
+        const val BACKUP_RETENTION_DAYS = 30
+        const val BACKUP_RETENTION_MILLIS = BACKUP_RETENTION_DAYS * 24L * 60L * 60L * 1000L
         const val ACCOUNT_SWITCH_MESSAGE =
             "この端末のローカルデータは別の同期アカウントに紐づいています。全データを削除してから再度同期してください。"
+        const val DESTRUCTIVE_SYNC_MESSAGE =
+            "同期により問題集の進捗履歴が大きく減少するため停止しました。自動バックアップを確認してください。"
     }
 }

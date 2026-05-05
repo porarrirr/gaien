@@ -55,6 +55,10 @@ struct PlanData: Codable, Hashable {
 }
 
 struct AppData: Codable, Hashable {
+    static let currentSchemaVersion = 2
+
+    var schemaVersion: Int
+    var supportsProblemRecords: Bool
     var subjects: [Subject]
     var materials: [Material]
     var sessions: [StudySession]
@@ -69,6 +73,8 @@ struct AppData: Codable, Hashable {
     var exportDate: Int64
 
     private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case supportsProblemRecords
         case subjects
         case materials
         case sessions
@@ -84,6 +90,8 @@ struct AppData: Codable, Hashable {
     }
 
     init(
+        schemaVersion: Int = AppData.currentSchemaVersion,
+        supportsProblemRecords: Bool = true,
         subjects: [Subject],
         materials: [Material],
         sessions: [StudySession],
@@ -97,6 +105,8 @@ struct AppData: Codable, Hashable {
         problemReviewRecords: [ProblemReviewRecord] = [],
         exportDate: Int64
     ) {
+        self.schemaVersion = schemaVersion
+        self.supportsProblemRecords = supportsProblemRecords
         self.subjects = subjects
         self.materials = materials
         self.sessions = sessions
@@ -113,6 +123,8 @@ struct AppData: Codable, Hashable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        supportsProblemRecords = try container.decodeIfPresent(Bool.self, forKey: .supportsProblemRecords) ?? false
         subjects = try container.decodeIfPresent([Subject].self, forKey: .subjects) ?? []
         materials = try container.decodeIfPresent([Material].self, forKey: .materials) ?? []
         sessions = try container.decodeIfPresent([StudySession].self, forKey: .sessions) ?? []
