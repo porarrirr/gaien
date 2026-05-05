@@ -2,6 +2,7 @@ package com.studyapp.presentation.calendar
 
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.repository.StudySessionRepository
+import com.studyapp.domain.repository.TimetableRepository
 import com.studyapp.domain.util.Result
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -28,11 +29,16 @@ class CalendarViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
     private lateinit var studySessionRepository: StudySessionRepository
+    private lateinit var timetableRepository: TimetableRepository
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         studySessionRepository = mockk()
+        timetableRepository = mockk()
+        every { timetableRepository.getAllPeriods() } returns flowOf(Result.Success(emptyList()))
+        every { timetableRepository.getAllEntries() } returns flowOf(Result.Success(emptyList()))
+        every { timetableRepository.getAllTerms() } returns flowOf(Result.Success(emptyList()))
     }
 
     @After
@@ -80,7 +86,7 @@ class CalendarViewModelTest {
         every { studySessionRepository.getSessionsByDate(dayStart) } returns
             flowOf(Result.Success(daySessions))
 
-        val viewModel = CalendarViewModel(studySessionRepository)
+        val viewModel = CalendarViewModel(studySessionRepository, timetableRepository)
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.selectDate(selectedDate)
@@ -97,7 +103,7 @@ class CalendarViewModelTest {
             flowOf(Result.Success(emptyList()))
         coEvery { studySessionRepository.updateSession(any()) } returns Result.Success(Unit)
 
-        val viewModel = CalendarViewModel(studySessionRepository)
+        val viewModel = CalendarViewModel(studySessionRepository, timetableRepository)
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.updateSessionNote(

@@ -263,7 +263,7 @@ final class TimerViewModel: ScreenViewModel {
                     }
                 }
             }
-            _ = try await self.app.persistence.insertSession(draft.session)
+            _ = try await self.app.persistence.insertSessionWithProblemReviews(draft.session)
             self.pendingSessionEvaluation = nil
             self.app.updateActiveTimer(nil)
             self.timerProblemRecords = []

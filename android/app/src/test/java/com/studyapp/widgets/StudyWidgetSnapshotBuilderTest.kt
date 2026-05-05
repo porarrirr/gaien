@@ -4,6 +4,7 @@ import com.studyapp.domain.model.Exam
 import com.studyapp.domain.model.Goal
 import com.studyapp.domain.model.GoalType
 import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.model.StudyWeekday
 import com.studyapp.domain.repository.ExamRepository
 import com.studyapp.domain.repository.GoalRepository
 import com.studyapp.domain.repository.StudySessionRepository
@@ -89,7 +90,7 @@ class StudyWidgetSnapshotBuilderTest {
         every { goalRepository.getActiveGoals() } returns flowOf(
             Result.Success(
                 listOf(
-                    Goal(type = GoalType.DAILY, targetMinutes = 180, dayOfWeek = today.dayOfWeek)
+                    Goal(type = GoalType.DAILY, targetMinutes = 180, dayOfWeek = StudyWeekday.fromDayOfWeek(today.dayOfWeek))
                 )
             )
         )
@@ -99,8 +100,8 @@ class StudyWidgetSnapshotBuilderTest {
         every { examRepository.getUpcomingExams() } returns flowOf(
             Result.Success(
                 listOf(
-                    Exam(name = "数学", date = today.plusDays(2)),
-                    Exam(name = "英語", date = today.plusDays(5))
+                    Exam(name = "数学", date = today.plusDays(2).toEpochDay()),
+                    Exam(name = "英語", date = today.plusDays(5).toEpochDay())
                 )
             )
         )

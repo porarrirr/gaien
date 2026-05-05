@@ -13,6 +13,7 @@ final class HomeViewModel: ScreenViewModel {
                 goalRepository: app.persistence,
                 examRepository: app.persistence,
                 timetableRepository: app.persistence,
+                problemReviewRepository: app.persistence,
                 clock: app.clock
             )
             let recentUseCase = GetRecentMaterialsUseCase(materialRepository: app.persistence, studySessionRepository: app.persistence, subjectRepository: app.persistence)

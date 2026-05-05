@@ -2,7 +2,7 @@ import CoreData
 import Foundation
 
 @MainActor
-final class PersistenceController: SubjectRepository, MaterialRepository, StudySessionRepository, GoalRepository, ExamRepository, PlanRepository, TimetableRepository, AppDataRepository {
+final class PersistenceController: SubjectRepository, MaterialRepository, StudySessionRepository, GoalRepository, ExamRepository, PlanRepository, TimetableRepository, ProblemReviewRepository, AppDataRepository {
     static let shared = PersistenceController()
 
     private let container: NSPersistentContainer
@@ -265,9 +265,47 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return id
     }
 
+    func insertSessionWithProblemReviews(_ session: StudySession) async throws -> Int64 {
+        try await ensureLoaded()
+        let ctx = container.viewContext
+        let now = Date().epochMilliseconds
+        var nextLocalId = try maxIdentifier() + 1
+
+        func allocateId(_ requested: Int64) -> Int64 {
+            if requested > 0 {
+                nextLocalId = max(nextLocalId, requested + 1)
+                return requested
+            }
+            defer { nextLocalId += 1 }
+            return nextLocalId
+        }
+
+        let sessionId = allocateId(session.id)
+        let sanitized = sanitize(session: session, assignedId: sessionId)
+
+        let record = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: ctx)
+        apply(sanitized, to: record)
+        if let materialId = sanitized.materialId {
+            try rebuildProblemReviewRecords(for: materialId, now: now, startingId: &nextLocalId)
+        }
+
+        do {
+            try saveContext()
+        } catch {
+            ctx.rollback()
+            throw error
+        }
+
+        try await recalculatePlanActualMinutes()
+        return sessionId
+    }
+
     func updateSession(_ session: StudySession) async throws {
         try await ensureLoaded()
         guard let record = try fetchOne(entity: "StudySessionRecord", id: session.id) else { return }
+        let oldMaterialId = record.value(forKey: "materialId") as? Int64
+        var nextLocalId = try maxIdentifier() + 1
+        let now = Date().epochMilliseconds
         let sanitized = sanitize(
             session: session,
             assignedId: session.id,
@@ -276,6 +314,16 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             persistedLastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
         )
         apply(sanitized, to: record)
+        var materialIdsToRebuild = Set<Int64>()
+        if let oldMaterialId {
+            materialIdsToRebuild.insert(oldMaterialId)
+        }
+        if let materialId = sanitized.materialId {
+            materialIdsToRebuild.insert(materialId)
+        }
+        for materialId in materialIdsToRebuild {
+            try rebuildProblemReviewRecords(for: materialId, now: now, startingId: &nextLocalId)
+        }
         try saveContext()
         try await recalculatePlanActualMinutes()
     }
@@ -284,8 +332,13 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try await ensureLoaded()
         if let record = try fetchOne(entity: "StudySessionRecord", id: session.id) {
             let now = Date().epochMilliseconds
+            let materialId = record.value(forKey: "materialId") as? Int64
+            var nextLocalId = try maxIdentifier() + 1
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
+            if let materialId {
+                try rebuildProblemReviewRecords(for: materialId, now: now, startingId: &nextLocalId)
+            }
             try saveContext()
             try await recalculatePlanActualMinutes()
         }
@@ -792,6 +845,57 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return overdue
     }
 
+    func getAllProblemReviewRecords() async throws -> [ProblemReviewRecord] {
+        try await ensureLoaded()
+        return try fetch(
+            entity: "ProblemReviewRecord",
+            sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]
+        ).map(Self.problemReviewRecord).filter { $0.deletedAt == nil }
+    }
+
+    func getTodayReviewProblems(reference: Date = Date()) async throws -> [TodayReviewProblem] {
+        try await ensureLoaded()
+        let calendar = Calendar.current
+        let dueEnd = (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: reference)) ?? reference).epochMilliseconds - 1
+        let reviews = try fetch(
+            entity: "ProblemReviewRecord",
+            predicate: NSPredicate(format: "deletedAt == NIL"),
+            sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]
+        ).map(Self.problemReviewRecord)
+        let latestByProblem = Self.latestProblemReviews(from: reviews)
+        guard !latestByProblem.isEmpty else { return [] }
+
+        let materials = try await getAllMaterials()
+        let subjects = try await getAllSubjects()
+        let materialMap = Dictionary(uniqueKeysWithValues: materials.map { ($0.id, $0) })
+        let subjectMap = Dictionary(uniqueKeysWithValues: subjects.map { ($0.id, $0) })
+
+        return latestByProblem.values
+            .filter { $0.nextReviewDate <= dueEnd && $0.deletedAt == nil }
+            .compactMap { review -> TodayReviewProblem? in
+                guard let material = materialMap[review.materialId], material.deletedAt == nil else { return nil }
+                let subject = subjectMap[material.subjectId]
+                return TodayReviewProblem(
+                    materialId: material.id,
+                    materialName: material.name,
+                    subjectName: subject?.name ?? "",
+                    problemNumber: review.problemNumber,
+                    nextReviewDate: review.nextReviewDate,
+                    consecutiveCorrectCount: review.consecutiveCorrectCount,
+                    wrongCount: review.wrongCount
+                )
+            }
+            .sorted {
+                if $0.nextReviewDate != $1.nextReviewDate {
+                    return $0.nextReviewDate < $1.nextReviewDate
+                }
+                if $0.materialName != $1.materialName {
+                    return $0.materialName < $1.materialName
+                }
+                return $0.problemNumber < $1.problemNumber
+            }
+    }
+
     func exportData() async throws -> AppData {
         try await ensureLoaded()
         try backfillMissingSyncMetadataIfNeeded()
@@ -805,6 +909,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let timetableEntries = try fetch(entity: "TimetableEntryRecord", sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true)]).map(Self.timetableEntry)
         let timetableTerms = try fetch(entity: "TimetableTermRecord", sort: [NSSortDescriptor(key: "startDate", ascending: false)]).map(Self.timetableTerm)
         let timetableReviewRecords = try fetch(entity: "TimetableReviewRecord", sort: [NSSortDescriptor(key: "occurrenceDate", ascending: false)]).map(Self.timetableReviewRecord)
+        let problemReviewRecords = try fetch(entity: "ProblemReviewRecord", sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]).map(Self.problemReviewRecord)
 
         var planData = [PlanData]()
         for plan in plans {
@@ -827,6 +932,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             timetableEntries: timetableEntries,
             timetableTerms: timetableTerms,
             timetableReviewRecords: timetableReviewRecords,
+            problemReviewRecords: problemReviewRecords,
             exportDate: Date().epochMilliseconds
         )
     }
@@ -969,6 +1075,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let existingTimetableEntryIds = try existingIdMap(entity: "TimetableEntryRecord")
         let existingTimetableTermIds = try existingIdMap(entity: "TimetableTermRecord")
         let existingTimetableReviewRecordIds = try existingIdMap(entity: "TimetableReviewRecord")
+        let existingProblemReviewRecordIds = try existingIdMap(entity: "ProblemReviewRecord")
 
         // Delete all existing records in-memory (not yet committed)
         for entityName in Self.entityNames {
@@ -990,7 +1097,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             appData.timetablePeriods.map(\.id).max() ?? 0,
             appData.timetableEntries.map(\.id).max() ?? 0,
             appData.timetableTerms.map(\.id).max() ?? 0,
-            appData.timetableReviewRecords.map(\.id).max() ?? 0
+            appData.timetableReviewRecords.map(\.id).max() ?? 0,
+            appData.problemReviewRecords.map(\.id).max() ?? 0
         ]
         let maxImportedId = importedIdCandidates.max() ?? 0
         var nextId = maxImportedId + 1
@@ -1192,6 +1300,25 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             Self.apply(remapped, assignedId: localId, now: now, to: r)
         }
 
+        // --- ProblemReviewRecords ---
+        for review in appData.problemReviewRecords {
+            let localId = allocateId(preferred: existingProblemReviewRecordIds[review.syncId] ?? review.id)
+            var remapped = review
+            remapped.materialId = Self.resolveFK(
+                syncId: review.materialSyncId,
+                syncMap: materialSyncMap,
+                oldId: review.materialId,
+                oldMap: materialOldMap
+            )
+            remapped.problemId = ProblemReviewRecord.problemId(
+                materialId: remapped.materialId,
+                problemNumber: remapped.problemNumber
+            )
+
+            let r = NSEntityDescription.insertNewObject(forEntityName: "ProblemReviewRecord", into: ctx)
+            Self.apply(remapped, assignedId: localId, now: now, to: r)
+        }
+
         // Commit atomically; rollback on failure preserves original data
         do {
             try saveContext()
@@ -1212,6 +1339,65 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private static func resolveOptFK(syncId: String?, syncMap: [String: Int64], oldId: Int64?, oldMap: [Int64: Int64]) -> Int64? {
         guard let oid = oldId else { return nil }
         return resolveFK(syncId: syncId, syncMap: syncMap, oldId: oid, oldMap: oldMap)
+    }
+
+    private func rebuildProblemReviewRecords(for materialId: Int64, now: Int64, startingId nextLocalId: inout Int64) throws {
+        let existingReviews = try fetch(
+            entity: "ProblemReviewRecord",
+            predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "materialId == %lld", materialId),
+                NSPredicate(format: "deletedAt == NIL")
+            ])
+        )
+        for review in existingReviews {
+            review.setValue(now, forKey: "deletedAt")
+            review.setValue(now, forKey: "updatedAt")
+        }
+
+        let sessions = try fetch(
+            entity: "StudySessionRecord",
+            predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "materialId == %lld", materialId),
+                NSPredicate(format: "deletedAt == NIL")
+            ]),
+            sort: [NSSortDescriptor(key: "startTime", ascending: true)]
+        ).map(Self.session)
+
+        var latestByProblem = [String: ProblemReviewRecord]()
+        for session in sessions where !session.problemRecords.isEmpty {
+            for problem in session.problemRecords.sorted(by: { $0.number < $1.number }) where problem.number > 0 {
+                let rating: ProblemReviewRating = problem.result == .wrong ? .again : .good
+                let problemId = ProblemReviewRecord.problemId(materialId: materialId, problemNumber: problem.number)
+                let scheduled = ProblemReviewScheduler.schedule(
+                    materialId: materialId,
+                    materialSyncId: session.materialSyncId,
+                    problemNumber: problem.number,
+                    rating: rating,
+                    reviewedAt: session.sessionEndTime,
+                    previous: latestByProblem[problemId]
+                )
+                latestByProblem[problemId] = scheduled
+
+                let reviewRecord = NSEntityDescription.insertNewObject(forEntityName: "ProblemReviewRecord", into: container.viewContext)
+                Self.apply(scheduled, assignedId: allocateId(startingAt: &nextLocalId), now: now, to: reviewRecord)
+            }
+        }
+    }
+
+    private func allocateId(startingAt nextLocalId: inout Int64) -> Int64 {
+        defer { nextLocalId += 1 }
+        return nextLocalId
+    }
+
+    private static func latestProblemReviews(from reviews: [ProblemReviewRecord]) -> [String: ProblemReviewRecord] {
+        reviews.reduce(into: [String: ProblemReviewRecord]()) { result, review in
+            guard review.deletedAt == nil else { return }
+            let key = ProblemReviewRecord.problemId(materialId: review.materialId, problemNumber: review.problemNumber)
+            if let existing = result[key], existing.reviewedAt > review.reviewedAt {
+                return
+            }
+            result[key] = review
+        }
     }
 
     private func recalculatePlanActualMinutes() async throws {
@@ -1502,6 +1688,24 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(review.lastSyncedAt, forKey: "lastSyncedAt")
     }
 
+    private static func apply(_ review: ProblemReviewRecord, assignedId: Int64, now: Int64, to record: NSManagedObject) {
+        record.setValue(assignedId, forKey: "id")
+        record.setValue(review.syncId, forKey: "syncId")
+        record.setValue(review.problemId, forKey: "problemId")
+        record.setValue(review.materialId, forKey: "materialId")
+        record.setValue(review.materialSyncId, forKey: "materialSyncId")
+        record.setValue(Int64(review.problemNumber), forKey: "problemNumber")
+        record.setValue(review.reviewedAt, forKey: "reviewedAt")
+        record.setValue(review.rating.rawValue, forKey: "rating")
+        record.setValue(review.nextReviewDate, forKey: "nextReviewDate")
+        record.setValue(Int64(review.consecutiveCorrectCount), forKey: "consecutiveCorrectCount")
+        record.setValue(Int64(review.wrongCount), forKey: "wrongCount")
+        record.setValue(review.createdAt == 0 ? now : review.createdAt, forKey: "createdAt")
+        record.setValue(review.updatedAt == 0 ? now : review.updatedAt, forKey: "updatedAt")
+        record.setValue(review.deletedAt, forKey: "deletedAt")
+        record.setValue(review.lastSyncedAt, forKey: "lastSyncedAt")
+    }
+
     private func apply(_ session: StudySession, to record: NSManagedObject) {
         Self.apply(
             session,
@@ -1536,6 +1740,10 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         if requested > 0 {
             return requested
         }
+        return try maxIdentifier() + 1
+    }
+
+    private func maxIdentifier() throws -> Int64 {
         var maxId: Int64 = 0
         for entityName in Self.entityNames {
             let request = NSFetchRequest<NSDictionary>(entityName: entityName)
@@ -1548,7 +1756,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             let result = try container.viewContext.fetch(request).first?["maxId"] as? Int64 ?? 0
             maxId = max(maxId, result)
         }
-        return maxId + 1
+        return maxId
     }
 
     private func normalizeLegacyDailyGoalsIfNeeded() throws {
@@ -1759,6 +1967,20 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             ensureStringValue(on: record, key: "termSyncId", value: timetableTermSyncIds[termId], didChange: &didChange)
             ensureStringValue(on: record, key: "entrySyncId", value: timetableEntrySyncIds[entryId], didChange: &didChange)
             ensureStringValue(on: record, key: "periodSyncId", value: timetablePeriodSyncIds[periodId], didChange: &didChange)
+        }
+
+        let problemReviewRecords = try fetch(entity: "ProblemReviewRecord")
+        for record in problemReviewRecords {
+            _ = ensureSyncId(on: record, didChange: &didChange)
+            let materialId = record.value(forKey: "materialId") as? Int64 ?? 0
+            let problemNumber = Int(record.value(forKey: "problemNumber") as? Int64 ?? 0)
+            ensureStringValue(on: record, key: "materialSyncId", value: materialSyncIds[materialId], didChange: &didChange)
+            ensureStringValue(
+                on: record,
+                key: "problemId",
+                value: ProblemReviewRecord.problemId(materialId: materialId, problemNumber: problemNumber),
+                didChange: &didChange
+            )
         }
 
         for entity in ["GoalRecord", "ExamRecord"] {
@@ -2015,6 +2237,28 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         )
     }
 
+    private static func problemReviewRecord(_ record: NSManagedObject) -> ProblemReviewRecord {
+        let materialId = record.value(forKey: "materialId") as? Int64 ?? 0
+        let problemNumber = Int(record.value(forKey: "problemNumber") as? Int64 ?? 0)
+        return ProblemReviewRecord(
+            id: record.value(forKey: "id") as? Int64 ?? 0,
+            syncId: record.value(forKey: "syncId") as? String ?? "",
+            problemId: record.value(forKey: "problemId") as? String ?? ProblemReviewRecord.problemId(materialId: materialId, problemNumber: problemNumber),
+            materialId: materialId,
+            materialSyncId: record.value(forKey: "materialSyncId") as? String,
+            problemNumber: problemNumber,
+            reviewedAt: record.value(forKey: "reviewedAt") as? Int64 ?? 0,
+            rating: ProblemReviewRating(rawValue: record.value(forKey: "rating") as? String ?? "") ?? .again,
+            nextReviewDate: record.value(forKey: "nextReviewDate") as? Int64 ?? 0,
+            consecutiveCorrectCount: Int(record.value(forKey: "consecutiveCorrectCount") as? Int64 ?? 0),
+            wrongCount: Int(record.value(forKey: "wrongCount") as? Int64 ?? 0),
+            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
+            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
+            deletedAt: record.value(forKey: "deletedAt") as? Int64,
+            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
+        )
+    }
+
     private static func encodeIntervals(_ intervals: [StudySessionInterval]) -> String? {
         guard !intervals.isEmpty else { return nil }
         let encoder = JSONEncoder()
@@ -2261,6 +2505,26 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
                     attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
                 ]
+            ),
+            entity(
+                name: "ProblemReviewRecord",
+                attributes: [
+                    attribute(name: "id", type: .integer64AttributeType),
+                    attribute(name: "syncId", type: .stringAttributeType),
+                    attribute(name: "problemId", type: .stringAttributeType),
+                    attribute(name: "materialId", type: .integer64AttributeType),
+                    attribute(name: "materialSyncId", type: .stringAttributeType, optional: true),
+                    attribute(name: "problemNumber", type: .integer64AttributeType),
+                    attribute(name: "reviewedAt", type: .integer64AttributeType),
+                    attribute(name: "rating", type: .stringAttributeType),
+                    attribute(name: "nextReviewDate", type: .integer64AttributeType),
+                    attribute(name: "consecutiveCorrectCount", type: .integer64AttributeType, defaultValue: Int64(0)),
+                    attribute(name: "wrongCount", type: .integer64AttributeType, defaultValue: Int64(0)),
+                    attribute(name: "createdAt", type: .integer64AttributeType),
+                    attribute(name: "updatedAt", type: .integer64AttributeType),
+                    attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),
+                    attribute(name: "lastSyncedAt", type: .integer64AttributeType, optional: true)
+                ]
             )
         ]
         return model
@@ -2299,7 +2563,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         "TimetablePeriodRecord",
         "TimetableEntryRecord",
         "TimetableTermRecord",
-        "TimetableReviewRecord"
+        "TimetableReviewRecord",
+        "ProblemReviewRecord"
     ]
 }
 

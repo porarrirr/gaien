@@ -20,6 +20,7 @@ struct GetHomeDataUseCase {
     let goalRepository: GoalRepository
     let examRepository: ExamRepository
     let timetableRepository: TimetableRepository
+    let problemReviewRepository: ProblemReviewRepository
     let clock: Clock
 
     func execute() async throws -> HomeData {
@@ -36,6 +37,7 @@ struct GetHomeDataUseCase {
         async let timetablePeriodsTask = timetableRepository.getAllTimetablePeriods()
         async let timetableEntriesTask = timetableRepository.getAllTimetableEntries()
         async let timetableTermsTask = timetableRepository.getAllTimetableTerms()
+        async let todayReviewProblemsTask = problemReviewRepository.getTodayReviewProblems(reference: clock.now())
 
         let todaySessions = try await todaySessionsTask
         let goals = try await goalsTask
@@ -44,6 +46,7 @@ struct GetHomeDataUseCase {
         let timetablePeriods = try await timetablePeriodsTask
         let timetableEntries = try await timetableEntriesTask
         let timetableTerms = try await timetableTermsTask
+        let todayReviewProblems = try await todayReviewProblemsTask
         let todayGoal = goals.latestActiveDailyGoal(for: todayWeekday)
         let weeklyGoal = goals.latestActiveWeeklyGoal()
 
@@ -69,7 +72,8 @@ struct GetHomeDataUseCase {
                 entries: timetableEntries,
                 terms: timetableTerms,
                 reference: clock.now()
-            )
+            ),
+            todayReviewProblems: todayReviewProblems
         )
     }
 

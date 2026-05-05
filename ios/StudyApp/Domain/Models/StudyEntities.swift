@@ -291,6 +291,145 @@ struct ProblemSessionRecord: Identifiable, Codable, Hashable {
     }
 }
 
+enum ProblemReviewRating: String, Codable, CaseIterable, Hashable {
+    case again
+    case good
+
+    var title: String {
+        switch self {
+        case .again: return "もう一度"
+        case .good: return "できた"
+        }
+    }
+}
+
+struct ProblemReviewRecord: Identifiable, Codable, Hashable {
+    var id: Int64 = 0
+    var syncId: String = UUID().uuidString.lowercased()
+    var problemId: String
+    var materialId: Int64
+    var materialSyncId: String?
+    var problemNumber: Int
+    var reviewedAt: Int64
+    var rating: ProblemReviewRating
+    var nextReviewDate: Int64
+    var consecutiveCorrectCount: Int
+    var wrongCount: Int
+    var createdAt: Int64 = Date().epochMilliseconds
+    var updatedAt: Int64 = Date().epochMilliseconds
+    var deletedAt: Int64?
+    var lastSyncedAt: Int64?
+
+    init(
+        id: Int64 = 0,
+        syncId: String = UUID().uuidString.lowercased(),
+        problemId: String,
+        materialId: Int64,
+        materialSyncId: String? = nil,
+        problemNumber: Int,
+        reviewedAt: Int64,
+        rating: ProblemReviewRating,
+        nextReviewDate: Int64,
+        consecutiveCorrectCount: Int,
+        wrongCount: Int,
+        createdAt: Int64 = Date().epochMilliseconds,
+        updatedAt: Int64 = Date().epochMilliseconds,
+        deletedAt: Int64? = nil,
+        lastSyncedAt: Int64? = nil
+    ) {
+        self.id = id
+        self.syncId = syncId
+        self.problemId = problemId
+        self.materialId = materialId
+        self.materialSyncId = materialSyncId
+        self.problemNumber = problemNumber
+        self.reviewedAt = reviewedAt
+        self.rating = rating
+        self.nextReviewDate = nextReviewDate
+        self.consecutiveCorrectCount = consecutiveCorrectCount
+        self.wrongCount = wrongCount
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.deletedAt = deletedAt
+        self.lastSyncedAt = lastSyncedAt
+    }
+
+    static func problemId(materialId: Int64, problemNumber: Int) -> String {
+        "\(materialId)-\(problemNumber)"
+    }
+}
+
+struct TodayReviewProblem: Identifiable, Hashable {
+    var materialId: Int64
+    var materialName: String
+    var subjectName: String
+    var problemNumber: Int
+    var nextReviewDate: Int64
+    var consecutiveCorrectCount: Int
+    var wrongCount: Int
+
+    var id: String {
+        ProblemReviewRecord.problemId(materialId: materialId, problemNumber: problemNumber)
+    }
+}
+
+struct ProblemReviewScheduler {
+    static func schedule(
+        materialId: Int64,
+        materialSyncId: String?,
+        problemNumber: Int,
+        rating: ProblemReviewRating,
+        reviewedAt: Int64,
+        previous: ProblemReviewRecord?
+    ) -> ProblemReviewRecord {
+        let previousCorrect = previous?.consecutiveCorrectCount ?? 0
+        let previousWrong = previous?.wrongCount ?? 0
+        let consecutiveCorrect: Int
+        let wrongCount: Int
+        let intervalDays: Int
+
+        switch rating {
+        case .again:
+            consecutiveCorrect = 0
+            wrongCount = previousWrong + 1
+            intervalDays = 1
+        case .good:
+            consecutiveCorrect = previousCorrect + 1
+            wrongCount = previousWrong
+            switch consecutiveCorrect {
+            case 1:
+                intervalDays = 3
+            case 2:
+                intervalDays = 7
+            default:
+                intervalDays = 14
+            }
+        }
+
+        let calendar = Calendar.current
+        let reviewDate = Date(epochMilliseconds: reviewedAt)
+        let nextReviewDay = calendar.date(
+            byAdding: .day,
+            value: intervalDays,
+            to: calendar.startOfDay(for: reviewDate)
+        ) ?? reviewDate
+
+        return ProblemReviewRecord(
+            problemId: ProblemReviewRecord.problemId(materialId: materialId, problemNumber: problemNumber),
+            materialId: materialId,
+            materialSyncId: materialSyncId,
+            problemNumber: problemNumber,
+            reviewedAt: reviewedAt,
+            rating: rating,
+            nextReviewDate: calendar.startOfDay(for: nextReviewDay).epochMilliseconds,
+            consecutiveCorrectCount: consecutiveCorrect,
+            wrongCount: wrongCount,
+            createdAt: reviewedAt,
+            updatedAt: reviewedAt
+        )
+    }
+}
+
 struct StudySession: Identifiable, Codable, Hashable {
     static let allowedRatings = 1...5
 

@@ -20,8 +20,14 @@ protocol StudySessionRepository {
     func getAllSessions() async throws -> [StudySession]
     func getSessionsBetweenDates(start: Int64, end: Int64) async throws -> [StudySession]
     func insertSession(_ session: StudySession) async throws -> Int64
+    func insertSessionWithProblemReviews(_ session: StudySession) async throws -> Int64
     func updateSession(_ session: StudySession) async throws
     func deleteSession(_ session: StudySession) async throws
+}
+
+protocol ProblemReviewRepository {
+    func getAllProblemReviewRecords() async throws -> [ProblemReviewRecord]
+    func getTodayReviewProblems(reference: Date) async throws -> [TodayReviewProblem]
 }
 
 protocol GoalRepository {

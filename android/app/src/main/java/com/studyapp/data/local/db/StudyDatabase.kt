@@ -17,9 +17,10 @@ import com.studyapp.data.local.db.entity.*
         TimetablePeriodEntity::class,
         TimetableTermEntity::class,
         TimetableEntryEntity::class,
-        TimetableReviewRecordEntity::class
+        TimetableReviewRecordEntity::class,
+        ProblemReviewRecordEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 abstract class StudyDatabase : RoomDatabase() {
@@ -33,4 +34,5 @@ abstract class StudyDatabase : RoomDatabase() {
     abstract fun timetableTermDao(): TimetableTermDao
     abstract fun timetableEntryDao(): TimetableEntryDao
     abstract fun timetableReviewRecordDao(): TimetableReviewRecordDao
+    abstract fun problemReviewRecordDao(): ProblemReviewRecordDao
 }

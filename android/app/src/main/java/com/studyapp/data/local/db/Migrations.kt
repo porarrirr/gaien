@@ -364,8 +364,38 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS problem_review_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                syncId TEXT NOT NULL,
+                problemId TEXT NOT NULL,
+                materialId INTEGER NOT NULL,
+                materialSyncId TEXT,
+                problemNumber INTEGER NOT NULL,
+                reviewedAt INTEGER NOT NULL,
+                rating TEXT NOT NULL,
+                nextReviewDate INTEGER NOT NULL,
+                consecutiveCorrectCount INTEGER NOT NULL DEFAULT 0,
+                wrongCount INTEGER NOT NULL DEFAULT 0,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER,
+                lastSyncedAt INTEGER
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_problem_review_records_syncId ON problem_review_records(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_problem_review_records_problemId ON problem_review_records(problemId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_problem_review_records_materialId ON problem_review_records(materialId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_problem_review_records_nextReviewDate ON problem_review_records(nextReviewDate)")
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
     MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
-    MIGRATION_9_10, MIGRATION_10_11
+    MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12
 )

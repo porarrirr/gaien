@@ -7,6 +7,8 @@ import com.studyapp.domain.model.Goal
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.PlanItem
 import com.studyapp.domain.model.ProblemChapter
+import com.studyapp.domain.model.ProblemReviewRating
+import com.studyapp.domain.model.ProblemReviewRecord
 import com.studyapp.domain.model.ProblemResult
 import com.studyapp.domain.model.ProblemSessionRecord
 import com.studyapp.domain.model.StudyPlan
@@ -32,6 +34,7 @@ import com.studyapp.data.local.db.entity.GoalEntity
 import com.studyapp.data.local.db.entity.MaterialEntity
 import com.studyapp.data.local.db.entity.PlanEntity
 import com.studyapp.data.local.db.entity.PlanItemEntity
+import com.studyapp.data.local.db.entity.ProblemReviewRecordEntity
 import com.studyapp.data.local.db.entity.StudySessionEntity
 import com.studyapp.data.local.db.entity.StudySessionWithNames
 import com.studyapp.data.local.db.entity.SubjectEntity
@@ -57,6 +60,7 @@ data class AppData(
     val timetableEntries: List<TimetableEntry> = emptyList(),
     val timetableTerms: List<TimetableTerm> = emptyList(),
     val timetableReviewRecords: List<TimetableReviewRecord> = emptyList(),
+    val problemReviewRecords: List<ProblemReviewRecord> = emptyList(),
     val exportDate: Long
 ) {
     fun toJson(): JSONObject {
@@ -71,6 +75,7 @@ data class AppData(
             put("timetableEntries", JSONArray(timetableEntries.map { it.toJson() }))
             put("timetableTerms", JSONArray(timetableTerms.map { it.toJson() }))
             put("timetableReviewRecords", JSONArray(timetableReviewRecords.map { it.toJson() }))
+            put("problemReviewRecords", JSONArray(problemReviewRecords.map { it.toJson() }))
             put("exportDate", exportDate)
         }
     }
@@ -107,6 +112,9 @@ data class AppData(
                 } ?: emptyList(),
                 timetableReviewRecords = json.optJSONArray("timetableReviewRecords")?.let { arr ->
                     (0 until arr.length()).mapNotNull { arr.getJSONObject(it).toTimetableReviewRecord() }
+                } ?: emptyList(),
+                problemReviewRecords = json.optJSONArray("problemReviewRecords")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { arr.getJSONObject(it).toProblemReviewRecord() }
                 } ?: emptyList(),
                 exportDate = json.optLong("exportDate", System.currentTimeMillis())
             )
@@ -398,6 +406,39 @@ private fun JSONObject.toTimetableReviewRecord() = TimetableReviewRecord(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
+private fun ProblemReviewRecord.toJson() = JSONObject().apply {
+    put("id", id); put("syncId", syncId); put("problemId", problemId)
+    put("materialId", materialId); put("materialSyncId", materialSyncId)
+    put("problemNumber", problemNumber); put("reviewedAt", reviewedAt)
+    put("rating", rating.wireName); put("nextReviewDate", nextReviewDate)
+    put("consecutiveCorrectCount", consecutiveCorrectCount); put("wrongCount", wrongCount)
+    put("createdAt", createdAt); put("updatedAt", updatedAt)
+    put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
+}
+
+private fun JSONObject.toProblemReviewRecord(): ProblemReviewRecord? {
+    val materialId = optLong("materialId")
+    val problemNumber = optInt("problemNumber")
+    if (materialId == 0L || problemNumber == 0) return null
+    return ProblemReviewRecord(
+        id = optLong("id"),
+        syncId = optString("syncId").ifEmpty { "problem-review-${optLong("id")}" },
+        problemId = optString("problemId").ifEmpty { ProblemReviewRecord.problemId(materialId, problemNumber) },
+        materialId = materialId,
+        materialSyncId = optString("materialSyncId").takeIf { it.isNotEmpty() },
+        problemNumber = problemNumber,
+        reviewedAt = optLong("reviewedAt"),
+        rating = ProblemReviewRating.fromWireName(optString("rating", "again")),
+        nextReviewDate = optLong("nextReviewDate"),
+        consecutiveCorrectCount = optInt("consecutiveCorrectCount"),
+        wrongCount = optInt("wrongCount"),
+        createdAt = optLong("createdAt", System.currentTimeMillis()),
+        updatedAt = optLong("updatedAt", optLong("createdAt", System.currentTimeMillis())),
+        deletedAt = optNullableLong("deletedAt"),
+        lastSyncedAt = optNullableLong("lastSyncedAt")
+    )
+}
+
 private fun JSONObject.optNullableLong(key: String): Long? {
     if (!has(key) || isNull(key)) return null
     return optLong(key)
@@ -478,6 +519,7 @@ class ExportImportDataUseCase @Inject constructor(
         val termDao = studyDatabase.timetableTermDao()
         val entryDao = studyDatabase.timetableEntryDao()
         val reviewDao = studyDatabase.timetableReviewRecordDao()
+        val problemReviewDao = studyDatabase.problemReviewRecordDao()
 
         val subjectEntities = subjectDao.getAllSubjectsForSync()
         val subjects = subjectEntities.map { it.toDomain() }
@@ -504,12 +546,14 @@ class ExportImportDataUseCase @Inject constructor(
         val timetableTerms = termDao.getAllForSync().map { it.toDomain() }
         val timetableEntries = entryDao.getAllForSync().map { it.toDomain() }
         val timetableReviewRecords = reviewDao.getAllForSync().map { it.toDomain() }
+        val problemReviewRecords = problemReviewDao.getAllForSync().map { it.toDomain() }
 
         return AppData(
             subjects = subjects, materials = materials, sessions = sessions,
             goals = goals, exams = exams, plans = plans,
             timetablePeriods = timetablePeriods, timetableEntries = timetableEntries,
             timetableTerms = timetableTerms, timetableReviewRecords = timetableReviewRecords,
+            problemReviewRecords = problemReviewRecords,
             exportDate = System.currentTimeMillis()
         )
     }
@@ -525,7 +569,9 @@ class ExportImportDataUseCase @Inject constructor(
         val termDao = studyDatabase.timetableTermDao()
         val entryDao = studyDatabase.timetableEntryDao()
         val reviewDao = studyDatabase.timetableReviewRecordDao()
+        val problemReviewDao = studyDatabase.problemReviewRecordDao()
 
+        problemReviewDao.deleteAllForImport()
         reviewDao.deleteAllForImport()
         entryDao.deleteAllForImport()
         termDao.deleteAllForImport()
@@ -550,6 +596,7 @@ class ExportImportDataUseCase @Inject constructor(
         val termDao = studyDatabase.timetableTermDao()
         val entryDao = studyDatabase.timetableEntryDao()
         val reviewDao = studyDatabase.timetableReviewRecordDao()
+        val problemReviewDao = studyDatabase.problemReviewRecordDao()
 
         val subjectIdsBySyncId = linkedMapOf<String, Long>()
         appData.subjects.forEach { subject ->
@@ -700,6 +747,26 @@ class ExportImportDataUseCase @Inject constructor(
                 deletedAt = record.deletedAt, lastSyncedAt = record.lastSyncedAt
             ))
         }
+
+        appData.problemReviewRecords.forEach { record ->
+            val resolvedMaterialId = record.materialSyncId?.let { materialIdsBySyncId[it] } ?: record.materialId
+            problemReviewDao.insert(ProblemReviewRecordEntity(
+                syncId = record.syncId,
+                problemId = ProblemReviewRecord.problemId(resolvedMaterialId, record.problemNumber),
+                materialId = resolvedMaterialId,
+                materialSyncId = record.materialSyncId,
+                problemNumber = record.problemNumber,
+                reviewedAt = record.reviewedAt,
+                rating = record.rating.wireName,
+                nextReviewDate = record.nextReviewDate,
+                consecutiveCorrectCount = record.consecutiveCorrectCount,
+                wrongCount = record.wrongCount,
+                createdAt = record.createdAt,
+                updatedAt = record.updatedAt,
+                deletedAt = record.deletedAt,
+                lastSyncedAt = record.lastSyncedAt
+            ))
+        }
     }
 
     companion object {
@@ -803,4 +870,22 @@ private fun TimetableReviewRecordEntity.toDomain() = TimetableReviewRecord(
     subjectName = subjectName, courseName = courseName, roomName = roomName,
     isReviewed = isReviewed, note = note, isExcluded = isExcluded, reviewedAt = reviewedAt,
     createdAt = createdAt, updatedAt = updatedAt, deletedAt = deletedAt, lastSyncedAt = lastSyncedAt
+)
+
+private fun ProblemReviewRecordEntity.toDomain() = ProblemReviewRecord(
+    id = id,
+    syncId = syncId,
+    problemId = problemId,
+    materialId = materialId,
+    materialSyncId = materialSyncId,
+    problemNumber = problemNumber,
+    reviewedAt = reviewedAt,
+    rating = ProblemReviewRating.fromWireName(rating),
+    nextReviewDate = nextReviewDate,
+    consecutiveCorrectCount = consecutiveCorrectCount,
+    wrongCount = wrongCount,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    lastSyncedAt = lastSyncedAt
 )

@@ -4,9 +4,14 @@ import com.studyapp.domain.model.Exam
 import com.studyapp.domain.model.Goal
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.PlanItem
+import com.studyapp.domain.model.ProblemReviewRecord
 import com.studyapp.domain.model.StudyPlan
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.model.Subject
+import com.studyapp.domain.model.TimetableEntry
+import com.studyapp.domain.model.TimetablePeriod
+import com.studyapp.domain.model.TimetableReviewRecord
+import com.studyapp.domain.model.TimetableTerm
 import com.studyapp.domain.usecase.AppData
 import com.studyapp.domain.usecase.ExportImportDataUseCase
 import com.studyapp.domain.usecase.PlanData
@@ -216,6 +221,11 @@ class FirebaseSyncRepository @Inject constructor(
             goals = mergeMaster(local.goals, remote.goals, Goal::syncId, Goal::updatedAt, Goal::deletedAt),
             exams = mergeMaster(local.exams, remote.exams, Exam::syncId, Exam::updatedAt, Exam::deletedAt),
             plans = mergePlans(local.plans, remote.plans),
+            timetablePeriods = mergeMaster(local.timetablePeriods, remote.timetablePeriods, TimetablePeriod::syncId, TimetablePeriod::updatedAt, TimetablePeriod::deletedAt),
+            timetableEntries = mergeMaster(local.timetableEntries, remote.timetableEntries, TimetableEntry::syncId, TimetableEntry::updatedAt, TimetableEntry::deletedAt),
+            timetableTerms = mergeMaster(local.timetableTerms, remote.timetableTerms, TimetableTerm::syncId, TimetableTerm::updatedAt, TimetableTerm::deletedAt),
+            timetableReviewRecords = mergeMaster(local.timetableReviewRecords, remote.timetableReviewRecords, TimetableReviewRecord::syncId, TimetableReviewRecord::updatedAt, TimetableReviewRecord::deletedAt),
+            problemReviewRecords = mergeMaster(local.problemReviewRecords, remote.problemReviewRecords, ProblemReviewRecord::syncId, ProblemReviewRecord::updatedAt, ProblemReviewRecord::deletedAt),
             exportDate = maxOf(local.exportDate, remote.exportDate)
         )
     }
@@ -274,6 +284,11 @@ class FirebaseSyncRepository @Inject constructor(
                     items = planData.items.map { it.copy(lastSyncedAt = syncedAt) }
                 )
             },
+            timetablePeriods = appData.timetablePeriods.map { it.copy(lastSyncedAt = syncedAt) },
+            timetableEntries = appData.timetableEntries.map { it.copy(lastSyncedAt = syncedAt) },
+            timetableTerms = appData.timetableTerms.map { it.copy(lastSyncedAt = syncedAt) },
+            timetableReviewRecords = appData.timetableReviewRecords.map { it.copy(lastSyncedAt = syncedAt) },
+            problemReviewRecords = appData.problemReviewRecords.map { it.copy(lastSyncedAt = syncedAt) },
             exportDate = syncedAt
         )
     }
@@ -379,7 +394,12 @@ class FirebaseSyncRepository @Inject constructor(
             sessions.isEmpty() &&
             goals.isEmpty() &&
             exams.isEmpty() &&
-            plans.isEmpty()
+            plans.isEmpty() &&
+            timetablePeriods.isEmpty() &&
+            timetableEntries.isEmpty() &&
+            timetableTerms.isEmpty() &&
+            timetableReviewRecords.isEmpty() &&
+            problemReviewRecords.isEmpty()
     }
 
     private data class RemoteSnapshot(

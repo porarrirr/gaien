@@ -30,6 +30,9 @@ struct HomeScreen: View {
                 heroSection
                     .padding(.horizontal, AppSpacing.md)
 
+                todayReviewSection
+                    .padding(.horizontal, AppSpacing.md)
+
                 // Weekly Goal
                 weeklyGoalSection
                     .padding(.horizontal, AppSpacing.md)
@@ -128,6 +131,49 @@ struct HomeScreen: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .cardStyle()
             }
+        }
+    }
+
+    private var todayReviewSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            SectionHeaderView(title: "今日の復習", icon: "arrow.clockwise.circle.fill")
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                if viewModel.homeData.todayReviewProblems.isEmpty {
+                    Text("今日の復習はありません")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(viewModel.homeData.todayReviewProblems.prefix(8)) { problem in
+                        HStack(spacing: AppSpacing.md) {
+                            Circle()
+                                .fill(AppColors.warning.opacity(0.18))
+                                .frame(width: 40, height: 40)
+                                .overlay {
+                                    Text("\(problem.problemNumber)")
+                                        .font(.caption.bold())
+                                        .monospacedDigit()
+                                        .foregroundStyle(AppColors.warning)
+                                }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(problem.materialName)
+                                    .font(.subheadline.bold())
+                                Text(reviewProblemSubtitle(problem))
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textSecondary)
+                            }
+                            Spacer()
+                            Text(reviewDueText(problem.nextReviewDate))
+                                .font(.caption.bold())
+                                .foregroundStyle(.tint)
+                        }
+                        if problem.id != viewModel.homeData.todayReviewProblems.prefix(8).last?.id {
+                            Divider()
+                        }
+                    }
+                }
+            }
+            .cardStyle()
         }
     }
 
@@ -293,5 +339,17 @@ struct HomeScreen: View {
                 }
             }
         }
+    }
+
+    private func reviewProblemSubtitle(_ problem: TodayReviewProblem) -> String {
+        let subject = problem.subjectName.isEmpty ? "科目未設定" : problem.subjectName
+        return "\(subject) ・ \(problem.problemNumber)問目 ・ 連続\(problem.consecutiveCorrectCount)回 / 不正解\(problem.wrongCount)回"
+    }
+
+    private func reviewDueText(_ epochMilliseconds: Int64) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: Date(epochMilliseconds: epochMilliseconds))
     }
 }

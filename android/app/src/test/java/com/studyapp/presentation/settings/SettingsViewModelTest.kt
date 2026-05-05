@@ -3,6 +3,8 @@ package com.studyapp.presentation.settings
 import android.content.Context
 import com.studyapp.domain.model.AnkiIntegrationStatus
 import com.studyapp.domain.model.AnkiTodayStats
+import com.studyapp.domain.model.ColorTheme
+import com.studyapp.domain.model.ThemeMode
 import com.studyapp.domain.repository.AnkiRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.util.Result
