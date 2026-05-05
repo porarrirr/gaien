@@ -493,17 +493,17 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
         // Legacy format: direct payload field
         if let payload = data["payload"] as? String {
-            lastLoadedVersion = readInteger(data["version"]) ?? 0
+            lastLoadedVersion = readFirestoreInteger(data["version"]) ?? 0
             logger.log(category: .sync, message: "Loaded legacy sync payload", details: "uid=\(userId) version=\(lastLoadedVersion) payloadBytes=\(payload.lengthOfBytes(using: .utf8))")
             return payload
         }
 
         // Chunked-v2 format
         guard let format = data["format"] as? String, format == "chunked-v2",
-              let version = readInteger(data["version"]),
-              let chunkCountInt64 = readInteger(data["chunkCount"]),
+              let version = readFirestoreInteger(data["version"]),
+              let chunkCountInt64 = readFirestoreInteger(data["chunkCount"]),
               chunkCountInt64 > 0 else {
-            lastLoadedVersion = readInteger(data["version"]) ?? 0
+            lastLoadedVersion = readFirestoreInteger(data["version"]) ?? 0
             logger.log(category: .sync, level: .warning, message: "Sync manifest format was unreadable", details: "uid=\(userId) version=\(lastLoadedVersion)")
             return nil
         }
@@ -517,7 +517,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             let chunkId = String(format: "%06d", i)
             let chunkSnap = try await chunksCol.document(chunkId).getDocument()
             guard let chunkData = chunkSnap.data(),
-                  let chunkVersion = readInteger(chunkData["version"]),
+                  let chunkVersion = readFirestoreInteger(chunkData["version"]),
                   chunkVersion == version,
                   let payloadPart = chunkData["payloadPart"] as? String else {
                 logger.log(category: .sync, level: .error, message: "Chunk read failed", details: "uid=\(userId) version=\(version) chunkIndex=\(i)")
@@ -537,6 +537,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         let newChunkCount = chunks.count
         let payloadSummary = SyncDataSummary(payload: payload)
         let payloadBytes = payload.lengthOfBytes(using: .utf8)
+        let syncSchemaVersion = Self.syncSchemaVersion
+        let backupRetentionDays = Self.backupRetentionDays
 
         let result = try await db.runTransaction { transaction, errorPointer -> Any? in
             let manifestSnap: DocumentSnapshot
@@ -548,8 +550,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             }
 
             let currentData = manifestSnap.data() ?? [:]
-            let currentVersion: Int64 = self.readInteger(currentData["version"]) ?? 0
-            let oldChunkCount = Int(self.readInteger(currentData["chunkCount"]) ?? 0)
+            let currentVersion: Int64 = readFirestoreInteger(currentData["version"]) ?? 0
+            let oldChunkCount = Int(readFirestoreInteger(currentData["chunkCount"]) ?? 0)
 
             if let expected = expectedVersion, currentVersion != expected {
                 errorPointer?.pointee = NSError(
@@ -559,19 +561,19 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             }
 
             let newVersion = currentVersion + 1
-            let snapshotId = Self.snapshotId(for: newVersion)
+            let snapshotId = makeSyncSnapshotId(for: newVersion)
             let snapshotRef = db.collection("users").document(userId)
                 .collection("sync_snapshots").document(snapshotId)
             let snapshotChunksCol = snapshotRef.collection("chunks")
             let manifestData: [String: Any] = [
                 "format": "chunked-v2",
-                "schemaVersion": Self.syncSchemaVersion,
+                "schemaVersion": syncSchemaVersion,
                 "supportsProblemRecords": true,
                 "version": newVersion,
                 "updatedAt": updatedAt,
                 "chunkCount": newChunkCount,
                 "payloadBytes": payloadBytes,
-                "retentionDays": Self.backupRetentionDays,
+                "retentionDays": backupRetentionDays,
                 "counts": payloadSummary.firestoreData
             ]
 
@@ -643,21 +645,6 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         logger.log(category: .sync, message: "Pruned remote sync snapshots", details: "count=\(snapshots.documents.count) cutoff=\(cutoff)")
     }
 
-    private func readInteger(_ value: Any?) -> Int64? {
-        switch value {
-        case let intValue as Int:
-            return Int64(intValue)
-        case let int64Value as Int64:
-            return int64Value
-        case let number as NSNumber:
-            return number.int64Value
-        case let string as String:
-            return Int64(string)
-        default:
-            return nil
-        }
-    }
-
     private static func splitPayloadIntoChunks(_ payload: String) -> [String] {
         let utf8 = Array(payload.utf8)
         guard !utf8.isEmpty else { return [""] }
@@ -676,10 +663,6 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             start = end
         }
         return chunks
-    }
-
-    private static func snapshotId(for version: Int64) -> String {
-        String(format: "%020lld", version)
     }
 
     // MARK: - Merge helpers
@@ -806,6 +789,25 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             exportDate: timestamp
         )
     }
+}
+
+private func readFirestoreInteger(_ value: Any?) -> Int64? {
+    switch value {
+    case let intValue as Int:
+        return Int64(intValue)
+    case let int64Value as Int64:
+        return int64Value
+    case let number as NSNumber:
+        return number.int64Value
+    case let string as String:
+        return Int64(string)
+    default:
+        return nil
+    }
+}
+
+private func makeSyncSnapshotId(for version: Int64) -> String {
+    String(format: "%020lld", version)
 }
 
 private extension AppData {
