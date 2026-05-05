@@ -1,10 +1,15 @@
 package com.studyapp.data.repository
 
 import android.util.Log
+import androidx.room.withTransaction
+import com.studyapp.data.local.db.StudyDatabase
 import com.studyapp.data.local.db.dao.StudySessionDao
+import com.studyapp.data.local.db.entity.ProblemReviewRecordEntity
 import com.studyapp.data.local.db.entity.StudySessionEntity
 import com.studyapp.data.local.db.entity.StudySessionWithDetails
 import com.studyapp.domain.model.ProblemResult
+import com.studyapp.domain.model.ProblemReviewRating
+import com.studyapp.domain.model.ProblemReviewRecord
 import com.studyapp.domain.model.ProblemSessionRecord
 import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.StudySession
@@ -13,6 +18,8 @@ import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AppDataWriteLock
 import com.studyapp.sync.SyncChangeNotifier
+import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
@@ -23,6 +30,7 @@ import javax.inject.Singleton
 @Singleton
 class StudySessionRepositoryImpl @Inject constructor(
     private val studySessionDao: StudySessionDao,
+    private val studyDatabase: StudyDatabase,
     private val clock: Clock,
     private val writeLock: AppDataWriteLock,
     private val syncChangeNotifier: SyncChangeNotifier
@@ -109,7 +117,11 @@ class StudySessionRepositoryImpl @Inject constructor(
     override suspend fun insertSession(session: StudySession): Result<Long> {
         return try {
             val id = writeLock.withLock {
-                studySessionDao.insertSession(session.toEntity())
+                studyDatabase.withTransaction {
+                    val insertedId = studySessionDao.insertSession(session.toEntity())
+                    session.materialId?.let { rebuildProblemReviewRecords(it) }
+                    insertedId
+                }
             }
             syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(id)
@@ -122,7 +134,15 @@ class StudySessionRepositoryImpl @Inject constructor(
     override suspend fun updateSession(session: StudySession): Result<Unit> {
         return try {
             writeLock.withLock {
-                studySessionDao.updateSession(session.copy(updatedAt = System.currentTimeMillis()).toEntity())
+                studyDatabase.withTransaction {
+                    val oldMaterialId = studySessionDao.getSessionById(session.id)?.materialId
+                    val updated = session.copy(updatedAt = System.currentTimeMillis())
+                    studySessionDao.updateSession(updated.toEntity())
+                    buildSet {
+                        oldMaterialId?.let(::add)
+                        updated.materialId?.let(::add)
+                    }.forEach { rebuildProblemReviewRecords(it) }
+                }
             }
             syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
@@ -136,7 +156,11 @@ class StudySessionRepositoryImpl @Inject constructor(
         return try {
             val now = System.currentTimeMillis()
             writeLock.withLock {
-                studySessionDao.updateSession(session.copy(deletedAt = now, updatedAt = now).toEntity())
+                studyDatabase.withTransaction {
+                    val materialId = studySessionDao.getSessionById(session.id)?.materialId ?: session.materialId
+                    studySessionDao.updateSession(session.copy(deletedAt = now, updatedAt = now).toEntity())
+                    materialId?.let { rebuildProblemReviewRecords(it) }
+                }
             }
             syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
@@ -220,6 +244,115 @@ class StudySessionRepositoryImpl @Inject constructor(
             problemEnd = problemEnd,
             wrongProblemCount = wrongProblemCount,
             problemRecordsJson = problemRecords.recordsToJson(),
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            lastSyncedAt = lastSyncedAt
+        )
+    }
+
+    private suspend fun rebuildProblemReviewRecords(materialId: Long) {
+        val now = clock.currentTimeMillis()
+        val problemReviewDao = studyDatabase.problemReviewRecordDao()
+        problemReviewDao.softDeleteActiveByMaterial(materialId, now, now)
+
+        val sessions = studySessionDao.getActiveSessionsByMaterialForReviewRebuild(materialId)
+            .map { it.toDomainSimple() }
+        val latestByProblem = linkedMapOf<String, ProblemReviewRecord>()
+
+        sessions.forEach { session ->
+            session.problemRecords
+                .filter { it.number > 0 }
+                .sortedBy { it.number }
+                .forEach { problem ->
+                    val rating = if (problem.result == ProblemResult.WRONG) {
+                        ProblemReviewRating.AGAIN
+                    } else {
+                        ProblemReviewRating.GOOD
+                    }
+                    val problemId = ProblemReviewRecord.problemId(materialId, problem.number)
+                    val scheduled = scheduleProblemReview(
+                        materialId = materialId,
+                        materialSyncId = session.materialSyncId,
+                        problemNumber = problem.number,
+                        rating = rating,
+                        reviewedAt = session.sessionEndTime,
+                        previous = latestByProblem[problemId]
+                    )
+                    latestByProblem[problemId] = scheduled
+                    problemReviewDao.insert(scheduled.toEntity())
+                }
+        }
+    }
+
+    private fun scheduleProblemReview(
+        materialId: Long,
+        materialSyncId: String?,
+        problemNumber: Int,
+        rating: ProblemReviewRating,
+        reviewedAt: Long,
+        previous: ProblemReviewRecord?
+    ): ProblemReviewRecord {
+        val previousCorrect = previous?.consecutiveCorrectCount ?: 0
+        val previousWrong = previous?.wrongCount ?: 0
+        val consecutiveCorrect: Int
+        val wrongCount: Int
+        val intervalDays: Long
+
+        when (rating) {
+            ProblemReviewRating.AGAIN -> {
+                consecutiveCorrect = 0
+                wrongCount = previousWrong + 1
+                intervalDays = 1
+            }
+            ProblemReviewRating.GOOD -> {
+                consecutiveCorrect = previousCorrect + 1
+                wrongCount = previousWrong
+                intervalDays = when (consecutiveCorrect) {
+                    1 -> 3
+                    2 -> 7
+                    else -> 14
+                }
+            }
+        }
+
+        val zone = ZoneId.systemDefault()
+        val nextReviewDate = Instant.ofEpochMilli(reviewedAt)
+            .atZone(zone)
+            .toLocalDate()
+            .plusDays(intervalDays)
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+
+        return ProblemReviewRecord(
+            problemId = ProblemReviewRecord.problemId(materialId, problemNumber),
+            materialId = materialId,
+            materialSyncId = materialSyncId,
+            problemNumber = problemNumber,
+            reviewedAt = reviewedAt,
+            rating = rating,
+            nextReviewDate = nextReviewDate,
+            consecutiveCorrectCount = consecutiveCorrect,
+            wrongCount = wrongCount,
+            createdAt = reviewedAt,
+            updatedAt = reviewedAt
+        )
+    }
+
+    private fun ProblemReviewRecord.toEntity(): ProblemReviewRecordEntity {
+        return ProblemReviewRecordEntity(
+            id = id,
+            syncId = syncId,
+            problemId = problemId,
+            materialId = materialId,
+            materialSyncId = materialSyncId,
+            problemNumber = problemNumber,
+            reviewedAt = reviewedAt,
+            rating = rating.wireName,
+            nextReviewDate = nextReviewDate,
+            consecutiveCorrectCount = consecutiveCorrectCount,
+            wrongCount = wrongCount,
             createdAt = createdAt,
             updatedAt = updatedAt,
             deletedAt = deletedAt,

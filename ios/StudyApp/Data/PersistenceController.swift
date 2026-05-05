@@ -128,6 +128,10 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
         let sessions = try fetch(entity: "StudySessionRecord", predicate: sessionPredicate)
         let planItems = try fetch(entity: "PlanItemRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
+        let problemReviewRecords = materialIds.isEmpty ? [] : try fetch(
+            entity: "ProblemReviewRecord",
+            predicate: NSPredicate(format: "materialId IN %@ AND deletedAt == NIL", materialIds.map { NSNumber(value: $0) })
+        )
 
         for material in relatedMaterials {
             material.setValue(now, forKey: "deletedAt")
@@ -140,6 +144,10 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         for item in planItems {
             item.setValue(now, forKey: "deletedAt")
             item.setValue(now, forKey: "updatedAt")
+        }
+        for review in problemReviewRecords {
+            review.setValue(now, forKey: "deletedAt")
+            review.setValue(now, forKey: "updatedAt")
         }
         if let record = try fetchOne(entity: "SubjectRecord", id: subject.id) {
             record.setValue(now, forKey: "deletedAt")
@@ -236,6 +244,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         for session in sessions {
             session.setValue(now, forKey: "deletedAt")
             session.setValue(now, forKey: "updatedAt")
+        }
+        let problemReviewRecords = try fetch(
+            entity: "ProblemReviewRecord",
+            predicate: NSPredicate(format: "materialId == %lld AND deletedAt == NIL", material.id)
+        )
+        for review in problemReviewRecords {
+            review.setValue(now, forKey: "deletedAt")
+            review.setValue(now, forKey: "updatedAt")
         }
         try saveContext()
     }

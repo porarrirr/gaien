@@ -60,6 +60,9 @@ interface PlanDao {
     @Query("DELETE FROM plan_items WHERE planId = :planId")
     suspend fun deletePlanItems(planId: Long)
 
+    @Query("UPDATE plan_items SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE subjectId = :subjectId AND deletedAt IS NULL")
+    suspend fun softDeleteActivePlanItemsBySubject(subjectId: Long, deletedAt: Long, updatedAt: Long)
+
     @Query("DELETE FROM plan_items")
     suspend fun deleteAllPlanItemsForImport()
     

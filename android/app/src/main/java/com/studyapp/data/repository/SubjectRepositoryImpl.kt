@@ -1,6 +1,8 @@
 package com.studyapp.data.repository
 
 import android.util.Log
+import androidx.room.withTransaction
+import com.studyapp.data.local.db.StudyDatabase
 import com.studyapp.data.local.db.dao.SubjectDao
 import com.studyapp.data.local.db.entity.SubjectEntity
 import com.studyapp.domain.model.Subject
@@ -17,6 +19,7 @@ import javax.inject.Singleton
 @Singleton
 class SubjectRepositoryImpl @Inject constructor(
     private val subjectDao: SubjectDao,
+    private val studyDatabase: StudyDatabase,
     private val writeLock: AppDataWriteLock,
     private val syncChangeNotifier: SyncChangeNotifier
 ) : SubjectRepository {
@@ -81,7 +84,13 @@ class SubjectRepositoryImpl @Inject constructor(
         return try {
             val now = System.currentTimeMillis()
             writeLock.withLock {
-                subjectDao.updateSubject(subject.copy(deletedAt = now, updatedAt = now).toEntity())
+                studyDatabase.withTransaction {
+                    subjectDao.updateSubject(subject.copy(deletedAt = now, updatedAt = now).toEntity())
+                    studyDatabase.materialDao().softDeleteActiveBySubject(subject.id, now, now)
+                    studyDatabase.studySessionDao().softDeleteActiveBySubject(subject.id, now, now)
+                    studyDatabase.planDao().softDeleteActivePlanItemsBySubject(subject.id, now, now)
+                    studyDatabase.problemReviewRecordDao().softDeleteActiveBySubject(subject.id, now, now)
+                }
             }
             syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)

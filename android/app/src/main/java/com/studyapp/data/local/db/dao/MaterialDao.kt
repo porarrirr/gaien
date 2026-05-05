@@ -48,6 +48,12 @@ interface MaterialDao {
     @Query("UPDATE materials SET sortOrder = :sortOrder, updatedAt = :updatedAt WHERE id = :materialId")
     suspend fun updateSortOrder(materialId: Long, sortOrder: Long, updatedAt: Long)
 
+    @Query("UPDATE materials SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :materialId AND deletedAt IS NULL")
+    suspend fun softDeleteActiveById(materialId: Long, deletedAt: Long, updatedAt: Long)
+
+    @Query("UPDATE materials SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE subjectId = :subjectId AND deletedAt IS NULL")
+    suspend fun softDeleteActiveBySubject(subjectId: Long, deletedAt: Long, updatedAt: Long)
+
     @Query("DELETE FROM materials")
     suspend fun deleteAllMaterialsForImport()
 }

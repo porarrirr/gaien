@@ -53,6 +53,9 @@ interface StudySessionDao {
     @Query("SELECT * FROM study_sessions WHERE materialId = :materialId AND deletedAt IS NULL ORDER BY startTime DESC")
     fun getSessionsByMaterial(materialId: Long): Flow<List<StudySessionEntity>>
 
+    @Query("SELECT * FROM study_sessions WHERE materialId = :materialId AND deletedAt IS NULL ORDER BY startTime ASC")
+    suspend fun getActiveSessionsByMaterialForReviewRebuild(materialId: Long): List<StudySessionEntity>
+
     @Query("SELECT SUM(duration) FROM study_sessions WHERE date = :date AND deletedAt IS NULL")
     suspend fun getTotalDurationByDate(date: Long): Long?
 
@@ -76,6 +79,12 @@ interface StudySessionDao {
 
     @Query("DELETE FROM study_sessions WHERE id = :id")
     suspend fun deleteSessionById(id: Long)
+
+    @Query("UPDATE study_sessions SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE subjectId = :subjectId AND deletedAt IS NULL")
+    suspend fun softDeleteActiveBySubject(subjectId: Long, deletedAt: Long, updatedAt: Long)
+
+    @Query("UPDATE study_sessions SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE materialId = :materialId AND deletedAt IS NULL")
+    suspend fun softDeleteActiveByMaterial(materialId: Long, deletedAt: Long, updatedAt: Long)
 
     @Query("DELETE FROM study_sessions")
     suspend fun deleteAllSessionsForImport()

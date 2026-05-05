@@ -823,76 +823,74 @@ private func saveChunkedSyncSnapshot(
 ) async throws -> SyncSnapshotSaveResult {
     let manifestRef = firestore.collection("users").document(userId)
         .collection("sync").document("default")
-    let manifestSnap = try await manifestRef.getDocument()
-    let currentData = manifestSnap.data() ?? [:]
-    let currentVersion: Int64 = readFirestoreInteger(currentData["version"]) ?? 0
-    let oldChunkCount = Int(readFirestoreInteger(currentData["chunkCount"]) ?? 0)
-
-    if let expected = expectedVersion, currentVersion != expected {
-        throw SyncSnapshotSaveError.conflict(expected: expected, actual: currentVersion)
-    }
-
-    let newVersion = currentVersion + 1
-    let snapshotId = makeSyncSnapshotId(for: newVersion)
-    let snapshotRef = firestore.collection("users").document(userId)
-        .collection("sync_snapshots").document(snapshotId)
-    let snapshotChunksCol = snapshotRef.collection("chunks")
-    let manifestData: [String: Any] = [
-        "format": "chunked-v2",
-        "schemaVersion": syncSchemaVersion,
-        "supportsProblemRecords": true,
-        "version": newVersion,
-        "updatedAt": updatedAt,
-        "chunkCount": chunks.count,
-        "payloadBytes": payloadBytes,
-        "retentionDays": backupRetentionDays,
-        "counts": payloadCounts
-    ]
-    let snapshotData = manifestData.merging([
-        "snapshotId": snapshotId,
-        "createdAt": updatedAt
-    ]) { current, _ in current }
-
-    try await commitWriteBatch(
-        firestore: firestore,
-        operations: [SyncWriteOperation(ref: snapshotRef, kind: .set(snapshotData))]
-    )
-
-    var chunkOperations = [SyncWriteOperation]()
     let chunksCol = manifestRef.collection("chunks")
-    for (i, part) in chunks.enumerated() {
-        let chunkData: [String: Any] = [
-            "version": newVersion,
-            "index": i,
-            "payloadPart": part
-        ]
-        chunkOperations.append(SyncWriteOperation(ref: chunksCol.document(makeSyncChunkId(for: i)), kind: .set(chunkData)))
-        chunkOperations.append(SyncWriteOperation(ref: snapshotChunksCol.document(makeSyncChunkId(for: i)), kind: .set(chunkData)))
-    }
-    try await commitWriteBatch(firestore: firestore, operations: chunkOperations)
 
-    try await commitWriteBatch(
-        firestore: firestore,
-        operations: [SyncWriteOperation(ref: manifestRef, kind: .set(manifestData))]
-    )
+    let version = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int64, Error>) in
+        firestore.runTransaction({ transaction, errorPointer in
+            do {
+                let manifestSnap = try transaction.getDocument(manifestRef)
+                let currentData = manifestSnap.data() ?? [:]
+                let currentVersion: Int64 = readFirestoreInteger(currentData["version"]) ?? 0
+                let oldChunkCount = Int(readFirestoreInteger(currentData["chunkCount"]) ?? 0)
 
-    let cleanupError: Error?
-    do {
-        let staleChunkOperations: [SyncWriteOperation]
-        if oldChunkCount > chunks.count {
-            staleChunkOperations = (chunks.count..<oldChunkCount).map { index in
-                SyncWriteOperation(ref: chunksCol.document(makeSyncChunkId(for: index)), kind: .delete)
+                if let expected = expectedVersion, currentVersion != expected {
+                    throw SyncSnapshotSaveError.conflict(expected: expected, actual: currentVersion)
+                }
+
+                let newVersion = currentVersion + 1
+                let snapshotId = makeSyncSnapshotId(for: newVersion)
+                let snapshotRef = firestore.collection("users").document(userId)
+                    .collection("sync_snapshots").document(snapshotId)
+                let snapshotChunksCol = snapshotRef.collection("chunks")
+                let manifestData: [String: Any] = [
+                    "format": "chunked-v2",
+                    "schemaVersion": syncSchemaVersion,
+                    "supportsProblemRecords": true,
+                    "version": newVersion,
+                    "updatedAt": updatedAt,
+                    "chunkCount": chunks.count,
+                    "payloadBytes": payloadBytes,
+                    "retentionDays": backupRetentionDays,
+                    "counts": payloadCounts
+                ]
+                let snapshotData = manifestData.merging([
+                    "snapshotId": snapshotId,
+                    "createdAt": updatedAt
+                ]) { current, _ in current }
+
+                transaction.setData(snapshotData, forDocument: snapshotRef)
+                for (i, part) in chunks.enumerated() {
+                    let chunkData: [String: Any] = [
+                        "version": newVersion,
+                        "index": i,
+                        "payloadPart": part
+                    ]
+                    transaction.setData(chunkData, forDocument: chunksCol.document(makeSyncChunkId(for: i)))
+                    transaction.setData(chunkData, forDocument: snapshotChunksCol.document(makeSyncChunkId(for: i)))
+                }
+                if oldChunkCount > chunks.count {
+                    for index in chunks.count..<oldChunkCount {
+                        transaction.deleteDocument(chunksCol.document(makeSyncChunkId(for: index)))
+                    }
+                }
+                transaction.setData(manifestData, forDocument: manifestRef)
+                return NSNumber(value: newVersion)
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
             }
-        } else {
-            staleChunkOperations = []
-        }
-        try await commitWriteBatch(firestore: firestore, operations: staleChunkOperations)
-        cleanupError = nil
-    } catch {
-        cleanupError = error
+        }, completion: { result, error in
+            if let error {
+                continuation.resume(throwing: error)
+            } else if let version = result as? NSNumber {
+                continuation.resume(returning: version.int64Value)
+            } else {
+                continuation.resume(throwing: SyncSnapshotSaveError.conflict(expected: expectedVersion ?? 0, actual: 0))
+            }
+        })
     }
 
-    return SyncSnapshotSaveResult(version: newVersion, staleChunkCleanupError: cleanupError)
+    return SyncSnapshotSaveResult(version: version, staleChunkCleanupError: nil)
 }
 
 private extension AppData {

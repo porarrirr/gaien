@@ -1,6 +1,8 @@
 package com.studyapp.data.repository
 
 import android.util.Log
+import androidx.room.withTransaction
+import com.studyapp.data.local.db.StudyDatabase
 import com.studyapp.data.local.db.dao.MaterialDao
 import com.studyapp.data.local.db.entity.MaterialEntity
 import com.studyapp.data.local.db.entity.MaterialWithSubject
@@ -22,6 +24,7 @@ import javax.inject.Singleton
 @Singleton
 class MaterialRepositoryImpl @Inject constructor(
     private val materialDao: MaterialDao,
+    private val studyDatabase: StudyDatabase,
     private val writeLock: AppDataWriteLock,
     private val syncChangeNotifier: SyncChangeNotifier
 ) : MaterialRepository {
@@ -92,7 +95,11 @@ class MaterialRepositoryImpl @Inject constructor(
         return try {
             val now = System.currentTimeMillis()
             writeLock.withLock {
-                materialDao.updateMaterial(material.copy(deletedAt = now, updatedAt = now).toEntity())
+                studyDatabase.withTransaction {
+                    materialDao.updateMaterial(material.copy(deletedAt = now, updatedAt = now).toEntity())
+                    studyDatabase.studySessionDao().softDeleteActiveByMaterial(material.id, now, now)
+                    studyDatabase.problemReviewRecordDao().softDeleteActiveByMaterial(material.id, now, now)
+                }
             }
             syncChangeNotifier.notifyLocalDataChanged()
             Result.Success(Unit)
