@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 protocol SubjectRepository {
@@ -100,6 +101,7 @@ protocol AuthRepository {
 @MainActor
 protocol SyncRepository {
     var status: SyncStatus { get }
+    var statusPublisher: AnyPublisher<SyncStatus, Never> { get }
     func syncNow() async throws
     func importLocalDataToCloud() async throws
     func clearLocalSyncState() async

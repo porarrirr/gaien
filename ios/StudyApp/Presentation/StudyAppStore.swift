@@ -15,8 +15,8 @@ final class StudyAppContainer: ObservableObject {
     let reminderScheduler: ReminderScheduler
     let logger: AppLogger
     let clock = Clock()
-    let authRepository: FirebaseAuthRepository
-    let syncRepository: FirebaseSyncRepository
+    let authRepository: any AuthRepository
+    let syncRepository: any SyncRepository
 
     private lazy var widgetSnapshotSync = WidgetSnapshotSync(container: self)
     private lazy var liveActivityController = StudyLiveActivityController(persistence: persistence, logger: logger)
@@ -35,7 +35,21 @@ final class StudyAppContainer: ObservableObject {
         let googleBooksService = GoogleBooksService()
         let reminderScheduler = ReminderScheduler()
         let logger = AppLogger()
-        let authRepository = FirebaseAuthRepository(logger: logger)
+        let authRepository: any AuthRepository
+        let syncRepository: (any SyncRepository)?
+        if FirebaseBootstrap.status.isConfigured {
+            let firebaseAuthRepository = FirebaseAuthRepository(logger: logger)
+            authRepository = firebaseAuthRepository
+            syncRepository = FirebaseSyncRepository(
+                authRepository: firebaseAuthRepository,
+                persistence: persistence,
+                preferencesRepository: preferencesRepository,
+                logger: logger
+            )
+        } else {
+            authRepository = DisabledAuthRepository()
+            syncRepository = DisabledSyncRepository(logger: logger)
+        }
 
         self.init(
             persistence: persistence,
@@ -44,7 +58,7 @@ final class StudyAppContainer: ObservableObject {
             reminderScheduler: reminderScheduler,
             logger: logger,
             authRepository: authRepository,
-            syncRepository: nil
+            syncRepository: syncRepository
         )
     }
 
@@ -54,8 +68,8 @@ final class StudyAppContainer: ObservableObject {
         googleBooksService: GoogleBooksService,
         reminderScheduler: ReminderScheduler,
         logger: AppLogger,
-        authRepository: FirebaseAuthRepository,
-        syncRepository: FirebaseSyncRepository?
+        authRepository: any AuthRepository,
+        syncRepository: (any SyncRepository)?
     ) {
         self.persistence = persistence
         self.preferencesRepository = preferencesRepository
@@ -63,16 +77,11 @@ final class StudyAppContainer: ObservableObject {
         self.reminderScheduler = reminderScheduler
         self.logger = logger
         self.authRepository = authRepository
-        self.syncRepository = syncRepository ?? FirebaseSyncRepository(
-            authRepository: authRepository,
-            persistence: persistence,
-            preferencesRepository: preferencesRepository,
-            logger: logger
-        )
+        self.syncRepository = syncRepository ?? DisabledSyncRepository(logger: logger)
         self.preferences = preferencesRepository.loadPreferences()
         self.syncStatus = self.syncRepository.status
 
-        self.syncRepository.$status
+        self.syncRepository.statusPublisher
             .receive(on: RunLoop.main)
             .sink { [weak self] newStatus in
                 self?.syncStatus = newStatus
@@ -81,6 +90,7 @@ final class StudyAppContainer: ObservableObject {
 
         Task {
             logger.log(category: .app, message: "StudyAppContainer initialized")
+            logger.log(category: .app, message: "Firebase configuration state", details: FirebaseBootstrap.status.logDescription)
             await load()
         }
     }

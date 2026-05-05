@@ -294,29 +294,35 @@ struct SettingsScreen: View {
                 Label("アプリ情報", systemImage: "info.circle.fill")
             }
 
-            if AppLogger.isDebugToolsEnabled && isDebugLogUnlocked {
-                Section {
-                    Button {
-                        viewModel.refreshDebugLogs()
-                        isShowingDebugLogs = true
-                    } label: {
-                        Label("デバッグログを開く", systemImage: "ladybug.fill")
-                    }
+            Section {
+                Button {
+                    viewModel.copyDebugLogs()
+                    copyConfirmationMessage = "診断ログをコピーしました"
+                } label: {
+                    Label("診断ログをコピー", systemImage: "doc.on.doc")
+                }
 
-                    Button {
-                        viewModel.exportDebugLogs()
-                    } label: {
-                        Label("デバッグログを共有", systemImage: "square.and.arrow.up")
-                    }
+                Button {
+                    viewModel.exportDebugLogs()
+                } label: {
+                    Label("診断ログを共有", systemImage: "square.and.arrow.up")
+                }
 
-                    Button {
-                        viewModel.copyDebugLogs()
-                        copyConfirmationMessage = "デバッグログをコピーしました"
-                    } label: {
-                        Label("デバッグログをコピー", systemImage: "doc.on.doc")
+                if let url = viewModel.exportURL {
+                    ShareLink(item: url) {
+                        Label("診断ログファイルを共有", systemImage: "square.and.arrow.up")
                     }
+                }
 
-                    Button("デバッグログをクリア", role: .destructive) {
+                Button {
+                    viewModel.refreshDebugLogs()
+                    isShowingDebugLogs = true
+                } label: {
+                    Label("診断ログを開く", systemImage: "ladybug.fill")
+                }
+
+                if isDebugLogUnlocked {
+                    Button("診断ログをクリア", role: .destructive) {
                         viewModel.clearDebugLogs()
                     }
 
@@ -326,10 +332,11 @@ struct SettingsScreen: View {
                         Text("\(viewModel.debugLogEntries.count)件")
                             .foregroundStyle(.secondary)
                     }
-                } header: {
-                    Label("デバッグログ", systemImage: "ladybug.fill")
                 }
+            } header: {
+                Label("診断ログ", systemImage: "ladybug.fill")
             }
+
         }
         .navigationTitle("設定")
         .sheet(isPresented: $isShowingAuthSheet) {

@@ -4,7 +4,7 @@ import FirebaseCore
 @main
 struct StudyAppApp: App {
     init() {
-        FirebaseApp.configure()
+        FirebaseBootstrap.configureIfAvailable()
     }
 
     var body: some Scene {

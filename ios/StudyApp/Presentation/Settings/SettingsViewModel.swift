@@ -128,7 +128,6 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func exportDebugLogs() {
-        guard AppLogger.isDebugToolsEnabled else { return }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("studyapp_debug_logs_\(Int(Date().timeIntervalSince1970)).txt")
         do {
             try app.logger.exportText().write(to: url, atomically: true, encoding: .utf8)
@@ -141,7 +140,6 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func copyDebugLogs() {
-        guard AppLogger.isDebugToolsEnabled else { return }
         #if canImport(UIKit)
         UIPasteboard.general.string = app.logger.exportText()
         app.logger.log(category: .app, message: "Debug logs copied to clipboard", details: "entryCount=\(app.logger.recentEntries().count)")

@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 final class AutoSyncCoordinator {
-    private let syncRepository: FirebaseSyncRepository
+    private let syncRepository: any SyncRepository
     private let logger: AppLogger
     private let currentDataVersion: @MainActor () -> Int
     private let onSyncStatusChanged: @MainActor () -> Void
@@ -14,7 +14,7 @@ final class AutoSyncCoordinator {
     private var isRunning = false
 
     init(
-        syncRepository: FirebaseSyncRepository,
+        syncRepository: any SyncRepository,
         logger: AppLogger,
         currentDataVersion: @escaping @MainActor () -> Int,
         onSyncStatusChanged: @escaping @MainActor () -> Void

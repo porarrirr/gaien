@@ -46,11 +46,7 @@ struct DebugLogEntry: Identifiable, Codable, Equatable {
 @MainActor
 final class AppLogger: ObservableObject {
     static var isDebugToolsEnabled: Bool {
-#if DEBUG
         true
-#else
-        false
-#endif
     }
 
     private let fileManager: FileManager
@@ -73,16 +69,12 @@ final class AppLogger: ObservableObject {
         decoder.dateDecodingStrategy = .iso8601
         encoder.dateEncodingStrategy = .iso8601
 
-        if Self.isDebugToolsEnabled {
-            do {
-                try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-            } catch {
-                print("[StudyApp] Failed to create debug log directory: \(error.localizedDescription)")
-            }
-            loadEntries()
-        } else {
-            entries = []
+        do {
+            try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        } catch {
+            print("[StudyApp] Failed to create debug log directory: \(error.localizedDescription)")
         }
+        loadEntries()
     }
 
     func log(
@@ -141,10 +133,6 @@ final class AppLogger: ObservableObject {
     }
 
     private func loadEntries() {
-        guard Self.isDebugToolsEnabled else {
-            entries = []
-            return
-        }
         guard fileManager.fileExists(atPath: fileURL.path) else {
             entries = []
             return
@@ -160,7 +148,6 @@ final class AppLogger: ObservableObject {
     }
 
     private func persistEntries() {
-        guard Self.isDebugToolsEnabled else { return }
         do {
             let data = try encoder.encode(entries)
             try data.write(to: fileURL, options: .atomic)
