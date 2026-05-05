@@ -5,7 +5,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var app = StudyAppContainer()
+    @ObservedObject var app: StudyAppContainer
 
     private var errorBinding: Binding<Bool> {
         Binding(
