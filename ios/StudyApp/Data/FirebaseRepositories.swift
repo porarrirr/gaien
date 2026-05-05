@@ -543,8 +543,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private func merge(local: AppData, remote: AppData) -> AppData {
         AppData(
             subjects: merge(local.subjects, remote.subjects, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            materials: merge(local.materials, remote.materials, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            sessions: merge(local.sessions, remote.sessions, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            materials: mergeMaterials(local.materials, remote.materials),
+            sessions: mergeSessions(local.sessions, remote.sessions),
             goals: merge(local.goals, remote.goals, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
             exams: merge(local.exams, remote.exams, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
             plans: mergePlans(local.plans, remote.plans),
@@ -557,6 +557,43 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         )
     }
 
+    private func mergeMaterials(_ local: [Material], _ remote: [Material]) -> [Material] {
+        merge(local, remote, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt) { selected, other in
+            guard selected.deletedAt == nil else { return selected }
+            var enriched = selected
+            if enriched.problemChapters.isEmpty, !other.problemChapters.isEmpty {
+                enriched.problemChapters = other.problemChapters
+            }
+            if enriched.problemRecords.isEmpty, !other.problemRecords.isEmpty {
+                enriched.problemRecords = other.problemRecords
+            }
+            if enriched.totalProblems == 0, other.totalProblems > 0 {
+                enriched.totalProblems = other.totalProblems
+            }
+            return enriched
+        }
+    }
+
+    private func mergeSessions(_ local: [StudySession], _ remote: [StudySession]) -> [StudySession] {
+        merge(local, remote, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt) { selected, other in
+            guard selected.deletedAt == nil else { return selected }
+            var enriched = selected
+            if enriched.problemRecords.isEmpty, !other.problemRecords.isEmpty {
+                enriched.problemRecords = other.problemRecords
+            }
+            if enriched.problemStart == nil {
+                enriched.problemStart = other.problemStart
+            }
+            if enriched.problemEnd == nil {
+                enriched.problemEnd = other.problemEnd
+            }
+            if enriched.wrongProblemCount == nil {
+                enriched.wrongProblemCount = other.wrongProblemCount
+            }
+            return enriched
+        }
+    }
+
     private func mergePlans(_ local: [PlanData], _ remote: [PlanData]) -> [PlanData] {
         let plans = merge(local.map(\.plan), remote.map(\.plan), key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt)
         let items = merge(local.flatMap(\.items), remote.flatMap(\.items), key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt)
@@ -567,6 +604,17 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     }
 
     private func merge<T>(_ lhs: [T], _ rhs: [T], key: KeyPath<T, String>, updatedAt: KeyPath<T, Int64>, deletedAt: KeyPath<T, Int64?>) -> [T] {
+        merge(lhs, rhs, key: key, updatedAt: updatedAt, deletedAt: deletedAt) { selected, _ in selected }
+    }
+
+    private func merge<T>(
+        _ lhs: [T],
+        _ rhs: [T],
+        key: KeyPath<T, String>,
+        updatedAt: KeyPath<T, Int64>,
+        deletedAt: KeyPath<T, Int64?>,
+        preservingDetails enrich: (T, T) -> T
+    ) -> [T] {
         var result: [String: T] = [:]
         for item in lhs + rhs {
             let id = item[keyPath: key]
@@ -581,7 +629,9 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             } else if existingDelete > item[keyPath: updatedAt] && existingDelete >= candidateDelete {
                 result[id] = existing
             } else if item[keyPath: updatedAt] >= existing[keyPath: updatedAt] {
-                result[id] = item
+                result[id] = enrich(item, existing)
+            } else {
+                result[id] = enrich(existing, item)
             }
         }
         return Array(result.values)

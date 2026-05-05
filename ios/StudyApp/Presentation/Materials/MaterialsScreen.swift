@@ -549,7 +549,8 @@ private struct MaterialHistoryScreen: View {
                             MaterialProblemProgressCard(
                                 totalProblems: material.totalProblems,
                                 chapters: material.problemChapters,
-                                sessions: viewModel.sessions
+                                sessions: viewModel.sessions,
+                                reviewRecords: viewModel.problemReviewRecords
                             )
                             .padding(.horizontal, AppSpacing.md)
                         }
@@ -723,6 +724,7 @@ private struct MaterialProblemProgressCard: View {
     let totalProblems: Int
     let chapters: [ProblemChapter]
     let sessions: [StudySession]
+    let reviewRecords: [ProblemReviewRecord]
 
     @State private var selectedNumber: Int?
 
@@ -769,7 +771,11 @@ private struct MaterialProblemProgressCard: View {
     }
 
     private var snapshot: MaterialProblemProgressSnapshot {
-        MaterialProblemProgressSnapshot(sessions: sessions, totalProblems: totalProblems)
+        MaterialProblemProgressSnapshot(
+            sessions: sessions,
+            reviewRecords: reviewRecords,
+            totalProblems: totalProblems
+        )
     }
 
     private var problemRows: [[Int]] {
@@ -913,6 +919,17 @@ private enum MaterialProblemStatus: Hashable {
     }
 }
 
+private extension ProblemResult {
+    init(reviewRating: ProblemReviewRating) {
+        switch reviewRating {
+        case .again:
+            self = .wrong
+        case .good:
+            self = .correct
+        }
+    }
+}
+
 private struct MaterialProblemAppearance {
     let status: MaterialProblemStatus
     let recoveryStage: MaterialProblemRecoveryStage?
@@ -921,7 +938,7 @@ private struct MaterialProblemAppearance {
 private struct MaterialProblemProgressSnapshot {
     private let itemsByNumber: [Int: MaterialProblemProgressItem]
 
-    init(sessions: [StudySession], totalProblems: Int) {
+    init(sessions: [StudySession], reviewRecords: [ProblemReviewRecord], totalProblems: Int) {
         guard totalProblems > 0 else {
             itemsByNumber = [:]
             return
@@ -938,6 +955,23 @@ private struct MaterialProblemProgressSnapshot {
                     )
                 )
             }
+        }
+
+        let sessionEntryKeys = Set(entriesByNumber.flatMap { number, entries in
+            entries.map { entry in "\(number)-\(entry.date.epochMilliseconds)-\(entry.result.rawValue)" }
+        })
+        for review in reviewRecords where (1...totalProblems).contains(review.problemNumber) {
+            let result = ProblemResult(reviewRating: review.rating)
+            let entryDate = Date(epochMilliseconds: review.reviewedAt)
+            let key = "\(review.problemNumber)-\(entryDate.epochMilliseconds)-\(result.rawValue)"
+            guard !sessionEntryKeys.contains(key) else { continue }
+            entriesByNumber[review.problemNumber, default: []].append(
+                ProblemHistoryEntry(
+                    date: entryDate,
+                    result: result,
+                    detail: nil
+                )
+            )
         }
 
         itemsByNumber = entriesByNumber.mapValues { entries in

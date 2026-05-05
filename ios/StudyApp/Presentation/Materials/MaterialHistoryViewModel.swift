@@ -6,6 +6,7 @@ final class MaterialHistoryViewModel: ScreenViewModel {
     @Published private(set) var material: Material?
     @Published private(set) var subject: Subject?
     @Published private(set) var sessions: [StudySession] = []
+    @Published private(set) var problemReviewRecords: [ProblemReviewRecord] = []
     @Published var displayedMonth = Calendar.current.startOfDay(for: Date())
     @Published var selectedDate = Calendar.current.startOfDay(for: Date())
 
@@ -52,10 +53,12 @@ final class MaterialHistoryViewModel: ScreenViewModel {
             async let materialsTask = app.persistence.getAllMaterials()
             async let subjectsTask = app.persistence.getAllSubjects()
             async let sessionsTask = app.persistence.getAllSessions()
+            async let problemReviewRecordsTask = app.persistence.getAllProblemReviewRecords()
 
             let materials = try await materialsTask
             let subjects = try await subjectsTask
             let allSessions = try await sessionsTask
+            let allProblemReviewRecords = try await problemReviewRecordsTask
 
             material = materials.first { $0.id == materialId }
             subject = material.flatMap { selectedMaterial in
@@ -64,6 +67,9 @@ final class MaterialHistoryViewModel: ScreenViewModel {
             sessions = allSessions
                 .filter { $0.materialId == materialId }
                 .sorted { $0.sessionStartTime > $1.sessionStartTime }
+            problemReviewRecords = allProblemReviewRecords
+                .filter { $0.materialId == materialId }
+                .sorted { $0.reviewedAt > $1.reviewedAt }
 
             let initialDate = latestStudyDate ?? Date().startOfDay
             selectedDate = initialDate

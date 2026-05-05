@@ -216,8 +216,8 @@ class FirebaseSyncRepository @Inject constructor(
     private fun merge(local: AppData, remote: AppData): AppData {
         return AppData(
             subjects = mergeMaster(local.subjects, remote.subjects, Subject::syncId, Subject::updatedAt, Subject::deletedAt),
-            materials = mergeMaster(local.materials, remote.materials, Material::syncId, Material::updatedAt, Material::deletedAt),
-            sessions = mergeMaster(local.sessions, remote.sessions, StudySession::syncId, StudySession::updatedAt, StudySession::deletedAt),
+            materials = mergeMaterials(local.materials, remote.materials),
+            sessions = mergeSessions(local.sessions, remote.sessions),
             goals = mergeMaster(local.goals, remote.goals, Goal::syncId, Goal::updatedAt, Goal::deletedAt),
             exams = mergeMaster(local.exams, remote.exams, Exam::syncId, Exam::updatedAt, Exam::deletedAt),
             plans = mergePlans(local.plans, remote.plans),
@@ -228,6 +228,47 @@ class FirebaseSyncRepository @Inject constructor(
             problemReviewRecords = mergeMaster(local.problemReviewRecords, remote.problemReviewRecords, ProblemReviewRecord::syncId, ProblemReviewRecord::updatedAt, ProblemReviewRecord::deletedAt),
             exportDate = maxOf(local.exportDate, remote.exportDate)
         )
+    }
+
+    private fun mergeMaterials(local: List<Material>, remote: List<Material>): List<Material> {
+        return mergeMaster(
+            local,
+            remote,
+            Material::syncId,
+            Material::updatedAt,
+            Material::deletedAt
+        ) { selected, other ->
+            if (selected.deletedAt != null) {
+                selected
+            } else {
+                selected.copy(
+                    totalProblems = selected.totalProblems.takeIf { it > 0 } ?: other.totalProblems,
+                    problemChapters = selected.problemChapters.ifEmpty { other.problemChapters },
+                    problemRecords = selected.problemRecords.ifEmpty { other.problemRecords }
+                )
+            }
+        }
+    }
+
+    private fun mergeSessions(local: List<StudySession>, remote: List<StudySession>): List<StudySession> {
+        return mergeMaster(
+            local,
+            remote,
+            StudySession::syncId,
+            StudySession::updatedAt,
+            StudySession::deletedAt
+        ) { selected, other ->
+            if (selected.deletedAt != null) {
+                selected
+            } else {
+                selected.copy(
+                    problemStart = selected.problemStart ?: other.problemStart,
+                    problemEnd = selected.problemEnd ?: other.problemEnd,
+                    wrongProblemCount = selected.wrongProblemCount ?: other.wrongProblemCount,
+                    problemRecords = selected.problemRecords.ifEmpty { other.problemRecords }
+                )
+            }
+        }
     }
 
     private fun mergePlans(local: List<PlanData>, remote: List<PlanData>): List<PlanData> {
@@ -249,7 +290,8 @@ class FirebaseSyncRepository @Inject constructor(
         remote: List<T>,
         keyOf: (T) -> String,
         updatedAtOf: (T) -> Long,
-        deletedAtOf: (T) -> Long?
+        deletedAtOf: (T) -> Long?,
+        preserveDetails: (selected: T, other: T) -> T = { selected, _ -> selected }
     ): List<T> {
         val merged = linkedMapOf<String, T>()
         (local + remote).forEach { item ->
@@ -263,8 +305,8 @@ class FirebaseSyncRepository @Inject constructor(
                 merged[key] = when {
                     candidateDelete > updatedAtOf(existing) && candidateDelete >= existingDelete -> item
                     existingDelete > updatedAtOf(item) && existingDelete >= candidateDelete -> existing
-                    updatedAtOf(item) >= updatedAtOf(existing) -> item
-                    else -> existing
+                    updatedAtOf(item) >= updatedAtOf(existing) -> preserveDetails(item, existing)
+                    else -> preserveDetails(existing, item)
                 }
             }
         }

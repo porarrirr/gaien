@@ -1076,6 +1076,16 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let existingTimetableTermIds = try existingIdMap(entity: "TimetableTermRecord")
         let existingTimetableReviewRecordIds = try existingIdMap(entity: "TimetableReviewRecord")
         let existingProblemReviewRecordIds = try existingIdMap(entity: "ProblemReviewRecord")
+        let existingMaterialsBySyncId = try fetch(entity: "MaterialRecord")
+            .map(Self.material)
+            .reduce(into: [String: Material]()) { result, material in
+                result[material.syncId] = material
+            }
+        let existingSessionsBySyncId = try fetch(entity: "StudySessionRecord")
+            .map(Self.session)
+            .reduce(into: [String: StudySession]()) { result, session in
+                result[session.syncId] = session
+            }
 
         // Delete all existing records in-memory (not yet committed)
         for entityName in Self.entityNames {
@@ -1146,19 +1156,20 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         // --- Materials ---
         for material in appData.materials {
             let localId = allocateId(preferred: existingMaterialIds[material.syncId] ?? material.id)
+            let importedMaterial = Self.preserveProblemProgress(in: material, existing: existingMaterialsBySyncId[material.syncId])
             materialSyncMap[material.syncId] = localId
             if material.id > 0 { materialOldMap[material.id] = localId }
 
             let subjectId: Int64 = Self.resolveFK(
-                syncId: material.subjectSyncId, syncMap: subjectSyncMap,
-                oldId: material.subjectId, oldMap: subjectOldMap)
+                syncId: importedMaterial.subjectSyncId, syncMap: subjectSyncMap,
+                oldId: importedMaterial.subjectId, oldMap: subjectOldMap)
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "MaterialRecord", into: ctx)
             Self.apply(
-                material,
+                importedMaterial,
                 assignedId: localId,
                 subjectId: subjectId,
-                subjectSyncId: material.subjectSyncId,
+                subjectSyncId: importedMaterial.subjectSyncId,
                 now: now,
                 to: r
             )
@@ -1167,17 +1178,18 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         // --- Sessions ---
         for session in appData.sessions {
             let localId = allocateId(preferred: existingSessionIds[session.syncId] ?? session.id)
+            let importedSession = Self.preserveProblemProgress(in: session, existing: existingSessionsBySyncId[session.syncId])
 
             let subjectId = Self.resolveFK(
-                syncId: session.subjectSyncId, syncMap: subjectSyncMap,
-                oldId: session.subjectId, oldMap: subjectOldMap)
+                syncId: importedSession.subjectSyncId, syncMap: subjectSyncMap,
+                oldId: importedSession.subjectId, oldMap: subjectOldMap)
             let materialId = Self.resolveOptFK(
-                syncId: session.materialSyncId, syncMap: materialSyncMap,
-                oldId: session.materialId, oldMap: materialOldMap)
+                syncId: importedSession.materialSyncId, syncMap: materialSyncMap,
+                oldId: importedSession.materialId, oldMap: materialOldMap)
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: ctx)
             Self.apply(
-                session,
+                importedSession,
                 assignedId: localId,
                 subjectId: subjectId,
                 materialId: materialId,
@@ -1339,6 +1351,39 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private static func resolveOptFK(syncId: String?, syncMap: [String: Int64], oldId: Int64?, oldMap: [Int64: Int64]) -> Int64? {
         guard let oid = oldId else { return nil }
         return resolveFK(syncId: syncId, syncMap: syncMap, oldId: oid, oldMap: oldMap)
+    }
+
+    private static func preserveProblemProgress(in imported: Material, existing: Material?) -> Material {
+        guard imported.deletedAt == nil, let existing else { return imported }
+        var preserved = imported
+        if preserved.problemChapters.isEmpty, !existing.problemChapters.isEmpty {
+            preserved.problemChapters = existing.problemChapters
+        }
+        if preserved.problemRecords.isEmpty, !existing.problemRecords.isEmpty {
+            preserved.problemRecords = existing.problemRecords
+        }
+        if preserved.totalProblems == 0, existing.totalProblems > 0 {
+            preserved.totalProblems = existing.totalProblems
+        }
+        return preserved
+    }
+
+    private static func preserveProblemProgress(in imported: StudySession, existing: StudySession?) -> StudySession {
+        guard imported.deletedAt == nil, let existing else { return imported }
+        var preserved = imported
+        if preserved.problemRecords.isEmpty, !existing.problemRecords.isEmpty {
+            preserved.problemRecords = existing.problemRecords
+        }
+        if preserved.problemStart == nil {
+            preserved.problemStart = existing.problemStart
+        }
+        if preserved.problemEnd == nil {
+            preserved.problemEnd = existing.problemEnd
+        }
+        if preserved.wrongProblemCount == nil {
+            preserved.wrongProblemCount = existing.wrongProblemCount
+        }
+        return preserved
     }
 
     private func rebuildProblemReviewRecords(for materialId: Int64, now: Int64, startingId nextLocalId: inout Int64) throws {
