@@ -1,11 +1,8 @@
 package com.studyapp.presentation.settings
 
 import android.content.Context
-import com.studyapp.domain.model.AnkiIntegrationStatus
-import com.studyapp.domain.model.AnkiTodayStats
 import com.studyapp.domain.model.ColorTheme
 import com.studyapp.domain.model.ThemeMode
-import com.studyapp.domain.repository.AnkiRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AuthRepository
@@ -13,8 +10,6 @@ import com.studyapp.sync.AuthSession
 import com.studyapp.sync.SyncChangeNotifier
 import com.studyapp.sync.SyncRepository
 import com.studyapp.sync.SyncStatus
-import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +22,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 
@@ -36,7 +30,6 @@ class SettingsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
     private lateinit var studySessionRepository: StudySessionRepository
-    private lateinit var ankiRepository: AnkiRepository
     private lateinit var themePreferences: ThemePreferences
     private lateinit var reminderPreferences: ReminderPreferences
     private lateinit var exportImportDataUseCase: com.studyapp.domain.usecase.ExportImportDataUseCase
@@ -49,7 +42,6 @@ class SettingsViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         studySessionRepository = mockk()
-        ankiRepository = mockk()
         themePreferences = mockk()
         reminderPreferences = mockk()
         exportImportDataUseCase = mockk(relaxed = true)
@@ -59,14 +51,6 @@ class SettingsViewModelTest {
         appContext = mockk(relaxed = true)
 
         every { studySessionRepository.getAllSessions() } returns flowOf(Result.Success(emptyList()))
-        every { ankiRepository.observeTodayStats() } returns flowOf(
-            AnkiTodayStats(
-                answeredCards = 7,
-                usageMinutes = 12,
-                status = AnkiIntegrationStatus.AVAILABLE
-            )
-        )
-        coEvery { ankiRepository.refreshTodayStats() } returns Unit
         every { themePreferences.getPrimaryColor() } returns flowOf(ColorTheme.GREEN)
         every { themePreferences.getThemeMode() } returns flowOf(ThemeMode.SYSTEM)
         every { reminderPreferences.isReminderEnabled() } returns flowOf(false)
@@ -81,10 +65,9 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `anki stats are reflected in settings ui state`() = runTest {
+    fun `settings preferences are reflected in ui state`() = runTest {
         val viewModel = SettingsViewModel(
             studySessionRepository = studySessionRepository,
-            ankiRepository = ankiRepository,
             themePreferences = themePreferences,
             reminderPreferences = reminderPreferences,
             exportImportDataUseCase = exportImportDataUseCase,
@@ -97,10 +80,8 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals(7, state.ankiStats.answeredCards)
-        assertEquals(12L, state.ankiStats.usageMinutes)
-        assertEquals(AnkiIntegrationStatus.AVAILABLE, state.ankiStats.status)
-        assertFalse(state.isRefreshingAnkiStats)
-        coVerify { ankiRepository.refreshTodayStats() }
+        assertEquals(ColorTheme.GREEN, state.selectedColorTheme)
+        assertEquals(ThemeMode.SYSTEM, state.selectedThemeMode)
+        assertEquals("19:00", state.reminderTime)
     }
 }

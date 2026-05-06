@@ -764,7 +764,7 @@ struct CalendarScreen: View {
         let correct = editingProblemRecords.filter { $0.result == .correct }.count
         let wrong = editingProblemRecords.filter(\.isWrong).count
         let review = editingProblemRecords.filter { $0.result == .reviewCorrect }.count
-        return "タップで正解、ダブルタップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
+        return "タップで正解、すばやく2回タップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
     }
 
     private var areIntervalDraftsValid: Bool {

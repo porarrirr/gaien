@@ -6,10 +6,8 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.studyapp.domain.model.AnkiTodayStats
 import com.studyapp.domain.model.ColorTheme
 import com.studyapp.domain.model.ThemeMode
-import com.studyapp.domain.repository.AnkiRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.usecase.ExportImportDataUseCase
 import com.studyapp.domain.util.Result
@@ -56,15 +54,12 @@ data class SettingsUiState(
     val syncInProgress: Boolean = false,
     val lastSyncAt: Long? = null,
     val syncError: String? = null,
-    val ankiStats: AnkiTodayStats = AnkiTodayStats(),
-    val isRefreshingAnkiStats: Boolean = true,
     val debugLogs: List<DebugLogEntry> = emptyList()
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val studySessionRepository: StudySessionRepository,
-    private val ankiRepository: AnkiRepository,
     private val themePreferences: ThemePreferences,
     private val reminderPreferences: ReminderPreferences,
     private val exportImportDataUseCase: ExportImportDataUseCase,
@@ -82,8 +77,6 @@ class SettingsViewModel @Inject constructor(
         loadThemePreferences()
         loadReminderPreferences()
         observeSyncState()
-        observeAnkiState()
-        refreshAnkiStats()
     }
     
     private fun loadThemePreferences() {
@@ -256,19 +249,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun observeAnkiState() {
-        viewModelScope.launch {
-            ankiRepository.observeTodayStats().collect { stats ->
-                _uiState.update {
-                    it.copy(
-                        ankiStats = stats,
-                        isRefreshingAnkiStats = false
-                    )
-                }
-            }
-        }
-    }
-    
     fun exportData(context: Context, format: String) {
         viewModelScope.launch {
             when (val exportResult = exportImportDataUseCase.exportToJson()) {
@@ -368,17 +348,6 @@ class SettingsViewModel @Inject constructor(
 
     fun clearDebugLogs() {
         _uiState.update { it.copy(debugLogs = emptyList()) }
-    }
-
-    fun refreshAnkiStats() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshingAnkiStats = true) }
-            try {
-                ankiRepository.refreshTodayStats()
-            } finally {
-                _uiState.update { it.copy(isRefreshingAnkiStats = false) }
-            }
-        }
     }
 
     private fun convertToCsv(json: String): String {

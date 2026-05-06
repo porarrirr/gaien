@@ -660,7 +660,7 @@ private struct LandscapeTimerFocusView: View {
             }
             return "全\(materialProblemCount)問 ・ \(materialProblemChapters.count)章"
         }
-        return "タップで正解、ダブルタップで不正解、長押しで詳細"
+        return "タップで正解、すばやく2回タップで不正解、長押しで詳細"
     }
 
     private var landscapeBackground: some View {
@@ -867,7 +867,7 @@ private struct ProblemProgressEditor: View {
         let correct = records.filter { $0.result == .correct }.count
         let wrong = records.filter(\.isWrong).count
         let review = records.filter { $0.result == .reviewCorrect }.count
-        return "タップで正解、ダブルタップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
+        return "タップで正解、すばやく2回タップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
     }
 
     private var effectiveProblemCount: Int {
@@ -1010,7 +1010,7 @@ private struct SessionEvaluationSheet: View {
         let correct = problemRecords.filter { $0.result == .correct }.count
         let wrong = problemRecords.filter(\.isWrong).count
         let review = problemRecords.filter { $0.result == .reviewCorrect }.count
-        return "タップで正解、ダブルタップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
+        return "タップで正解、すばやく2回タップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
     }
 
     private var effectiveProblemCount: Int {

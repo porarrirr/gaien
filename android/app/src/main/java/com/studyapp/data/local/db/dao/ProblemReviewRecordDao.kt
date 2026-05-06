@@ -5,11 +5,15 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.studyapp.data.local.db.entity.ProblemReviewRecordEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ProblemReviewRecordDao {
     @Query("SELECT * FROM problem_review_records")
     suspend fun getAllForSync(): List<ProblemReviewRecordEntity>
+
+    @Query("SELECT * FROM problem_review_records WHERE deletedAt IS NULL ORDER BY reviewedAt DESC")
+    fun observeActiveRecords(): Flow<List<ProblemReviewRecordEntity>>
 
     @Query("UPDATE problem_review_records SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE materialId = :materialId AND deletedAt IS NULL")
     suspend fun softDeleteActiveByMaterial(materialId: Long, deletedAt: Long, updatedAt: Long)

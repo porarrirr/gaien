@@ -42,3 +42,16 @@ data class ProblemReviewRecord(
         }
     }
 }
+
+data class TodayReviewProblem(
+    val materialId: Long,
+    val materialName: String,
+    val subjectName: String,
+    val problemNumber: Int,
+    val nextReviewDate: Long,
+    val consecutiveCorrectCount: Int,
+    val wrongCount: Int
+) {
+    val id: String
+        get() = ProblemReviewRecord.problemId(materialId, problemNumber)
+}

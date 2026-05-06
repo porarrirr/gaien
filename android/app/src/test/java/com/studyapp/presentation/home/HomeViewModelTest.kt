@@ -1,11 +1,9 @@
 package com.studyapp.presentation.home
 
-import com.studyapp.domain.model.AnkiTodayStats
-import com.studyapp.domain.repository.AnkiRepository
+import com.studyapp.domain.model.TodayReviewProblem
 import com.studyapp.domain.usecase.GetHomeDataUseCase
 import com.studyapp.domain.usecase.GetRecentMaterialsUseCase
 import com.studyapp.domain.usecase.HomeData
-import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -39,7 +37,6 @@ class HomeViewModelTest {
     fun `home data updates ui state`() = runTest {
         val homeUseCase = mockk<GetHomeDataUseCase>()
         val recentMaterialsUseCase = mockk<GetRecentMaterialsUseCase>()
-        val ankiRepository = mockk<AnkiRepository>()
         every { homeUseCase() } returns flowOf(
             HomeData(
                 todayStudyMinutes = 25,
@@ -47,18 +44,28 @@ class HomeViewModelTest {
                 todayGoal = null,
                 weeklyGoal = null,
                 weeklyStudyMinutes = 90,
-                upcomingExams = emptyList()
+                upcomingExams = emptyList(),
+                todayReviewProblems = listOf(
+                    TodayReviewProblem(
+                        materialId = 1,
+                        materialName = "数学問題集",
+                        subjectName = "数学",
+                        problemNumber = 12,
+                        nextReviewDate = 1_700_000_000_000,
+                        consecutiveCorrectCount = 0,
+                        wrongCount = 2
+                    )
+                )
             )
         )
         every { recentMaterialsUseCase() } returns flowOf(emptyList())
-        every { ankiRepository.observeTodayStats() } returns flowOf(AnkiTodayStats(answeredCards = 3))
-        coEvery { ankiRepository.refreshTodayStats() } returns Unit
 
-        val viewModel = HomeViewModel(homeUseCase, recentMaterialsUseCase, ankiRepository)
+        val viewModel = HomeViewModel(homeUseCase, recentMaterialsUseCase)
         advanceUntilIdle()
 
         assertEquals(25L, viewModel.uiState.value.todayStudyMinutes)
         assertEquals(90L, viewModel.uiState.value.weeklyStudyMinutes)
-        assertEquals(3, viewModel.uiState.value.ankiStats.answeredCards)
+        assertEquals(1, viewModel.uiState.value.todayReviewProblems.size)
+        assertEquals(12, viewModel.uiState.value.todayReviewProblems.first().problemNumber)
     }
 }

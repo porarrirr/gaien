@@ -1,10 +1,5 @@
 package com.studyapp.presentation.home
 
-import android.content.Intent
-import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -32,24 +27,18 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,17 +52,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import com.ichi2.anki.api.AddContentApi
 import com.studyapp.R
-import com.studyapp.domain.model.AnkiIntegrationStatus
-import com.studyapp.domain.model.AnkiTodayStats
 import com.studyapp.domain.model.Exam
 import com.studyapp.domain.model.Goal
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.TimetableLesson
+import com.studyapp.domain.model.TodayReviewProblem
 import com.studyapp.domain.usecase.TodaySession
 import com.studyapp.presentation.components.CircularProgressRing
 import com.studyapp.presentation.components.SectionHeader
@@ -99,25 +83,6 @@ fun HomeScreen(
     onNavigateToSubjects: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val ankiPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) {
-        viewModel.refreshAnkiStats()
-    }
-
-    DisposableEffect(lifecycleOwner, viewModel) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshAnkiStats()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
 
     when {
         uiState.isLoading -> {
@@ -204,10 +169,23 @@ fun HomeScreen(
                     }
                 }
 
+                item {
+                    SlideInCard(visible = true, delayMillis = 50) {
+                        Column {
+                            SectionHeader(
+                                title = "今日の復習",
+                                icon = Icons.AutoMirrored.Filled.EventNote
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TodayReviewSection(problems = uiState.todayReviewProblems)
+                        }
+                    }
+                }
+
                 // Today's sessions section
                 if (uiState.todaySessions.isNotEmpty()) {
                     item {
-                        SlideInCard(visible = true, delayMillis = 50) {
+                        SlideInCard(visible = true, delayMillis = 100) {
                             Column {
                                 SectionHeader(
                                     title = "今日のセッション",
@@ -221,33 +199,6 @@ fun HomeScreen(
                 }
 
                 // Weekly goal section
-                item {
-                    SlideInCard(visible = true, delayMillis = 100) {
-                        Column {
-                            SectionHeader(
-                                    title = stringResource(R.string.home_anki_today_title),
-                                    icon = Icons.AutoMirrored.Filled.EventNote
-                                )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            AnkiTodaySection(
-                                stats = uiState.ankiStats,
-                                isRefreshing = uiState.isRefreshingAnkiStats,
-                                onGrantAnkiPermission = {
-                                    ankiPermissionLauncher.launch(AddContentApi.READ_WRITE_PERMISSION)
-                                },
-                                onOpenUsageAccess = {
-                                    context.startActivity(
-                                        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                    )
-                                },
-                                onRefresh = viewModel::refreshAnkiStats
-                            )
-                        }
-                    }
-                }
-
                 item {
                     SlideInCard(visible = true, delayMillis = 200) {
                         Column {
@@ -348,13 +299,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun AnkiTodaySection(
-    stats: AnkiTodayStats,
-    isRefreshing: Boolean,
-    onGrantAnkiPermission: () -> Unit,
-    onOpenUsageAccess: () -> Unit,
-    onRefresh: () -> Unit
-) {
+private fun TodayReviewSection(problems: List<TodayReviewProblem>) {
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -367,113 +312,22 @@ private fun AnkiTodaySection(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = stringResource(R.string.home_anki_today_summary),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    StatusChip(status = stats.status)
-                }
-                OutlinedButton(onClick = onRefresh) {
-                    Text(stringResource(R.string.home_anki_refresh))
-                }
-            }
-
-            Crossfade(targetState = isRefreshing, label = "anki-refresh-state") { refreshing ->
-                if (refreshing) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Text(
-                            text = stringResource(R.string.home_anki_loading),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            AnkiMetric(
-                                modifier = Modifier.weight(1f),
-                                label = stringResource(R.string.home_anki_answered_cards),
-                                value = stats.answeredCards?.toString()
-                                    ?: stringResource(R.string.home_anki_unavailable)
-                            )
-                            AnkiMetric(
-                                modifier = Modifier.weight(1f),
-                                label = stringResource(R.string.home_anki_usage_time),
-                                value = stats.usageMinutes?.let { "$it${stringResource(R.string.home_minutes)}" }
-                                    ?: stringResource(R.string.home_anki_unavailable)
-                            )
-                        }
-
-                        if (stats.requiresAnkiPermission || stats.requiresUsageAccess || stats.status == AnkiIntegrationStatus.ANKI_NOT_INSTALLED) {
-                            HorizontalDivider()
-                        }
-
-                        if (stats.status == AnkiIntegrationStatus.ANKI_NOT_INSTALLED) {
-                            Text(
-                                text = stringResource(R.string.home_anki_not_installed),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            if (stats.requiresAnkiPermission) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text(
-                                        text = stringResource(R.string.home_anki_permission_required),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    OutlinedButton(onClick = onGrantAnkiPermission) {
-                                        Text(stringResource(R.string.home_anki_grant_permission))
-                                    }
-                                }
-                            }
-
-                            if (stats.requiresUsageAccess) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text(
-                                        text = stringResource(R.string.home_anki_usage_access_required),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    OutlinedButton(onClick = onOpenUsageAccess) {
-                                        Text(stringResource(R.string.home_anki_open_usage_access))
-                                    }
-                                }
-                            }
-                        }
-
-                        if (stats.status == AnkiIntegrationStatus.ERROR && !stats.errorMessage.isNullOrBlank()) {
-                            Text(
-                                text = stats.errorMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-
-                        Text(
-                            text = stringResource(
-                                R.string.home_anki_last_updated,
-                                stats.lastUpdatedAt?.let { formatAnkiTimestamp(it) }
-                                    ?: stringResource(R.string.home_anki_not_updated)
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+            if (problems.isEmpty()) {
+                Text(
+                    text = "今日の復習はありません",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                problems.take(8).forEachIndexed { index, problem ->
+                    TodayReviewProblemRow(problem = problem)
+                    if (index != problems.take(8).lastIndex) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ) {}
                     }
                 }
             }
@@ -482,51 +336,65 @@ private fun AnkiTodaySection(
 }
 
 @Composable
-private fun StatusChip(status: AnkiIntegrationStatus) {
-    val (label, containerColor) = when (status) {
-        AnkiIntegrationStatus.AVAILABLE -> stringResource(R.string.home_anki_status_available) to MaterialTheme.colorScheme.secondaryContainer
-        AnkiIntegrationStatus.ANKI_NOT_INSTALLED -> stringResource(R.string.home_anki_status_not_installed) to MaterialTheme.colorScheme.surfaceVariant
-        AnkiIntegrationStatus.NEEDS_ANKI_PERMISSION -> stringResource(R.string.home_anki_status_permission) to MaterialTheme.colorScheme.tertiaryContainer
-        AnkiIntegrationStatus.NEEDS_USAGE_ACCESS -> stringResource(R.string.home_anki_status_usage_access) to MaterialTheme.colorScheme.tertiaryContainer
-        AnkiIntegrationStatus.ERROR -> stringResource(R.string.home_anki_status_error) to MaterialTheme.colorScheme.errorContainer
-    }
-
-    AssistChip(
-        onClick = {},
-        enabled = false,
-        label = { Text(label) },
-        colors = AssistChipDefaults.assistChipColors(
-            disabledContainerColor = containerColor,
-            disabledLabelColor = MaterialTheme.colorScheme.onSurface
-        )
-    )
-}
-
-@Composable
-private fun AnkiMetric(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+private fun TodayReviewProblemRow(problem: TodayReviewProblem) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.tertiaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = problem.problemNumber.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                text = problem.materialName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = buildReviewProblemSubtitle(problem),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
+            text = reviewDueText(problem.nextReviewDate),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }
 
-private fun formatAnkiTimestamp(timestamp: Long): String {
-    return SimpleDateFormat("M/d HH:mm", Locale.JAPANESE).format(Date(timestamp))
+private fun buildReviewProblemSubtitle(problem: TodayReviewProblem): String {
+    val subject = problem.subjectName.ifBlank { "科目未設定" }
+    return "$subject・連続正解 ${problem.consecutiveCorrectCount}・不正解 ${problem.wrongCount}"
+}
+
+private fun reviewDueText(nextReviewDate: Long): String {
+    val today = LocalDate.now()
+    val dueDate = java.time.Instant.ofEpochMilli(nextReviewDate)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+    return when {
+        dueDate.isBefore(today) -> "期限超過"
+        dueDate == today -> "今日"
+        else -> SimpleDateFormat("M/d", Locale.JAPANESE).format(Date(nextReviewDate))
+    }
 }
 
 @Composable

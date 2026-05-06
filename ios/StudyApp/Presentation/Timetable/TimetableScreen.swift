@@ -311,22 +311,23 @@ struct TimetableScreen: View {
     }
 
     private var timetableGrid: some View {
-        let columns = viewModel.periods
+        let rows = viewModel.periods
+        let columns = StudyWeekday.timetableDays
         let slotMap = viewModel.entriesBySlot
 
         return ScrollView(.horizontal, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 0) {
                     TimetableCornerCell()
-                    ForEach(columns) { period in
-                        TimetablePeriodHeader(period: period)
+                    ForEach(columns) { day in
+                        TimetableDayHeader(day: day)
                     }
                 }
 
-                ForEach(StudyWeekday.timetableDays) { day in
+                ForEach(rows) { period in
                     HStack(spacing: 0) {
-                        TimetableDayHeader(day: day)
-                        ForEach(columns) { period in
+                        TimetablePeriodHeader(period: period)
+                        ForEach(columns) { day in
                             let entry = slotMap[TimetableSlotKey(day: day, periodId: period.id)]
                             TimetableCell(entry: entry) {
                                 editorContext = TimetableEditorContext(term: viewModel.selectedTerm, day: day, period: period, entry: entry)
@@ -398,7 +399,7 @@ private struct TimetableReviewCalendarDayCell: View {
 private struct TimetableCornerCell: View {
     var body: some View {
         Text("")
-            .frame(width: 48, height: 58)
+            .frame(width: 96, height: 58)
     }
 }
 
@@ -414,7 +415,7 @@ private struct TimetablePeriodHeader: View {
                 .font(.caption2)
                 .foregroundStyle(AppColors.textSecondary)
         }
-        .frame(width: 132, height: 58)
+        .frame(width: 96, height: 86)
     }
 }
 
@@ -425,7 +426,7 @@ private struct TimetableDayHeader: View {
         Text(day.japaneseShortTitle)
             .font(.headline)
             .foregroundStyle(AppColors.textPrimary)
-            .frame(width: 48, height: 86)
+            .frame(width: 132, height: 58)
     }
 }
 

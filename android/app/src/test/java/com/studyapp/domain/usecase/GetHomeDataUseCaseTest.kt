@@ -1,75 +1,104 @@
 package com.studyapp.domain.usecase
 
-import com.studyapp.domain.model.Goal
-import com.studyapp.domain.model.GoalType
-import com.studyapp.domain.model.StudySession
-import com.studyapp.domain.model.StudyWeekday
+import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.ProblemReviewRating
+import com.studyapp.domain.model.ProblemReviewRecord
+import com.studyapp.domain.model.Subject
 import com.studyapp.domain.repository.ExamRepository
 import com.studyapp.domain.repository.GoalRepository
+import com.studyapp.domain.repository.MaterialRepository
+import com.studyapp.domain.repository.ProblemReviewRepository
 import com.studyapp.domain.repository.StudySessionRepository
+import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.repository.TimetableRepository
 import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
 import io.mockk.every
 import io.mockk.mockk
+import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.time.LocalDate
-import java.time.LocalDateTime
 
 class GetHomeDataUseCaseTest {
     @Test
-    fun `invoke combines current repositories into home data`() = runTest {
+    fun `today review problems include latest due active records`() = runTest {
+        val todayStart = 1_700_000_000_000L
+        val dueRecord = ProblemReviewRecord(
+            problemId = ProblemReviewRecord.problemId(1, 12),
+            materialId = 1,
+            materialSyncId = "material-sync",
+            problemNumber = 12,
+            reviewedAt = todayStart - DAY_MS,
+            rating = ProblemReviewRating.AGAIN,
+            nextReviewDate = todayStart,
+            consecutiveCorrectCount = 0,
+            wrongCount = 2
+        )
+        val futureRecord = dueRecord.copy(
+            syncId = "future",
+            problemId = ProblemReviewRecord.problemId(1, 13),
+            problemNumber = 13,
+            nextReviewDate = todayStart + DAY_MS
+        )
+
         val studySessionRepository = mockk<StudySessionRepository>()
+        val materialRepository = mockk<MaterialRepository>()
+        val subjectRepository = mockk<SubjectRepository>()
+        val problemReviewRepository = mockk<ProblemReviewRepository>()
         val goalRepository = mockk<GoalRepository>()
         val examRepository = mockk<ExamRepository>()
         val timetableRepository = mockk<TimetableRepository>()
-        val clock = fixedClock()
-        val session = StudySession(
-            id = 10,
-            subjectId = 1,
-            subjectName = "数学",
-            materialName = "問題集",
-            startTime = 1_000,
-            endTime = 121_000
-        )
-        val dailyGoal = Goal(
-            id = 1,
-            type = GoalType.DAILY,
-            targetMinutes = 60,
-            dayOfWeek = StudyWeekday.TUESDAY
-        )
 
-        every { studySessionRepository.getSessionsBetweenDates(any(), any()) } returns flowOf(Result.Success(listOf(session)))
-        every { goalRepository.getAllGoals() } returns flowOf(Result.Success(listOf(dailyGoal)))
+        every { studySessionRepository.getSessionsBetweenDates(any(), any()) } returns flowOf(Result.Success(emptyList()))
+        every { materialRepository.getAllMaterials() } returns flowOf(
+            Result.Success(listOf(Material(id = 1, name = "数学問題集", subjectId = 2)))
+        )
+        every { subjectRepository.getAllSubjects() } returns flowOf(
+            Result.Success(listOf(Subject(id = 2, name = "数学", color = 0x4CAF50)))
+        )
+        every { problemReviewRepository.getActiveReviewRecords() } returns flowOf(
+            Result.Success(listOf(futureRecord, dueRecord))
+        )
+        every { goalRepository.getAllGoals() } returns flowOf(Result.Success(emptyList()))
         every { examRepository.getUpcomingExams() } returns flowOf(Result.Success(emptyList()))
         every { timetableRepository.getAllPeriods() } returns flowOf(Result.Success(emptyList()))
         every { timetableRepository.getAllEntries() } returns flowOf(Result.Success(emptyList()))
         every { timetableRepository.getAllTerms() } returns flowOf(Result.Success(emptyList()))
 
-        val result = GetHomeDataUseCase(
-            studySessionRepository,
-            goalRepository,
-            examRepository,
-            timetableRepository,
-            clock
-        )().first()
+        val useCase = GetHomeDataUseCase(
+            studySessionRepository = studySessionRepository,
+            materialRepository = materialRepository,
+            subjectRepository = subjectRepository,
+            problemReviewRepository = problemReviewRepository,
+            goalRepository = goalRepository,
+            examRepository = examRepository,
+            timetableRepository = timetableRepository,
+            clock = FixedClock(todayStart)
+        )
 
-        assertEquals(2L, result.todayStudyMinutes)
-        assertEquals(dailyGoal, result.todayGoal)
-        assertEquals("数学", result.todaySessions.single().subjectName)
+        val result = useCase().first()
+
+        assertEquals(1, result.todayReviewProblems.size)
+        assertEquals("数学問題集", result.todayReviewProblems.first().materialName)
+        assertEquals("数学", result.todayReviewProblems.first().subjectName)
+        assertEquals(12, result.todayReviewProblems.first().problemNumber)
     }
 
-    private fun fixedClock(): Clock = object : Clock {
-        override fun currentTimeMillis(): Long = 1_000
-        override fun currentLocalDate(): LocalDate = LocalDate.of(2026, 5, 5)
-        override fun currentLocalDateTime(): LocalDateTime = LocalDateTime.of(2026, 5, 5, 10, 0)
-        override fun startOfDay(timestamp: Long): Long = 0
-        override fun startOfToday(): Long = 0
-        override fun startOfWeek(): Long = 0
-        override fun startOfMonth(): Long = 0
+    private class FixedClock(private val todayStart: Long) : Clock {
+        override fun currentTimeMillis(): Long = todayStart
+        override fun currentLocalDate(): LocalDate = LocalDate.of(2026, 5, 6)
+        override fun currentLocalDateTime(): LocalDateTime = currentLocalDate().atStartOfDay()
+        override fun startOfDay(timestamp: Long): Long = todayStart
+        override fun startOfToday(): Long = todayStart
+        override fun startOfWeek(): Long = todayStart
+        override fun startOfMonth(): Long = todayStart
+    }
+
+    private companion object {
+        private const val DAY_MS = 24 * 60 * 60 * 1000L
     }
 }

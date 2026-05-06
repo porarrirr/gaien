@@ -212,7 +212,7 @@ struct ProblemTileSelector: View {
             accessibilityPrefix: accessibilityPrefix,
             record: records.first(where: { $0.number == globalNumber }),
             onCorrectTap: { toggleCorrect(globalNumber) },
-            onWrongDoubleTap: { toggleWrong(globalNumber) },
+            onWrongTap: { setWrong(globalNumber) },
             onLongPress: {
                 let record = records.first(where: { $0.number == globalNumber })
                 if let record {
@@ -232,28 +232,24 @@ struct ProblemTileSelector: View {
 
     private func toggleCorrect(_ number: Int) {
         if let index = records.firstIndex(where: { $0.number == number }) {
-            if records[index].result == .wrong {
-                records[index].result = .correct
-            } else {
+            if records[index].result == .correct {
                 records.remove(at: index)
+            } else {
+                records[index].result = .correct
             }
-        } else {
-            records.append(ProblemSessionRecord(number: number, isWrong: false))
-            records.sort { $0.number < $1.number }
+            return
         }
+        records.append(ProblemSessionRecord(number: number, result: .correct))
+        records.sort { $0.number < $1.number }
     }
 
-    private func toggleWrong(_ number: Int) {
+    private func setWrong(_ number: Int) {
         if let index = records.firstIndex(where: { $0.number == number }) {
-            if records[index].isWrong {
-                records.remove(at: index)
-            } else {
-                records[index].isWrong = true
-            }
-        } else {
-            records.append(ProblemSessionRecord(number: number, isWrong: true))
-            records.sort { $0.number < $1.number }
+            records[index].result = .wrong
+            return
         }
+        records.append(ProblemSessionRecord(number: number, result: .wrong))
+        records.sort { $0.number < $1.number }
     }
 
     private func saveEditedRecord(number: Int) {
@@ -318,10 +314,10 @@ private struct ProblemTile: View {
     let accessibilityPrefix: String?
     let record: ProblemSessionRecord?
     let onCorrectTap: () -> Void
-    let onWrongDoubleTap: () -> Void
+    let onWrongTap: () -> Void
     let onLongPress: () -> Void
 
-    @State private var pendingSingleTap: DispatchWorkItem?
+    @State private var lastTapAt: Date?
 
     var body: some View {
         VStack(spacing: 2) {
@@ -349,27 +345,22 @@ private struct ProblemTile: View {
                 .stroke(border, lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .onTapGesture(count: 2, perform: handleDoubleTap)
-        .onTapGesture(count: 1, perform: handleSingleTap)
+        .onTapGesture(perform: handleTap)
         .onLongPressGesture(minimumDuration: 0.45, perform: onLongPress)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("タップで正解、ダブルタップで不正解、長押しで復習正解とメモを編集")
+        .accessibilityHint("タップで正解、すばやく2回タップで不正解、長押しで状態とメモを編集")
     }
 
-    private func handleSingleTap() {
-        pendingSingleTap?.cancel()
-        let task = DispatchWorkItem {
-            onCorrectTap()
+    private func handleTap() {
+        let now = Date()
+        if let lastTapAt, now.timeIntervalSince(lastTapAt) < 0.28 {
+            self.lastTapAt = nil
+            onWrongTap()
+            return
         }
-        pendingSingleTap = task
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: task)
-    }
-
-    private func handleDoubleTap() {
-        pendingSingleTap?.cancel()
-        pendingSingleTap = nil
-        onWrongDoubleTap()
+        lastTapAt = now
+        onCorrectTap()
     }
 
     private var background: Color {

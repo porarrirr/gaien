@@ -64,35 +64,33 @@ struct SettingsScreen: View {
             }
 
             Section {
-                Picker(
-                    "横向き表示",
-                    selection: Binding(
-                        get: { viewModel.app.preferences.landscapeTimerDisplayPreset },
-                        set: { viewModel.app.setLandscapeTimerDisplayPreset($0) }
-                    )
-                ) {
-                    ForEach(LandscapeTimerDisplayPreset.allCases) { preset in
-                        Text(preset.title).tag(preset)
-                    }
-                }
-
                 ForEach(LandscapeTimerDisplayPreset.allCases) { preset in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(preset.title)
-                                .font(.subheadline.weight(.semibold))
+                    Button {
+                        viewModel.app.setLandscapeTimerDisplayPreset(preset)
+                    } label: {
+                        HStack(alignment: .center, spacing: AppSpacing.md) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(preset.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text(preset.settingsDescription)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
                             if preset == viewModel.app.preferences.landscapeTimerDisplayPreset {
-                                Spacer()
-                                Text("選択中")
-                                    .font(.caption.bold())
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.title3)
                                     .foregroundStyle(.tint)
                             }
                         }
-                        Text(preset.settingsDescription)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .padding(.vertical, 2)
+                    .buttonStyle(.plain)
                 }
             } header: {
                 Label("タイマー横向き表示", systemImage: "rectangle.landscape")

@@ -3,7 +3,6 @@ package com.studyapp.presentation.settings
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,8 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.studyapp.domain.model.AnkiIntegrationStatus
-import com.studyapp.domain.model.AnkiTodayStats
 import com.studyapp.domain.model.ColorTheme
 import com.studyapp.domain.model.ThemeMode
 import androidx.compose.foundation.layout.heightIn
@@ -88,16 +85,6 @@ fun SettingsScreen(
                 reminderTime = uiState.reminderTime,
                 onReminderEnabledChange = actions.onReminderEnabledChange,
                 onReminderTimeClick = actions.onReminderTimeClick
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            AnkiSection(
-                stats = uiState.ankiStats,
-                isRefreshing = uiState.isRefreshingAnkiStats,
-                onGrantAnkiPermission = actions.onGrantAnkiPermission,
-                onOpenUsageAccess = actions.onOpenUsageAccess,
-                onRefresh = actions.onRefreshAnkiStats
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -170,171 +157,6 @@ fun SettingsScreen(
             logs = uiState.debugLogs,
             onDismiss = { showDebugLog = false },
             onClear = { viewModel.clearDebugLogs() }
-        )
-    }
-}
-
-@Composable
-private fun AnkiSection(
-    stats: AnkiTodayStats,
-    isRefreshing: Boolean,
-    onGrantAnkiPermission: () -> Unit,
-    onOpenUsageAccess: () -> Unit,
-    onRefresh: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Anki連携",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .animateContentSize(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "今日のAnki",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        AnkiStatusBadge(status = stats.status)
-                    }
-                    OutlinedButton(onClick = onRefresh) {
-                        Text("再取得")
-                    }
-                }
-
-                if (isRefreshing) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Text("Ankiの状態を確認しています")
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        AnkiSummaryItem(
-                            modifier = Modifier.weight(1f),
-                            label = "回答カード",
-                            value = stats.answeredCards?.let { "${it}件" } ?: "未取得"
-                        )
-                        AnkiSummaryItem(
-                            modifier = Modifier.weight(1f),
-                            label = "利用時間",
-                            value = stats.usageMinutes?.let { "${it}分" } ?: "未取得"
-                        )
-                    }
-
-                    if (stats.status == AnkiIntegrationStatus.ANKI_NOT_INSTALLED) {
-                        Text(
-                            text = "AnkiDroid が見つかりません。AnkiDroid をインストールすると連携できます。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    if (stats.requiresAnkiPermission) {
-                        Text(
-                            text = "回答カード数を取得するには AnkiDroid のデータベース権限が必要です。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedButton(onClick = onGrantAnkiPermission) {
-                            Text("Anki権限を許可")
-                        }
-                    }
-
-                    if (stats.requiresUsageAccess) {
-                        Text(
-                            text = "利用時間を取得するには Android の使用状況アクセスを許可してください。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedButton(onClick = onOpenUsageAccess) {
-                            Text("使用状況アクセスを開く")
-                        }
-                    }
-
-                    stats.errorMessage?.takeIf { stats.status == AnkiIntegrationStatus.ERROR && it.isNotBlank() }?.let { error ->
-                        Text(
-                            text = error,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-
-                    Text(
-                        text = "最終更新: ${stats.lastUpdatedAt?.let { SimpleDateFormat("M/d HH:mm", Locale.JAPANESE).format(Date(it)) } ?: "未更新"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AnkiStatusBadge(status: AnkiIntegrationStatus) {
-    val (label, containerColor) = when (status) {
-        AnkiIntegrationStatus.AVAILABLE -> "利用可能" to MaterialTheme.colorScheme.secondaryContainer
-        AnkiIntegrationStatus.ANKI_NOT_INSTALLED -> "未インストール" to MaterialTheme.colorScheme.surfaceVariant
-        AnkiIntegrationStatus.NEEDS_ANKI_PERMISSION -> "Anki権限待ち" to MaterialTheme.colorScheme.tertiaryContainer
-        AnkiIntegrationStatus.NEEDS_USAGE_ACCESS -> "使用状況アクセス待ち" to MaterialTheme.colorScheme.tertiaryContainer
-        AnkiIntegrationStatus.ERROR -> "取得エラー" to MaterialTheme.colorScheme.errorContainer
-    }
-
-    AssistChip(
-        onClick = {},
-        enabled = false,
-        label = { Text(label) },
-        colors = AssistChipDefaults.assistChipColors(
-            disabledContainerColor = containerColor,
-            disabledLabelColor = MaterialTheme.colorScheme.onSurface
-        )
-    )
-}
-
-@Composable
-private fun AnkiSummaryItem(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
         )
     }
 }

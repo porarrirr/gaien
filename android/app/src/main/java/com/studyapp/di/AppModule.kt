@@ -126,6 +126,11 @@ object DatabaseModule {
     fun provideTimetableReviewRecordDao(database: StudyDatabase): TimetableReviewRecordDao {
         return database.timetableReviewRecordDao()
     }
+
+    @Provides
+    fun provideProblemReviewRecordDao(database: StudyDatabase): ProblemReviewRecordDao {
+        return database.problemReviewRecordDao()
+    }
 }
 
 @Module
@@ -167,23 +172,15 @@ object NetworkModule {
 interface RepositoryModule {
     @Binds
     @Singleton
-    fun bindAnkiRepository(impl: AnkiRepositoryImpl): AnkiRepository
-
-    @Binds
-    @Singleton
-    fun bindAnkiApiClient(impl: AnkiDroidApiClient): AnkiApiClient
-
-    @Binds
-    @Singleton
-    fun bindAppUsageStatsReader(impl: AndroidAppUsageStatsReader): AppUsageStatsReader
-
-    @Binds
-    @Singleton
     fun bindSubjectRepository(impl: SubjectRepositoryImpl): SubjectRepository
 
     @Binds
     @Singleton
     fun bindMaterialRepository(impl: MaterialRepositoryImpl): MaterialRepository
+
+    @Binds
+    @Singleton
+    fun bindProblemReviewRepository(impl: ProblemReviewRepositoryImpl): ProblemReviewRepository
 
     @Binds
     @Singleton
@@ -230,12 +227,24 @@ object UseCaseModule {
     @Singleton
     fun provideGetHomeDataUseCase(
         studySessionRepository: StudySessionRepository,
+        materialRepository: MaterialRepository,
+        subjectRepository: SubjectRepository,
+        problemReviewRepository: ProblemReviewRepository,
         goalRepository: GoalRepository,
         examRepository: ExamRepository,
         timetableRepository: TimetableRepository,
         clock: Clock
     ): GetHomeDataUseCase {
-        return GetHomeDataUseCase(studySessionRepository, goalRepository, examRepository, timetableRepository, clock)
+        return GetHomeDataUseCase(
+            studySessionRepository,
+            materialRepository,
+            subjectRepository,
+            problemReviewRepository,
+            goalRepository,
+            examRepository,
+            timetableRepository,
+            clock
+        )
     }
 
     @Provides

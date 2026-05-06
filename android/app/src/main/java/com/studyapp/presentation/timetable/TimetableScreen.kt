@@ -619,12 +619,29 @@ private fun TimetableGridCard(
                 Column {
                     Row {
                         Box(
-                            modifier = Modifier.width(40.dp).height(36.dp),
+                            modifier = Modifier.width(88.dp).height(36.dp),
                             contentAlignment = Alignment.Center
                         ) {}
-                        sortedPeriods.forEach { period ->
+                        timetableDays.forEach { (_, dayLabel) ->
                             Box(
                                 modifier = Modifier.width(80.dp).height(36.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = dayLabel,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    sortedPeriods.forEach { period ->
+                        Row {
+                            Box(
+                                modifier = Modifier
+                                    .width(88.dp)
+                                    .height(56.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -641,24 +658,7 @@ private fun TimetableGridCard(
                                     )
                                 }
                             }
-                        }
-                    }
-
-                    timetableDays.forEach { (weekday, dayLabel) ->
-                        Row {
-                            Box(
-                                modifier = Modifier
-                                    .width(40.dp)
-                                    .height(56.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = dayLabel,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            sortedPeriods.forEach { period ->
+                            timetableDays.forEach { (weekday, _) ->
                                 val entry = entriesBySlot[Pair(weekday, period.id)]
                                 TimetableGridCell(
                                     entry = entry,
