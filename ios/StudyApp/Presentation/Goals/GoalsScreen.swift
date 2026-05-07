@@ -239,7 +239,7 @@ struct GoalsScreen: View {
     private func goalRing(progress: Double, size: CGFloat, lineWidth: CGFloat) -> some View {
         let clamped = min(max(progress, 0), 1)
 
-        ProgressRing(
+        return ProgressRing(
             progress: clamped,
             size: size,
             lineWidth: lineWidth,

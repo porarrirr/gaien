@@ -651,7 +651,8 @@ struct CalendarScreen: View {
                     .fill(AppColors.cardBorder)
                     .frame(width: 1)
             }
-            .frame(width: 12, minHeight: timelineMinHeight(for: item))
+            .frame(width: 12)
+            .frame(minHeight: timelineMinHeight(for: item))
 
             switch item {
             case .gap(let gap):

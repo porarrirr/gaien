@@ -20,158 +20,173 @@ struct SettingsScreen: View {
     }
 
     var body: some View {
+        settingsScrollView
+            .strictScreen()
+            .navigationTitle("設定")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $isShowingAuthSheet) {
+                NavigationStack {
+                    AuthSheet(viewModel: viewModel, isPresented: $isShowingAuthSheet)
+                }
+            }
+            .sheet(isPresented: $isShowingDebugLogs) {
+                NavigationStack {
+                    DebugLogSheet(viewModel: viewModel, isClearUnlocked: true)
+                }
+            }
+            .alert("デバッグログ", isPresented: Binding(get: { copyConfirmationMessage != nil }, set: { if !$0 { copyConfirmationMessage = nil } })) {
+                Button("OK", role: .cancel) {
+                    copyConfirmationMessage = nil
+                }
+            } message: {
+                Text(copyConfirmationMessage ?? "")
+            }
+            .confirmationDialog("エクスポート形式", isPresented: $isShowingExportOptions, titleVisibility: .visible) {
+                Button("JSON") {
+                    viewModel.export(format: .json)
+                }
+                Button("CSV") {
+                    viewModel.export(format: .csv)
+                }
+            }
+            .confirmationDialog("全データを削除しますか？", isPresented: $isShowingDeleteConfirmation, titleVisibility: .visible) {
+                Button("削除する", role: .destructive) {
+                    viewModel.deleteAllData()
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("学習記録、教材、科目、試験、計画データが削除されます。設定は保持します。")
+            }
+            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
+                if case .success(let url) = result {
+                    viewModel.importBackup(from: url)
+                }
+            }
+            .task(id: viewModel.app.dataVersion) {
+                await viewModel.load()
+            }
+    }
+
+    private var settingsScrollView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                settingsGroup(title: "テーマ設定") {
-                    Menu {
-                        ForEach(ThemeMode.allCases) { mode in
-                            Button(mode.title) {
-                                viewModel.app.setThemeMode(mode)
-                            }
-                        }
-                    } label: {
-                        settingsRow(icon: "paintbrush", title: "テーマ", value: viewModel.app.preferences.selectedThemeMode.title)
-                    }
-
-                    Divider()
-
-                    Menu {
-                        ForEach(ColorTheme.allCases) { theme in
-                            Button(theme.title) {
-                                viewModel.app.setColorTheme(theme)
-                            }
-                        }
-                    } label: {
-                        settingsRow(icon: "paintpalette", title: "カラー", value: viewModel.app.preferences.selectedColorTheme.title, color: viewModel.app.preferences.selectedColorTheme.primaryColor)
-                    }
-                }
-
-                settingsGroup(title: "通知") {
-                    HStack(spacing: 12) {
-                        SettingsIcon(systemName: "bell")
-                        Text("毎日のリマインダー")
-                            .font(.body.weight(.semibold))
-                        Spacer()
-                        Toggle("", isOn: Binding(get: { viewModel.app.preferences.reminderEnabled }, set: { enabled in
-                            Task { await viewModel.app.setReminderEnabled(enabled) }
-                        }))
-                        .labelsHidden()
-                        .tint(AppColors.success)
-                    }
-                    .frame(minHeight: 44)
-
-                    Divider()
-
-                    DatePicker(
-                        selection: Binding(
-                            get: { reminderDate(hour: viewModel.app.preferences.reminderHour, minute: viewModel.app.preferences.reminderMinute) },
-                            set: { newValue in
-                                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                                Task {
-                                    await viewModel.app.setReminderTime(
-                                        hour: components.hour ?? viewModel.app.preferences.reminderHour,
-                                        minute: components.minute ?? viewModel.app.preferences.reminderMinute
-                                    )
-                                }
-                            }
-                        ),
-                        displayedComponents: .hourAndMinute
-                    ) {
-                        HStack(spacing: 12) {
-                            SettingsIcon(systemName: "clock")
-                            Text("通知時刻")
-                                .font(.body.weight(.semibold))
-                        }
-                    }
-                    .disabled(!viewModel.app.preferences.reminderEnabled)
-                } footer: {
-                    Text("※時間割の未復習が48時間を超えた場合に通知します")
-                }
-
-                settingsGroup(title: "タイマー横向き表示") {
-                    ForEach(Array(LandscapeTimerDisplayPreset.allCases.enumerated()), id: \.element.id) { index, preset in
-                        Button {
-                            viewModel.app.setLandscapeTimerDisplayPreset(preset)
-                        } label: {
-                            HStack(spacing: 12) {
-                                SettingsIcon(systemName: preset == .problemProgress ? "iphone.landscape" : "arrow.triangle.2.circlepath")
-                                Text(settingsTitle(for: preset))
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(AppColors.textPrimary)
-                                Spacer()
-                                if preset == viewModel.app.preferences.landscapeTimerDisplayPreset {
-                                    Image(systemName: "checkmark")
-                                        .font(.title3.weight(.bold))
-                                        .foregroundStyle(AppColors.success)
-                                }
-                            }
-                            .frame(minHeight: 44)
-                        }
-                        .buttonStyle(.plain)
-                        if index < LandscapeTimerDisplayPreset.allCases.count - 1 {
-                            Divider()
-                        }
-                    }
-                }
-
+                appearanceGroup
+                reminderGroup
+                landscapeTimerGroup
                 liveActivityGroup
-
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], alignment: .top, spacing: 16) {
-                    dataSummaryCard
-                    cloudSyncCard
-                    dangerCard
-                    backupCard
-                }
-
+                dashboardCards
                 debugLogCard
             }
             .padding(.horizontal, 17)
             .padding(.top, 14)
             .padding(.bottom, 28)
         }
-        .strictScreen()
-        .navigationTitle("設定")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $isShowingAuthSheet) {
-            NavigationStack {
-                AuthSheet(viewModel: viewModel, isPresented: $isShowingAuthSheet)
+    }
+
+    private var appearanceGroup: some View {
+        settingsGroup(title: "テーマ設定") {
+            Menu {
+                ForEach(ThemeMode.allCases) { mode in
+                    Button(mode.title) {
+                        viewModel.app.setThemeMode(mode)
+                    }
+                }
+            } label: {
+                settingsRow(icon: "paintbrush", title: "テーマ", value: viewModel.app.preferences.selectedThemeMode.title)
+            }
+
+            Divider()
+
+            Menu {
+                ForEach(ColorTheme.allCases) { theme in
+                    Button(theme.title) {
+                        viewModel.app.setColorTheme(theme)
+                    }
+                }
+            } label: {
+                settingsRow(icon: "paintpalette", title: "カラー", value: viewModel.app.preferences.selectedColorTheme.title, color: viewModel.app.preferences.selectedColorTheme.primaryColor)
             }
         }
-        .sheet(isPresented: $isShowingDebugLogs) {
-            NavigationStack {
-                DebugLogSheet(viewModel: viewModel, isClearUnlocked: true)
+    }
+
+    private var reminderGroup: some View {
+        settingsGroup(title: "通知") {
+            HStack(spacing: 12) {
+                SettingsIcon(systemName: "bell")
+                Text("毎日のリマインダー")
+                    .font(.body.weight(.semibold))
+                Spacer()
+                Toggle("", isOn: Binding(get: { viewModel.app.preferences.reminderEnabled }, set: { enabled in
+                    Task { await viewModel.app.setReminderEnabled(enabled) }
+                }))
+                .labelsHidden()
+                .tint(AppColors.success)
+            }
+            .frame(minHeight: 44)
+
+            Divider()
+
+            DatePicker(
+                selection: Binding(
+                    get: { reminderDate(hour: viewModel.app.preferences.reminderHour, minute: viewModel.app.preferences.reminderMinute) },
+                    set: { newValue in
+                        let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                        Task {
+                            await viewModel.app.setReminderTime(
+                                hour: components.hour ?? viewModel.app.preferences.reminderHour,
+                                minute: components.minute ?? viewModel.app.preferences.reminderMinute
+                            )
+                        }
+                    }
+                ),
+                displayedComponents: .hourAndMinute
+            ) {
+                HStack(spacing: 12) {
+                    SettingsIcon(systemName: "clock")
+                    Text("通知時刻")
+                        .font(.body.weight(.semibold))
+                }
+            }
+            .disabled(!viewModel.app.preferences.reminderEnabled)
+        } footer: {
+            Text("※時間割の未復習が48時間を超えた場合に通知します")
+        }
+    }
+
+    private var landscapeTimerGroup: some View {
+        settingsGroup(title: "タイマー横向き表示") {
+            ForEach(Array(LandscapeTimerDisplayPreset.allCases.enumerated()), id: \.element.id) { index, preset in
+                Button {
+                    viewModel.app.setLandscapeTimerDisplayPreset(preset)
+                } label: {
+                    HStack(spacing: 12) {
+                        SettingsIcon(systemName: preset == .problemProgress ? "iphone.landscape" : "arrow.triangle.2.circlepath")
+                        Text(settingsTitle(for: preset))
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(AppColors.textPrimary)
+                        Spacer()
+                        if preset == viewModel.app.preferences.landscapeTimerDisplayPreset {
+                            Image(systemName: "checkmark")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(AppColors.success)
+                        }
+                    }
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                if index < LandscapeTimerDisplayPreset.allCases.count - 1 {
+                    Divider()
+                }
             }
         }
-        .alert("デバッグログ", isPresented: Binding(get: { copyConfirmationMessage != nil }, set: { if !$0 { copyConfirmationMessage = nil } })) {
-            Button("OK", role: .cancel) {
-                copyConfirmationMessage = nil
-            }
-        } message: {
-            Text(copyConfirmationMessage ?? "")
-        }
-        .confirmationDialog("エクスポート形式", isPresented: $isShowingExportOptions, titleVisibility: .visible) {
-            Button("JSON") {
-                viewModel.export(format: .json)
-            }
-            Button("CSV") {
-                viewModel.export(format: .csv)
-            }
-        }
-        .confirmationDialog("全データを削除しますか？", isPresented: $isShowingDeleteConfirmation, titleVisibility: .visible) {
-            Button("削除する", role: .destructive) {
-                viewModel.deleteAllData()
-            }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("学習記録、教材、科目、試験、計画データが削除されます。設定は保持します。")
-        }
-        .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
-            if case .success(let url) = result {
-                viewModel.importBackup(from: url)
-            }
-        }
-        .task(id: viewModel.app.dataVersion) {
-            await viewModel.load()
+    }
+
+    private var dashboardCards: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], alignment: .top, spacing: 16) {
+            dataSummaryCard
+            cloudSyncCard
+            dangerCard
+            backupCard
         }
     }
 
