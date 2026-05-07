@@ -5,7 +5,6 @@ import SwiftUI
 
 struct OnboardingScreen: View {
     @StateObject private var viewModel: OnboardingViewModel
-    @State private var selection = 0
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: OnboardingViewModel(app: app))
@@ -18,57 +17,73 @@ struct OnboardingScreen: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            TabView(selection: $selection) {
-                ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-                    VStack(spacing: AppSpacing.lg) {
-                        Spacer()
+        VStack(spacing: AppSpacing.lg) {
+            Spacer(minLength: AppSpacing.lg)
+
+            VStack(spacing: AppSpacing.sm) {
+                Image(systemName: "book.closed.fill")
+                    .font(.system(size: 38, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 74, height: 74)
+                    .background(.tint, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+                Text("StudyApp")
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.accentColor)
+
+                Text("毎日の学習を、記録から復習までひとつに。")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+
+            VStack(spacing: AppSpacing.sm) {
+                ForEach(pages) { page in
+                    HStack(spacing: AppSpacing.md) {
                         Image(systemName: page.systemImage)
-                            .font(.system(size: 60, weight: .bold))
+                            .font(.title3.bold())
                             .foregroundStyle(.white)
-                            .frame(width: 130, height: 130)
+                            .frame(width: 44, height: 44)
                             .background(
                                 LinearGradient(colors: page.gradient, startPoint: .topLeading, endPoint: .bottomTrailing),
-                                in: Circle()
+                                in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
                             )
-                            .shadow(color: page.gradient.first?.opacity(0.4) ?? .clear, radius: 16, y: 8)
 
-                        Text(page.title)
-                            .font(.largeTitle.bold())
-                            .foregroundStyle(AppColors.textPrimary)
-
-                        Text(page.description)
-                            .font(.body)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(AppColors.textSecondary)
-                            .padding(.horizontal, AppSpacing.xl)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(page.title)
+                                .font(.headline)
+                            Text(page.description)
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
 
                         Spacer()
-                    }
-                    .tag(index)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
 
-            // Custom page indicators
-            HStack(spacing: 10) {
-                ForEach(0..<pages.count, id: \.self) { index in
-                    Capsule()
-                        .fill(index == selection ? Color.accentColor : Color.secondary.opacity(0.3))
-                        .frame(width: index == selection ? 24 : 8, height: 8)
-                        .animation(.spring(response: 0.3), value: selection)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+                    .cardStyle(padding: AppSpacing.md)
                 }
             }
-            .padding(.bottom, AppSpacing.lg)
+            .padding(.horizontal, AppSpacing.lg)
 
             Button {
                 viewModel.complete()
             } label: {
-                Text(selection == pages.count - 1 ? "始める" : "スキップ")
+                Text("はじめる")
             }
             .buttonStyle(PrimaryButtonStyle())
             .padding(.horizontal, AppSpacing.xl)
-            .padding(.bottom, AppSpacing.xl)
+
+            Button {
+                viewModel.complete()
+            } label: {
+                Text("あとで設定する")
+                    .font(.subheadline.bold())
+            }
+
+            Spacer(minLength: AppSpacing.lg)
         }
         .background(AppColors.subtleBackground)
     }
@@ -76,7 +91,8 @@ struct OnboardingScreen: View {
 
 // MARK: - Helpers
 
-private struct OnboardingPage {
+private struct OnboardingPage: Identifiable {
+    var id: String { title }
     var title: String
     var description: String
     var systemImage: String

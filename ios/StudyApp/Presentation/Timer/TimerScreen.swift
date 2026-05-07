@@ -789,21 +789,40 @@ private struct ManualEntrySheet: View {
     @State private var manualEndTime = Date()
 
     var body: some View {
-        Form {
-            Section("学習対象") {
-                HStack {
-                    Text("科目")
-                    Spacer()
-                    Text(viewModel.subjects.first(where: { $0.id == viewModel.selectedSubjectId })?.name ?? "-")
-                        .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "学習対象", icon: "book.fill")
+                    HStack {
+                        Text("科目")
+                        Spacer()
+                        Text(viewModel.subjects.first(where: { $0.id == viewModel.selectedSubjectId })?.name ?? "-")
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("教材")
+                        Spacer()
+                        Text(viewModel.materials.first(where: { $0.id == viewModel.selectedMaterialId })?.name ?? "なし")
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .cardStyle()
+
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "記録", icon: "clock")
+                    DatePicker("開始時刻", selection: $manualStartTime, displayedComponents: .hourAndMinute)
+                    DatePicker("終了時刻", selection: $manualEndTime, displayedComponents: .hourAndMinute)
+                    TextEditor(text: $manualNote)
+                        .frame(minHeight: 130)
+                        .scrollContentBackground(.hidden)
+                        .padding(AppSpacing.sm)
+                        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous))
+                }
+                .cardStyle()
             }
-            Section("記録") {
-                DatePicker("開始時刻", selection: $manualStartTime, displayedComponents: .hourAndMinute)
-                DatePicker("終了時刻", selection: $manualEndTime, displayedComponents: .hourAndMinute)
-                TextField("メモ", text: $manualNote, axis: .vertical)
-            }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("手動入力")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -936,31 +955,39 @@ private struct SessionEvaluationSheet: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    Text("このセッションを評価")
-                        .font(.title3.bold())
-                    Text(session.subjectName)
-                        .font(.headline)
-                    if !session.materialName.isEmpty {
-                        Text(session.materialName)
-                            .font(.subheadline)
-                            .foregroundStyle(AppColors.textSecondary)
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                HStack(spacing: AppSpacing.md) {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.12))
+                        .frame(width: 46, height: 46)
+                        .overlay {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(.tint)
+                        }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(session.subjectName.isEmpty ? "未設定" : session.subjectName)
+                            .font(.headline)
+                        if !session.materialName.isEmpty {
+                            Text(session.materialName)
+                                .font(.subheadline)
+                                .foregroundStyle(AppColors.textSecondary)
+                        }
+                        Text("\(session.durationJapaneseText) ・ \(session.sessionType.title)")
+                            .font(.caption.bold())
+                            .foregroundStyle(.tint)
                     }
-                    Text("\(session.durationJapaneseText) ・ \(session.sessionType.title)")
-                        .font(.subheadline)
-                        .foregroundStyle(.tint)
+                    Spacer()
                 }
+                .cardStyle()
 
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    Text("5段階で選択")
-                        .font(.subheadline.bold())
+                    SectionHeaderView(title: "評価", icon: "star.fill")
                     SessionRatingSelector(rating: $rating)
                 }
+                .cardStyle()
 
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    Text("問題集の記録")
-                        .font(.subheadline.bold())
+                    SectionHeaderView(title: "問題集の記録", icon: "checklist.checked")
                     if materialProblemCount > 0 {
                         Text(materialProblemChapters.isEmpty ? "全\(materialProblemCount)問" : "全\(materialProblemCount)問 ・ \(materialProblemChapters.count)章")
                             .font(.caption.bold())
@@ -982,11 +1009,11 @@ private struct SessionEvaluationSheet: View {
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.default)
                 }
-
-                Spacer()
+                .cardStyle()
             }
+            .padding(AppSpacing.md)
         }
-        .padding(AppSpacing.md)
+        .background(AppColors.subtleBackground)
         .navigationTitle("セッション評価")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

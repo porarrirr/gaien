@@ -82,17 +82,47 @@ struct SubjectsScreen: View {
             Image(systemName: subject.icon?.systemImage ?? SubjectIcon.book.systemImage)
                 .font(.title3)
                 .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(Color(hex: subject.color), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 44, height: 44)
+                .background(Color(hex: subject.color), in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
 
-            Text(subject.name)
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(subject.name)
+                    .font(.headline)
+                HStack(spacing: AppSpacing.xs) {
+                    Circle()
+                        .fill(Color(hex: subject.color))
+                        .frame(width: 8, height: 8)
+                    Text("科目カラー")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+            }
 
             Spacer()
 
-            Circle()
-                .fill(Color(hex: subject.color))
-                .frame(width: 14, height: 14)
+            HStack(spacing: AppSpacing.xs) {
+                Button {
+                    name = subject.name
+                    selectedColor = Color(hex: subject.color)
+                    icon = subject.icon ?? .book
+                    editingSubject = subject
+                } label: {
+                    Label("編集", systemImage: "pencil")
+                        .labelStyle(.iconOnly)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+
+                Button(role: .destructive) {
+                    viewModel.deleteSubject(subject)
+                } label: {
+                    Label("削除", systemImage: "trash")
+                        .labelStyle(.iconOnly)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .cardStyle()
         .contextMenu {

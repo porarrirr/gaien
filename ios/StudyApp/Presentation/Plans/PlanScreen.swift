@@ -221,7 +221,7 @@ private struct DayScheduleSectionNew: View {
                     HStack(spacing: AppSpacing.md) {
                         RoundedRectangle(cornerRadius: 2)
                             .fill(Color(hex: wrapped.subject.color))
-                            .frame(width: 4, height: 44)
+                            .frame(width: 4, height: 50)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(wrapped.subject.name)
@@ -233,9 +233,20 @@ private struct DayScheduleSectionNew: View {
                             }
                         }
                         Spacer()
-                        Text("\(wrapped.item.targetMinutes)分")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.tint)
+                        VStack(alignment: .trailing, spacing: 6) {
+                            Text("\(wrapped.item.targetMinutes)分")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.tint)
+                            Menu {
+                                Button { onEdit(wrapped.item) } label: { Label("編集", systemImage: "pencil") }
+                                Button(role: .destructive) { onDelete(wrapped.item) } label: { Label("削除", systemImage: "trash") }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(AppColors.textSecondary)
+                                    .frame(width: 32, height: 22)
+                            }
+                        }
                     }
                     .cardStyle()
                     .contextMenu {

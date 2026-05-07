@@ -28,6 +28,13 @@ struct ExamsScreen: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: AppSpacing.sm) {
+                        HStack {
+                            SectionHeaderView(title: "登録済みテスト", icon: "doc.text.fill")
+                            Spacer()
+                            MetricPill(text: "\(viewModel.exams.count)件", color: .accentColor)
+                        }
+                        .padding(.horizontal, AppSpacing.md)
+
                         ForEach(viewModel.exams) { exam in
                             ExamCard(exam: exam, onEdit: {
                                 name = exam.name
@@ -91,6 +98,12 @@ private struct ExamCard: View {
 
     var body: some View {
         HStack(spacing: AppSpacing.md) {
+            Image(systemName: days == 0 ? "exclamationmark.circle.fill" : "doc.text.fill")
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(width: 42, height: 42)
+                .background(badgeColor, in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
+
             VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Text(exam.name)
                     .font(.headline)
@@ -112,6 +125,12 @@ private struct ExamCard: View {
             Button { onEdit() } label: { Label("編集", systemImage: "pencil") }
             Button(role: .destructive) { onDelete() } label: { Label("削除", systemImage: "trash") }
         }
+    }
+
+    private var badgeColor: Color {
+        if days < 7 { return AppColors.danger }
+        if days < 30 { return AppColors.warning }
+        return AppColors.success
     }
 }
 

@@ -319,23 +319,28 @@ private struct MaterialCardNew: View {
     let onUpdateProgress: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: AppSpacing.md) {
-            HStack(alignment: .top, spacing: AppSpacing.sm) {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(alignment: .top, spacing: AppSpacing.md) {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color(hex: subjectColor))
-                    .frame(width: 4, height: 56)
+                    .frame(width: 4, height: 70)
 
                 VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: AppSpacing.xs) {
+                        MetricPill(text: subjectName.isEmpty ? "科目なし" : subjectName, color: Color(hex: subjectColor), systemImage: "circle.fill")
+                        if material.problemChapters.count > 0 {
+                            MetricPill(text: "\(material.problemChapters.count)章", color: AppColors.warning, systemImage: "square.grid.2x2")
+                        }
+                    }
+
                     Text(material.name)
                         .font(.headline)
                         .foregroundStyle(AppColors.textPrimary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(subjectName)
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSecondary)
-                    if material.totalProblems > 0 {
-                        Text(material.problemChapters.isEmpty ? "全\(material.totalProblems)問" : "全\(material.totalProblems)問 ・ \(material.problemChapters.count)章")
+
+                    if material.effectiveTotalProblems > 0 {
+                        Text(material.problemChapters.isEmpty ? "全\(material.effectiveTotalProblems)問" : "全\(material.effectiveTotalProblems)問 ・ \(material.problemChapters.count)章")
                             .font(.caption)
                             .foregroundStyle(AppColors.textSecondary)
                     } else if material.totalPages > 0 {
@@ -351,10 +356,8 @@ private struct MaterialCardNew: View {
                             .lineLimit(2)
                     }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(alignment: .center, spacing: AppSpacing.lg) {
                 VStack(alignment: .trailing, spacing: AppSpacing.xs) {
                     if let progressSummary {
                         MaterialListProgressView(summary: progressSummary)
@@ -368,7 +371,23 @@ private struct MaterialCardNew: View {
                     }
                 }
                 .frame(width: 76, alignment: .trailing)
+            }
 
+            if material.totalPages > 0 {
+                AnimatedProgressBar(
+                    value: Double(material.currentPage),
+                    total: Double(max(material.totalPages, 1)),
+                    height: 6,
+                    barColor: Color(hex: subjectColor)
+                )
+            }
+
+            HStack(spacing: AppSpacing.xs) {
+                IconActionButton(title: "履歴", systemImage: "clock.arrow.circlepath", color: Color(hex: subjectColor), action: onOpenHistory)
+                if material.totalPages > 0 {
+                    IconActionButton(title: "進捗", systemImage: "chart.line.uptrend.xyaxis", color: AppColors.success, action: onUpdateProgress)
+                }
+                IconActionButton(title: "編集", systemImage: "pencil", color: .accentColor, action: onEdit)
                 Menu {
                     Button(action: onMoveUp) {
                         Label("上へ移動", systemImage: "arrow.up")
@@ -378,23 +397,18 @@ private struct MaterialCardNew: View {
                         Label("下へ移動", systemImage: "arrow.down")
                     }
                     .disabled(!canMoveDown)
-                    Button { onEdit() } label: { Label("編集", systemImage: "pencil") }
-                    if material.totalPages > 0 {
-                        Button { onUpdateProgress() } label: { Label("進捗を更新", systemImage: "chart.line.uptrend.xyaxis") }
-                    }
                     Button(role: .destructive) { onDelete() } label: { Label("削除", systemImage: "trash") }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.caption.bold())
                         .foregroundStyle(AppColors.textSecondary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+                        .frame(width: 38, height: 32)
+                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous))
                 }
             }
         }
         .cardStyle()
         .contentShape(Rectangle())
-        .onTapGesture(perform: onOpenHistory)
     }
 }
 
@@ -1702,18 +1716,16 @@ private struct ProgressEditorSheet: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                Text(material.name)
-                    .font(.headline)
-            }
-            Section("進捗") {
-                TextField("現在ページ", text: $currentPage)
-                    .keyboardType(.numberPad)
-                if material.totalPages > 0 {
-                    Text("総ページ数: \(material.totalPages)")
-                        .foregroundStyle(.secondary)
-                    if let page = Int(currentPage), material.totalPages > 0 {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    Text(material.name)
+                        .font(.headline)
+                    if material.totalPages > 0 {
+                        let page = Int(currentPage) ?? material.currentPage
+                        Text("\(page) / \(material.totalPages)ページ")
+                            .font(.caption.bold())
+                            .foregroundStyle(.tint)
                         AnimatedProgressBar(
                             value: Double(page),
                             total: Double(material.totalPages),
@@ -1721,8 +1733,43 @@ private struct ProgressEditorSheet: View {
                         )
                     }
                 }
+                .cardStyle()
+
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "現在ページ", icon: "book.pages")
+                    HStack(spacing: AppSpacing.md) {
+                        Button {
+                            currentPage = "\(max((Int(currentPage) ?? material.currentPage) - 1, 0))"
+                        } label: {
+                            Image(systemName: "minus")
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.bordered)
+
+                        TextField("現在ページ", text: $currentPage)
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .multilineTextAlignment(.center)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+
+                        Button {
+                            let next = (Int(currentPage) ?? material.currentPage) + 1
+                            currentPage = "\(material.totalPages > 0 ? min(next, material.totalPages) : next)"
+                        } label: {
+                            Image(systemName: "plus")
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    Text("1〜\(max(material.totalPages, 1))ページの範囲で入力してください。")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                .cardStyle()
             }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("進捗を更新")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -1761,24 +1808,41 @@ private struct BookResultSheet: View {
     }
 
     var body: some View {
-        Form {
+        ScrollView {
             if let book {
-                Text(book.title).font(.headline)
-                if !book.authors.isEmpty {
-                    Text(book.authors.joined(separator: ", "))
-                }
-                Picker("科目", selection: $selectedSubjectId) {
-                    ForEach(subjects) { subject in
-                        Text(subject.name).tag(subject.id)
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        Text(book.title)
+                            .font(.headline)
+                        if !book.authors.isEmpty {
+                            Text(book.authors.joined(separator: ", "))
+                                .font(.subheadline)
+                                .foregroundStyle(AppColors.textSecondary)
+                        }
+                        if let pages = book.pageCount {
+                            MetricPill(text: "\(pages)ページ", color: .accentColor, systemImage: "book.pages")
+                        }
                     }
+                    .cardStyle()
+
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        SectionHeaderView(title: "登録先", icon: "square.grid.2x2")
+                        Picker("科目", selection: $selectedSubjectId) {
+                            ForEach(subjects) { subject in
+                                Text(subject.name).tag(subject.id)
+                            }
+                        }
+                    }
+                    .cardStyle()
                 }
-                if let pages = book.pageCount {
-                    Text("ページ数: \(pages)")
-                }
+                .padding(AppSpacing.md)
             } else {
                 Text("書籍が見つかりませんでした")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(AppSpacing.lg)
             }
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("検索結果")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

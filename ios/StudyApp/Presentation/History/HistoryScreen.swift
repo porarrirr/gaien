@@ -113,32 +113,72 @@ struct HistoryScreen: View {
         }
         .sheet(item: $editingSession) { session in
             NavigationStack {
-                Form {
-                    Section {
-                        Text(session.subjectName)
-                            .font(.headline)
-                        if !session.materialName.isEmpty {
-                            Text(session.materialName)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    Section("記録") {
-                        ForEach($intervalDrafts) { $interval in
-                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                                if intervalDrafts.count > 1 {
-                                    Text("区間 \(interval.index + 1)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        HStack(spacing: AppSpacing.md) {
+                            Circle()
+                                .fill(Color.accentColor.opacity(0.12))
+                                .frame(width: 44, height: 44)
+                                .overlay {
+                                    Image(systemName: "book.fill")
+                                        .foregroundStyle(.tint)
                                 }
-                                DatePicker("開始時刻", selection: $interval.startDate, displayedComponents: .hourAndMinute)
-                                DatePicker("終了時刻", selection: $interval.endDate, displayedComponents: .hourAndMinute)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(session.subjectName.isEmpty ? "未設定" : session.subjectName)
+                                    .font(.headline)
+                                if !session.materialName.isEmpty {
+                                    Text(session.materialName)
+                                        .font(.subheadline)
+                                        .foregroundStyle(AppColors.textSecondary)
+                                }
+                                Text(session.durationFormatted)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.tint)
                             }
                         }
-                        SessionRatingSelector(rating: $ratingDraft, allowsClearing: true)
-                        problemEditor(for: session)
-                        TextField("メモ", text: $noteDraft, axis: .vertical)
+                        .cardStyle()
+
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            SectionHeaderView(title: "記録区間", icon: "clock")
+                            ForEach($intervalDrafts) { $interval in
+                                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                                    if intervalDrafts.count > 1 {
+                                        Text("区間 \(interval.index + 1)")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(AppColors.textSecondary)
+                                    }
+                                    DatePicker("開始時刻", selection: $interval.startDate, displayedComponents: .hourAndMinute)
+                                    DatePicker("終了時刻", selection: $interval.endDate, displayedComponents: .hourAndMinute)
+                                }
+                                .cardStyle(padding: AppSpacing.sm)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            SectionHeaderView(title: "評価", icon: "star.fill")
+                            SessionRatingSelector(rating: $ratingDraft, allowsClearing: true)
+                        }
+                        .cardStyle()
+
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            SectionHeaderView(title: "問題集の記録", icon: "checklist.checked")
+                            problemEditor(for: session)
+                        }
+                        .cardStyle()
+
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            SectionHeaderView(title: "メモ", icon: "note.text")
+                            TextEditor(text: $noteDraft)
+                                .frame(minHeight: 120)
+                                .scrollContentBackground(.hidden)
+                                .padding(AppSpacing.sm)
+                                .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous))
+                        }
+                        .cardStyle()
                     }
+                    .padding(AppSpacing.md)
                 }
+                .background(AppColors.subtleBackground)
                 .navigationTitle("履歴を編集")
                 .toolbar {
                     ToolbarItem(placement: .bottomBar) {
@@ -281,43 +321,55 @@ private struct HistorySessionCardNew: View {
     let problemChapters: [ProblemChapter]
 
     var body: some View {
-        HStack(spacing: AppSpacing.md) {
-            Circle()
-                .fill(.tint.opacity(0.12))
-                .frame(width: 44, height: 44)
-                .overlay {
-                    Image(systemName: "book.fill")
-                        .foregroundStyle(.tint)
-                }
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: AppSpacing.xs) {
-                    Text(session.subjectName)
-                        .font(.subheadline.bold())
-                    if let rating = session.rating {
-                        SessionRatingBadge(rating: rating)
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(spacing: AppSpacing.md) {
+                Circle()
+                    .fill(.tint.opacity(0.12))
+                    .frame(width: 44, height: 44)
+                    .overlay {
+                        Image(systemName: "book.fill")
+                            .foregroundStyle(.tint)
                     }
-                }
-                if !session.materialName.isEmpty {
-                    Text(session.materialName)
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSecondary)
-                }
-                if session.problemRangeText != nil || session.wrongProblemCount != nil {
-                    Text(sessionProblemSummary(session))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: AppSpacing.xs) {
+                        Text(session.subjectName)
+                            .font(.subheadline.bold())
+                        if let rating = session.rating {
+                            SessionRatingBadge(rating: rating)
+                        }
+                    }
+                    if !session.materialName.isEmpty {
+                        Text(session.materialName)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+                    Text(historyTimeLabel(session))
                         .font(.caption2)
                         .foregroundStyle(AppColors.textSecondary)
                 }
-                Text(historyTimeLabel(session))
-                    .font(.caption2)
-                    .foregroundStyle(AppColors.textSecondary)
+
+                Spacer()
+
+                Text(session.durationFormatted)
+                    .font(.headline)
+                    .foregroundStyle(.tint)
             }
 
-            Spacer()
+            if session.problemRangeText != nil || session.wrongProblemCount != nil || !session.problemRecords.isEmpty {
+                Text(sessionProblemSummary(session))
+                    .font(.caption2)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            Text(session.durationFormatted)
-                .font(.headline)
-                .foregroundStyle(.tint)
+            if let note = session.note, !note.isEmpty {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(2)
+            }
         }
         .cardStyle()
     }

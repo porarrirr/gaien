@@ -44,6 +44,12 @@ enum AppSpacing {
     static let xl: CGFloat = 32
 }
 
+enum AppCornerRadius {
+    static let sm: CGFloat = 8
+    static let md: CGFloat = 12
+    static let lg: CGFloat = 16
+}
+
 // MARK: - AppColors
 
 enum AppColors {
@@ -130,10 +136,10 @@ struct CardStyle: ViewModifier {
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
                     .fill(AppColors.cardBackground)
             )
-            .shadow(color: .black.opacity(0.06), radius: 8, y: 4)
+            .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
     }
 }
 
@@ -381,6 +387,8 @@ struct SectionHeaderView: View {
                 Image(systemName: icon)
                     .foregroundStyle(.tint)
                     .font(.subheadline.bold())
+                    .frame(width: 22, height: 22)
+                    .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             Text(title)
                 .font(.headline)
@@ -422,10 +430,10 @@ struct StudySectionCard<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
                 .fill(AppColors.cardBackground)
         )
-        .shadow(color: .black.opacity(0.06), radius: 8, y: 4)
+        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
     }
 }
 
@@ -439,7 +447,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
                     .fill(.tint)
                     .opacity(configuration.isPressed ? 0.8 : 1.0)
             )
@@ -491,7 +499,7 @@ struct QuickNavButton<Destination: View>: View {
                     .font(.title3)
                     .foregroundStyle(.tint)
                     .frame(width: 44, height: 44)
-                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
                 Text(label)
                     .font(.caption)
                     .foregroundStyle(AppColors.textPrimary)
@@ -596,6 +604,48 @@ struct SessionRatingSelector: View {
                 .foregroundStyle(AppColors.textSecondary)
             }
         }
+    }
+}
+
+struct MetricPill: View {
+    let text: String
+    var color: Color = .accentColor
+    var systemImage: String?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.caption2.bold())
+            }
+            Text(text)
+                .font(.caption.bold())
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.12), in: Capsule())
+    }
+}
+
+struct IconActionButton: View {
+    let title: String
+    let systemImage: String
+    var color: Color = .accentColor
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.bold())
+                .foregroundStyle(color)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
