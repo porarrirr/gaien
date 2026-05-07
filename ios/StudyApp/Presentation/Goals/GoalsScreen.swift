@@ -33,6 +33,7 @@ struct GoalsScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("目標")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingDay) { day in
             NavigationStack {
                 GoalEditorSheet(title: "\(day.japaneseTitle)の目標", minutes: $editingDayMinutes) {
@@ -219,6 +220,7 @@ private struct GoalEditorSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)

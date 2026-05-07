@@ -72,23 +72,24 @@ struct TimerScreen: View {
                                     progress: timerProgress,
                                     size: timerRingSize(for: geometry.size),
                                     lineWidth: 16,
-                                    ringColor: viewModel.isRunning ? Color.accentColor : Color.secondary.opacity(0.4),
+                                    ringColor: viewModel.isRunning ? AppColors.success : Color.secondary.opacity(0.4),
+                                    trackColor: AppColors.greenSoft,
                                     showPercentage: false
                                 )
                                 .scaleEffect(ringScale)
 
                                 VStack(spacing: AppSpacing.xs) {
                                     Text(durationString(milliseconds: viewModel.displayMilliseconds))
-                                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                                        .font(.system(size: 52, weight: .regular, design: .rounded))
                                         .monospacedDigit()
                                         .foregroundStyle(AppColors.textPrimary)
                                     if viewModel.isRunning {
                                         Text(viewModel.mode == .timer ? "カウントダウン中" : "記録中")
                                             .font(.caption.bold())
-                                            .foregroundStyle(.tint)
+                                            .foregroundStyle(AppColors.success)
                                             .padding(.horizontal, 12)
                                             .padding(.vertical, 4)
-                                            .background(.tint.opacity(0.12), in: Capsule())
+                                            .background(AppColors.greenSoft, in: Capsule())
                                             .transition(.opacity.combined(with: .scale(scale: 0.8)))
                                     }
                                 }
@@ -111,7 +112,7 @@ struct TimerScreen: View {
                             timerProblemProgressSection
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.horizontal, AppSpacing.screenHorizontal)
                         .padding(.top, AppSpacing.lg)
                         .padding(.bottom, AppSpacing.xl)
                     }
@@ -131,6 +132,7 @@ struct TimerScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("タイマー")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showManualEntry) {
             NavigationStack {
                 ManualEntrySheet(viewModel: viewModel, manualNote: $manualNote, isPresented: $showManualEntry)
@@ -279,12 +281,30 @@ struct TimerScreen: View {
         HStack(spacing: AppSpacing.xl) {
             VStack(spacing: AppSpacing.xs) {
                 Button {
+                    viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
+                } label: {
+                    Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 58, height: 58)
+                        .background(
+                            Circle().fill(AppColors.success)
+                        )
+                }
+
+                Text(primaryTimerButtonLabel)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+
+            VStack(spacing: AppSpacing.xs) {
+                Button {
                     viewModel.stop()
                 } label: {
                     Image(systemName: "stop.fill")
-                        .font(.title2)
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 64, height: 64)
+                        .frame(width: 58, height: 58)
                         .background(
                             Circle().fill(viewModel.displayMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3))
                         )
@@ -292,25 +312,6 @@ struct TimerScreen: View {
                 .disabled(viewModel.displayMilliseconds == 0)
 
                 Text("終了")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-            }
-
-            VStack(spacing: AppSpacing.xs) {
-                Button {
-                    viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
-                } label: {
-                    Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.white)
-                        .frame(width: 80, height: 80)
-                        .background(
-                            Circle().fill(Color.accentColor)
-                        )
-                        .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 4)
-                }
-
-                Text(primaryTimerButtonLabel)
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
             }
@@ -332,12 +333,12 @@ struct TimerScreen: View {
                         } label: {
                             Text("\(minutes)分")
                                 .font(.subheadline.bold())
-                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : Color.accentColor)
+                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : AppColors.success)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
                                 .background(
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(viewModel.countdownMinutes == minutes ? Color.accentColor : Color.accentColor.opacity(0.08))
+                                        .fill(viewModel.countdownMinutes == minutes ? AppColors.success : AppColors.greenSoft)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -354,12 +355,12 @@ struct TimerScreen: View {
         } label: {
             Text(title)
                 .font(.subheadline.bold())
-                .foregroundStyle(viewModel.mode == mode ? Color.white : Color.accentColor)
+                .foregroundStyle(viewModel.mode == mode ? Color.white : AppColors.success)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(viewModel.mode == mode ? Color.accentColor : Color.accentColor.opacity(0.08))
+                        .fill(viewModel.mode == mode ? AppColors.success : AppColors.greenSoft)
                 )
         }
         .buttonStyle(.plain)
@@ -375,10 +376,10 @@ struct TimerScreen: View {
                 Text("手動入力")
             }
             .font(.subheadline.bold())
-            .foregroundStyle(.tint)
+            .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(AppColors.blue, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 
@@ -386,17 +387,17 @@ struct TimerScreen: View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack(spacing: AppSpacing.xs) {
                 Image(systemName: "checklist.checked")
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(AppColors.success)
                 Text("問題進捗（仮）")
                     .font(.headline)
                 Spacer()
                 if !viewModel.timerProblemRecords.isEmpty {
                     Text("\(viewModel.timerProblemRecords.count)問")
                         .font(.caption.bold())
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(AppColors.success)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(.tint.opacity(0.10), in: Capsule())
+                        .background(AppColors.greenSoft, in: Capsule())
                 }
             }
 
@@ -424,19 +425,23 @@ struct TimerScreen: View {
                     .padding(.vertical, AppSpacing.xs)
             }
         }
-        .padding(AppSpacing.md)
-        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .cardStyle()
     }
 
     private func selectionRow<Content: View>(icon: String, title: String, @ViewBuilder content: () -> Content) -> some View {
         HStack {
             Image(systemName: icon)
-                .foregroundStyle(.tint)
+                .foregroundStyle(title == "科目" ? AppColors.blue : AppColors.success)
+                .frame(width: 22)
             content()
         }
         .padding(.horizontal, AppSpacing.md)
-        .padding(.vertical, AppSpacing.sm)
-        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.vertical, 12)
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
     }
@@ -824,6 +829,7 @@ private struct ManualEntrySheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("手動入力")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル") { isPresented = false }

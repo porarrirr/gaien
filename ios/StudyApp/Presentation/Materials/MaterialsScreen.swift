@@ -98,6 +98,7 @@ struct MaterialsScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("教材")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: historyNavigationBinding) {
             if let material = historyMaterial {
                 MaterialHistoryScreen(app: viewModel.app, materialId: material.id)
@@ -166,24 +167,20 @@ struct MaterialsScreen: View {
         }
         .sheet(isPresented: $isShowingIsbnSearch) {
             NavigationStack {
-                Form {
-                    Section("ISBN検索") {
-                        TextField("ISBN", text: $isbn)
-                            .keyboardType(.numberPad)
+                IsbnSearchSheet(
+                    isbn: $isbn,
+                    onScan: {
+                        isShowingIsbnSearch = false
+                        openBarcodeScanner()
+                    },
+                    onSearch: {
+                        viewModel.searchBook(isbn: isbn)
+                        isShowingIsbnSearch = false
+                    },
+                    onClose: {
+                        isShowingIsbnSearch = false
                     }
-                }
-                .navigationTitle("ISBN検索")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("閉じる") { isShowingIsbnSearch = false }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("検索") {
-                            viewModel.searchBook(isbn: isbn)
-                            isShowingIsbnSearch = false
-                        }
-                    }
-                }
+                )
             }
         }
         .sheet(item: $editingMaterial) { material in
@@ -301,6 +298,66 @@ struct MaterialsScreen: View {
         viewModel.app.logger.log(category: .barcode, level: .warning, message: "AVFoundation unavailable for barcode scanner")
         scannerMessage = "この端末ではバーコード読み取りを利用できません。"
         #endif
+    }
+}
+
+private struct IsbnSearchSheet: View {
+    @Binding var isbn: String
+    let onScan: () -> Void
+    let onSearch: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "ISBN検索", icon: "magnifyingglass")
+                    TextField("例）978406XXXXXXX", text: $isbn)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                    Text("ハイフンなしの13桁または10桁のISBNを入力してください。")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                .cardStyle()
+
+                Button {
+                    onScan()
+                } label: {
+                    Label("バーコードをスキャン", systemImage: "barcode.viewfinder")
+                        .font(.headline)
+                        .foregroundStyle(AppColors.success)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(AppColors.greenSoft, in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Text("ISBNコードは背表紙の書籍バーコード付近に記載されています。")
+                    .font(.footnote)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .padding(AppSpacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
+                            .stroke(AppColors.cardBorder, lineWidth: 1)
+                    }
+            }
+            .padding(AppSpacing.md)
+        }
+        .background(AppColors.subtleBackground)
+        .navigationTitle("ISBN検索")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("閉じる", action: onClose)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("検索", action: onSearch)
+                    .disabled(isbn.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
     }
 }
 
@@ -1713,6 +1770,7 @@ private struct MaterialEditorSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)
@@ -1794,6 +1852,7 @@ private struct ProgressEditorSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("進捗を更新")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)
@@ -1867,6 +1926,7 @@ private struct BookResultSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("検索結果")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("閉じる", action: onClose)
@@ -1957,6 +2017,7 @@ private struct BarcodeScannerSheet: View {
                 dismiss()
             }, logger: logger)
             .navigationTitle("バーコード")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") { dismiss() }

@@ -136,17 +136,17 @@ enum ColorTheme: String, CaseIterable, Codable, Identifiable, Hashable {
 
     var hex: Int {
         switch self {
-        case .green: return 0x4CAF50
-        case .blue: return 0x2196F3
-        case .orange: return 0xFF9800
+        case .green: return 0x2E9D45
+        case .blue: return 0x1E88E5
+        case .orange: return 0xF59E0B
         }
     }
 
     var accentHex: Int {
         switch self {
-        case .green: return 0x2196F3
-        case .blue: return 0x4CAF50
-        case .orange: return 0x2196F3
+        case .green: return 0x1E88E5
+        case .blue: return 0x2E9D45
+        case .orange: return 0x1E88E5
         }
     }
 }

@@ -53,6 +53,7 @@ struct ExamsScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("試験")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -159,6 +160,7 @@ private struct ExamEditorSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)

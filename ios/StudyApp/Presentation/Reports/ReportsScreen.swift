@@ -15,54 +15,57 @@ struct ReportsScreen: View {
             LazyVStack(spacing: AppSpacing.md) {
                 // Streak Section
                 streakSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
                 // Daily Chart
                 dailyChartSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
                 // Weekly Chart
                 weeklyChartSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
                 // Rating Summary
                 ratingSummarySection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
                 // Subject Breakdown
                 subjectSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
             }
-            .padding(.vertical, AppSpacing.md)
+            .padding(.vertical, AppSpacing.sm)
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("レポート")
+        .navigationBarTitleDisplayMode(.inline)
         .task(id: viewModel.app.dataVersion) { await viewModel.load() }
     }
 
     private var streakSection: some View {
         HStack(spacing: AppSpacing.md) {
             VStack(spacing: AppSpacing.sm) {
-                Text("🔥")
-                    .font(.system(size: 36))
+                Image(systemName: "calendar")
+                    .font(.title2.bold())
+                    .foregroundStyle(AppColors.success)
                 Text("\(viewModel.reports.streakDays)")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(viewModel.reports.streakDays > 0 ? AppColors.warning : AppColors.textSecondary)
+                    .foregroundStyle(AppColors.success)
                 Text("連続日数")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, AppSpacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(AppColors.cardBackground)
-            )
-            .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
 
             VStack(spacing: AppSpacing.sm) {
-                Text("🏆")
-                    .font(.system(size: 36))
+                Image(systemName: "trophy.fill")
+                    .font(.title2.bold())
+                    .foregroundStyle(AppColors.success)
                 Text("\(viewModel.reports.bestStreak)")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundStyle(AppColors.success)
@@ -72,11 +75,11 @@ struct ReportsScreen: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, AppSpacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(AppColors.cardBackground)
-            )
-            .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
         }
     }
 

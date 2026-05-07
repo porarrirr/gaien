@@ -53,6 +53,7 @@ struct TimetableScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("時間割")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             Button {
                 isCreatingTerm = true
@@ -655,6 +656,7 @@ private struct TimetableEntryEditorSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle(context.entry == nil ? "授業を追加" : "授業を編集")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)
@@ -730,6 +732,7 @@ private struct TimetableTermEditorSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle(term == nil ? "学期を追加" : "学期を編集")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)
@@ -852,6 +855,7 @@ private struct TimetableReviewEditorSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("復習記録")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("閉じる", action: onCancel)
@@ -927,6 +931,7 @@ private struct TimetablePeriodSettingsSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("時限設定")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)

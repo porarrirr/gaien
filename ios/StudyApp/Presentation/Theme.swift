@@ -42,32 +42,42 @@ enum AppSpacing {
     static let md: CGFloat = 16
     static let lg: CGFloat = 24
     static let xl: CGFloat = 32
+    static let screenHorizontal: CGFloat = 14
 }
 
 enum AppCornerRadius {
     static let sm: CGFloat = 8
-    static let md: CGFloat = 12
-    static let lg: CGFloat = 16
+    static let md: CGFloat = 8
+    static let lg: CGFloat = 10
 }
 
 // MARK: - AppColors
 
 enum AppColors {
     static var cardBackground: Color {
-        Color(.secondarySystemGroupedBackground)
+        Color(.systemBackground)
     }
     static var subtleBackground: Color {
-        Color(.systemGroupedBackground)
+        Color(hex: 0xF8F8FA)
     }
+    static let groupedBackground = Color(hex: 0xF8F8FA)
+    static let cardBorder = Color(hex: 0xE7E8EC)
+    static let green = Color(hex: 0x2E9D45)
+    static let greenSoft = Color(hex: 0xEAF7EE)
+    static let blue = Color(hex: 0x1E88E5)
+    static let blueSoft = Color(hex: 0xEAF3FF)
+    static let orange = Color(hex: 0xF59E0B)
+    static let orangeSoft = Color(hex: 0xFFF4D8)
+    static let redSoft = Color(hex: 0xFDECEC)
     static var textPrimary: Color {
         Color(.label)
     }
     static var textSecondary: Color {
         Color(.secondaryLabel)
     }
-    static let success = Color(hex: 0x4CAF50)
-    static let warning = Color(hex: 0xFF9800)
-    static let danger = Color(hex: 0xF44336)
+    static let success = Color(hex: 0x2E9D45)
+    static let warning = Color(hex: 0xF59E0B)
+    static let danger = Color(hex: 0xE53935)
 }
 
 // MARK: - Typography Modifiers
@@ -136,10 +146,13 @@ struct CardStyle: ViewModifier {
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
                     .fill(AppColors.cardBackground)
             )
-            .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
+                    .stroke(AppColors.cardBorder.opacity(0.9), lineWidth: 1)
+            }
     }
 }
 
@@ -164,10 +177,14 @@ struct DiagnosticLogCopyButton: View {
                 Spacer(minLength: AppSpacing.sm)
             }
             .foregroundStyle(copied ? AppColors.success : AppColors.textPrimary)
-            .padding(.horizontal, AppSpacing.md)
-            .padding(.vertical, AppSpacing.sm)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
         }
         .buttonStyle(.plain)
     }
@@ -194,10 +211,10 @@ struct GradientCard<Content: View>: View {
 
     var body: some View {
         content
-            .padding(AppSpacing.lg)
+            .padding(AppSpacing.md)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: colors,
@@ -206,7 +223,10 @@ struct GradientCard<Content: View>: View {
                         )
                     )
             )
-            .shadow(color: colors.first?.opacity(0.3) ?? .clear, radius: 12, y: 6)
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
+                    .stroke(.white.opacity(0.25), lineWidth: 1)
+            }
     }
 }
 
@@ -306,7 +326,7 @@ struct StatCard: View {
             Image(systemName: icon)
                 .font(.title2)
                 .foregroundStyle(iconColor)
-                .frame(width: 40, height: 40)
+                .frame(width: 36, height: 36)
                 .background(iconColor.opacity(0.12), in: Circle())
 
             Text(value)
@@ -323,10 +343,13 @@ struct StatCard: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, AppSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
                 .fill(AppColors.cardBackground)
         )
-        .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
+        }
     }
 }
 
@@ -385,10 +408,10 @@ struct SectionHeaderView: View {
         HStack {
             if let icon {
                 Image(systemName: icon)
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(AppColors.success)
                     .font(.subheadline.bold())
-                    .frame(width: 22, height: 22)
-                    .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .frame(width: 24, height: 24)
+                    .background(AppColors.greenSoft, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             Text(title)
                 .font(.headline)
@@ -433,7 +456,10 @@ struct StudySectionCard<Content: View>: View {
             RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
                 .fill(AppColors.cardBackground)
         )
-        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
+        }
     }
 }
 
@@ -448,7 +474,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
-                    .fill(.tint)
+                    .fill(AppColors.success)
                     .opacity(configuration.isPressed ? 0.8 : 1.0)
             )
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
@@ -497,9 +523,9 @@ struct QuickNavButton<Destination: View>: View {
             VStack(spacing: AppSpacing.sm) {
                 Image(systemName: icon)
                     .font(.title3)
-                    .foregroundStyle(.tint)
-                    .frame(width: 44, height: 44)
-                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
+                    .foregroundStyle(AppColors.success)
+                    .frame(width: 42, height: 42)
+                    .background(AppColors.greenSoft, in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
                 Text(label)
                     .font(.caption)
                     .foregroundStyle(AppColors.textPrimary)
@@ -624,7 +650,7 @@ struct MetricPill: View {
                 .minimumScaleFactor(0.75)
         }
         .foregroundStyle(color)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 9)
         .padding(.vertical, 4)
         .background(color.opacity(0.12), in: Capsule())
     }
@@ -642,7 +668,7 @@ struct IconActionButton: View {
                 .font(.caption.bold())
                 .foregroundStyle(color)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+                .padding(.vertical, 7)
                 .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous))
         }
         .buttonStyle(.plain)

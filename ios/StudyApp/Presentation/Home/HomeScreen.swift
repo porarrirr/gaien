@@ -1,5 +1,8 @@
 import Foundation
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - HomeScreen
 
@@ -26,86 +29,107 @@ struct HomeScreen: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: AppSpacing.md) {
-                DiagnosticLogCopyButton(logger: viewModel.app.logger)
-                    .padding(.horizontal, AppSpacing.md)
-
-                // Hero Section
                 heroSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
                 todayReviewSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
-                // Weekly Goal
                 weeklyGoalSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
                 timetableSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
-                // Today's Sessions
                 todaySessionsSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
-                // Upcoming Exams
                 upcomingExamsSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
-                // Recent Materials
                 recentMaterialsSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
-                // Quick Navigation
                 quickNavSection
-                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
             }
-            .padding(.vertical, AppSpacing.md)
+            .padding(.vertical, AppSpacing.sm)
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("ホーム")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    #if canImport(UIKit)
+                    UIPasteboard.general.string = viewModel.app.logger.exportText()
+                    #endif
+                    viewModel.app.logger.log(category: .app, message: "Diagnostic logs copied from Home toolbar")
+                } label: {
+                    Label("診断ログをコピー", systemImage: "doc.on.doc")
+                        .font(.caption.bold())
+                }
+            }
+        }
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
         }
     }
 
     private var heroSection: some View {
-        GradientCard(colors: [
-            viewModel.app.preferences.selectedColorTheme.primaryColor,
-            viewModel.app.preferences.selectedColorTheme.primaryColor.opacity(0.7)
-        ]) {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(spacing: AppSpacing.lg) {
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    Text("今日の学習")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.white.opacity(0.85))
-                    Text("\(viewModel.homeData.todayStudyMinutes)分")
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text(Goal.format(minutes: viewModel.homeData.todayStudyMinutes))
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.8))
+                    Label("今日の学習", systemImage: "clock.badge.checkmark")
+                        .font(.caption.bold())
+                        .foregroundStyle(AppColors.textSecondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("\(viewModel.homeData.todayStudyMinutes)")
+                            .font(.system(size: 44, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(AppColors.textPrimary)
+                        Text("分")
+                            .font(.title3.bold())
+                            .foregroundStyle(AppColors.textPrimary)
+                    }
                     if let goal = viewModel.homeData.todayGoal {
                         Text("目標 \(goal.targetFormatted)")
                             .font(.caption.bold())
-                            .foregroundStyle(.white.opacity(0.8))
+                            .foregroundStyle(AppColors.textSecondary)
                     }
                 }
                 Spacer()
                 ProgressRing(
                     progress: todayProgress,
-                    size: 100,
-                    lineWidth: 10,
-                    ringColor: .white,
-                    trackColor: .white.opacity(0.25),
+                    size: 82,
+                    lineWidth: 8,
+                    ringColor: AppColors.success,
+                    trackColor: AppColors.greenSoft,
                     showPercentage: false
                 )
                 .overlay {
-                    Text("\(todayProgressPercent)%")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                    VStack(spacing: 1) {
+                        Text("\(todayProgressPercent)%")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                        Text("達成")
+                            .font(.caption2.bold())
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
                 }
             }
+
+            if dailyGoalMinutes > 0 {
+                AnimatedProgressBar(
+                    value: Double(viewModel.homeData.todayStudyMinutes),
+                    total: Double(dailyGoalMinutes),
+                    height: 8,
+                    barColor: AppColors.success,
+                    trackColor: AppColors.greenSoft
+                )
+            }
         }
+        .cardStyle()
     }
 
     private var weeklyGoalSection: some View {
@@ -124,7 +148,9 @@ struct HomeScreen: View {
                     AnimatedProgressBar(
                         value: Double(viewModel.homeData.weeklyStudyMinutes),
                         total: Double(max(goal.targetMinutes, 1)),
-                        height: 10
+                        height: 8,
+                        barColor: AppColors.success,
+                        trackColor: AppColors.greenSoft
                     )
                 }
                 .cardStyle()
@@ -147,30 +173,32 @@ struct HomeScreen: View {
                         .foregroundStyle(AppColors.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    ForEach(viewModel.homeData.todayReviewProblems.prefix(8)) { problem in
-                        HStack(spacing: AppSpacing.md) {
+                    ForEach(viewModel.homeData.todayReviewProblems.prefix(5)) { problem in
+                        HStack(spacing: AppSpacing.sm) {
                             Circle()
-                                .fill(AppColors.warning.opacity(0.18))
-                                .frame(width: 40, height: 40)
+                                .fill(AppColors.success)
+                                .frame(width: 28, height: 28)
                                 .overlay {
                                     Text("\(problem.problemNumber)")
-                                        .font(.caption.bold())
+                                        .font(.caption2.bold())
                                         .monospacedDigit()
-                                        .foregroundStyle(AppColors.warning)
+                                        .foregroundStyle(.white)
                                 }
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(problem.materialName)
-                                    .font(.subheadline.bold())
+                                    .font(.caption.bold())
+                                    .lineLimit(1)
                                 Text(reviewProblemSubtitle(problem))
-                                    .font(.caption)
+                                    .font(.caption2)
                                     .foregroundStyle(AppColors.textSecondary)
+                                    .lineLimit(1)
                             }
                             Spacer()
                             Text(reviewDueText(problem.nextReviewDate))
                                 .font(.caption.bold())
                                 .foregroundStyle(.tint)
                         }
-                        if problem.id != viewModel.homeData.todayReviewProblems.prefix(8).last?.id {
+                        if problem.id != viewModel.homeData.todayReviewProblems.prefix(5).last?.id {
                             Divider()
                         }
                     }

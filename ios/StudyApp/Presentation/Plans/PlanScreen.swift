@@ -40,7 +40,8 @@ struct PlanScreen: View {
                             }
                         )
                     }
-                    .padding(AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.vertical, AppSpacing.sm)
                 }
             } else {
                 EmptyStateView(
@@ -54,6 +55,7 @@ struct PlanScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("計画")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if viewModel.activePlan != nil {
@@ -168,8 +170,7 @@ private struct DaySelectorNew: View {
             HStack(spacing: AppSpacing.sm) {
                 ForEach(StudyWeekday.allCases) { day in
                     let isSelected = selectedDay == day
-                    let backgroundColor = isSelected ? Color.accentColor : AppColors.cardBackground
-                    let shadowColor = isSelected ? Color.accentColor.opacity(0.3) : .clear
+                    let backgroundColor = isSelected ? AppColors.success : AppColors.cardBackground
 
                     Button {
                         withAnimation(.spring(response: 0.3)) {
@@ -180,8 +181,11 @@ private struct DaySelectorNew: View {
                             .font(.subheadline.bold())
                             .foregroundStyle(isSelected ? .white : AppColors.textPrimary)
                             .frame(width: 44, height: 44)
-                            .background(backgroundColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .shadow(color: shadowColor, radius: 4, y: 2)
+                            .background(backgroundColor, in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                                    .stroke(isSelected ? Color.clear : AppColors.cardBorder, lineWidth: 1)
+                            }
                     }
                     .buttonStyle(.plain)
                 }
@@ -236,7 +240,7 @@ private struct DayScheduleSectionNew: View {
                         VStack(alignment: .trailing, spacing: 6) {
                             Text("\(wrapped.item.targetMinutes)分")
                                 .font(.subheadline.bold())
-                                .foregroundStyle(.tint)
+                                .foregroundStyle(AppColors.textPrimary)
                             Menu {
                                 Button { onEdit(wrapped.item) } label: { Label("編集", systemImage: "pencil") }
                                 Button(role: .destructive) { onDelete(wrapped.item) } label: { Label("削除", systemImage: "trash") }
@@ -323,6 +327,7 @@ private struct CreatePlanSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("計画を作成")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)
@@ -398,6 +403,7 @@ private struct PlanItemEditorSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle(item == nil ? "計画項目を追加" : "計画項目を編集")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)

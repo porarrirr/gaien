@@ -43,6 +43,7 @@ struct ProblemTileSelector: View {
                         .keyboardType(.default)
                 }
                 .navigationTitle(editingTitle(for: target.number))
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("閉じる") { editingNumber = nil }

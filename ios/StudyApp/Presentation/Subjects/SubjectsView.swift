@@ -34,15 +34,16 @@ struct SubjectsScreen: View {
                     LazyVStack(spacing: AppSpacing.sm) {
                         ForEach(viewModel.subjects) { subject in
                             subjectRow(subject)
-                                .padding(.horizontal, AppSpacing.md)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
                         }
                     }
-                    .padding(.vertical, AppSpacing.md)
+                    .padding(.vertical, AppSpacing.sm)
                 }
             }
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("科目")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -144,43 +145,55 @@ struct SubjectsScreen: View {
 
     @ViewBuilder
     private func subjectEditorSheet(title: String, onSave: @escaping () -> Void, onCancel: @escaping () -> Void) -> some View {
-        Form {
-            Section {
-                TextField("科目名", text: $name)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "科目名", icon: "textformat")
+                    TextField("例）数学III", text: $name)
+                        .textFieldStyle(.roundedBorder)
+                }
+                .cardStyle()
 
-            Section("色") {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
-                    ForEach(Array(presetColors.enumerated()), id: \.offset) { _, color in
-                        Circle()
-                            .fill(color)
-                            .frame(width: 36, height: 36)
-                            .overlay {
-                                if colorToInt(color) == colorToInt(selectedColor) {
-                                    Image(systemName: "checkmark")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.white)
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "色", icon: "paintpalette.fill")
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
+                        ForEach(Array(presetColors.enumerated()), id: \.offset) { _, color in
+                            Circle()
+                                .fill(color)
+                                .frame(width: 36, height: 36)
+                                .overlay {
+                                    if colorToInt(color) == colorToInt(selectedColor) {
+                                        Image(systemName: "checkmark")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.white)
+                                    }
                                 }
-                            }
-                            .onTapGesture {
-                                selectedColor = color
-                            }
+                                .onTapGesture {
+                                    selectedColor = color
+                                }
+                        }
                     }
+                    ColorPicker("カスタム色", selection: $selectedColor, supportsOpacity: false)
                 }
-                .padding(.vertical, AppSpacing.sm)
+                .cardStyle()
 
-                ColorPicker("カスタム色", selection: $selectedColor, supportsOpacity: false)
-            }
-
-            Section("アイコン") {
-                Picker("アイコン", selection: $icon) {
-                    ForEach(SubjectIcon.allCases) { ic in
-                        Label(ic.rawValue, systemImage: ic.systemImage).tag(ic)
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "アイコン", icon: "square.grid.2x2")
+                    Picker("アイコン", selection: $icon) {
+                        ForEach(SubjectIcon.allCases) { ic in
+                            Label(ic.rawValue, systemImage: ic.systemImage).tag(ic)
+                        }
                     }
+                    .pickerStyle(.menu)
                 }
+                .cardStyle()
             }
+            .padding(AppSpacing.md)
         }
+        .scrollContentBackground(.hidden)
+        .background(AppColors.subtleBackground)
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)

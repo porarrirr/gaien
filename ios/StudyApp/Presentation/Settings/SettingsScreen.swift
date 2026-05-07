@@ -336,7 +336,10 @@ struct SettingsScreen: View {
             }
 
         }
+        .scrollContentBackground(.hidden)
+        .background(AppColors.subtleBackground)
         .navigationTitle("設定")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isShowingAuthSheet) {
             NavigationStack {
                 AuthSheet(viewModel: viewModel, isPresented: $isShowingAuthSheet)
@@ -473,6 +476,7 @@ private struct DebugLogSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("デバッグログ")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("閉じる") { dismiss() }
@@ -561,6 +565,7 @@ private struct AuthSheet: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("クラウド同期")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("閉じる") { isPresented = false }

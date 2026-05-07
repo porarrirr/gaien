@@ -93,6 +93,7 @@ struct HistoryScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("履歴")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -180,6 +181,7 @@ struct HistoryScreen: View {
                 }
                 .background(AppColors.subtleBackground)
                 .navigationTitle("履歴を編集")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .bottomBar) {
                         Button(role: .destructive) {

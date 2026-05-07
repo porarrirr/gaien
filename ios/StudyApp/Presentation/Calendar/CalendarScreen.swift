@@ -209,6 +209,7 @@ struct CalendarScreen: View {
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("カレンダー")
+        .navigationBarTitleDisplayMode(.inline)
         .task(id: viewModel.app.dataVersion) { await viewModel.load() }
         .onChange(of: viewModel.displayedMonth) { _ in
             selectedDay = nil
