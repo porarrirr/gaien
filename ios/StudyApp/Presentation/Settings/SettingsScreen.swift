@@ -182,7 +182,7 @@ struct SettingsScreen: View {
     }
 
     private var dashboardCards: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], alignment: .top, spacing: 16) {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
             dataSummaryCard
             cloudSyncCard
             dangerCard
