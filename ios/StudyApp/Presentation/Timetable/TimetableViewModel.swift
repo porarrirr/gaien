@@ -47,9 +47,9 @@ final class TimetableViewModel: ScreenViewModel {
         let calendar = Calendar.current
         guard let monthInterval = calendar.dateInterval(of: .month, for: displayedMonth) else { return [] }
 
-        let monthStart = max(selectedTerm.startDateValue, monthInterval.start.startOfDay)
+        let monthStart = Swift.max(selectedTerm.startDateValue, monthInterval.start.startOfDay)
         let rawMonthEnd = calendar.date(byAdding: .day, value: -1, to: monthInterval.end)?.startOfDay ?? monthInterval.start.startOfDay
-        let monthEnd = min(selectedTerm.endDateValue, rawMonthEnd, Date().startOfDay)
+        let monthEnd = Swift.min(selectedTerm.endDateValue, rawMonthEnd, Date().startOfDay)
         guard monthStart <= monthEnd else { return [] }
 
         var days = Set<Int>()
@@ -62,6 +62,29 @@ final class TimetableViewModel: ScreenViewModel {
             date = next
         }
         return days
+    }
+
+    var occurrenceStatusByDayInDisplayedMonth: [Int: TimetableReviewStatus] {
+        guard let selectedTerm else { return [:] }
+        let calendar = Calendar.current
+        guard let monthInterval = calendar.dateInterval(of: .month, for: displayedMonth) else { return [:] }
+
+        let monthStart = Swift.max(selectedTerm.startDateValue, monthInterval.start.startOfDay)
+        let rawMonthEnd = calendar.date(byAdding: .day, value: -1, to: monthInterval.end)?.startOfDay ?? monthInterval.start.startOfDay
+        let monthEnd = Swift.min(selectedTerm.endDateValue, rawMonthEnd, Date().startOfDay)
+        guard monthStart <= monthEnd else { return [:] }
+
+        var statuses = [Int: TimetableReviewStatus]()
+        var date = monthStart
+        while date <= monthEnd {
+            let occurrences = occurrences(on: date, in: selectedTerm)
+            if !occurrences.isEmpty {
+                statuses[calendar.component(.day, from: date)] = Self.combinedStatus(for: occurrences)
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
+            date = next
+        }
+        return statuses
     }
 
     func load() async {
@@ -95,13 +118,20 @@ final class TimetableViewModel: ScreenViewModel {
 
     func savePeriodDrafts(_ drafts: [TimetablePeriodDraft]) {
         perform {
+            let activeIds = Set(drafts.map(\.period.syncId))
             for draft in drafts {
                 guard draft.startMinute < draft.endMinute else {
                     throw ValidationError(message: "\(draft.name) の終了時刻は開始時刻より後にしてください")
                 }
             }
-            for draft in drafts {
-                try await self.app.persistence.saveTimetablePeriod(draft.period)
+            for period in self.periods where !activeIds.contains(period.syncId) {
+                try await self.app.persistence.deleteTimetablePeriod(period)
+            }
+            for (index, draft) in drafts.enumerated() {
+                var period = draft.period
+                period.sortOrder = index + 1
+                period.updatedAt = Date().epochMilliseconds
+                try await self.app.persistence.saveTimetablePeriod(period)
             }
             await self.load()
             self.app.bumpDataVersion()
@@ -227,7 +257,7 @@ final class TimetableViewModel: ScreenViewModel {
     private func summary(for term: TimetableTerm) -> TimetableReviewSummary {
         let calendar = Calendar.current
         var date = term.startDateValue
-        let endDate = min(term.endDateValue, Date().startOfDay)
+        let endDate = Swift.min(term.endDateValue, Date().startOfDay)
         var allOccurrences = [TimetableReviewOccurrence]()
         while date <= endDate {
             allOccurrences.append(contentsOf: occurrences(on: date, in: term))
@@ -274,6 +304,19 @@ final class TimetableViewModel: ScreenViewModel {
         }
         return terms.sorted { $0.endDate > $1.endDate }.first
     }
+
+    private static func combinedStatus(for occurrences: [TimetableReviewOccurrence]) -> TimetableReviewStatus {
+        if occurrences.contains(where: { $0.status == .pending || $0.status == .overdue }) {
+            return .pending
+        }
+        if occurrences.allSatisfy({ $0.status == .excluded }) {
+            return .excluded
+        }
+        if occurrences.contains(where: { $0.status == .reviewed }) {
+            return .reviewed
+        }
+        return .notAvailable
+    }
 }
 
 private extension Date {
@@ -293,9 +336,25 @@ struct TimetablePeriodDraft: Identifiable, Hashable {
     var period: TimetablePeriod
 
     var id: String { period.syncId }
-    var name: String { period.name }
+    var name: String {
+        get { period.name }
+        set { period.name = newValue }
+    }
     var startMinute: Int { period.startMinute }
     var endMinute: Int { period.endMinute }
+
+    init(period: TimetablePeriod) {
+        self.period = period
+    }
+
+    init(order: Int, startMinute: Int, endMinute: Int) {
+        self.period = TimetablePeriod(
+            name: "\(order)限",
+            startMinute: startMinute,
+            endMinute: endMinute,
+            sortOrder: order
+        )
+    }
 
     var startDate: Date {
         get { Self.date(from: period.startMinute) }
@@ -318,7 +377,8 @@ struct TimetablePeriodDraft: Identifiable, Hashable {
 
     private static func minute(from date: Date) -> Int {
         let calendar = Calendar.current
-        return calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+        let rawMinute = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+        return (rawMinute / 5) * 5
     }
 }
 
@@ -329,7 +389,7 @@ struct TimetableReviewSummary: Hashable {
     var pending: Int
 
     var completionRate: Double {
-        let denominator = max(total - excluded, 0)
+        let denominator = Swift.max(total - excluded, 0)
         guard denominator > 0 else { return 0 }
         return Double(reviewed) / Double(denominator)
     }

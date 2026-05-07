@@ -72,6 +72,7 @@
 		A30000000000000000000022 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000022 /* MainTabView.swift */; };
 		A30000000000000000000023 /* StudyFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000023 /* StudyFormatters.swift */; };
 		A30000000000000000000024 /* ProblemTileSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000024 /* ProblemTileSelector.swift */; };
+		A30000000000000000000027 /* HistorySessionEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000027 /* HistorySessionEditorSheet.swift */; };
 		A30000000000000000000025 /* TimetableScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000025 /* TimetableScreen.swift */; };
 		A30000000000000000000026 /* TimetableViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000026 /* TimetableViewModel.swift */; };
 /* End PBXBuildFile section */
@@ -139,6 +140,7 @@
 		B30000000000000000000022 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		B30000000000000000000023 /* StudyFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyFormatters.swift; sourceTree = "<group>"; };
 		B30000000000000000000024 /* ProblemTileSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemTileSelector.swift; sourceTree = "<group>"; };
+		B30000000000000000000027 /* HistorySessionEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionEditorSheet.swift; sourceTree = "<group>"; };
 		B30000000000000000000025 /* TimetableScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000026 /* TimetableViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -479,6 +481,7 @@
 			children = (
 				B30000000000000000000023 /* StudyFormatters.swift */,
 				B30000000000000000000024 /* ProblemTileSelector.swift */,
+				B30000000000000000000027 /* HistorySessionEditorSheet.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -673,6 +676,7 @@
 				A30000000000000000000022 /* MainTabView.swift in Sources */,
 				A30000000000000000000023 /* StudyFormatters.swift in Sources */,
 				A30000000000000000000024 /* ProblemTileSelector.swift in Sources */,
+				A30000000000000000000027 /* HistorySessionEditorSheet.swift in Sources */,
 				A30000000000000000000025 /* TimetableScreen.swift in Sources */,
 				A30000000000000000000026 /* TimetableViewModel.swift in Sources */,
 				A10000000000000000000010 /* MaterialsScreen.swift in Sources */,

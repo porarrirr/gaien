@@ -24,7 +24,7 @@ The images in `C:\Users\nmrhr\.codex\generated_images\019e01a0-74c7-72f2-8297-bd
 | `18_timetable_term_editor.png` | `TimetableTermEditorSheet` |
 | `19_timetable_period_settings.png` | `TimetablePeriodSettingsSheet` |
 | `20_timetable_review_record.png` | `TimetableReviewEditorSheet` |
-| `21_reports.png` | `ReportsScreen` |
+| `21_reports.png` | ReportsScreen`` |
 | `22_plan_create.png` | `CreatePlanSheet` |
 | `23_plan_item_editor.png` | `PlanItemEditorSheet` |
 | `24_exam_editor.png` | `ExamEditorSheet` |

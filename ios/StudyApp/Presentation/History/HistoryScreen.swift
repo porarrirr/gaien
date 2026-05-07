@@ -4,7 +4,7 @@ struct HistoryScreen: View {
     @StateObject private var viewModel: HistoryViewModel
     @State private var editingSession: StudySession?
     @State private var pendingDeletionSession: StudySession?
-    @State private var intervalDrafts: [StudySessionIntervalDraft] = []
+    @State private var intervalDrafts: [HistorySessionIntervalDraft] = []
     @State private var noteDraft = ""
     @State private var ratingDraft: Int? = nil
     @State private var problemStartDraft = ""
@@ -12,20 +12,24 @@ struct HistoryScreen: View {
     @State private var wrongProblemCountDraft = ""
     @State private var editingProblemRecords: [ProblemSessionRecord] = []
     @State private var problemCountDraft = ""
-    @State private var isShowingFilter = false
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: HistoryViewModel(app: app))
     }
 
-    private var groupedSessions: [(String, [StudySession])] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy年M月d日"
-        let grouped = Dictionary(grouping: viewModel.filteredSessions) { session -> String in
-            formatter.string(from: session.startDate)
+    private var groupedSessions: [HistoryDayGroup] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: viewModel.filteredSessions) { session in
+            calendar.startOfDay(for: session.startDate)
         }
-        return grouped.sorted { $0.key > $1.key }
+        return grouped
+            .map { date, sessions in
+                HistoryDayGroup(
+                    date: date,
+                    sessions: sessions.sorted { $0.sessionStartTime > $1.sessionStartTime }
+                )
+            }
+            .sorted { $0.date > $1.date }
     }
 
     private var isShowingDeleteConfirmation: Binding<Bool> {
@@ -49,171 +53,69 @@ struct HistoryScreen: View {
                 )
             } else {
                 ScrollView {
-                    LazyVStack(spacing: AppSpacing.md) {
-                        ForEach(groupedSessions, id: \.0) { dateLabel, sessions in
-                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                                SectionHeaderView(title: dateLabel, icon: "calendar")
-                                    .padding(.horizontal, AppSpacing.md)
+                    LazyVStack(alignment: .leading, spacing: 18) {
+                        HStack {
+                            Text("すべての履歴")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(AppColors.textPrimary)
 
-                                ForEach(sessions) { session in
-                                    HistorySessionCardNew(
-                                        session: session,
-                                        problemChapters: viewModel.materialProblemChapters(for: session)
-                                    )
-                                        .padding(.horizontal, AppSpacing.md)
-                                        .contextMenu {
-                                            Button {
-                                                editingSession = session
-                                                intervalDrafts = session.effectiveIntervals.enumerated().map {
-                                                    StudySessionIntervalDraft(interval: $0.element, index: $0.offset)
-                                                }
-                                                noteDraft = session.note ?? ""
-                                                ratingDraft = session.rating
-                                                problemStartDraft = session.problemStart.map(String.init) ?? ""
-                                                problemEndDraft = session.problemEnd.map(String.init) ?? ""
-                                                wrongProblemCountDraft = session.wrongProblemCount.map(String.init) ?? ""
-                                                editingProblemRecords = session.problemRecords
-                                                problemCountDraft = initialProblemCountText(for: session)
-                                            } label: {
-                                                Label("編集", systemImage: "pencil")
-                                            }
-                                            Button(role: .destructive) {
-                                                viewModel.deleteSession(session)
-                                            } label: {
-                                                Label("削除", systemImage: "trash")
-                                            }
-                                        }
+                            Spacer()
+
+                            Menu {
+                                Button("すべて") {
+                                    viewModel.setFilter(nil)
                                 }
+                                ForEach(viewModel.subjects) { subject in
+                                    Button {
+                                        viewModel.setFilter(subject.id)
+                                    } label: {
+                                        Label(subject.name, systemImage: "circle.fill")
+                                    }
+                                }
+                            } label: {
+                                Text("編集")
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(AppColors.success)
                             }
                         }
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.top, 8)
+
+                        ForEach(groupedSessions) { group in
+                            HistoryDaySection(
+                                group: group,
+                                subjectColor: subjectColor,
+                                problemChapters: { viewModel.materialProblemChapters(for: $0) },
+                                onEdit: beginEditing,
+                                onDelete: { pendingDeletionSession = $0 }
+                            )
+                            .padding(.horizontal, AppSpacing.md)
+                        }
                     }
-                    .padding(.vertical, AppSpacing.md)
+                    .padding(.bottom, AppSpacing.lg)
                 }
             }
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("履歴")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("すべて") {
-                        viewModel.setFilter(nil)
-                    }
-                    ForEach(viewModel.subjects) { subject in
-                        Button {
-                            viewModel.setFilter(subject.id)
-                        } label: {
-                            Label(subject.name, systemImage: "circle.fill")
-                        }
-                    }
-                } label: {
-                    Image(systemName: viewModel.filterSubjectId != nil ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                }
-            }
-        }
         .sheet(item: $editingSession) { session in
-            NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: AppSpacing.md) {
-                        HStack(spacing: AppSpacing.md) {
-                            Circle()
-                                .fill(Color.accentColor.opacity(0.12))
-                                .frame(width: 44, height: 44)
-                                .overlay {
-                                    Image(systemName: "book.fill")
-                                        .foregroundStyle(.tint)
-                                }
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(session.subjectName.isEmpty ? "未設定" : session.subjectName)
-                                    .font(.headline)
-                                if !session.materialName.isEmpty {
-                                    Text(session.materialName)
-                                        .font(.subheadline)
-                                        .foregroundStyle(AppColors.textSecondary)
-                                }
-                                Text(session.durationFormatted)
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.tint)
-                            }
-                        }
-                        .cardStyle()
-
-                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                            SectionHeaderView(title: "記録区間", icon: "clock")
-                            ForEach($intervalDrafts) { $interval in
-                                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                                    if intervalDrafts.count > 1 {
-                                        Text("区間 \(interval.index + 1)")
-                                            .font(.caption.bold())
-                                            .foregroundStyle(AppColors.textSecondary)
-                                    }
-                                    DatePicker("開始時刻", selection: $interval.startDate, displayedComponents: .hourAndMinute)
-                                    DatePicker("終了時刻", selection: $interval.endDate, displayedComponents: .hourAndMinute)
-                                }
-                                .cardStyle(padding: AppSpacing.sm)
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                            SectionHeaderView(title: "評価", icon: "star.fill")
-                            SessionRatingSelector(rating: $ratingDraft, allowsClearing: true)
-                        }
-                        .cardStyle()
-
-                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                            SectionHeaderView(title: "問題集の記録", icon: "checklist.checked")
-                            problemEditor(for: session)
-                        }
-                        .cardStyle()
-
-                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                            SectionHeaderView(title: "メモ", icon: "note.text")
-                            TextEditor(text: $noteDraft)
-                                .frame(minHeight: 120)
-                                .scrollContentBackground(.hidden)
-                                .padding(AppSpacing.sm)
-                                .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous))
-                        }
-                        .cardStyle()
-                    }
-                    .padding(AppSpacing.md)
-                }
-                .background(AppColors.subtleBackground)
-                .navigationTitle("履歴を編集")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .bottomBar) {
-                        Button(role: .destructive) {
-                            pendingDeletionSession = session
-                        } label: {
-                            Label("削除", systemImage: "trash")
-                        }
-                    }
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("キャンセル") {
-                            editingSession = nil
-                        }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("保存") {
-                            let normalizedRecords = editingProblemRecords.sorted { $0.number < $1.number }
-                            viewModel.updateSession(
-                                session,
-                                intervals: intervalDrafts.map(\.interval),
-                                note: noteDraft,
-                                rating: ratingDraft,
-                                problemStart: normalizedRecords.first?.number ?? Int(problemStartDraft),
-                                problemEnd: normalizedRecords.last?.number ?? Int(problemEndDraft),
-                                wrongProblemCount: normalizedRecords.isEmpty ? Int(wrongProblemCountDraft) : normalizedRecords.filter(\.isWrong).count,
-                                problemRecords: normalizedRecords
-                            )
-                            editingSession = nil
-                        }
-                        .disabled(!areIntervalDraftsValid)
-                    }
-                }
-            }
+            HistorySessionEditorSheet(
+                session: session,
+                chapters: viewModel.materialProblemChapters(for: session),
+                totalProblems: editingTotalProblems(for: session),
+                intervalDrafts: $intervalDrafts,
+                note: $noteDraft,
+                rating: $ratingDraft,
+                problemStart: $problemStartDraft,
+                problemEnd: $problemEndDraft,
+                wrongProblemCount: $wrongProblemCountDraft,
+                problemCount: $problemCountDraft,
+                problemRecords: $editingProblemRecords,
+                onCancel: { editingSession = nil },
+                onSave: { saveEditingSession(session) },
+                onDelete: { pendingDeletionSession = session }
+            )
         }
         .confirmationDialog(
             "この学習履歴を削除しますか？",
@@ -235,32 +137,18 @@ struct HistoryScreen: View {
         }
     }
 
-    @ViewBuilder
-    private func problemEditor(for session: StudySession) -> some View {
-        let totalProblems = editingTotalProblems(for: session)
-        if totalProblems > 0 {
-            let chapters = viewModel.materialProblemChapters(for: session)
-            Text(chapters.isEmpty ? "全\(totalProblems)問" : "全\(totalProblems)問 ・ \(chapters.count)章")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            ProblemTileSelector(
-                totalProblems: totalProblems,
-                chapters: chapters,
-                records: $editingProblemRecords
-            )
-            Text(problemRecordEditSummary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        } else {
-            HStack {
-                TextField("開始問題", text: $problemStartDraft)
-                    .keyboardType(.numberPad)
-                TextField("終了問題", text: $problemEndDraft)
-                    .keyboardType(.numberPad)
-                TextField("不正解", text: $wrongProblemCountDraft)
-                    .keyboardType(.numberPad)
-            }
+    private func beginEditing(_ session: StudySession) {
+        intervalDrafts = session.effectiveIntervals.enumerated().map {
+            HistorySessionIntervalDraft(interval: $0.element, index: $0.offset)
         }
+        noteDraft = session.note ?? ""
+        ratingDraft = session.rating
+        problemStartDraft = session.problemStart.map(String.init) ?? ""
+        problemEndDraft = session.problemEnd.map(String.init) ?? ""
+        wrongProblemCountDraft = session.wrongProblemCount.map(String.init) ?? ""
+        editingProblemRecords = session.problemRecords
+        problemCountDraft = initialProblemCountText(for: session)
+        editingSession = session
     }
 
     private func initialProblemCountText(for session: StudySession) -> String {
@@ -281,12 +169,16 @@ struct HistoryScreen: View {
         return parseDraftInt(problemCountDraft)
     }
 
-    private var problemRecordEditSummary: String {
-        let done = editingProblemRecords.count
-        let correct = editingProblemRecords.filter { $0.result == .correct }.count
-        let wrong = editingProblemRecords.filter(\.isWrong).count
-        let review = editingProblemRecords.filter { $0.result == .reviewCorrect }.count
-        return "選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
+    private func subjectColor(for session: StudySession) -> Color {
+        if let materialId = session.materialId,
+           let material = viewModel.materials.first(where: { $0.id == materialId }),
+           let color = material.color {
+            return Color(hex: color)
+        }
+        if let subject = viewModel.subjects.first(where: { $0.id == session.subjectId }) {
+            return Color(hex: subject.color)
+        }
+        return AppColors.blue
     }
 
     private var areIntervalDraftsValid: Bool {
@@ -299,81 +191,200 @@ struct HistoryScreen: View {
         }
         return true
     }
+
+    private func saveEditingSession(_ session: StudySession) {
+        let normalizedRecords = editingProblemRecords.sorted { $0.number < $1.number }
+        viewModel.updateSession(
+            session,
+            intervals: intervalDrafts.map(\.interval),
+            note: noteDraft,
+            rating: ratingDraft,
+            problemStart: normalizedRecords.first?.number ?? Int(problemStartDraft),
+            problemEnd: normalizedRecords.last?.number ?? Int(problemEndDraft),
+            wrongProblemCount: normalizedRecords.isEmpty ? Int(wrongProblemCountDraft) : normalizedRecords.filter(\.isWrong).count,
+            problemRecords: normalizedRecords
+        )
+        editingSession = nil
+    }
 }
 
-private struct StudySessionIntervalDraft: Identifiable, Hashable {
-    let id = UUID()
-    let index: Int
-    var startDate: Date
-    var endDate: Date
-
-    init(interval: StudySessionInterval, index: Int) {
-        self.index = index
-        startDate = Date(epochMilliseconds: interval.startTime)
-        endDate = Date(epochMilliseconds: interval.endTime)
+private struct HistoryDayGroup: Identifiable {
+    var id: Int64 {
+        date.epochMilliseconds
     }
 
-    var interval: StudySessionInterval {
-        StudySessionInterval(startTime: startDate.epochMilliseconds, endTime: endDate.epochMilliseconds)
+    let date: Date
+    let sessions: [StudySession]
+
+    var totalMinutes: Int {
+        sessions.reduce(0) { $0 + $1.durationMinutes }
+    }
+}
+
+private struct HistoryDaySection: View {
+    let group: HistoryDayGroup
+    let subjectColor: (StudySession) -> Color
+    let problemChapters: (StudySession) -> [ProblemChapter]
+    let onEdit: (StudySession) -> Void
+    let onDelete: (StudySession) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(dateLabel(group.date))
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+
+                Spacer()
+
+                Text("合計 \(group.sessions.count)セッション ・ \(Goal.format(minutes: group.totalMinutes))")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+            .padding(.horizontal, 14)
+
+            VStack(spacing: 0) {
+                ForEach(Array(group.sessions.enumerated()), id: \.offset) { index, session in
+                    HistorySessionCardNew(
+                        session: session,
+                        subjectColor: subjectColor(session),
+                        problemChapters: problemChapters(session),
+                        onEdit: { onEdit(session) }
+                    )
+                    .contextMenu {
+                        Button {
+                            onEdit(session)
+                        } label: {
+                            Label("編集", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            onDelete(session)
+                        } label: {
+                            Label("削除", systemImage: "trash")
+                        }
+                    }
+
+                    if index < group.sessions.count - 1 {
+                        Divider()
+                            .padding(.leading, 0)
+                    }
+                }
+            }
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
+        }
+    }
+
+    private func dateLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy年M月d日（E）"
+        return formatter.string(from: date)
     }
 }
 
 private struct HistorySessionCardNew: View {
     let session: StudySession
+    let subjectColor: Color
     let problemChapters: [ProblemChapter]
+    let onEdit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack(spacing: AppSpacing.md) {
-                Circle()
-                    .fill(.tint.opacity(0.12))
-                    .frame(width: 44, height: 44)
-                    .overlay {
-                        Image(systemName: "book.fill")
-                            .foregroundStyle(.tint)
-                    }
+        HStack(spacing: 0) {
+            materialColumn
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: AppSpacing.xs) {
-                        Text(session.subjectName)
-                            .font(.subheadline.bold())
-                        if let rating = session.rating {
-                            SessionRatingBadge(rating: rating)
-                        }
-                    }
-                    if !session.materialName.isEmpty {
-                        Text(session.materialName)
-                            .font(.caption)
-                            .foregroundStyle(AppColors.textSecondary)
-                    }
-                    Text(historyTimeLabel(session))
-                        .font(.caption2)
-                        .foregroundStyle(AppColors.textSecondary)
+            Divider()
+                .padding(.vertical, 8)
+
+            VStack(alignment: .center, spacing: 20) {
+                HStack(alignment: .firstTextBaseline, spacing: 1) {
+                    Text("\(session.durationMinutes)")
+                        .font(.system(size: 27, weight: .semibold))
+                    Text("分")
+                        .font(.system(size: 17, weight: .regular))
                 }
+                .foregroundStyle(AppColors.textPrimary)
 
-                Spacer()
-
-                Text(session.durationFormatted)
-                    .font(.headline)
-                    .foregroundStyle(.tint)
-            }
-
-            if session.problemRangeText != nil || session.wrongProblemCount != nil || !session.problemRecords.isEmpty {
-                Text(sessionProblemSummary(session))
-                    .font(.caption2)
+                Text(historyTimeLabel(session))
+                    .font(.subheadline)
                     .foregroundStyle(AppColors.textSecondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
+            .frame(width: 82)
+            .padding(.horizontal, 6)
 
-            if let note = session.note, !note.isEmpty {
-                Text(note)
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .lineLimit(2)
+            Divider()
+                .padding(.vertical, 8)
+
+            reviewColumn
+                .frame(width: 150, alignment: .leading)
+
+            Divider()
+                .padding(.vertical, 8)
+
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(AppColors.success)
+                    .frame(width: 36, height: 44)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("履歴を編集")
         }
-        .cardStyle()
+        .padding(.vertical, 14)
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .frame(minHeight: 116)
+    }
+
+    private var materialColumn: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 9) {
+                Circle()
+                    .fill(subjectColor)
+                    .frame(width: 14, height: 14)
+
+                Text(session.subjectName.isEmpty ? "未設定" : session.subjectName)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+            }
+
+            Text(session.materialName.isEmpty ? "教材未設定" : session.materialName)
+                .font(.body)
+                .foregroundStyle(AppColors.textPrimary)
+                .lineLimit(1)
+
+            Text(problemRangeDisplay)
+                .font(.body)
+                .foregroundStyle(AppColors.textSecondary)
+                .lineLimit(1)
+        }
+        .padding(.trailing, 12)
+    }
+
+    private var reviewColumn: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            StarRatingRow(rating: session.rating ?? 0)
+
+            HStack(spacing: 12) {
+                ProblemCountColumn(title: "正解", value: correctProblemCount, color: AppColors.success)
+                ProblemCountColumn(title: "不正解", value: wrongProblemCount, color: AppColors.danger)
+                ProblemCountColumn(title: "復習正解", value: reviewCorrectProblemCount, color: AppColors.warning)
+            }
+
+            Text(noteDisplay)
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textPrimary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
     }
 
     private func historyTimeLabel(_ session: StudySession) -> String {
@@ -383,24 +394,28 @@ private struct HistorySessionCardNew: View {
         return "\(tf.string(from: session.startDate)) - \(tf.string(from: session.endDate))"
     }
 
-    private func sessionProblemSummary(_ session: StudySession) -> String {
-        guard !session.problemRecords.isEmpty else {
-            return "\(problemRangeText) / 不正解 \(session.effectiveWrongProblemCount ?? 0)"
+    private var correctProblemCount: Int {
+        session.problemRecords.filter { $0.result == .correct }.count
+    }
+
+    private var wrongProblemCount: Int {
+        session.effectiveWrongProblemCount ?? 0
+    }
+
+    private var reviewCorrectProblemCount: Int {
+        session.effectiveReviewCorrectProblemCount
+    }
+
+    private var noteDisplay: String {
+        session.note?.nilIfBlank ?? "メモはありません"
+    }
+
+    private var problemRangeDisplay: String {
+        let text = problemRangeText
+        if text.hasPrefix("p.") {
+            return text
         }
-        let correct = session.problemRecords.filter { $0.result == .correct }.map { problemChapters.label(for: $0.number) }
-        let wrong = session.problemRecords.filter(\.isWrong).map { problemChapters.label(for: $0.number) }
-        let review = session.problemRecords.filter { $0.result == .reviewCorrect }.map { problemChapters.label(for: $0.number) }
-        var parts = [problemRangeText]
-        if !wrong.isEmpty {
-            parts.append("不正解 \(wrong.map { String(describing: $0) }.joined(separator: ", "))")
-        }
-        if !correct.isEmpty {
-            parts.append("正解 \(correct.map { String(describing: $0) }.joined(separator: ", "))")
-        }
-        if !review.isEmpty {
-            parts.append("復習 \(review.map { String(describing: $0) }.joined(separator: ", "))")
-        }
-        return parts.joined(separator: " / ")
+        return text == "範囲未入力" ? text : "p.\(text)"
     }
 
     private var problemRangeText: String {
@@ -411,5 +426,41 @@ private struct HistorySessionCardNew: View {
         }
         guard let start = session.problemStart, let end = session.problemEnd else { return session.problemRangeText ?? "範囲未入力" }
         return start == end ? problemChapters.label(for: start) : "\(problemChapters.label(for: start)) - \(problemChapters.label(for: end))"
+    }
+}
+
+private struct StarRatingRow: View {
+    let rating: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(1...5, id: \.self) { value in
+                Image(systemName: value <= rating ? "star.fill" : "star")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(value <= rating ? AppColors.warning : Color(hex: 0xC6CAD1))
+            }
+        }
+        .accessibilityLabel("評価 \(rating) / 5")
+    }
+}
+
+private struct ProblemCountColumn: View {
+    let title: String
+    let value: Int
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text("\(value)")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+        }
+        .frame(minWidth: 42, alignment: .leading)
     }
 }

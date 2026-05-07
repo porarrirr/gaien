@@ -208,12 +208,13 @@ final class MaterialsViewModel: ScreenViewModel {
 struct MaterialListProgressSummary: Hashable {
     let totalProblems: Int
     let correctCount: Int
-    let mixedCount: Int
+    let wrongCount: Int
+    let reviewCorrectCount: Int
     let untouchedCount: Int
     let latestStudyDate: Date?
 
     var progressedCount: Int {
-        correctCount + mixedCount
+        correctCount + wrongCount + reviewCorrectCount
     }
 
     var progressedRatio: Double {
@@ -225,6 +226,22 @@ struct MaterialListProgressSummary: Hashable {
         Int((progressedRatio * 100).rounded())
     }
 
+    var correctPercent: Int {
+        percent(for: correctCount)
+    }
+
+    var wrongPercent: Int {
+        percent(for: wrongCount)
+    }
+
+    var reviewCorrectPercent: Int {
+        percent(for: reviewCorrectCount)
+    }
+
+    var untouchedPercent: Int {
+        percent(for: untouchedCount)
+    }
+
     init(material: Material, sessions: [StudySession]) {
         let totalProblems = max(material.effectiveTotalProblems, 0)
         self.totalProblems = totalProblems
@@ -232,31 +249,47 @@ struct MaterialListProgressSummary: Hashable {
 
         guard totalProblems > 0 else {
             correctCount = 0
-            mixedCount = 0
+            wrongCount = 0
+            reviewCorrectCount = 0
             untouchedCount = 0
             return
         }
 
-        let resultsByNumber = sessions.reduce(into: [Int: [ProblemResult]]()) { result, session in
-            for record in session.problemRecords where (1...totalProblems).contains(record.number) {
-                result[record.number, default: []].append(record.result)
+        let resultsByNumber = sessions
+            .sorted { $0.sessionStartTime < $1.sessionStartTime }
+            .reduce(into: [Int: [ProblemResult]]()) { result, session in
+                for record in session.problemRecords where (1...totalProblems).contains(record.number) {
+                    result[record.number, default: []].append(record.result)
+                }
             }
-        }
 
         var correct = 0
-        var mixed = 0
+        var wrong = 0
+        var reviewCorrect = 0
         for number in 1...totalProblems {
             let results = resultsByNumber[number] ?? []
             guard !results.isEmpty else { continue }
-            if results.contains(.wrong) {
-                mixed += 1
-            } else {
+
+            switch results.last {
+            case .correct:
                 correct += 1
+            case .wrong:
+                wrong += 1
+            case .reviewCorrect:
+                reviewCorrect += 1
+            case nil:
+                break
             }
         }
 
         correctCount = correct
-        mixedCount = mixed
-        untouchedCount = max(totalProblems - correct - mixed, 0)
+        wrongCount = wrong
+        reviewCorrectCount = reviewCorrect
+        untouchedCount = max(totalProblems - correct - wrong - reviewCorrect, 0)
+    }
+
+    private func percent(for count: Int) -> Int {
+        guard totalProblems > 0 else { return 0 }
+        return Int((Double(count) / Double(totalProblems) * 100).rounded())
     }
 }

@@ -11,81 +11,251 @@ struct OnboardingScreen: View {
     }
 
     private let pages: [OnboardingPage] = [
-        OnboardingPage(title: "学習時間を記録", description: "タイマーと手動入力で学習履歴を残せます。", systemImage: "timer", gradient: [Color(hex: 0x4CAF50), Color(hex: 0x66BB6A)]),
-        OnboardingPage(title: "教材を管理", description: "教材の進捗や関連する科目をまとめて管理できます。", systemImage: "books.vertical.fill", gradient: [Color(hex: 0x2196F3), Color(hex: 0x42A5F5)]),
-        OnboardingPage(title: "目標と計画", description: "日次・週次の目標と学習計画を Android と同じ考え方で扱います。", systemImage: "flag.fill", gradient: [Color(hex: 0xFF9800), Color(hex: 0xFFA726)])
+        OnboardingPage(
+            step: "1.",
+            title: "科目を作成する",
+            description: "自分の勉強に合わせた科目を\n作成しましょう。",
+            caption: "例）数学III、英語、化学 など",
+            systemImage: "book",
+            captionImage: "tag.fill",
+            color: AppColors.success,
+            softColor: AppColors.greenSoft
+        ),
+        OnboardingPage(
+            step: "2.",
+            title: "教材を追加する（任意）",
+            description: "使っている問題集や参考書を登録して、\n進捗を管理できます。",
+            caption: "後からいつでも追加できます",
+            systemImage: "book.closed.fill",
+            captionImage: "tag.fill",
+            color: AppColors.blue,
+            softColor: AppColors.blueSoft
+        ),
+        OnboardingPage(
+            step: "3.",
+            title: "学習を記録する",
+            description: "タイマーで記録を開始して、\n学習を可視化していきましょう。",
+            caption: "履歴・カレンダー・レポートで確認できます",
+            systemImage: "timer",
+            captionImage: "timer",
+            color: AppColors.warning,
+            softColor: AppColors.orangeSoft
+        )
     ]
 
     var body: some View {
-        VStack(spacing: AppSpacing.lg) {
-            Spacer(minLength: AppSpacing.lg)
+        GeometryReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 22) {
+                    header
+                        .padding(.top, 16)
 
-            VStack(spacing: AppSpacing.sm) {
-                Image(systemName: "book.closed.fill")
-                    .font(.system(size: 38, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 74, height: 74)
-                    .background(.tint, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    setupCard
 
-                Text("StudyApp")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.accentColor)
+                    dataStorageCard
 
-                Text("毎日の学習を、記録から復習までひとつに。")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColors.textSecondary)
+                    actions
+                        .padding(.top, 14)
+                }
+                .frame(maxWidth: min(proxy.size.width - 60, 380))
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 26)
+            }
+            .background(onboardingBackground)
+        }
+    }
+
+    private func onboardingStep(_ page: OnboardingPage) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: page.systemImage)
+                .font(.system(size: 38, weight: .medium))
+                .foregroundStyle(page.color)
+                .frame(width: 70, height: 70)
+                .background(page.softColor.opacity(0.82), in: Circle())
+                .padding(.leading, 2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(page.step) \(page.title)")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(page.color)
+                Text(page.description)
+                    .font(.system(size: 14.5, weight: .regular))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                MetricPill(text: page.caption, color: page.color, systemImage: page.captionImage)
             }
 
-            VStack(spacing: AppSpacing.sm) {
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 25, weight: .semibold))
+                .foregroundStyle(Color(hex: 0x979AA0))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 15)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color(hex: 0xE5E7EB), lineWidth: 1)
+        }
+    }
+
+    private var header: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 21, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: 0x149529), Color(hex: 0x1DBA32)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 72, height: 72)
+
+                Image(systemName: "book.fill")
+                    .font(.system(size: 39, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .offset(x: -8, y: 6)
+
+                Image(systemName: "pencil")
+                    .font(.system(size: 33, weight: .bold))
+                    .foregroundStyle(.white)
+                    .rotationEffect(.degrees(-2))
+                    .offset(x: 17, y: 1)
+            }
+            .padding(.bottom, 2)
+
+            Text("StudyApp")
+                .font(.system(size: 43, weight: .bold, design: .rounded))
+                .foregroundStyle(AppColors.success)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+
+            Text("学習を記録して、積み重ねを見える化")
+                .font(.system(size: 15.5, weight: .regular))
+                .foregroundStyle(Color(hex: 0x686B72))
+        }
+    }
+
+    private var setupCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("はじめに設定しましょう")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(.black)
+
+            Text("最初にいくつか設定するだけで、すぐに学習記録を\n始められます。")
+                .font(.system(size: 14.5))
+                .foregroundStyle(Color(hex: 0x686B72))
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 12) {
                 ForEach(pages) { page in
-                    HStack(spacing: AppSpacing.md) {
-                        Image(systemName: page.systemImage)
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(
-                                LinearGradient(colors: page.gradient, startPoint: .topLeading, endPoint: .bottomTrailing),
-                                in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
-                            )
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(page.title)
-                                .font(.headline)
-                            Text(page.description)
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption.bold())
-                            .foregroundStyle(AppColors.textSecondary)
-                    }
-                    .cardStyle(padding: AppSpacing.md)
+                    onboardingStep(page)
                 }
             }
-            .padding(.horizontal, AppSpacing.lg)
+            .padding(.top, 4)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 21)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color(hex: 0xDDE1E6), lineWidth: 1)
+        }
+    }
 
+    private var dataStorageCard: some View {
+        HStack(spacing: 15) {
+            Image(systemName: "checkmark.shield.fill")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(AppColors.success)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("データは端末内に保存されます")
+                    .font(.system(size: 16.5, weight: .bold))
+                    .foregroundStyle(.black)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                Text("クラウド同期は後から設定できます（設定から）。")
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(Color(hex: 0x686B72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            Spacer(minLength: 4)
+
+            Image(systemName: "lock.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Color(hex: 0x9B9EA4))
+            Image(systemName: "chevron.right")
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(Color(hex: 0x9B9EA4))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .frame(maxWidth: .infinity)
+        .background(AppColors.greenSoft.opacity(0.66), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color(hex: 0xCFEBD5), lineWidth: 1)
+        }
+    }
+
+    private var actions: some View {
+        VStack(spacing: 12) {
             Button {
                 viewModel.complete()
             } label: {
                 Text("はじめる")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(
+                        LinearGradient(
+                            colors: [Color(hex: 0x0B9F25), Color(hex: 0x20B638)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: Capsule()
+                    )
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .padding(.horizontal, AppSpacing.xl)
+            .buttonStyle(.plain)
 
             Button {
                 viewModel.complete()
             } label: {
                 Text("あとで設定する")
-                    .font(.subheadline.bold())
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(AppColors.success)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(Color.clear, in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(AppColors.success, lineWidth: 1.4)
+                    }
             }
+            .buttonStyle(.plain)
 
-            Spacer(minLength: AppSpacing.lg)
+            Text("すべての設定は後から変更できます")
+                .font(.system(size: 13))
+                .foregroundStyle(Color(hex: 0x686B72))
+                .padding(.top, 7)
         }
-        .background(AppColors.subtleBackground)
+        .padding(.horizontal, 8)
+    }
+
+    private var onboardingBackground: some View {
+        LinearGradient(
+            colors: [Color(hex: 0xF8F9FB), Color(hex: 0xFFFFFF), Color(hex: 0xF6F8FA)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
     }
 }
 
@@ -93,8 +263,12 @@ struct OnboardingScreen: View {
 
 private struct OnboardingPage: Identifiable {
     var id: String { title }
+    var step: String
     var title: String
     var description: String
+    var caption: String
     var systemImage: String
-    var gradient: [Color]
+    var captionImage: String
+    var color: Color
+    var softColor: Color
 }

@@ -38,11 +38,11 @@ extension ColorTheme {
 
 enum AppSpacing {
     static let xs: CGFloat = 4
-    static let sm: CGFloat = 8
-    static let md: CGFloat = 16
-    static let lg: CGFloat = 24
-    static let xl: CGFloat = 32
-    static let screenHorizontal: CGFloat = 14
+    static let sm: CGFloat = 7
+    static let md: CGFloat = 12
+    static let lg: CGFloat = 18
+    static let xl: CGFloat = 24
+    static let screenHorizontal: CGFloat = 10
 }
 
 enum AppCornerRadius {
@@ -58,13 +58,13 @@ enum AppColors {
         Color(.systemBackground)
     }
     static var subtleBackground: Color {
-        Color(hex: 0xF8F8FA)
+        Color(hex: 0xF4F5F7)
     }
-    static let groupedBackground = Color(hex: 0xF8F8FA)
-    static let cardBorder = Color(hex: 0xE7E8EC)
-    static let green = Color(hex: 0x2E9D45)
-    static let greenSoft = Color(hex: 0xEAF7EE)
-    static let blue = Color(hex: 0x1E88E5)
+    static let groupedBackground = Color(hex: 0xF4F5F7)
+    static let cardBorder = Color(hex: 0xE3E5EA)
+    static let green = Color(hex: 0x2BA247)
+    static let greenSoft = Color(hex: 0xEAF8EF)
+    static let blue = Color(hex: 0x1D7FEA)
     static let blueSoft = Color(hex: 0xEAF3FF)
     static let orange = Color(hex: 0xF59E0B)
     static let orangeSoft = Color(hex: 0xFFF4D8)
@@ -78,6 +78,182 @@ enum AppColors {
     static let success = Color(hex: 0x2E9D45)
     static let warning = Color(hex: 0xF59E0B)
     static let danger = Color(hex: 0xE53935)
+}
+
+enum StrictUI {
+    static let screenPadding: CGFloat = 10
+    static let cardPadding: CGFloat = 10
+    static let sectionSpacing: CGFloat = 10
+    static let rowHeight: CGFloat = 44
+    static let hairline = AppColors.cardBorder
+}
+
+struct StrictScreenModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(AppColors.subtleBackground.ignoresSafeArea())
+    }
+}
+
+struct StrictCardModifier: ViewModifier {
+    var padding: CGFloat = StrictUI.cardPadding
+
+    func body(content: Content) -> some View {
+        content
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
+    }
+}
+
+extension View {
+    func strictScreen() -> some View {
+        modifier(StrictScreenModifier())
+    }
+
+    func strictCard(padding: CGFloat = StrictUI.cardPadding) -> some View {
+        modifier(StrictCardModifier(padding: padding))
+    }
+}
+
+struct StrictSheetHeader: View {
+    let title: String
+    var subtitle: String?
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(AppColors.textPrimary)
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+}
+
+struct StrictRow<Leading: View, Trailing: View>: View {
+    let title: String
+    var subtitle: String?
+    @ViewBuilder var leading: Leading
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(spacing: 10) {
+            leading
+                .frame(width: 26, height: 26)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(AppColors.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+        .frame(minHeight: StrictUI.rowHeight)
+    }
+}
+
+struct StrictIcon: View {
+    let systemName: String
+    var color: Color = AppColors.success
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(color)
+            .frame(width: 26, height: 26)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+struct StrictSectionTitle: View {
+    let title: String
+    var icon: String?
+    var color: Color = AppColors.success
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let icon {
+                StrictIcon(systemName: icon, color: color)
+            }
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(color)
+            Spacer()
+        }
+    }
+}
+
+struct StrictSegmentedButton: View {
+    let title: String
+    let selected: Bool
+    var color: Color = AppColors.success
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(selected ? .white : color)
+                .frame(maxWidth: .infinity, minHeight: 32)
+                .background(selected ? color : color.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(selected ? Color.clear : color.opacity(0.35), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct StrictMetricTile: View {
+    let title: String
+    let value: String
+    var subtitle: String?
+    var icon: String?
+    var color: Color = AppColors.success
+
+    var body: some View {
+        HStack(spacing: 9) {
+            if let icon {
+                StrictIcon(systemName: icon, color: color)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppColors.textSecondary)
+                Text(value)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(color)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(AppColors.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .strictCard(padding: 9)
+    }
 }
 
 // MARK: - Typography Modifiers

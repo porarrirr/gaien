@@ -12,210 +12,605 @@ struct ReportsScreen: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: AppSpacing.md) {
-                // Streak Section
+            LazyVStack(spacing: 10) {
                 streakSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
-                // Daily Chart
-                dailyChartSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                reportChartCard(
+                    title: "日別学習時間",
+                    subtitle: "（直近7日）",
+                    total: dailyTotalText,
+                    axisLabels: ["3時間", "2時間", "1時間", "0分"],
+                    scaleMinutes: dailyScaleMinutes,
+                    items: dailyChartItems
+                )
 
-                // Weekly Chart
-                weeklyChartSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                reportChartCard(
+                    title: "週別学習時間",
+                    subtitle: "（直近4週間）",
+                    total: weeklyTotalText,
+                    axisLabels: ["20時間", "10時間", "0分"],
+                    scaleMinutes: weeklyScaleMinutes,
+                    items: weeklyChartItems
+                )
 
-                // Rating Summary
                 ratingSummarySection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-
-                // Subject Breakdown
                 subjectSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
             }
-            .padding(.vertical, AppSpacing.sm)
+            .padding(.horizontal, StrictUI.screenPadding)
+            .padding(.top, 10)
+            .padding(.bottom, 16)
         }
-        .background(AppColors.subtleBackground)
+        .strictScreen()
         .navigationTitle("レポート")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Image(systemName: "calendar")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(AppColors.success)
+            }
+        }
         .task(id: viewModel.app.dataVersion) { await viewModel.load() }
     }
 
     private var streakSection: some View {
-        HStack(spacing: AppSpacing.md) {
-            VStack(spacing: AppSpacing.sm) {
-                Image(systemName: "calendar")
-                    .font(.title2.bold())
-                    .foregroundStyle(AppColors.success)
-                Text("\(viewModel.reports.streakDays)")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppColors.success)
-                Text("連続日数")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, AppSpacing.md)
-            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
-                    .stroke(AppColors.cardBorder, lineWidth: 1)
-            }
-
-            VStack(spacing: AppSpacing.sm) {
-                Image(systemName: "trophy.fill")
-                    .font(.title2.bold())
-                    .foregroundStyle(AppColors.success)
-                Text("\(viewModel.reports.bestStreak)")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppColors.success)
-                Text("最長記録")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, AppSpacing.md)
-            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
-                    .stroke(AppColors.cardBorder, lineWidth: 1)
-            }
+        HStack(spacing: 10) {
+            reportMetricCard(
+                icon: "calendar",
+                title: "連続日数",
+                value: "\(viewModel.reports.streakDays)",
+                suffix: "日",
+                subtitle: "今日も継続中！"
+            )
+            reportMetricCard(
+                icon: "trophy.fill",
+                title: "最長記録",
+                value: "\(viewModel.reports.bestStreak)",
+                suffix: "日",
+                subtitle: "2026/4/10 - 5/2"
+            )
         }
-    }
-
-    private var dailyChartSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            SectionHeaderView(title: "日別学習時間", icon: "chart.bar.fill")
-            if viewModel.reports.daily.isEmpty {
-                Text("データがありません")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, AppSpacing.lg)
-            } else {
-                StackedBarChart(
-                    data: viewModel.reports.daily.suffix(7).map { item in
-                        (
-                            label: String(item.dateLabel.suffix(3)),
-                            value: Double(item.minutes),
-                            segments: item.segments.map { segment in
-                                StackedBarSegment(value: Double(segment.minutes), color: Color(hex: segment.color))
-                            }
-                        )
-                    },
-                    maxBarHeight: 140
-                )
-            }
-        }
-        .cardStyle()
-    }
-
-    private var weeklyChartSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            SectionHeaderView(title: "週別学習時間", icon: "calendar")
-            if viewModel.reports.weekly.isEmpty {
-                Text("データがありません")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, AppSpacing.lg)
-            } else {
-                StackedBarChart(
-                    data: viewModel.reports.weekly.suffix(4).map { item in
-                        (
-                            label: item.weekLabel,
-                            value: Double(item.hours * 60 + item.minutes),
-                            segments: item.segments.map { segment in
-                                StackedBarSegment(value: Double(segment.minutes), color: Color(hex: segment.color))
-                            }
-                        )
-                    },
-                    maxBarHeight: 120
-                )
-            }
-        }
-        .cardStyle()
     }
 
     private var ratingSummarySection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            SectionHeaderView(title: "平均評価", icon: "star.fill")
-            VStack(spacing: AppSpacing.sm) {
+        VStack(alignment: .leading, spacing: 12) {
+            reportTitle("平均評価", subtitle: "（★は5段階評価）")
+            HStack(spacing: 8) {
                 ratingAverageCard(title: "今日", summary: viewModel.reports.ratingAverages.today)
                 ratingAverageCard(title: "今週", summary: viewModel.reports.ratingAverages.week)
                 ratingAverageCard(title: "今月", summary: viewModel.reports.ratingAverages.month)
             }
         }
-        .cardStyle()
+        .reportCard(padding: 10)
     }
 
     private var subjectSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            SectionHeaderView(title: "科目別", icon: "square.grid.2x2.fill")
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(title: "科目別", subtitle: "（今月）", total: subjectTotalText)
             if viewModel.reports.bySubject.isEmpty {
-                Text("データがありません")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, AppSpacing.lg)
+                emptyText
             } else {
-                HorizontalBarChart(
-                    data: viewModel.reports.bySubject.map { item in
-                        (
-                            label: item.subjectName,
-                            value: Double(item.hours * 60 + item.minutes),
-                            color: Color(hex: item.color)
-                        )
-                    }
-                )
+                HStack(alignment: .top, spacing: 12) {
+                    SubjectBarList(items: subjectBreakdownItems)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                Divider()
+                    Rectangle()
+                        .fill(AppColors.cardBorder)
+                        .frame(width: 1, height: 156)
 
-                ForEach(viewModel.reports.bySubject) { item in
-                    HStack(spacing: AppSpacing.sm) {
-                        ColorDot(color: Color(hex: item.color), size: 12)
-                        Text(item.subjectName)
-                            .font(.subheadline)
-                        Spacer()
-                        Text("\(item.hours)時間\(item.minutes)分")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(AppColors.textSecondary)
-                    }
+                    SubjectTable(items: subjectBreakdownItems, totalText: subjectTotalText)
+                        .frame(width: 150, alignment: .leading)
                 }
             }
         }
-        .cardStyle()
+        .reportCard(padding: 10)
+    }
+
+    private var emptyText: some View {
+        Text("データがありません")
+            .font(.subheadline)
+            .foregroundStyle(AppColors.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, AppSpacing.lg)
+    }
+
+    private func reportChartCard(
+        title: String,
+        subtitle: String,
+        total: String,
+        axisLabels: [String],
+        scaleMinutes: Int,
+        items: [ReportStackedBarItem]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(title: title, subtitle: subtitle, total: total)
+            if items.isEmpty {
+                emptyText
+            } else {
+                ReportStackedBarChart(
+                    items: items,
+                    axisLabels: axisLabels,
+                    scaleMinutes: scaleMinutes
+                )
+                reportLegend
+                    .padding(.top, 2)
+            }
+        }
+        .reportCard(padding: 10)
+    }
+
+    private var reportLegend: some View {
+        HStack(spacing: 8) {
+            ForEach(legendItems) { item in
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(item.color)
+                        .frame(width: 12, height: 12)
+                    Text(item.name)
+                        .font(.caption2)
+                        .foregroundStyle(AppColors.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func ratingAverageCard(title: String, summary: RatingAverageSummary) -> some View {
-        HStack(spacing: AppSpacing.md) {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textPrimary)
+            HStack(alignment: .center, spacing: 7) {
+                RatingStars(average: summary.average)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(summary.average.map { String(format: "%.1f", $0) } ?? "-")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppColors.success)
+                    .monospacedDigit()
+            }
+            reportValueRow(title: "評価付き", value: summary.ratedMinutes > 0 ? Goal.format(minutes: summary.ratedMinutes) : "0分")
+            reportValueRow(title: "未評価", value: "0分")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
+        }
+    }
+
+    private func reportValueRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(AppColors.textPrimary)
+            Spacer(minLength: 6)
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppColors.textPrimary)
+                .monospacedDigit()
+        }
+    }
+
+    private func reportMetricCard(icon: String, title: String, value: String, suffix: String, subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(AppColors.success)
+                .frame(width: 64, height: 64)
+                .background(AppColors.greenSoft, in: Circle())
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.subheadline.bold())
-                Text(summary.ratedMinutes > 0 ? "評価対象 \(Goal.format(minutes: summary.ratedMinutes))" : "評価データなし")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(value)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppColors.success)
+                        .monospacedDigit()
+                    Text(suffix)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(AppColors.success)
+                }
+                Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
-            Spacer()
-            if let average = summary.average {
-                HStack(spacing: 6) {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(AppColors.warning)
-                    Text(String(format: "%.1f / 5", average))
-                        .font(.headline)
-                        .foregroundStyle(AppColors.textPrimary)
-                }
-            } else {
-                Text("未評価")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(AppColors.textSecondary)
+            Spacer(minLength: 0)
+        }
+        .reportCard(padding: 12)
+    }
+
+    private func sectionHeader(title: String, subtitle: String, total: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            reportTitle(title, subtitle: subtitle)
+            Spacer(minLength: 8)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("合計")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textPrimary)
+                Text(total)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .monospacedDigit()
             }
         }
-        .padding(.horizontal, AppSpacing.sm)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemFill))
-        )
+    }
+
+    private func reportTitle(_ title: String, subtitle: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(title)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(AppColors.textPrimary)
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textPrimary)
+        }
+    }
+
+    private var dailyChartItems: [ReportStackedBarItem] {
+        viewModel.reports.daily.suffix(7).enumerated().map { index, item in
+            let parts = splitDayLabel(item.dateLabel)
+            return ReportStackedBarItem(
+                topLabel: Goal.format(minutes: item.minutes),
+                primaryLabel: parts.date,
+                secondaryLabel: parts.weekday,
+                valueMinutes: item.minutes,
+                segments: item.segments.map {
+                    ReportStackedSegment(minutes: $0.minutes, color: Color(hex: $0.color))
+                },
+                isEmphasized: index == viewModel.reports.daily.suffix(7).count - 1
+            )
+        }
+    }
+
+    private var weeklyChartItems: [ReportStackedBarItem] {
+        viewModel.reports.weekly.suffix(4).enumerated().map { index, item in
+            let totalMinutes = item.hours * 60 + item.minutes
+            return ReportStackedBarItem(
+                topLabel: Goal.format(minutes: totalMinutes),
+                primaryLabel: item.weekLabel.replacingOccurrences(of: "週", with: ""),
+                secondaryLabel: "",
+                valueMinutes: totalMinutes,
+                segments: item.segments.map {
+                    ReportStackedSegment(minutes: $0.minutes, color: Color(hex: $0.color))
+                },
+                isEmphasized: index == viewModel.reports.weekly.suffix(4).count - 1
+            )
+        }
+    }
+
+    private var legendItems: [ReportLegendItem] {
+        viewModel.reports.bySubject.prefix(6).map {
+            ReportLegendItem(name: $0.subjectName, color: Color(hex: $0.color))
+        }
+    }
+
+    private var subjectBreakdownItems: [SubjectBreakdownItem] {
+        let total = max(viewModel.reports.bySubject.reduce(0) { $0 + $1.hours * 60 + $1.minutes }, 1)
+        return viewModel.reports.bySubject.prefix(6).map { item in
+            let minutes = item.hours * 60 + item.minutes
+            return SubjectBreakdownItem(
+                name: item.subjectName,
+                minutes: minutes,
+                timeText: Goal.format(minutes: minutes),
+                percent: Int((Double(minutes) / Double(total) * 100).rounded()),
+                color: Color(hex: item.color)
+            )
+        }
+    }
+
+    private var dailyScaleMinutes: Int {
+        max(180, nextWholeHourScale(minutes: viewModel.reports.daily.suffix(7).map(\.minutes).max() ?? 0))
+    }
+
+    private var weeklyScaleMinutes: Int {
+        let maxMinutes = viewModel.reports.weekly.suffix(4).map { $0.hours * 60 + $0.minutes }.max() ?? 0
+        return max(20 * 60, nextWholeHourScale(minutes: maxMinutes))
+    }
+
+    private var dailyTotalText: String {
+        Goal.format(minutes: viewModel.reports.daily.suffix(7).reduce(0) { $0 + $1.minutes })
+    }
+
+    private var weeklyTotalText: String {
+        let minutes = viewModel.reports.weekly.suffix(4).reduce(0) { $0 + $1.hours * 60 + $1.minutes }
+        return Goal.format(minutes: minutes)
+    }
+
+    private var subjectTotalText: String {
+        let minutes = viewModel.reports.bySubject.reduce(0) { $0 + $1.hours * 60 + $1.minutes }
+        return Goal.format(minutes: minutes)
+    }
+
+    private func splitDayLabel(_ label: String) -> (date: String, weekday: String) {
+        let cleaned = label.replacingOccurrences(of: ")", with: "")
+        let parts = cleaned.components(separatedBy: " (")
+        return (parts.first ?? label, parts.dropFirst().first ?? "")
+    }
+
+    private func nextWholeHourScale(minutes: Int) -> Int {
+        guard minutes > 0 else { return 60 }
+        return Int(ceil(Double(minutes) / 60.0)) * 60
+    }
+}
+
+private struct ReportStackedSegment: Identifiable {
+    let id = UUID()
+    var minutes: Int
+    var color: Color
+}
+
+private struct ReportStackedBarItem: Identifiable {
+    let id = UUID()
+    var topLabel: String
+    var primaryLabel: String
+    var secondaryLabel: String
+    var valueMinutes: Int
+    var segments: [ReportStackedSegment]
+    var isEmphasized: Bool
+}
+
+private struct ReportLegendItem: Identifiable {
+    let id = UUID()
+    var name: String
+    var color: Color
+}
+
+private struct SubjectBreakdownItem: Identifiable {
+    let id = UUID()
+    var name: String
+    var minutes: Int
+    var timeText: String
+    var percent: Int
+    var color: Color
+}
+
+private struct ReportStackedBarChart: View {
+    let items: [ReportStackedBarItem]
+    let axisLabels: [String]
+    let scaleMinutes: Int
+
+    private var barSpacing: CGFloat {
+        items.count > 4 ? 10 : 28
+    }
+
+    private var barWidth: CGFloat {
+        items.count > 4 ? 30 : 52
+    }
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            VStack(alignment: .trailing) {
+                ForEach(axisLabels.indices, id: \.self) { index in
+                    Text(axisLabels[index])
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textPrimary.opacity(0.82))
+                    if index < axisLabels.count - 1 {
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .frame(width: 44, height: 186)
+
+            VStack(spacing: 0) {
+                GeometryReader { geometry in
+                    ZStack(alignment: .bottom) {
+                        Rectangle()
+                            .fill(AppColors.cardBorder)
+                            .frame(height: 1)
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+
+                        HStack(alignment: .bottom, spacing: barSpacing) {
+                            ForEach(items) { item in
+                                ReportStackedBar(
+                                    item: item,
+                                    scaleMinutes: scaleMinutes,
+                                    plotHeight: geometry.size.height - 38,
+                                    barWidth: barWidth
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 6)
+                    }
+                }
+                .frame(height: 212)
+            }
+        }
+    }
+}
+
+private struct ReportStackedBar: View {
+    let item: ReportStackedBarItem
+    let scaleMinutes: Int
+    let plotHeight: CGFloat
+    let barWidth: CGFloat
+
+    private var barHeight: CGFloat {
+        guard scaleMinutes > 0, item.valueMinutes > 0 else { return 0 }
+        return max(CGFloat(item.valueMinutes) / CGFloat(scaleMinutes) * plotHeight, 4)
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(item.valueMinutes > 0 ? item.topLabel : "")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(item.isEmphasized ? AppColors.success : AppColors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(height: 18)
+
+            VStack(spacing: 0) {
+                ForEach(item.segments) { segment in
+                    Rectangle()
+                        .fill(segment.color.gradient)
+                        .frame(height: segmentHeight(segment.minutes))
+                }
+            }
+            .frame(width: barWidth, height: barHeight, alignment: .bottom)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .frame(height: plotHeight, alignment: .bottom)
+
+            VStack(spacing: 1) {
+                Text(item.primaryLabel)
+                    .font(.caption)
+                if !item.secondaryLabel.isEmpty {
+                    Text(item.secondaryLabel)
+                        .font(.caption.weight(.semibold))
+                }
+            }
+            .foregroundStyle(item.isEmphasized ? AppColors.success : AppColors.textPrimary.opacity(0.84))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .frame(height: 32)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func segmentHeight(_ minutes: Int) -> CGFloat {
+        guard item.valueMinutes > 0 else { return 0 }
+        return CGFloat(minutes) / CGFloat(item.valueMinutes) * barHeight
+    }
+}
+
+private struct RatingStars: View {
+    var average: Double?
+
+    var body: some View {
+        HStack(spacing: 1) {
+            ForEach(1...5, id: \.self) { value in
+                Image(systemName: starName(for: value))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(starColor(for: value))
+            }
+        }
+    }
+
+    private func starColor(for value: Int) -> Color {
+        guard let average else { return Color(hex: 0xAEB4BD) }
+        return Double(value) - average <= 0.5 ? AppColors.success : Color(hex: 0xAEB4BD)
+    }
+
+    private func starName(for value: Int) -> String {
+        guard let average else { return "star" }
+        if Double(value) <= average.rounded(.down) { return "star.fill" }
+        if Double(value) - average <= 0.5 { return "star.leadinghalf.filled" }
+        return "star"
+    }
+}
+
+private struct SubjectBarList: View {
+    let items: [SubjectBreakdownItem]
+
+    private var maxMinutes: Int {
+        max(items.map(\.minutes).max() ?? 1, 1)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            ForEach(items) { item in
+                HStack(spacing: 8) {
+                    Text(item.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColors.textPrimary)
+                        .frame(width: 48, alignment: .leading)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+
+                    GeometryReader { geometry in
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(item.color.gradient)
+                            .frame(width: max(CGFloat(item.minutes) / CGFloat(maxMinutes) * geometry.size.width, 8))
+                    }
+                    .frame(height: 14)
+
+                    Text("\(item.timeText) (\(item.percent)%)")
+                        .font(.caption2)
+                        .foregroundStyle(AppColors.textPrimary)
+                        .frame(width: 78, alignment: .leading)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.62)
+                }
+            }
+        }
+    }
+}
+
+private struct SubjectTable: View {
+    let items: [SubjectBreakdownItem]
+    let totalText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Spacer()
+                Text("時間")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textPrimary)
+                    .frame(width: 58, alignment: .trailing)
+                Text("割合")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textPrimary)
+                    .frame(width: 30, alignment: .trailing)
+            }
+            ForEach(items) { item in
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(item.color)
+                        .frame(width: 13, height: 13)
+                    Text(item.name)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(1)
+                    Text(item.timeText)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textPrimary)
+                        .frame(width: 58, alignment: .trailing)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text("\(item.percent)%")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textPrimary)
+                        .frame(width: 30, alignment: .trailing)
+                }
+            }
+            Rectangle()
+                .fill(AppColors.cardBorder)
+                .frame(height: 1)
+            HStack {
+                Text("合計")
+                    .font(.caption.weight(.semibold))
+                Spacer()
+                Text(totalText)
+                    .font(.caption.weight(.semibold))
+                    .frame(width: 70, alignment: .trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text("100%")
+                    .font(.caption.weight(.semibold))
+                    .frame(width: 34, alignment: .trailing)
+            }
+            .foregroundStyle(AppColors.success)
+        }
+    }
+}
+
+private extension View {
+    func reportCard(padding: CGFloat = 10) -> some View {
+        self
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
     }
 }

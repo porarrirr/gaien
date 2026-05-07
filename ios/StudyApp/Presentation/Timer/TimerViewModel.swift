@@ -280,10 +280,59 @@ final class TimerViewModel: ScreenViewModel {
         pendingSessionEvaluation = nil
     }
 
-    func saveManualSession(subjectId: Int64, materialId: Int64?, startTime: Int64, endTime: Int64, note: String?) {
+    func saveManualSession(
+        subjectId: Int64,
+        materialId: Int64?,
+        startTime: Int64,
+        endTime: Int64,
+        note: String?,
+        rating: Int? = nil,
+        problemRecords: [ProblemSessionRecord] = [],
+        problemStart: Int? = nil,
+        problemEnd: Int? = nil,
+        wrongProblemCount: Int? = nil
+    ) {
         perform {
-            let useCase = SaveStudySessionUseCase(sessionRepository: self.app.persistence, subjectRepository: self.app.persistence, materialRepository: self.app.persistence)
-            try await useCase.saveManualSession(subjectId: subjectId, materialId: materialId, startTime: startTime, endTime: endTime, note: note)
+            guard let subject = try await self.app.persistence.getSubjectById(subjectId) else {
+                throw ValidationError(message: "科目を選択してください")
+            }
+            let duration = endTime - startTime
+            guard duration > 0 else {
+                throw ValidationError(message: "終了時刻は開始時刻より後にしてください")
+            }
+            if let rating {
+                guard StudySession.allowedRatings.contains(rating) else {
+                    throw ValidationError(message: "評価は1〜5で入力してください")
+                }
+            }
+            let normalizedRecords = problemRecords.sorted { $0.number < $1.number }
+            try self.validateProblemRecord(
+                problemStart: normalizedRecords.first?.number ?? problemStart,
+                problemEnd: normalizedRecords.last?.number ?? problemEnd,
+                wrongProblemCount: normalizedRecords.isEmpty ? wrongProblemCount : normalizedRecords.filter(\.isWrong).count
+            )
+            let materials = try await self.app.persistence.getAllMaterials()
+            let material = materials.first(where: { $0.id == materialId })
+            _ = try await self.app.persistence.insertSessionWithProblemReviews(
+                StudySession(
+                    materialId: materialId,
+                    materialSyncId: material?.syncId,
+                    materialName: material?.name ?? "",
+                    subjectId: subject.id,
+                    subjectSyncId: subject.syncId,
+                    subjectName: subject.name,
+                    sessionType: .manual,
+                    startTime: startTime,
+                    endTime: endTime,
+                    intervals: [StudySessionInterval(startTime: startTime, endTime: endTime)],
+                    rating: rating,
+                    note: note?.nilIfBlank,
+                    problemStart: normalizedRecords.first?.number ?? problemStart,
+                    problemEnd: normalizedRecords.last?.number ?? problemEnd,
+                    wrongProblemCount: normalizedRecords.isEmpty ? wrongProblemCount : normalizedRecords.filter(\.isWrong).count,
+                    problemRecords: normalizedRecords
+                )
+            )
             await self.load()
             self.app.bumpDataVersion()
         }

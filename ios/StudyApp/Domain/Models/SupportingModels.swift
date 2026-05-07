@@ -89,6 +89,7 @@ struct BookInfo: Codable, Hashable, Sendable {
     var publishedDate: String?
     var pageCount: Int?
     var thumbnailURL: String?
+    var description: String?
 }
 
 struct TimerSnapshot: Codable, Equatable {

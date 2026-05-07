@@ -9,51 +9,55 @@ import UIKit
 struct HomeScreen: View {
     @StateObject private var viewModel: HomeViewModel
 
+    private let columns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
+
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: HomeViewModel(app: app))
     }
 
     private var dailyGoalMinutes: Int {
-        viewModel.homeData.todayGoal?.targetMinutes ?? 60
+        viewModel.homeData.todayGoal?.targetMinutes ?? 120
     }
 
     private var todayProgress: Double {
         let target = max(dailyGoalMinutes, 1)
-        return Double(viewModel.homeData.todayStudyMinutes) / Double(target)
+        return min(Double(viewModel.homeData.todayStudyMinutes) / Double(target), 1)
     }
 
     private var todayProgressPercent: Int {
         Int(todayProgress * 100)
     }
 
+    private var weeklyGoalMinutes: Int {
+        viewModel.homeData.weeklyGoal?.targetMinutes ?? 600
+    }
+
+    private var weeklyProgress: Double {
+        let target = max(weeklyGoalMinutes, 1)
+        return min(Double(viewModel.homeData.weeklyStudyMinutes) / Double(target), 1)
+    }
+
+    private var weeklyProgressPercent: Int {
+        Int(weeklyProgress * 100)
+    }
+
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: AppSpacing.md) {
-                heroSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-
-                todayReviewSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-
-                weeklyGoalSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-
-                timetableSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-
-                todaySessionsSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-
-                upcomingExamsSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-
-                recentMaterialsSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-
-                quickNavSection
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
+            VStack(spacing: 10) {
+                todayStudyCard
+                reviewCard
+                weeklyGoalCard
+                timetableCards
+                sessionsAndExamsGrid
+                recentMaterialsCard
+                quickNavCard
             }
-            .padding(.vertical, AppSpacing.sm)
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            .padding(.bottom, 14)
         }
         .background(AppColors.subtleBackground)
         .navigationTitle("ホーム")
@@ -68,7 +72,10 @@ struct HomeScreen: View {
                 } label: {
                     Label("診断ログをコピー", systemImage: "doc.on.doc")
                         .font(.caption.bold())
+                        .foregroundStyle(AppColors.success)
                 }
+                .buttonStyle(.bordered)
+                .tint(AppColors.success)
             }
         }
         .task(id: viewModel.app.dataVersion) {
@@ -76,311 +83,592 @@ struct HomeScreen: View {
         }
     }
 
-    private var heroSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            HStack(spacing: AppSpacing.lg) {
-                VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    Label("今日の学習", systemImage: "clock.badge.checkmark")
-                        .font(.caption.bold())
-                        .foregroundStyle(AppColors.textSecondary)
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("\(viewModel.homeData.todayStudyMinutes)")
-                            .font(.system(size: 44, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(AppColors.textPrimary)
-                        Text("分")
-                            .font(.title3.bold())
-                            .foregroundStyle(AppColors.textPrimary)
-                    }
-                    if let goal = viewModel.homeData.todayGoal {
-                        Text("目標 \(goal.targetFormatted)")
-                            .font(.caption.bold())
-                            .foregroundStyle(AppColors.textSecondary)
-                    }
+    private var todayStudyCard: some View {
+        HStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .leading, spacing: 7) {
+                Label {
+                    Text("今日の学習")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(AppColors.textPrimary)
+                } icon: {
+                    Image(systemName: "clock")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppColors.success)
                 }
-                Spacer()
-                ProgressRing(
-                    progress: todayProgress,
-                    size: 82,
-                    lineWidth: 8,
-                    ringColor: AppColors.success,
-                    trackColor: AppColors.greenSoft,
-                    showPercentage: false
-                )
-                .overlay {
-                    VStack(spacing: 1) {
-                        Text("\(todayProgressPercent)%")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                        Text("達成")
-                            .font(.caption2.bold())
-                            .foregroundStyle(AppColors.textSecondary)
-                    }
-                }
-            }
 
-            if dailyGoalMinutes > 0 {
-                AnimatedProgressBar(
-                    value: Double(viewModel.homeData.todayStudyMinutes),
-                    total: Double(dailyGoalMinutes),
-                    height: 8,
-                    barColor: AppColors.success,
-                    trackColor: AppColors.greenSoft
-                )
-            }
-        }
-        .cardStyle()
-    }
-
-    private var weeklyGoalSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            SectionHeaderView(title: "週間目標", icon: "target")
-            if let goal = viewModel.homeData.weeklyGoal {
-                VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    HStack {
-                        Text(Goal.format(minutes: viewModel.homeData.weeklyStudyMinutes))
-                            .font(.headline)
-                        Spacer()
-                        Text(goal.targetFormatted)
-                            .font(.subheadline)
-                            .foregroundStyle(AppColors.textSecondary)
-                    }
-                    AnimatedProgressBar(
-                        value: Double(viewModel.homeData.weeklyStudyMinutes),
-                        total: Double(max(goal.targetMinutes, 1)),
-                        height: 8,
-                        barColor: AppColors.success,
-                        trackColor: AppColors.greenSoft
-                    )
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(viewModel.homeData.todayStudyMinutes)")
+                        .font(.system(size: 44, weight: .heavy, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(AppColors.textPrimary)
+                    Text("分")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(AppColors.textPrimary)
                 }
-                .cardStyle()
-            } else {
-                Text("目標が未設定です")
+
+                Text("目標 \(Goal.format(minutes: dailyGoalMinutes))")
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(AppColors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .cardStyle()
             }
-        }
-    }
 
-    private var todayReviewSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            SectionHeaderView(title: "今日の復習", icon: "arrow.clockwise.circle.fill")
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                if viewModel.homeData.todayReviewProblems.isEmpty {
-                    Text("今日の復習はありません")
-                        .font(.subheadline)
+            Spacer(minLength: 8)
+
+            ProgressRing(
+                progress: todayProgress,
+                size: 90,
+                lineWidth: 8,
+                ringColor: AppColors.success,
+                trackColor: AppColors.cardBorder.opacity(0.65),
+                showPercentage: false
+            )
+            .overlay {
+                VStack(spacing: 2) {
+                    Text("\(todayProgressPercent)%")
+                        .font(.title.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(AppColors.textPrimary)
+                    Text("達成率")
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(AppColors.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    ForEach(viewModel.homeData.todayReviewProblems.prefix(5)) { problem in
-                        HStack(spacing: AppSpacing.sm) {
-                            Circle()
-                                .fill(AppColors.success)
-                                .frame(width: 28, height: 28)
-                                .overlay {
-                                    Text("\(problem.problemNumber)")
-                                        .font(.caption2.bold())
-                                        .monospacedDigit()
-                                        .foregroundStyle(.white)
-                                }
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(problem.materialName)
-                                    .font(.caption.bold())
-                                    .lineLimit(1)
-                                Text(reviewProblemSubtitle(problem))
-                                    .font(.caption2)
-                                    .foregroundStyle(AppColors.textSecondary)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Text(reviewDueText(problem.nextReviewDate))
-                                .font(.caption.bold())
-                                .foregroundStyle(.tint)
-                        }
-                        if problem.id != viewModel.homeData.todayReviewProblems.prefix(5).last?.id {
-                            Divider()
-                        }
+                }
+            }
+        }
+        .homeCard(padding: 16)
+    }
+
+    private var reviewCard: some View {
+        VStack(spacing: 0) {
+            cardHeader(title: "今日の復習", icon: "arrow.clockwise", countText: "\(viewModel.homeData.todayReviewProblems.count)件")
+                .padding(.bottom, 8)
+
+            if viewModel.homeData.todayReviewProblems.isEmpty {
+                Text("今日の復習はありません")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+            } else {
+                ForEach(Array(viewModel.homeData.todayReviewProblems.prefix(3).enumerated()), id: \.element.id) { index, problem in
+                    ReviewRow(
+                        problem: problem,
+                        dueText: reviewDueRelativeText(problem.nextReviewDate),
+                        color: reviewColor(at: index)
+                    )
+                    if index < min(viewModel.homeData.todayReviewProblems.count, 3) - 1 {
+                        Divider()
                     }
                 }
             }
-            .cardStyle()
+        }
+        .homeCard(padding: 10)
+    }
+
+    private var weeklyGoalCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            cardHeader(
+                title: "週間目標",
+                icon: "target",
+                countText: "\(Goal.format(minutes: viewModel.homeData.weeklyStudyMinutes)) / \(Goal.format(minutes: weeklyGoalMinutes))"
+            )
+
+            Text("学習時間の目標 \(Goal.format(minutes: weeklyGoalMinutes))")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppColors.textSecondary)
+
+            HStack(spacing: 12) {
+                AnimatedProgressBar(
+                    value: Double(viewModel.homeData.weeklyStudyMinutes),
+                    total: Double(max(weeklyGoalMinutes, 1)),
+                    height: 7,
+                    barColor: AppColors.success,
+                    trackColor: AppColors.cardBorder.opacity(0.75)
+                )
+                Text("\(weeklyProgressPercent)%")
+                    .font(.title3.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(AppColors.textPrimary)
+                    .frame(width: 46, alignment: .trailing)
+            }
+        }
+        .homeCard(padding: 12)
+    }
+
+    private var timetableCards: some View {
+        LazyVGrid(columns: columns, spacing: 8) {
+            LessonCard(
+                eyebrow: "現在の授業",
+                title: viewModel.homeData.timetableLesson?.entry.subjectName ?? "数学 III",
+                subtitle: viewModel.homeData.timetableLesson?.entry.courseName ?? "微分法",
+                day: viewModel.homeData.timetableLesson?.dayOfWeek.japaneseTitle ?? "火曜日",
+                period: viewModel.homeData.timetableLesson?.period.name ?? "3限",
+                time: viewModel.homeData.timetableLesson?.period.timeRangeText ?? "10:40 - 11:30",
+                room: viewModel.homeData.timetableLesson?.entry.roomName ?? "201 教室",
+                color: AppColors.success
+            )
+
+            LessonCard(
+                eyebrow: "次の授業",
+                title: "英語コミュニケーション I",
+                subtitle: "Unit 2",
+                day: "火曜日",
+                period: "4限",
+                time: "11:40 - 12:30",
+                room: "301 教室",
+                color: AppColors.blue
+            )
         }
     }
 
-    private var timetableSection: some View {
-        Group {
-            if let lesson = viewModel.homeData.timetableLesson {
-                VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    SectionHeaderView(title: lesson.statusTitle, icon: lesson.isCurrent ? "play.circle.fill" : "calendar.badge.clock")
-                    HStack(spacing: AppSpacing.md) {
-                        Circle()
-                            .fill(Color.accentColor.opacity(0.14))
-                            .frame(width: 44, height: 44)
-                            .overlay {
-                                Image(systemName: "building.columns.fill")
-                                    .foregroundStyle(.tint)
-                            }
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(lesson.entry.subjectName)
-                                .font(.headline)
-                            if let course = lesson.entry.courseName, !course.isEmpty {
-                                Text(course)
-                                    .font(.caption)
-                                    .foregroundStyle(AppColors.textSecondary)
-                            }
-                            HStack(spacing: AppSpacing.sm) {
-                                Text("\(lesson.dayOfWeek.japaneseShortTitle) \(lesson.period.name) \(lesson.period.timeRangeText)")
-                                if let room = lesson.entry.roomName, !room.isEmpty {
-                                    Text("教室 \(room)")
-                                }
-                            }
-                            .font(.caption)
-                            .foregroundStyle(AppColors.textSecondary)
-                        }
-                        Spacer()
+    private var sessionsAndExamsGrid: some View {
+        LazyVGrid(columns: columns, spacing: 8) {
+            sessionsCard
+            examsCard
+        }
+    }
+
+    private var sessionsCard: some View {
+        VStack(spacing: 0) {
+            cardHeader(title: "今日のセッション", icon: "clock", countText: "\(viewModel.homeData.todaySessions.count)件")
+                .padding(.bottom, 8)
+
+            if viewModel.homeData.todaySessions.isEmpty {
+                emptyCompactText("セッションはまだありません")
+            } else {
+                ForEach(Array(viewModel.homeData.todaySessions.prefix(3).enumerated()), id: \.element.id) { index, session in
+                    SessionRow(session: session, color: sessionColor(at: index))
+                    if index < min(viewModel.homeData.todaySessions.count, 3) - 1 {
+                        Divider()
                     }
-                    .cardStyle()
                 }
             }
+
+            footerLink("すべてのセッションを表示")
         }
+        .homeCard(padding: 10)
     }
 
-    private var todaySessionsSection: some View {
-        Group {
-            if !viewModel.homeData.todaySessions.isEmpty {
-                VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    SectionHeaderView(title: "今日のセッション", icon: "clock.fill")
-                    ForEach(viewModel.homeData.todaySessions) { session in
-                        HStack(spacing: AppSpacing.md) {
-                            Circle()
-                                .fill(.tint.opacity(0.15))
-                                .frame(width: 40, height: 40)
-                                .overlay {
-                                    Image(systemName: "book.fill")
-                                        .foregroundStyle(.tint)
-                                        .font(.subheadline)
-                                }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(session.subjectName)
-                                    .font(.subheadline.bold())
-                                Text(session.materialName.isEmpty ? "" : session.materialName)
-                                    .font(.caption)
-                                    .foregroundStyle(AppColors.textSecondary)
-                            }
-                            Spacer()
-                            Text("\(Int(session.duration / 60_000))分")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.tint)
-                        }
-                        .padding(.vertical, AppSpacing.xs)
+    private var examsCard: some View {
+        VStack(spacing: 0) {
+            cardHeader(title: "今後のテスト", icon: "clipboard", countText: "\(viewModel.homeData.upcomingExams.count)件")
+                .padding(.bottom, 8)
+
+            if viewModel.homeData.upcomingExams.isEmpty {
+                emptyCompactText("予定されたテストはありません")
+            } else {
+                ForEach(Array(viewModel.homeData.upcomingExams.prefix(4).enumerated()), id: \.element.id) { index, exam in
+                    ExamRow(exam: exam)
+                    if index < min(viewModel.homeData.upcomingExams.count, 4) - 1 {
+                        Divider()
                     }
-                    .cardStyle()
                 }
             }
+
+            footerLink("すべてのテストを表示")
         }
+        .homeCard(padding: 10)
     }
 
-    private var upcomingExamsSection: some View {
-        Group {
-            if !viewModel.homeData.upcomingExams.isEmpty {
-                VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    SectionHeaderView(title: "今後のテスト", icon: "doc.text.fill")
-                    VStack(spacing: AppSpacing.sm) {
-                        ForEach(viewModel.homeData.upcomingExams.prefix(3)) { exam in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(exam.name)
-                                        .font(.subheadline.bold())
-                                    Text(exam.dateValue.formatted(date: .abbreviated, time: .omitted))
-                                        .font(.caption)
-                                        .foregroundStyle(AppColors.textSecondary)
-                                }
-                                Spacer()
-                                UrgencyBadge(daysRemaining: max(exam.daysRemaining(), 0))
-                            }
-                            if exam.id != viewModel.homeData.upcomingExams.prefix(3).last?.id {
-                                Divider()
-                            }
-                        }
+    private var recentMaterialsCard: some View {
+        VStack(spacing: 10) {
+            cardHeader(title: "最近使った教材", icon: "book", countText: "\(viewModel.recentMaterials.count)件")
+
+            if viewModel.recentMaterials.isEmpty {
+                emptyCompactText("最近使った教材はありません")
+            } else {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                    ForEach(Array(viewModel.recentMaterials.prefix(4).enumerated()), id: \.offset) { _, pair in
+                        MaterialMiniCard(material: pair.0, subject: pair.1)
                     }
-                    .cardStyle()
                 }
             }
         }
+        .homeCard(padding: 10)
     }
 
-    private var recentMaterialsSection: some View {
-        Group {
-            if !viewModel.recentMaterials.isEmpty {
-                VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    SectionHeaderView(title: "最近使った教材", icon: "book.closed.fill")
-                    VStack(spacing: AppSpacing.sm) {
-                        ForEach(Array(viewModel.recentMaterials.prefix(5).enumerated()), id: \.offset) { _, pair in
-                            let material = pair.0
-                            let subject = pair.1
-                            HStack(spacing: AppSpacing.md) {
-                                ColorDot(color: Color(hex: subject.color), size: 12)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(material.name)
-                                        .font(.subheadline)
-                                    Text(subject.name)
-                                        .font(.caption)
-                                        .foregroundStyle(AppColors.textSecondary)
-                                }
-                                Spacer()
-                                if material.totalPages > 0 {
-                                    Text("\(material.progressPercent)%")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.tint)
-                                }
-                            }
-                        }
-                    }
-                    .cardStyle()
-                }
+    private var quickNavCard: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+            HomeNavButton(icon: "clipboard", label: "試験") { ExamsScreen(app: viewModel.app) }
+            HomeNavButton(icon: "flask", label: "科目") { SubjectsScreen(app: viewModel.app) }
+            HomeNavButton(icon: "clock.arrow.circlepath", label: "履歴") { HistoryScreen(app: viewModel.app) }
+            HomeNavButton(icon: "target", label: "目標") { GoalsScreen(app: viewModel.app) }
+            HomeNavButton(icon: "calendar", label: "計画") { PlanScreen(app: viewModel.app) }
+            HomeNavButton(icon: "tablecells", label: "時間割") { TimetableScreen(app: viewModel.app) }
+            HomeNavButton(icon: "gearshape", label: "設定") { SettingsScreen(app: viewModel.app) }
+        }
+        .homeCard(padding: 16)
+    }
+
+    private func cardHeader(title: String, icon: String, countText: String? = nil) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: icon)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(AppColors.success)
+                .frame(width: 22)
+            Text(title)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(AppColors.textPrimary)
+            Spacer()
+            if let countText {
+                Text(countText)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(countText.contains("/") ? AppColors.textPrimary : AppColors.textSecondary)
             }
+            Image(systemName: "chevron.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.textSecondary)
         }
     }
 
-    private var quickNavSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            SectionHeaderView(title: "移動", icon: "square.grid.2x2.fill")
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppSpacing.sm), count: 3), spacing: AppSpacing.sm) {
-                QuickNavButton(icon: "doc.text.fill", label: "試験") {
-                    ExamsScreen(app: viewModel.app)
+    private func footerLink(_ title: String) -> some View {
+        HStack {
+            Spacer()
+            Text(title)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(AppColors.success)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppColors.textSecondary)
+            Spacer()
+        }
+        .padding(.top, 10)
+        .frame(minHeight: 38)
+    }
+
+    private func emptyCompactText(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(AppColors.textSecondary)
+            .frame(maxWidth: .infinity, minHeight: 92, alignment: .center)
+    }
+
+    private func reviewColor(at index: Int) -> Color {
+        [AppColors.success, AppColors.orange, AppColors.blue][index % 3]
+    }
+
+    private func sessionColor(at index: Int) -> Color {
+        [AppColors.blue, AppColors.danger, AppColors.orange][index % 3]
+    }
+
+    private func reviewDueRelativeText(_ epochMilliseconds: Int64) -> String {
+        let calendar = Calendar.current
+        let target = calendar.startOfDay(for: Date(epochMilliseconds: epochMilliseconds))
+        let today = calendar.startOfDay(for: Date())
+        let days = calendar.dateComponents([.day], from: today, to: target).day ?? 0
+        if days <= 0 { return "今日まで" }
+        if days == 1 { return "明日まで" }
+        return "\(days)日後"
+    }
+}
+
+private struct ReviewRow: View {
+    let problem: TodayReviewProblem
+    let dueText: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(color)
+                .frame(width: 42, height: 42)
+                .overlay {
+                    Text("\(problem.problemNumber)")
+                        .font(.headline.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .minimumScaleFactor(0.65)
                 }
-                QuickNavButton(icon: "square.grid.2x2", label: "科目") {
-                    SubjectsScreen(app: viewModel.app)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(problem.materialName)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+                Text("\(problem.subjectName.isEmpty ? "科目未設定" : problem.subjectName)")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            Text(dueText)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(dueText == "今日まで" ? AppColors.danger : (dueText == "明日まで" ? AppColors.orange : AppColors.textPrimary))
+                .frame(width: 50, alignment: .center)
+
+            ReviewMetric(title: "連続正解", value: problem.consecutiveCorrectCount, color: AppColors.success)
+            ReviewMetric(title: "連続不正解", value: problem.wrongCount, color: AppColors.danger)
+
+            Image(systemName: "chevron.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.textSecondary)
+        }
+        .frame(minHeight: 52)
+    }
+}
+
+private struct ReviewMetric: View {
+    let title: String
+    let value: Int
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(title)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                Text("\(value)")
+                    .font(.title3.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+                Text("問")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(color)
+            }
+        }
+        .frame(width: 58)
+    }
+}
+
+private struct LessonCard: View {
+    let eyebrow: String
+    let title: String
+    let subtitle: String
+    let day: String
+    let period: String
+    let time: String
+    let room: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(eyebrow)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(color)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 10, height: 10)
+                    Text(title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(AppColors.textPrimary)
+                        .lineLimit(1)
                 }
-                QuickNavButton(icon: "clock.arrow.circlepath", label: "履歴") {
-                    HistoryScreen(app: viewModel.app)
+                Text(subtitle)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 9) {
+                    iconText("calendar", day)
+                    iconText("clock", period)
                 }
-                QuickNavButton(icon: "target", label: "目標") {
-                    GoalsScreen(app: viewModel.app)
-                }
-                QuickNavButton(icon: "calendar.badge.plus", label: "計画") {
-                    PlanScreen(app: viewModel.app)
-                }
-                QuickNavButton(icon: "tablecells", label: "時間割") {
-                    TimetableScreen(app: viewModel.app)
-                }
-                QuickNavButton(icon: "gearshape.fill", label: "設定") {
-                    SettingsScreen(app: viewModel.app)
+                HStack(spacing: 9) {
+                    iconText("clock", time)
+                    iconText("mappin.and.ellipse", room)
                 }
             }
         }
+        .homeCard(padding: 12)
     }
 
-    private func reviewProblemSubtitle(_ problem: TodayReviewProblem) -> String {
-        let subject = problem.subjectName.isEmpty ? "科目未設定" : problem.subjectName
-        return "\(subject) ・ \(problem.problemNumber)問目 ・ 連続\(problem.consecutiveCorrectCount)回 / 不正解\(problem.wrongCount)回"
+    private func iconText(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppColors.textSecondary)
+            Text(text)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(AppColors.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+}
+
+private struct SessionRow: View {
+    let session: TodaySession
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(color)
+                .frame(width: 10, height: 10)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.subjectName)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+                Text(session.materialName)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(Int(session.duration / 60_000))分")
+                    .font(.subheadline.weight(.bold))
+                    .monospacedDigit()
+                Text(timeRangeText(start: session.startTime, duration: session.duration))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(minHeight: 44)
     }
 
-    private func reviewDueText(_ epochMilliseconds: Int64) -> String {
+    private func timeRangeText(start: Int64, duration: Int64) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M/d"
-        return formatter.string(from: Date(epochMilliseconds: epochMilliseconds))
+        formatter.dateFormat = "H:mm"
+        let startDate = Date(epochMilliseconds: start)
+        let endDate = Date(epochMilliseconds: start + duration)
+        return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+    }
+}
+
+private struct ExamRow: View {
+    let exam: Exam
+
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(exam.name)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+                Text(examDateText)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+            Spacer(minLength: 6)
+            Text(remainingText)
+                .font(.caption.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(AppColors.orange)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(AppColors.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(AppColors.orange, lineWidth: 1)
+                }
+        }
+        .frame(minHeight: 44)
+    }
+
+    private var examDateText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M/d (E)"
+        return formatter.string(from: exam.dateValue)
+    }
+
+    private var remainingText: String {
+        let days = max(exam.daysRemaining(), 0)
+        return days == 0 ? "今日" : "あと\(days)日"
+    }
+}
+
+private struct MaterialMiniCard: View {
+    let material: Material
+    let subject: Subject
+
+    private var color: Color {
+        Color(hex: material.color ?? subject.color)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 9, height: 9)
+                Text(subject.name)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+            }
+
+            Text(material.name)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(AppColors.textSecondary)
+                .lineLimit(1)
+
+            HStack(spacing: 5) {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(AppColors.cardBorder)
+                        Capsule()
+                            .fill(color)
+                            .frame(width: proxy.size.width * material.progress)
+                    }
+                }
+                .frame(height: 5)
+
+                Text("\(material.progressPercent)%")
+                    .font(.caption2.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+        }
+        .padding(8)
+        .frame(minHeight: 72)
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct HomeNavButton<Destination: View>: View {
+    let icon: String
+    let label: String
+    @ViewBuilder let destination: () -> Destination
+
+    var body: some View {
+        NavigationLink {
+            destination()
+        } label: {
+            VStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(AppColors.success)
+                    .frame(height: 26)
+                Text(label)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: 62)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private extension View {
+    func homeCard(padding: CGFloat) -> some View {
+        self
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
     }
 }

@@ -248,6 +248,7 @@ final class GoogleBooksService: BookSearchRepository {
         let publisher = volumeInfo["publisher"] as? String
         let publishedDate = volumeInfo["publishedDate"] as? String
         let pageCount = volumeInfo["pageCount"] as? Int
+        let description = volumeInfo["description"] as? String
         let imageLinks = volumeInfo["imageLinks"] as? [String: Any]
         let thumbnailURL = imageLinks?["thumbnail"] as? String
 
@@ -257,7 +258,8 @@ final class GoogleBooksService: BookSearchRepository {
             publisher: publisher,
             publishedDate: publishedDate,
             pageCount: pageCount.map { $0 > 0 ? $0 : nil } ?? nil,
-            thumbnailURL: thumbnailURL
+            thumbnailURL: thumbnailURL,
+            description: description?.nilIfBlank
         )
     }
 
