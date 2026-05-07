@@ -143,11 +143,21 @@ private struct ExamEditorSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        Form {
-            TextField("テスト名", text: $name)
-            DatePicker("日付", selection: $date, displayedComponents: .date)
-            TextField("メモ", text: $note, axis: .vertical)
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "テスト情報", icon: "doc.text.fill")
+                    TextField("テスト名", text: $name)
+                        .textFieldStyle(.roundedBorder)
+                    DatePicker("日付", selection: $date, displayedComponents: .date)
+                    TextField("メモ", text: $note, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                }
+                .cardStyle()
+            }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle(title)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

@@ -276,32 +276,52 @@ private struct CreatePlanSheet: View {
     }
 
     var body: some View {
-        Form {
-            TextField("プラン名", text: $name)
-            DatePicker("開始日", selection: $startDate, displayedComponents: .date)
-            DatePicker("終了日", selection: $endDate, displayedComponents: .date)
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "計画", icon: "calendar.badge.plus")
+                    TextField("プラン名", text: $name)
+                        .textFieldStyle(.roundedBorder)
+                    DatePicker("開始日", selection: $startDate, displayedComponents: .date)
+                    DatePicker("終了日", selection: $endDate, displayedComponents: .date)
+                }
+                .cardStyle()
 
-            Section("初期項目") {
-                ForEach($draftItems) { $item in
-                    Picker("科目", selection: $item.subjectId) {
-                        ForEach(subjects) { subject in
-                            Text(subject.name).tag(subject.id)
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "初期項目", icon: "list.bullet")
+                    ForEach($draftItems) { $item in
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            Picker("科目", selection: $item.subjectId) {
+                                ForEach(subjects) { subject in
+                                    Text(subject.name).tag(subject.id)
+                                }
+                            }
+                            Picker("曜日", selection: $item.dayOfWeek) {
+                                ForEach(StudyWeekday.allCases) { day in
+                                    Text(day.japaneseTitle).tag(day)
+                                }
+                            }
+                            TextField("目標（分）", text: $item.targetMinutes)
+                                .keyboardType(.numberPad)
+                                .textFieldStyle(.roundedBorder)
+                            TextField("時間帯", text: $item.timeSlot)
+                                .textFieldStyle(.roundedBorder)
                         }
+                        .cardStyle(padding: AppSpacing.sm)
                     }
-                    Picker("曜日", selection: $item.dayOfWeek) {
-                        ForEach(StudyWeekday.allCases) { day in
-                            Text(day.japaneseTitle).tag(day)
-                        }
+                    Button {
+                        draftItems.append(DraftPlanItem(subjectId: subjects.first?.id ?? 0))
+                    } label: {
+                        Label("項目を追加", systemImage: "plus.circle")
+                            .frame(maxWidth: .infinity)
                     }
-                    TextField("目標（分）", text: $item.targetMinutes)
-                        .keyboardType(.numberPad)
-                    TextField("時間帯", text: $item.timeSlot)
+                    .buttonStyle(.bordered)
                 }
-                Button("項目を追加") {
-                    draftItems.append(DraftPlanItem(subjectId: subjects.first?.id ?? 0))
-                }
+                .cardStyle()
             }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("計画を作成")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -352,21 +372,31 @@ private struct PlanItemEditorSheet: View {
     }
 
     var body: some View {
-        Form {
-            Picker("科目", selection: $draft.subjectId) {
-                ForEach(subjects) { subject in
-                    Text(subject.name).tag(subject.id)
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "計画項目", icon: "calendar")
+                    Picker("科目", selection: $draft.subjectId) {
+                        ForEach(subjects) { subject in
+                            Text(subject.name).tag(subject.id)
+                        }
+                    }
+                    Picker("曜日", selection: $draft.dayOfWeek) {
+                        ForEach(StudyWeekday.allCases) { day in
+                            Text(day.japaneseTitle).tag(day)
+                        }
+                    }
+                    TextField("目標（分）", text: $draft.targetMinutes)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("時間帯", text: $draft.timeSlot)
+                        .textFieldStyle(.roundedBorder)
                 }
+                .cardStyle()
             }
-            Picker("曜日", selection: $draft.dayOfWeek) {
-                ForEach(StudyWeekday.allCases) { day in
-                    Text(day.japaneseTitle).tag(day)
-                }
-            }
-            TextField("目標（分）", text: $draft.targetMinutes)
-                .keyboardType(.numberPad)
-            TextField("時間帯", text: $draft.timeSlot)
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle(item == nil ? "計画項目を追加" : "計画項目を編集")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

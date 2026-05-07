@@ -418,63 +418,64 @@ private struct DebugLogSheet: View {
     @State private var copyConfirmationMessage: String?
 
     var body: some View {
-        List {
-            if viewModel.debugLogEntries.isEmpty {
-                Text("ログはまだありません")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(viewModel.debugLogEntries) { entry in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(entry.timestamp.formatted(date: .abbreviated, time: .standard))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text(entry.level.rawValue.uppercased())
-                                .font(.caption.bold())
-                                .foregroundStyle(color(for: entry.level))
-                        }
-                        Text(entry.message)
-                            .font(.headline)
-                        Text(entry.category.rawValue)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if let details = entry.details, !details.isEmpty {
-                            Text(details)
-                                .font(.caption)
-                                .textSelection(.enabled)
-                        }
-                        if let errorDescription = entry.errorDescription, !errorDescription.isEmpty {
-                            Text(errorDescription)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                                .textSelection(.enabled)
-                        }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.sm) {
+                HStack(spacing: AppSpacing.sm) {
+                    IconActionButton(title: "共有", systemImage: "square.and.arrow.up") {
+                        viewModel.exportDebugLogs()
                     }
-                    .padding(.vertical, 4)
+                    IconActionButton(title: "コピー", systemImage: "doc.on.doc", color: AppColors.success) {
+                        viewModel.copyDebugLogs()
+                        copyConfirmationMessage = "デバッグログをコピーしました"
+                    }
+                    IconActionButton(title: "更新", systemImage: "arrow.clockwise", color: AppColors.warning) {
+                        viewModel.refreshDebugLogs()
+                    }
+                }
+                .padding(.horizontal, AppSpacing.md)
+
+                if viewModel.debugLogEntries.isEmpty {
+                    Text("ログはまだありません")
+                        .foregroundStyle(.secondary)
+                        .cardStyle()
+                        .padding(.horizontal, AppSpacing.md)
+                } else {
+                    ForEach(viewModel.debugLogEntries) { entry in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(entry.timestamp.formatted(date: .abbreviated, time: .standard))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                MetricPill(text: entry.level.rawValue.uppercased(), color: color(for: entry.level))
+                            }
+                            Text(entry.message)
+                                .font(.headline)
+                            MetricPill(text: entry.category.rawValue, color: .accentColor, systemImage: "tag")
+                            if let details = entry.details, !details.isEmpty {
+                                Text(details)
+                                    .font(.caption)
+                                    .textSelection(.enabled)
+                            }
+                            if let errorDescription = entry.errorDescription, !errorDescription.isEmpty {
+                                Text(errorDescription)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .cardStyle()
+                        .padding(.horizontal, AppSpacing.md)
+                    }
                 }
             }
+            .padding(.vertical, AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("デバッグログ")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("閉じる") { dismiss() }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("共有") {
-                    viewModel.exportDebugLogs()
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("コピー") {
-                    viewModel.copyDebugLogs()
-                    copyConfirmationMessage = "デバッグログをコピーしました"
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("更新") {
-                    viewModel.refreshDebugLogs()
-                }
             }
         }
         .alert("デバッグログ", isPresented: Binding(get: { copyConfirmationMessage != nil }, set: { if !$0 { copyConfirmationMessage = nil } })) {
@@ -508,41 +509,57 @@ private struct AuthSheet: View {
     @Binding var isPresented: Bool
 
     var body: some View {
-        Form {
-            Section {
-                TextField("メールアドレス", text: $viewModel.syncEmail)
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.emailAddress)
-                SecureField("パスワード", text: $viewModel.syncPassword)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    Image(systemName: "icloud.fill")
+                        .font(.system(size: 38))
+                        .foregroundStyle(.tint)
+                    Text("クラウド同期（オプション）")
+                        .font(.title3.bold())
+                    Text("Firebaseで端末間の学習データを同期します。ローカル保存はそのまま利用できます。")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                .cardStyle()
 
-            Section {
-                Button {
-                    viewModel.signInToSync()
-                    isPresented = false
-                } label: {
-                    HStack {
-                        Spacer()
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "サインイン", icon: "person.circle.fill")
+                    TextField("メールアドレス", text: $viewModel.syncEmail)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.emailAddress)
+                        .textFieldStyle(.roundedBorder)
+                    SecureField("パスワード", text: $viewModel.syncPassword)
+                        .textFieldStyle(.roundedBorder)
+                    Button {
+                        viewModel.signInToSync()
+                        isPresented = false
+                    } label: {
                         Text("サインイン")
-                            .font(.headline)
-                        Spacer()
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
                 }
-                .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
+                .cardStyle()
 
-                Button {
-                    viewModel.createSyncAccount()
-                    isPresented = false
-                } label: {
-                    HStack {
-                        Spacer()
-                        Text("アカウント作成")
-                        Spacer()
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "アカウント作成", icon: "person.badge.plus")
+                    Button {
+                        viewModel.createSyncAccount()
+                        isPresented = false
+                    } label: {
+                        Text("アカウントを作成")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
                 }
-                .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
+                .cardStyle()
             }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("クラウド同期")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

@@ -616,37 +616,44 @@ private struct TimetableEntryEditorSheet: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                HStack {
-                    Text(context.day.japaneseTitle)
-                    Spacer()
-                    Text("\(context.period.name) \(context.period.timeRangeText)")
-                        .foregroundStyle(AppColors.textSecondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "登録先", icon: "calendar")
+                    LabeledContent("曜日", value: context.day.japaneseTitle)
+                    LabeledContent("時限", value: "\(context.period.name) \(context.period.timeRangeText)")
                 }
-            }
+                .cardStyle()
 
-            Section("授業") {
-                TextField("科目", text: $subjectName)
-                TextField("講座名", text: $courseName)
-                TextField("教室", text: $roomName)
-                if context.entry != nil {
-                    Text("保存すると、過去の復習履歴はそのまま残し、今後の時間割だけを新しい内容にします。")
-                        .font(.footnote)
-                        .foregroundStyle(AppColors.textSecondary)
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "授業の詳細", icon: "building.columns")
+                    TextField("科目", text: $subjectName)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("講座名", text: $courseName)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("教室", text: $roomName)
+                        .textFieldStyle(.roundedBorder)
+                    if context.entry != nil {
+                        Text("保存すると、過去の復習履歴はそのまま残し、今後の時間割だけを新しい内容にします。")
+                            .font(.footnote)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
                 }
-            }
+                .cardStyle()
 
-            if let entry = context.entry {
-                Section {
+                if let entry = context.entry {
                     Button(role: .destructive) {
                         onDelete(entry)
                     } label: {
                         Label("このコマを削除", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.bordered)
                 }
             }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle(context.entry == nil ? "授業を追加" : "授業を編集")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -702,18 +709,26 @@ private struct TimetableTermEditorSheet: View {
     }
 
     var body: some View {
-        Form {
-            if let errorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(AppColors.danger)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                if let errorMessage {
+                    Text(errorMessage)
+                        .foregroundStyle(AppColors.danger)
+                        .cardStyle()
+                }
 
-            Section("学期") {
-                TextField("学期名", text: $name)
-                DatePicker("開始日", selection: $startDate, displayedComponents: .date)
-                DatePicker("終了日", selection: $endDate, displayedComponents: .date)
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "学期", icon: "calendar")
+                    TextField("学期名", text: $name)
+                        .textFieldStyle(.roundedBorder)
+                    DatePicker("開始日", selection: $startDate, displayedComponents: .date)
+                    DatePicker("終了日", selection: $endDate, displayedComponents: .date)
+                }
+                .cardStyle()
             }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle(term == nil ? "学期を追加" : "学期を編集")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -776,46 +791,66 @@ private struct TimetableReviewEditorSheet: View {
     }
 
     var body: some View {
-        Form {
-            Section("授業") {
-                LabeledContent("科目", value: occurrence.entry.subjectName)
-                LabeledContent("日時", value: "\(formattedDate) \(occurrence.period.name) \(occurrence.period.timeRangeText)")
-                if let course = occurrence.entry.courseName, !course.isEmpty {
-                    LabeledContent("講座", value: course)
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "授業", icon: "building.columns.fill")
+                    LabeledContent("科目", value: occurrence.entry.subjectName)
+                    LabeledContent("日時", value: "\(formattedDate) \(occurrence.period.name) \(occurrence.period.timeRangeText)")
+                    if let course = occurrence.entry.courseName, !course.isEmpty {
+                        LabeledContent("講座", value: course)
+                    }
+                    if let room = occurrence.entry.roomName, !room.isEmpty {
+                        LabeledContent("教室", value: room)
+                    }
+                    MetricPill(text: statusText, color: statusColor, systemImage: statusIcon)
                 }
-                if let room = occurrence.entry.roomName, !room.isEmpty {
-                    LabeledContent("教室", value: room)
+                .cardStyle()
+
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: "復習メモ", icon: "note.text")
+                    TextEditor(text: $note)
+                        .frame(minHeight: 120)
+                        .scrollContentBackground(.hidden)
+                        .padding(AppSpacing.sm)
+                        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous))
                 }
-            }
+                .cardStyle()
 
-            Section("復習メモ") {
-                TextEditor(text: $note)
-                    .frame(minHeight: 96)
-            }
-
-            Section {
-                Button {
-                    onSave(true, note)
-                } label: {
-                    Label("復習済みにする", systemImage: "checkmark.circle.fill")
-                }
-                .disabled(!occurrence.canReview)
-
-                if occurrence.isReviewed {
+                VStack(spacing: AppSpacing.sm) {
                     Button {
-                        onSave(false, note)
+                        onSave(true, note)
                     } label: {
-                        Label("未復習に戻す", systemImage: "arrow.uturn.backward.circle")
+                        Label("復習済みにする", systemImage: "checkmark.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!occurrence.canReview)
+
+                    if occurrence.isReviewed {
+                        Button {
+                            onSave(false, note)
+                        } label: {
+                            Label("未復習に戻す", systemImage: "arrow.uturn.backward.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    if occurrence.isExcluded {
+                        Button("対象外を解除", action: onRestore)
+                            .frame(maxWidth: .infinity)
+                            .buttonStyle(.bordered)
+                    } else {
+                        Button("この日は授業なし（対象外）", role: .destructive, action: onExclude)
+                            .frame(maxWidth: .infinity)
+                            .buttonStyle(.bordered)
                     }
                 }
-
-                if occurrence.isExcluded {
-                    Button("対象外を解除", action: onRestore)
-                } else {
-                    Button("この日は授業なし（対象外）", action: onExclude)
-                }
             }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("復習記録")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -826,6 +861,35 @@ private struct TimetableReviewEditorSheet: View {
 
     private var formattedDate: String {
         occurrence.date.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    private var statusText: String {
+        switch occurrence.status {
+        case .notAvailable: return "授業後に記録可"
+        case .pending: return "未復習"
+        case .overdue: return "期限超過"
+        case .reviewed: return "復習済み"
+        case .excluded: return "対象外"
+        }
+    }
+
+    private var statusColor: Color {
+        switch occurrence.status {
+        case .notAvailable: return AppColors.textSecondary
+        case .pending, .overdue: return AppColors.danger
+        case .reviewed: return AppColors.success
+        case .excluded: return .secondary
+        }
+    }
+
+    private var statusIcon: String {
+        switch occurrence.status {
+        case .notAvailable: return "clock"
+        case .pending: return "exclamationmark.circle.fill"
+        case .overdue: return "exclamationmark.triangle.fill"
+        case .reviewed: return "checkmark.circle.fill"
+        case .excluded: return "slash.circle.fill"
+        }
     }
 }
 
@@ -842,19 +906,26 @@ private struct TimetablePeriodSettingsSheet: View {
     }
 
     var body: some View {
-        Form {
-            if let errorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(AppColors.danger)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                if let errorMessage {
+                    Text(errorMessage)
+                        .foregroundStyle(AppColors.danger)
+                        .cardStyle()
+                }
 
-            ForEach($drafts) { $draft in
-                Section(draft.name) {
-                    DatePicker("開始", selection: $draft.startDate, displayedComponents: .hourAndMinute)
-                    DatePicker("終了", selection: $draft.endDate, displayedComponents: .hourAndMinute)
+                ForEach($drafts) { $draft in
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        SectionHeaderView(title: draft.name, icon: "clock")
+                        DatePicker("開始", selection: $draft.startDate, displayedComponents: .hourAndMinute)
+                        DatePicker("終了", selection: $draft.endDate, displayedComponents: .hourAndMinute)
+                    }
+                    .cardStyle()
                 }
             }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle("時限設定")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

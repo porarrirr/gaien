@@ -216,10 +216,17 @@ struct CalendarScreen: View {
             Task { await viewModel.load() }
         }
         .sheet(item: $editingSession) { session in
-            NavigationView {
+            NavigationStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
-                        HStack {
+                        HStack(spacing: AppSpacing.md) {
+                            Circle()
+                                .fill(Color.accentColor.opacity(0.12))
+                                .frame(width: 44, height: 44)
+                                .overlay {
+                                    Image(systemName: "book.fill")
+                                        .foregroundStyle(.tint)
+                                }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(session.subjectName.isEmpty ? "未設定" : session.subjectName)
                                     .font(.headline)
@@ -234,8 +241,10 @@ struct CalendarScreen: View {
                                 .font(.caption)
                                 .foregroundStyle(AppColors.textSecondary)
                         }
+                        .cardStyle()
 
                         VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            SectionHeaderView(title: "記録区間", icon: "clock")
                             ForEach($intervalDrafts) { $interval in
                                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
                                     if intervalDrafts.count > 1 {
@@ -246,38 +255,35 @@ struct CalendarScreen: View {
                                     DatePicker("開始時刻", selection: $interval.startDate, displayedComponents: .hourAndMinute)
                                     DatePicker("終了時刻", selection: $interval.endDate, displayedComponents: .hourAndMinute)
                                 }
+                                .cardStyle(padding: AppSpacing.sm)
                             }
                         }
 
                         VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                            Text("評価")
-                                .font(.subheadline.bold())
+                            SectionHeaderView(title: "評価", icon: "star.fill")
                             SessionRatingSelector(rating: $ratingSelection, allowsClearing: true)
                         }
+                        .cardStyle()
 
                         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                            Text("問題集の記録")
-                                .font(.subheadline.bold())
+                            SectionHeaderView(title: "問題集の記録", icon: "checklist.checked")
                             problemRecordEditor(for: session)
                         }
+                        .cardStyle()
 
-                        TextEditor(text: $noteText)
-                            .frame(minHeight: 150)
-                            .scrollContentBackground(.hidden)
-                            .padding(AppSpacing.sm)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(Color(.systemGray6))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color(.separator), lineWidth: 1)
-                            )
-
-                        Spacer()
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            SectionHeaderView(title: "メモ", icon: "note.text")
+                            TextEditor(text: $noteText)
+                                .frame(minHeight: 130)
+                                .scrollContentBackground(.hidden)
+                                .padding(AppSpacing.sm)
+                                .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous))
+                        }
+                        .cardStyle()
                     }
-                    .padding()
+                    .padding(AppSpacing.md)
                 }
+                .background(AppColors.subtleBackground)
                 .navigationTitle("履歴を編集")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

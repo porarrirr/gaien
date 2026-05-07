@@ -200,16 +200,24 @@ private struct GoalEditorSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        Form {
-            Section {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SectionHeaderView(title: title, icon: "target")
                 TextField("目標時間（分）", text: $minutes)
                     .keyboardType(.numberPad)
-            } footer: {
-                if let m = Int(minutes), m > 0 {
-                    Text("= \(Goal.format(minutes: m))")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .multilineTextAlignment(.center)
+                        .textFieldStyle(.roundedBorder)
+                    if let m = Int(minutes), m > 0 {
+                        MetricPill(text: Goal.format(minutes: m), color: .accentColor, systemImage: "clock.fill")
+                    }
                 }
+                .cardStyle()
             }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle(title)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

@@ -1620,21 +1620,32 @@ private struct MaterialEditorSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        Form {
-            if subjects.isEmpty {
-                Text("先に科目を作成してください")
-            } else {
-                TextField("教材名", text: $draft.name)
-                Picker("科目", selection: $draft.subjectId) {
-                    ForEach(subjects) { subject in
-                        Text(subject.name).tag(subject.id)
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                if subjects.isEmpty {
+                    Text("先に科目を作成してください")
+                        .cardStyle()
+                } else {
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        SectionHeaderView(title: "基本情報", icon: "book.closed")
+                        TextField("教材名", text: $draft.name)
+                            .textFieldStyle(.roundedBorder)
+                        Picker("科目", selection: $draft.subjectId) {
+                            ForEach(subjects) { subject in
+                                Text(subject.name).tag(subject.id)
+                            }
+                        }
+                        TextField("総ページ数", text: $draft.totalPages)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
                     }
-                }
-                TextField("総ページ数", text: $draft.totalPages)
-                    .keyboardType(.numberPad)
-                Section("問題番号設定") {
+                    .cardStyle()
+
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        SectionHeaderView(title: "問題番号設定", icon: "list.number")
                     TextField("全問題数", text: $draft.totalProblems)
                         .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
                         .disabled(!draft.problemChapters.isEmpty)
 
                     if draft.problemChapters.isEmpty {
@@ -1653,9 +1664,11 @@ private struct MaterialEditorSheet: View {
                         ForEach($draft.problemChapters) { $chapter in
                             HStack {
                                 TextField("章名", text: $chapter.title)
+                                    .textFieldStyle(.roundedBorder)
                                 TextField("問題数", text: $chapter.problemCount)
                                     .keyboardType(.numberPad)
                                     .multilineTextAlignment(.trailing)
+                                    .textFieldStyle(.roundedBorder)
                                     .frame(width: 84)
                             }
                         }
@@ -1685,10 +1698,20 @@ private struct MaterialEditorSheet: View {
                             Label("章構成を使わない", systemImage: "xmark.circle")
                         }
                     }
+                    }
+                    .cardStyle()
+
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        SectionHeaderView(title: "メモ", icon: "note.text")
+                        TextField("メモ", text: $draft.note, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    .cardStyle()
                 }
-                TextField("メモ", text: $draft.note, axis: .vertical)
             }
+            .padding(AppSpacing.md)
         }
+        .background(AppColors.subtleBackground)
         .navigationTitle(title)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
