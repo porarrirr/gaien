@@ -770,7 +770,8 @@ private struct MaterialHistoryScreen: View {
                             material: material,
                             subject: viewModel.subject,
                             totalMinutes: viewModel.totalMinutes,
-                            sessionCount: viewModel.sessions.count
+                            sessionCount: viewModel.sessions.count,
+                            sessions: viewModel.sessions
                         )
                         MaterialProblemRecordSummaryCard(
                             material: material,
@@ -888,6 +889,21 @@ private struct MaterialHistorySummaryCard: View {
     let subject: Subject?
     let totalMinutes: Int
     let sessionCount: Int
+    let sessions: [StudySession]
+
+    private var answerRate: Int {
+        let latestResults = sessions
+            .sorted { $0.sessionStartTime < $1.sessionStartTime }
+            .reduce(into: [Int: ProblemResult]()) { result, session in
+                for record in session.problemRecords {
+                    result[record.number] = record.result
+                }
+            }
+        let answered = latestResults.count
+        guard answered > 0 else { return 0 }
+        let correct = latestResults.values.filter { $0 == .correct || $0 == .reviewCorrect }.count
+        return Int((Double(correct) / Double(answered) * 100).rounded())
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -951,10 +967,6 @@ private struct MaterialHistorySummaryCard: View {
         }
     }
 
-    private var pageProgressText: String {
-        guard material.totalPages > 0 else { return "0 / 0ページ" }
-        return "\(material.currentPage) / \(material.totalPages)ページ"
-    }
 }
 
 private struct MaterialBookCoverView: View {
