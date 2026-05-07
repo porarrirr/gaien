@@ -23,6 +23,7 @@ struct HomeData: Hashable {
     var weeklyStudyMinutes: Int
     var upcomingExams: [Exam]
     var timetableLesson: TimetableLesson? = nil
+    var upcomingTimetableLesson: TimetableLesson? = nil
     var todayReviewProblems: [TodayReviewProblem] = []
 }
 

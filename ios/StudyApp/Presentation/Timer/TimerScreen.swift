@@ -70,34 +70,35 @@ struct TimerScreen: View {
                             VStack(spacing: 12) {
                                 timerModeSection
 
-                                ZStack(alignment: .bottom) {
-                                    ProgressRing(
-                                        progress: timerProgress,
-                                        size: timerRingSize(for: geometry.size),
-                                        lineWidth: 12,
-                                        ringColor: viewModel.isRunning ? AppColors.success : Color.secondary.opacity(0.4),
-                                        trackColor: Color(.systemGray5),
-                                        showPercentage: false
-                                    )
-                                    .scaleEffect(ringScale)
+                                VStack(spacing: 14) {
+                                    ZStack {
+                                        ProgressRing(
+                                            progress: timerProgress,
+                                            size: timerRingSize(for: geometry.size),
+                                            lineWidth: 12,
+                                            ringColor: viewModel.isRunning ? AppColors.success : Color.secondary.opacity(0.4),
+                                            trackColor: Color(.systemGray5),
+                                            showPercentage: false
+                                        )
+                                        .scaleEffect(ringScale)
 
-                                    VStack(spacing: 6) {
-                                        Text(durationString(milliseconds: viewModel.displayMilliseconds))
-                                            .font(.system(size: 50, weight: .regular, design: .rounded))
-                                            .monospacedDigit()
-                                            .foregroundStyle(AppColors.textPrimary)
-                                        Text(viewModel.isRunning ? "記録中" : "待機中")
-                                            .font(.system(size: 22, weight: .bold))
-                                            .foregroundStyle(viewModel.isRunning ? AppColors.success : AppColors.textSecondary)
-                                        Text(viewModel.mode == .timer ? "カウントダウン" : "記録中")
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundStyle(AppColors.textSecondary)
+                                        VStack(spacing: 5) {
+                                            Text(durationString(milliseconds: viewModel.displayMilliseconds))
+                                                .font(.system(size: 46, weight: .regular, design: .rounded))
+                                                .monospacedDigit()
+                                                .foregroundStyle(AppColors.textPrimary)
+                                            Text(viewModel.isRunning ? "記録中" : "待機中")
+                                                .font(.system(size: 20, weight: .bold))
+                                                .foregroundStyle(viewModel.isRunning ? AppColors.success : AppColors.textSecondary)
+                                            Text(viewModel.mode == .timer ? "カウントダウン" : "記録中")
+                                                .font(.system(size: 13, weight: .medium))
+                                                .foregroundStyle(AppColors.textSecondary)
+                                        }
+                                        .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
                                     }
-                                    .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
 
                                     controlButtonsSection
-                                        .padding(.horizontal, 38)
-                                        .padding(.bottom, 2)
+                                        .padding(.horizontal, 46)
                                 }
                                 .onChange(of: viewModel.isRunning) { running in
                                     if running {
@@ -511,8 +512,8 @@ struct TimerScreen: View {
 
     private func timerRingSize(for size: CGSize) -> CGFloat {
         let widthLimited = min(size.width - 92, 262)
-        let heightLimited = min(max(size.height * 0.28, 212), 262)
-        return max(212, min(widthLimited, heightLimited))
+        let heightLimited = min(max(size.height * 0.24, 188), 238)
+        return max(188, min(widthLimited, heightLimited))
     }
 
     private func timerControlButton(systemImage: String, color: Color, action: @escaping () -> Void) -> some View {

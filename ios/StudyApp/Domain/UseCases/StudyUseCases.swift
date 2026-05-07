@@ -50,6 +50,15 @@ struct GetHomeDataUseCase {
         let todayGoal = goals.latestActiveDailyGoal(for: todayWeekday)
         let weeklyGoal = goals.latestActiveWeeklyGoal()
 
+        let timetableLessons = nextTimetableLessons(
+            periods: timetablePeriods,
+            entries: timetableEntries,
+            terms: timetableTerms,
+            reference: clock.now()
+        )
+        let currentLesson = timetableLessons.first { $0.isCurrent }
+        let upcomingLesson = timetableLessons.first { !$0.isCurrent }
+
         return HomeData(
             todayStudyMinutes: todaySessions.reduce(0) { $0 + $1.durationMinutes },
             todaySessions: todaySessions
@@ -67,26 +76,22 @@ struct GetHomeDataUseCase {
             weeklyGoal: weeklyGoal,
             weeklyStudyMinutes: weeklySessions.reduce(0) { $0 + $1.durationMinutes },
             upcomingExams: upcomingExams.sorted { $0.date < $1.date },
-            timetableLesson: nextTimetableLesson(
-                periods: timetablePeriods,
-                entries: timetableEntries,
-                terms: timetableTerms,
-                reference: clock.now()
-            ),
+            timetableLesson: currentLesson,
+            upcomingTimetableLesson: upcomingLesson,
             todayReviewProblems: todayReviewProblems
         )
     }
 
-    private func nextTimetableLesson(
+    private func nextTimetableLessons(
         periods: [TimetablePeriod],
         entries: [TimetableEntry],
         terms: [TimetableTerm],
         reference: Date
-    ) -> TimetableLesson? {
+    ) -> [TimetableLesson] {
         let activePeriods = periods
             .filter { $0.isActive && $0.deletedAt == nil && $0.startMinute < $0.endMinute }
             .sorted { $0.sortOrder == $1.sortOrder ? $0.startMinute < $1.startMinute : $0.sortOrder < $1.sortOrder }
-        guard !activePeriods.isEmpty else { return nil }
+        guard !activePeriods.isEmpty else { return [] }
 
         let periodMap = Dictionary(uniqueKeysWithValues: activePeriods.map { ($0.id, $0) })
         let activeTerm = terms.first(where: { $0.deletedAt == nil && $0.isActive && $0.contains(reference) })
@@ -100,11 +105,12 @@ struct GetHomeDataUseCase {
             StudyWeekday.timetableDays.contains($0.dayOfWeek) &&
             periodMap[$0.periodId] != nil
         }
-        guard !activeEntries.isEmpty else { return nil }
+        guard !activeEntries.isEmpty else { return [] }
 
         let calendar = Calendar.current
         let currentMinutes = (calendar.component(.hour, from: reference) * 60) + calendar.component(.minute, from: reference)
         let referenceWeekday = StudyWeekday.from(calendarWeekday: calendar.component(.weekday, from: reference))
+        var lessons: [TimetableLesson] = []
 
         for offset in 0..<7 {
             guard let date = calendar.date(byAdding: .day, value: offset, to: reference) else { continue }
@@ -124,17 +130,24 @@ struct GetHomeDataUseCase {
                 let period = pair.1
                 if offset == 0, day == referenceWeekday {
                     if currentMinutes >= period.startMinute && currentMinutes < period.endMinute {
-                        return TimetableLesson(entry: entry, period: period, dayOfWeek: day, date: date, isCurrent: true)
+                        lessons.append(TimetableLesson(entry: entry, period: period, dayOfWeek: day, date: date, isCurrent: true))
+                        continue
                     }
                     if currentMinutes >= period.endMinute {
                         continue
                     }
                 }
-                return TimetableLesson(entry: entry, period: period, dayOfWeek: day, date: date, isCurrent: false)
+                lessons.append(TimetableLesson(entry: entry, period: period, dayOfWeek: day, date: date, isCurrent: false))
+                if lessons.contains(where: { $0.isCurrent }) && lessons.contains(where: { !$0.isCurrent }) {
+                    return lessons
+                }
+                if !lessons.contains(where: { $0.isCurrent }) && lessons.count >= 1 {
+                    return lessons
+                }
             }
         }
 
-        return nil
+        return lessons
     }
 }
 

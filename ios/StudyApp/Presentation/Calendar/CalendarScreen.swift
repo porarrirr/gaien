@@ -77,11 +77,10 @@ struct CalendarScreen: View {
     }
 
     private var visibleCalendarDates: [Date] {
-        let anchor = selectedDate ?? Date()
-        let weekday = calendar.component(.weekday, from: anchor)
-        let startOfWeek = calendar.date(byAdding: .day, value: -(weekday - 1), to: anchor.startOfDay) ?? anchor.startOfDay
-        let start = calendar.date(byAdding: .day, value: -7, to: startOfWeek) ?? startOfWeek
-        return (0..<14).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        let monthStart = calendar.date(from: DateComponents(year: displayYear, month: displayMonth, day: 1)) ?? viewModel.displayedMonth.startOfDay
+        let weekday = calendar.component(.weekday, from: monthStart)
+        let start = calendar.date(byAdding: .day, value: -(weekday - 1), to: monthStart) ?? monthStart
+        return (0..<42).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
     }
 
     var body: some View {
@@ -239,6 +238,37 @@ struct CalendarScreen: View {
 
     private var calendarSummaryCard: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    moveMonth(by: -1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .bold))
+                        .frame(width: 40, height: 36)
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 8)
+
+                Text(calendarMonthTitle)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(AppColors.textPrimary)
+
+                Spacer(minLength: 8)
+
+                Button {
+                    moveMonth(by: 1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 17, weight: .bold))
+                        .frame(width: 40, height: 36)
+                }
+                .buttonStyle(.plain)
+            }
+            .foregroundStyle(AppColors.success)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 0) {
                 ForEach(weekdayLabels, id: \.self) { label in
                     Text(label)
@@ -1035,7 +1065,7 @@ private struct CalendarSummaryDayCell: View {
         Text("\(item.day)")
             .font(.system(size: 17, weight: isSelected ? .bold : .regular))
             .foregroundStyle(textColor)
-            .frame(maxWidth: .infinity, minHeight: 38)
+            .frame(maxWidth: .infinity, minHeight: 32)
             .background(
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(isSelected ? AppColors.success : Self.fillColor(minutes: item.minutes).opacity(item.isCurrentMonth ? 1 : 0.28))

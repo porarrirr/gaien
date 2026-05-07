@@ -14,7 +14,6 @@ struct MaterialsScreen: View {
     @StateObject private var viewModel: MaterialsViewModel
     @State private var materialDraft = MaterialDraft()
     @State private var editingMaterial: Material?
-    @State private var progressMaterial: Material?
     @State private var isbn = ""
     @State private var isShowingScanner = false
     @State private var isShowingIsbnSearch = false
@@ -75,9 +74,6 @@ struct MaterialsScreen: View {
                                 },
                                 onDelete: {
                                     viewModel.deleteMaterial(material)
-                                },
-                                onUpdateProgress: {
-                                    progressMaterial = material
                                 }
                             )
                         }
@@ -202,22 +198,6 @@ struct MaterialsScreen: View {
                     },
                     onCancel: {
                         editingMaterial = nil
-                    }
-                )
-            }
-        }
-        .sheet(item: $progressMaterial) { material in
-            NavigationStack {
-                ProgressEditorSheet(
-                    material: material,
-                    subjectName: viewModel.subjects.first(where: { $0.id == material.subjectId })?.name ?? "",
-                    subjectColor: viewModel.subjects.first(where: { $0.id == material.subjectId }).map { Color(hex: $0.color) } ?? AppColors.blue,
-                    onSave: { page in
-                        viewModel.updateProgress(materialId: material.id, currentPage: page)
-                        progressMaterial = nil
-                    },
-                    onCancel: {
-                        progressMaterial = nil
                     }
                 )
             }
@@ -420,7 +400,6 @@ private struct MaterialCardNew: View {
     let onMoveDown: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
-    let onUpdateProgress: () -> Void
 
     var body: some View {
         let accent = Color(hex: material.color ?? subjectColor)
@@ -466,11 +445,11 @@ private struct MaterialCardNew: View {
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 9) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("ページ進捗")
+                            Text("正誤率")
                                 .font(.caption)
                                 .foregroundStyle(AppColors.textPrimary)
                             Spacer(minLength: 8)
-                            Text(pageProgressText)
+                            Text(answerAccuracyText)
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundStyle(AppColors.textPrimary)
                                 .monospacedDigit()
@@ -478,13 +457,13 @@ private struct MaterialCardNew: View {
 
                         HStack(spacing: 8) {
                             AnimatedProgressBar(
-                                value: Double(material.currentPage),
-                                total: Double(max(material.totalPages, 1)),
+                                value: Double(answerAccuracyPercent),
+                                total: 100,
                                 height: 7,
                                 barColor: accent,
                                 trackColor: Color(.systemGray5)
                             )
-                            Text("\(material.progressPercent)%")
+                            Text("\(answerAccuracyPercent)%")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(AppColors.textPrimary)
                                 .monospacedDigit()
@@ -509,7 +488,7 @@ private struct MaterialCardNew: View {
                     }
 
                     MaterialPageProgressRing(
-                        progress: material.progress,
+                        progress: Double(answerAccuracyPercent) / 100,
                         color: accent
                     )
                     .frame(width: 78, height: 78)
@@ -541,7 +520,6 @@ private struct MaterialCardNew: View {
 
             HStack(spacing: 10) {
                 MaterialCardActionButton(title: "履歴", systemImage: "clock", color: AppColors.success, action: onOpenHistory)
-                MaterialCardActionButton(title: "進捗", systemImage: "chart.bar", color: AppColors.success, action: onUpdateProgress)
                 MaterialCardActionButton(title: "編集", systemImage: "pencil", color: AppColors.success, action: onEdit)
                 Spacer(minLength: 4)
                 MaterialIconOnlyButton(systemImage: "arrow.up", color: AppColors.success, disabled: !canMoveUp, action: onMoveUp)
@@ -558,9 +536,13 @@ private struct MaterialCardNew: View {
         .contentShape(Rectangle())
     }
 
-    private var pageProgressText: String {
-        guard material.totalPages > 0 else { return "0 / 0 ページ" }
-        return "\(material.currentPage) / \(material.totalPages) ページ"
+    private var answerAccuracyPercent: Int {
+        progressSummary?.answerAccuracyPercent ?? 0
+    }
+
+    private var answerAccuracyText: String {
+        guard let progressSummary, progressSummary.progressedCount > 0 else { return "記録なし" }
+        return "\(progressSummary.correctCount + progressSummary.reviewCorrectCount) / \(progressSummary.progressedCount) 問"
     }
 
     private var chapterText: String {
@@ -585,7 +567,7 @@ private struct MaterialPageProgressRing: View {
                     .font(.system(size: 21, weight: .bold))
                     .foregroundStyle(AppColors.textPrimary)
                     .monospacedDigit()
-                Text("教材進捗")
+                Text("正誤率")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(AppColors.textPrimary)
             }
@@ -930,22 +912,22 @@ private struct MaterialHistorySummaryCard: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     HStack {
-                        Text("ページ進捗")
+                        Text("正誤率")
                         Spacer()
-                        Text(pageProgressText)
+                        Text("\(answerRate)%")
                     }
                     .font(.system(size: 12))
                     .foregroundStyle(AppColors.textPrimary)
 
                     HStack(spacing: 8) {
                         AnimatedProgressBar(
-                            value: Double(material.currentPage),
-                            total: Double(max(material.totalPages, 1)),
+                            value: Double(answerRate),
+                            total: 100,
                             height: 4,
                             barColor: AppColors.blue,
                             trackColor: Color(.systemGray5)
                         )
-                        Text("\(material.progressPercent)%")
+                        Text("\(answerRate)%")
                             .font(.system(size: 12))
                             .foregroundStyle(AppColors.textPrimary)
                             .monospacedDigit()
@@ -1038,9 +1020,10 @@ private struct MaterialProblemRecordSummaryCard: View {
     private var wrongCount: Int { snapshot.wrongNumbers.count }
     private var reviewCorrectCount: Int { snapshot.reviewCorrectNumbers.count }
     private var untouchedCount: Int { max(totalProblems - snapshot.doneNumbers.count, 0) }
+    private var answeredCount: Int { correctCount + wrongCount + reviewCorrectCount }
     private var answerRate: Int {
-        guard totalProblems > 0 else { return 0 }
-        return Int((Double(correctCount + reviewCorrectCount) / Double(totalProblems) * 100).rounded())
+        guard answeredCount > 0 else { return 0 }
+        return Int((Double(correctCount + reviewCorrectCount) / Double(answeredCount) * 100).rounded())
     }
 
     var body: some View {
@@ -1090,12 +1073,12 @@ private struct MaterialProblemRecordSummaryCard: View {
 
             HStack(spacing: 10) {
                 MaterialHistoryInfoTile(
-                    icon: "book",
+                    icon: "checkmark.circle",
                     iconColor: AppColors.blue,
-                    title: "ページ進捗",
-                    primary: "\(material.currentPage) / \(max(material.totalPages, 0))ページ",
-                    progress: material.progress,
-                    trailing: "\(material.progressPercent)%"
+                    title: "正誤率",
+                    primary: "\(correctCount + reviewCorrectCount) / \(answeredCount)問",
+                    progress: Double(answerRate) / 100,
+                    trailing: "\(answerRate)%"
                 )
                 MaterialHistoryInfoTile(
                     icon: "list.bullet",
@@ -2681,386 +2664,6 @@ private struct MaterialEditorCardModifier: ViewModifier {
 private extension View {
     func materialEditorCard(padding: CGFloat) -> some View {
         modifier(MaterialEditorCardModifier(padding: padding))
-    }
-}
-
-private struct ProgressEditorSheet: View {
-    let material: Material
-    let subjectName: String
-    let subjectColor: Color
-    let onSave: (Int) -> Void
-    let onCancel: () -> Void
-    @State private var currentPage: String
-
-    init(
-        material: Material,
-        subjectName: String,
-        subjectColor: Color,
-        onSave: @escaping (Int) -> Void,
-        onCancel: @escaping () -> Void
-    ) {
-        self.material = material
-        self.subjectName = subjectName
-        self.subjectColor = subjectColor
-        self.onSave = onSave
-        self.onCancel = onCancel
-        _currentPage = State(initialValue: "\(material.currentPage)")
-    }
-
-    private var enteredPage: Int? {
-        Int(currentPage.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private var displayPage: Int {
-        enteredPage ?? material.currentPage
-    }
-
-    private var totalPages: Int {
-        max(material.totalPages, 1)
-    }
-
-    private var clampedDisplayPage: Int {
-        min(max(displayPage, 0), totalPages)
-    }
-
-    private var progress: Double {
-        totalPages > 0 ? min(max(Double(clampedDisplayPage) / Double(totalPages), 0), 1) : 0
-    }
-
-    private var progressPercent: Int {
-        Int((progress * 100).rounded(.down))
-    }
-
-    private var isValidPage: Bool {
-        guard let enteredPage else { return false }
-        return (1...totalPages).contains(enteredPage)
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .center) {
-                Button("キャンセル", action: onCancel)
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(AppColors.blue)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text("進捗を更新")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(AppColors.textPrimary)
-                    .frame(maxWidth: .infinity)
-
-                Button("保存") {
-                    guard let enteredPage, isValidPage else { return }
-                    onSave(enteredPage)
-                }
-                .font(.system(size: 22, weight: .regular))
-                .foregroundStyle(AppColors.success)
-                .disabled(!isValidPage)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            .padding(.horizontal, 22)
-            .padding(.top, 24)
-            .padding(.bottom, 18)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    ProgressEditorSummaryCard(
-                        material: material,
-                        subjectName: subjectName.isEmpty ? "科目未設定" : subjectName,
-                        subjectColor: subjectColor,
-                        page: clampedDisplayPage,
-                        totalPages: totalPages,
-                        progress: progress,
-                        progressPercent: progressPercent
-                    )
-
-                    ProgressEditorPageCard(
-                        currentPage: $currentPage,
-                        page: displayPage,
-                        totalPages: totalPages,
-                        progressPercent: progressPercent,
-                        isValidPage: isValidPage
-                    )
-
-                    ProgressEditorNoticeCard()
-                }
-                .padding(.horizontal, 22)
-                .padding(.top, 10)
-                .padding(.bottom, 30)
-            }
-        }
-        .background(Color(.systemBackground).ignoresSafeArea())
-        .toolbar(.hidden, for: .navigationBar)
-    }
-}
-
-private struct ProgressEditorSummaryCard: View {
-    let material: Material
-    let subjectName: String
-    let subjectColor: Color
-    let page: Int
-    let totalPages: Int
-    let progress: Double
-    let progressPercent: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top, spacing: 18) {
-                ProgressEditorBookCover(title: material.name, subtitle: subjectName)
-
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 10) {
-                        Circle()
-                            .fill(subjectColor)
-                            .frame(width: 15, height: 15)
-                        Text(subjectName)
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(AppColors.textPrimary)
-                            .lineLimit(1)
-                    }
-
-                    Text(material.name)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(AppColors.textPrimary)
-                        .lineLimit(2)
-
-                    Text("ページ進捗")
-                        .font(.callout)
-                        .foregroundStyle(AppColors.textSecondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            HStack(alignment: .center, spacing: 20) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(page)")
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppColors.success)
-                        Text("/ \(totalPages) ページ")
-                            .font(.title3)
-                            .foregroundStyle(AppColors.textPrimary)
-                    }
-
-                    AnimatedProgressBar(
-                        value: Double(page),
-                        total: Double(totalPages),
-                        height: 8,
-                        barColor: AppColors.blue,
-                        trackColor: Color(.systemGray5)
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-
-                ProgressEditorRing(progress: progress, percent: progressPercent)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 20)
-        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(AppColors.cardBorder.opacity(0.8), lineWidth: 1)
-        }
-    }
-}
-
-private struct ProgressEditorBookCover: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            LinearGradient(
-                colors: [Color(hex: 0x132E5B), Color(hex: 0x1A3A70)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Focus Gold")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(AppColors.orange)
-                    .lineLimit(1)
-                Spacer()
-                Text("数学")
-                    .font(.system(size: 5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-            .padding(8)
-
-            Path { path in
-                path.move(to: CGPoint(x: 62, y: 80))
-                path.addLine(to: CGPoint(x: 88, y: 28))
-                path.addLine(to: CGPoint(x: 108, y: 96))
-            }
-            .stroke(.white.opacity(0.12), lineWidth: 5)
-        }
-        .frame(width: 72, height: 108)
-        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
-        .accessibilityLabel(title)
-    }
-}
-
-private struct ProgressEditorRing: View {
-    let progress: Double
-    let percent: Int
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color(.systemGray5), lineWidth: 7)
-
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(AppColors.blue, style: StrokeStyle(lineWidth: 7, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-
-            VStack(spacing: 2) {
-                Text("\(percent)%")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppColors.textPrimary)
-                Text("進捗率")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-            }
-        }
-        .frame(width: 84, height: 84)
-    }
-}
-
-private struct ProgressEditorPageCard: View {
-    @Binding var currentPage: String
-    let page: Int
-    let totalPages: Int
-    let progressPercent: Int
-    let isValidPage: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("現在ページ")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppColors.textPrimary)
-
-                Text("現在取り組んでいる、または最後に学習した\nページを入力してください。")
-                    .font(.callout)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .lineSpacing(6)
-            }
-
-            HStack(spacing: 16) {
-                ProgressEditorStepButton(systemName: "minus") {
-                    currentPage = "\(max(page - 1, 1))"
-                }
-
-                TextField("0", text: $currentPage)
-                    .font(.system(size: 42, weight: .regular, design: .rounded))
-                    .foregroundStyle(AppColors.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .keyboardType(.numberPad)
-                    .frame(maxWidth: .infinity, minHeight: 74)
-                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color(.systemGray4), lineWidth: 1)
-                    }
-
-                ProgressEditorStepButton(systemName: "plus") {
-                    currentPage = "\(min(page + 1, totalPages))"
-                }
-            }
-
-            VStack(spacing: 10) {
-                Text("ページ")
-                    .font(.callout)
-                    .foregroundStyle(AppColors.textSecondary)
-
-                Text("1 〜 \(totalPages) ページの範囲で入力してください。")
-                    .font(.footnote)
-                    .foregroundStyle(AppColors.textSecondary)
-            }
-            .frame(maxWidth: .infinity)
-
-            Divider()
-
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "checkmark.circle")
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(AppColors.success)
-                    .frame(width: 44, height: 44)
-                    .background(AppColors.greenSoft, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(isValidPage ? "入力値は有効な範囲です" : "1〜\(totalPages)ページで入力してください")
-                        .font(.headline)
-                        .foregroundStyle(isValidPage ? AppColors.success : AppColors.danger)
-                    Text("進捗率： \(isValidPage ? progressPercent : 0)%")
-                        .font(.callout)
-                        .foregroundStyle(AppColors.textPrimary)
-                }
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 22)
-        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(AppColors.cardBorder.opacity(0.8), lineWidth: 1)
-        }
-    }
-}
-
-private struct ProgressEditorStepButton: View {
-    let systemName: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 28, weight: .regular))
-                .foregroundStyle(AppColors.textPrimary)
-                .frame(width: 56, height: 74)
-                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color(.systemGray4), lineWidth: 1)
-                }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct ProgressEditorNoticeCard: View {
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "info.circle.fill")
-                .font(.title3)
-                .foregroundStyle(AppColors.blue)
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("注意")
-                    .font(.headline)
-                    .foregroundStyle(AppColors.blue)
-                Text("この更新はページ進捗のみを変更します。\n問題の成績や学習記録は変更されません。")
-                    .font(.callout)
-                    .foregroundStyle(AppColors.textPrimary)
-                    .lineSpacing(5)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.blueSoft.opacity(0.45), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(AppColors.blue.opacity(0.16), lineWidth: 1)
-        }
     }
 }
 
