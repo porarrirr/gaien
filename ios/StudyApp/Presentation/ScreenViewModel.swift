@@ -3,7 +3,7 @@ import Foundation
 
 @MainActor
 class ScreenViewModel: ObservableObject {
-    unowned let app: StudyAppContainer
+    let app: StudyAppContainer
 
     init(app: StudyAppContainer) {
         self.app = app

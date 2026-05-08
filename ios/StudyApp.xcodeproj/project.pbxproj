@@ -19,6 +19,7 @@
 		A40000000000000000000009 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
 		A4000000000000000000000A /* TimetableModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000009 /* TimetableModels.swift */; };
 		A10000000000000000000003 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* PersistenceController.swift */; };
+		A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* LegacySnapshotModels.swift */; };
 		A10000000000000000000004 /* GoogleBooksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* GoogleBooksService.swift */; };
 		A10000000000000000000018 /* FirebaseRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseRepositories.swift */; };
 		A10000000000000000000005 /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* ReminderScheduler.swift */; };
@@ -28,6 +29,8 @@
 		A10000000000000000000008 /* StudyAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StudyAppViews.swift */; };
 		A10000000000000000000009 /* SubjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* SubjectsView.swift */; };
 		A10000000000000000000010 /* MaterialsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MaterialsScreen.swift */; };
+		A10000000000000000000025 /* BarcodeScannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* BarcodeScannerSheet.swift */; };
+		A10000000000000000000026 /* BookResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* BookResultSheet.swift */; };
 		A10000000000000000000011 /* HistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HistoryScreen.swift */; };
 		A10000000000000000000012 /* PlanScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* PlanScreen.swift */; };
 		A10000000000000000000013 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SettingsScreen.swift */; };
@@ -55,6 +58,8 @@
 		A30000000000000000000005 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000005 /* HomeViewModel.swift */; };
 		A30000000000000000000006 /* TimerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000006 /* TimerScreen.swift */; };
 		A30000000000000000000007 /* TimerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000007 /* TimerViewModel.swift */; };
+		A30000000000000000000028 /* TimerManualEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000028 /* TimerManualEntrySheet.swift */; };
+		A30000000000000000000029 /* TimerSessionEvaluationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */; };
 		A30000000000000000000008 /* CalendarScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000008 /* CalendarScreen.swift */; };
 		A30000000000000000000009 /* CalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000009 /* CalendarViewModel.swift */; };
 		A30000000000000000000010 /* ReportsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000010 /* ReportsScreen.swift */; };
@@ -90,6 +95,7 @@
 		B40000000000000000000008 /* FoundationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationExtensions.swift; sourceTree = "<group>"; };
 		B40000000000000000000009 /* TimetableModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
+		B10000000000000000000023 /* LegacySnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacySnapshotModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* FirebaseRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseRepositories.swift; sourceTree = "<group>"; };
 		B10000000000000000000017 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
@@ -102,6 +108,8 @@
 		B10000000000000000000009 /* StudyAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppViews.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* SubjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsView.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* MaterialsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000021 /* BarcodeScannerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerSheet.swift; sourceTree = "<group>"; };
+		B10000000000000000000022 /* BookResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookResultSheet.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* HistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* PlanScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000014 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
@@ -123,6 +131,8 @@
 		B30000000000000000000005 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		B30000000000000000000006 /* TimerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000007 /* TimerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000028 /* TimerManualEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerManualEntrySheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerSessionEvaluationSheet.swift; sourceTree = "<group>"; };
 		B30000000000000000000008 /* CalendarScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000009 /* CalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewModel.swift; sourceTree = "<group>"; };
 		B30000000000000000000010 /* ReportsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsScreen.swift; sourceTree = "<group>"; };
@@ -276,6 +286,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000004 /* PersistenceController.swift */,
+				B10000000000000000000023 /* LegacySnapshotModels.swift */,
 				B10000000000000000000005 /* GoogleBooksService.swift */,
 				B10000000000000000000016 /* FirebaseRepositories.swift */,
 			);
@@ -322,6 +333,8 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000011 /* MaterialsScreen.swift */,
+				B10000000000000000000021 /* BarcodeScannerSheet.swift */,
+				B10000000000000000000022 /* BookResultSheet.swift */,
 				B30000000000000000000016 /* MaterialsViewModel.swift */,
 				B30000000000000000000017 /* MaterialHistoryViewModel.swift */,
 			);
@@ -427,6 +440,8 @@
 			isa = PBXGroup;
 			children = (
 				B30000000000000000000006 /* TimerScreen.swift */,
+				B30000000000000000000028 /* TimerManualEntrySheet.swift */,
+				B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */,
 				B30000000000000000000007 /* TimerViewModel.swift */,
 			);
 			path = Timer;
@@ -642,6 +657,7 @@
 				A40000000000000000000008 /* FoundationExtensions.swift in Sources */,
 				A4000000000000000000000A /* TimetableModels.swift in Sources */,
 				A10000000000000000000003 /* PersistenceController.swift in Sources */,
+				A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */,
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,
 				A10000000000000000000018 /* FirebaseRepositories.swift in Sources */,
 				A10000000000000000000005 /* ReminderScheduler.swift in Sources */,
@@ -658,6 +674,8 @@
 				A30000000000000000000004 /* HomeScreen.swift in Sources */,
 				A30000000000000000000005 /* HomeViewModel.swift in Sources */,
 				A30000000000000000000006 /* TimerScreen.swift in Sources */,
+				A30000000000000000000028 /* TimerManualEntrySheet.swift in Sources */,
+				A30000000000000000000029 /* TimerSessionEvaluationSheet.swift in Sources */,
 				A30000000000000000000007 /* TimerViewModel.swift in Sources */,
 				A30000000000000000000008 /* CalendarScreen.swift in Sources */,
 				A30000000000000000000009 /* CalendarViewModel.swift in Sources */,
@@ -680,6 +698,8 @@
 				A30000000000000000000025 /* TimetableScreen.swift in Sources */,
 				A30000000000000000000026 /* TimetableViewModel.swift in Sources */,
 				A10000000000000000000010 /* MaterialsScreen.swift in Sources */,
+				A10000000000000000000025 /* BarcodeScannerSheet.swift in Sources */,
+				A10000000000000000000026 /* BookResultSheet.swift in Sources */,
 				A10000000000000000000011 /* HistoryScreen.swift in Sources */,
 				A10000000000000000000012 /* PlanScreen.swift in Sources */,
 				A10000000000000000000013 /* SettingsScreen.swift in Sources */,

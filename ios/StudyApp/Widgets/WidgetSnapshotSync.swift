@@ -5,7 +5,7 @@ import WidgetKit
 
 @MainActor
 final class WidgetSnapshotSync {
-    private unowned let container: StudyAppContainer
+    private weak var container: StudyAppContainer?
     private var refreshTask: Task<Void, Never>?
 
     init(container: StudyAppContainer) {
@@ -14,13 +14,14 @@ final class WidgetSnapshotSync {
 
     func scheduleRefresh(reason: String) {
         refreshTask?.cancel()
-        refreshTask = Task {
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
             do {
-                try await refresh(reason: reason)
+                try await self.refresh(reason: reason)
             } catch is CancellationError {
                 return
             } catch {
-                container.logger.log(
+                self.container?.logger.log(
                     category: .app,
                     level: .warning,
                     message: "Widget snapshot refresh failed",
@@ -32,7 +33,8 @@ final class WidgetSnapshotSync {
     }
 
     private func refresh(reason: String) async throws {
-        let snapshot = try await buildSnapshot()
+        guard let container else { return }
+        let snapshot = try await buildSnapshot(container: container)
         try StudyWidgetSnapshotStore.write(snapshot)
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
@@ -44,7 +46,7 @@ final class WidgetSnapshotSync {
         )
     }
 
-    private func buildSnapshot() async throws -> StudyWidgetSnapshot {
+    private func buildSnapshot(container: StudyAppContainer) async throws -> StudyWidgetSnapshot {
         let now = container.clock.now()
         let today = now.startOfDay
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) ?? today

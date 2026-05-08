@@ -121,7 +121,6 @@ final class StudyAppContainer: ObservableObject {
         if shouldSyncLiveActivity(previous: previous, next: next) {
             syncLiveActivity(reason: "preferences")
         }
-        objectWillChange.send()
     }
 
     func completeOnboarding() {
