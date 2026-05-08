@@ -154,13 +154,13 @@ struct SettingsScreen: View {
     }
 
     private var landscapeTimerGroup: some View {
-        settingsGroup(title: "タイマー横向き表示") {
+        settingsGroup(title: "横向きタイマーの表示") {
             ForEach(Array(LandscapeTimerDisplayPreset.allCases.enumerated()), id: \.element.id) { index, preset in
                 Button {
                     viewModel.app.setLandscapeTimerDisplayPreset(preset)
                 } label: {
                     HStack(spacing: 12) {
-                        SettingsIcon(systemName: preset == .problemProgress ? "iphone.landscape" : "arrow.triangle.2.circlepath")
+                        SettingsIcon(systemName: preset == .problemProgress ? "square.grid.3x3" : "timer")
                         Text(settingsTitle(for: preset))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(AppColors.textPrimary)
@@ -182,11 +182,11 @@ struct SettingsScreen: View {
     }
 
     private var dashboardCards: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
+        VStack(alignment: .leading, spacing: 18) {
             dataSummaryCard
             cloudSyncCard
-            dangerCard
             backupCard
+            dangerCard
         }
     }
 
@@ -226,7 +226,6 @@ struct SettingsScreen: View {
             Divider()
             compactInfoRow(icon: "clock", title: "総学習時間", value: totalStudyTimeText)
         }
-        .frame(minHeight: 164, alignment: .top)
     }
 
     private var cloudSyncCard: some View {
@@ -274,7 +273,6 @@ struct SettingsScreen: View {
                 isShowingDeleteConfirmation = true
             }
         }
-        .frame(minHeight: 126, alignment: .top)
     }
 
     private var backupCard: some View {
@@ -293,7 +291,6 @@ struct SettingsScreen: View {
                 }
             }
         }
-        .frame(minHeight: 126, alignment: .top)
     }
 
     private var debugLogCard: some View {
@@ -354,6 +351,9 @@ struct SettingsScreen: View {
             Text(title)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(titleColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .layoutPriority(1)
             Spacer()
             if title == "カラー" {
                 Circle()
@@ -365,7 +365,9 @@ struct SettingsScreen: View {
                     .font(.body)
                     .foregroundStyle(AppColors.textSecondary)
                     .lineLimit(1)
+                    .truncationMode(.middle)
                     .minimumScaleFactor(0.75)
+                    .frame(maxWidth: 190, alignment: .trailing)
             }
             Image(systemName: "chevron.right")
                 .font(.title3.weight(.semibold))
@@ -385,6 +387,8 @@ struct SettingsScreen: View {
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(AppColors.textPrimary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .layoutPriority(1)
             Spacer()
             if showsStatusDot {
                 Circle()
@@ -395,7 +399,9 @@ struct SettingsScreen: View {
                 .font(.callout)
                 .foregroundStyle(color)
                 .lineLimit(1)
+                .truncationMode(.middle)
                 .minimumScaleFactor(0.65)
+                .frame(maxWidth: 210, alignment: .trailing)
         }
         .frame(minHeight: 40)
     }
@@ -425,9 +431,9 @@ struct SettingsScreen: View {
     private func settingsTitle(for preset: LandscapeTimerDisplayPreset) -> String {
         switch preset {
         case .problemProgress:
-            return "タイマー固定（推奨）"
+            return "問題集つき（推奨）"
         case .clockOnly:
-            return "自動回転（全画面対応）"
+            return "時計のみ"
         }
     }
 

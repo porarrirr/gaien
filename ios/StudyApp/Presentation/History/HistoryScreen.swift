@@ -379,6 +379,10 @@ private struct HistorySessionCardNew: View {
                 ProblemCountColumn(title: "復習正解", value: reviewCorrectProblemCount, color: AppColors.warning)
             }
 
+            if !session.problemRecords.isEmpty {
+                problemResultDetails
+            }
+
             Text(noteDisplay)
                 .font(.subheadline)
                 .foregroundStyle(AppColors.textPrimary)
@@ -408,6 +412,44 @@ private struct HistorySessionCardNew: View {
 
     private var noteDisplay: String {
         session.note?.nilIfBlank ?? "メモはありません"
+    }
+
+    private var problemResultDetails: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            problemResultLine(title: "正解", color: AppColors.success, result: .correct)
+            problemResultLine(title: "不正解", color: AppColors.danger, result: .wrong)
+            problemResultLine(title: "復習正解", color: AppColors.warning, result: .reviewCorrect)
+        }
+    }
+
+    @ViewBuilder
+    private func problemResultLine(title: String, color: Color, result: ProblemResult) -> some View {
+        let numbers = session.problemRecords
+            .filter { $0.result == result }
+            .map(\.number)
+            .sorted()
+            .map { problemChapters.label(for: $0) }
+        if !numbers.isEmpty {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(color)
+                    .frame(width: 42, alignment: .leading)
+                Text(compactProblemNumbers(numbers))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .monospacedDigit()
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+    }
+
+    private func compactProblemNumbers(_ numbers: [String]) -> String {
+        let visibleLimit = 8
+        let visible = numbers.prefix(visibleLimit).joined(separator: ", ")
+        let remaining = numbers.count - visibleLimit
+        return remaining > 0 ? "\(visible) +\(remaining)" : visible
     }
 
     private var problemRangeDisplay: String {

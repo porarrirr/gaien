@@ -239,9 +239,8 @@ struct MaterialListProgressSummary: Hashable {
     }
 
     var answerAccuracyPercent: Int {
-        let answered = correctCount + wrongCount + reviewCorrectCount
-        guard answered > 0 else { return 0 }
-        return Int((Double(correctCount + reviewCorrectCount) / Double(answered) * 100).rounded())
+        guard totalProblems > 0 else { return 0 }
+        return Int((Double(correctCount + reviewCorrectCount) / Double(totalProblems) * 100).rounded())
     }
 
     var untouchedPercent: Int {

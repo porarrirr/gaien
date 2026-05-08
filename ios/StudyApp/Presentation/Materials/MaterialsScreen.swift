@@ -541,8 +541,8 @@ private struct MaterialCardNew: View {
     }
 
     private var answerAccuracyText: String {
-        guard let progressSummary, progressSummary.progressedCount > 0 else { return "記録なし" }
-        return "\(progressSummary.correctCount + progressSummary.reviewCorrectCount) / \(progressSummary.progressedCount) 問"
+        guard let progressSummary, progressSummary.totalProblems > 0 else { return "記録なし" }
+        return "\(progressSummary.correctCount + progressSummary.reviewCorrectCount) / \(progressSummary.totalProblems) 問"
     }
 
     private var chapterText: String {
@@ -892,17 +892,18 @@ private struct MaterialHistorySummaryCard: View {
     let sessions: [StudySession]
 
     private var answerRate: Int {
+        let totalProblems = material.effectiveTotalProblems
+        guard totalProblems > 0 else { return 0 }
         let latestResults = sessions
             .sorted { $0.sessionStartTime < $1.sessionStartTime }
             .reduce(into: [Int: ProblemResult]()) { result, session in
                 for record in session.problemRecords {
+                    guard (1...totalProblems).contains(record.number) else { continue }
                     result[record.number] = record.result
                 }
             }
-        let answered = latestResults.count
-        guard answered > 0 else { return 0 }
         let correct = latestResults.values.filter { $0 == .correct || $0 == .reviewCorrect }.count
-        return Int((Double(correct) / Double(answered) * 100).rounded())
+        return Int((Double(correct) / Double(totalProblems) * 100).rounded())
     }
 
     var body: some View {
@@ -1032,10 +1033,9 @@ private struct MaterialProblemRecordSummaryCard: View {
     private var wrongCount: Int { snapshot.wrongNumbers.count }
     private var reviewCorrectCount: Int { snapshot.reviewCorrectNumbers.count }
     private var untouchedCount: Int { max(totalProblems - snapshot.doneNumbers.count, 0) }
-    private var answeredCount: Int { correctCount + wrongCount + reviewCorrectCount }
     private var answerRate: Int {
-        guard answeredCount > 0 else { return 0 }
-        return Int((Double(correctCount + reviewCorrectCount) / Double(answeredCount) * 100).rounded())
+        guard totalProblems > 0 else { return 0 }
+        return Int((Double(correctCount + reviewCorrectCount) / Double(totalProblems) * 100).rounded())
     }
 
     var body: some View {
@@ -1088,7 +1088,7 @@ private struct MaterialProblemRecordSummaryCard: View {
                     icon: "checkmark.circle",
                     iconColor: AppColors.blue,
                     title: "正誤率",
-                    primary: "\(correctCount + reviewCorrectCount) / \(answeredCount)問",
+                    primary: "\(correctCount + reviewCorrectCount) / \(totalProblems)問",
                     progress: Double(answerRate) / 100,
                     trailing: "\(answerRate)%"
                 )

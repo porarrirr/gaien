@@ -464,12 +464,12 @@ private struct HistoryProblemRecordGrid: View {
     let chapters: [ProblemChapter]
     @Binding var records: [ProblemSessionRecord]
 
-    private let columns = [GridItem(.adaptive(minimum: 34, maximum: 48), spacing: 6)]
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 48), spacing: 6), count: 5)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
-                ForEach(range.prefix(16), id: \.self) { number in
+                ForEach(range, id: \.self) { number in
                     HistoryProblemTile(
                         number: number,
                         label: tileLabel(for: number),
@@ -478,12 +478,6 @@ private struct HistoryProblemRecordGrid: View {
                         onWrong: { setResult(.wrong, for: number) },
                         onReview: { setResult(.reviewCorrect, for: number) }
                     )
-                }
-                if range.count > 16 {
-                    Text("...")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(AppColors.textSecondary)
-                        .frame(height: 52)
                 }
             }
 
@@ -549,6 +543,8 @@ private struct HistoryProblemTile: View {
                     .font(.caption.weight(.medium))
                     .monospacedDigit()
                     .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
                 Image(systemName: iconName)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(iconColor)

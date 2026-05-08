@@ -340,37 +340,55 @@ struct CalendarScreen: View {
                         prepareEditing(session)
                     }
                 } label: {
-                    HStack(spacing: 16) {
-                        Circle()
-                            .fill(summarySubjectColor(index: index))
-                            .frame(width: 19, height: 19)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 16) {
+                            Circle()
+                                .fill(summarySubjectColor(index: index))
+                                .frame(width: 19, height: 19)
 
-                        Text(row.subject.subjectName)
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(AppColors.textPrimary)
-                            .frame(width: 82, alignment: .leading)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
+                            Text(row.subject.subjectName)
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundStyle(AppColors.textPrimary)
+                                .frame(width: 82, alignment: .leading)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
 
-                        Text(row.material.materialName)
-                            .font(.system(size: 17))
-                            .foregroundStyle(AppColors.textPrimary.opacity(0.86))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
+                            Text(row.material.materialName)
+                                .font(.system(size: 17))
+                                .foregroundStyle(AppColors.textPrimary.opacity(0.86))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
 
-                        Spacer(minLength: 10)
+                            Spacer(minLength: 10)
 
-                        Text(Goal.format(minutes: row.material.totalMinutes))
-                            .font(.system(size: 18, weight: .regular))
-                            .foregroundStyle(AppColors.textPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
+                            Text(Goal.format(minutes: row.material.totalMinutes))
+                                .font(.system(size: 18, weight: .regular))
+                                .foregroundStyle(AppColors.textPrimary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
 
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 18, weight: .semibold))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(AppColors.textSecondary)
+                        }
+
+                        if !row.material.problemRecords.isEmpty {
+                            Text(problemNumbersText(
+                                for: row.material.problemRecords,
+                                chapters: problemChapters(for: row.material),
+                                limitPerResult: 8
+                            ))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(AppColors.textSecondary)
+                            .monospacedDigit()
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, 35)
+                            .padding(.trailing, 26)
+                        }
                     }
                     .frame(minHeight: 56)
+                    .padding(.vertical, 8)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -991,21 +1009,33 @@ struct CalendarScreen: View {
         return start == end ? chapters.label(for: start) : "\(chapters.label(for: start)) - \(chapters.label(for: end))"
     }
 
-    private func problemNumbersText(for records: [ProblemSessionRecord], chapters: [ProblemChapter] = []) -> String {
+    private func problemNumbersText(
+        for records: [ProblemSessionRecord],
+        chapters: [ProblemChapter] = [],
+        limitPerResult: Int? = nil
+    ) -> String {
         let correct = records.filter { $0.result == .correct }.map { chapters.label(for: $0.number) }
         let wrong = records.filter(\.isWrong).map { chapters.label(for: $0.number) }
         let review = records.filter { $0.result == .reviewCorrect }.map { chapters.label(for: $0.number) }
         var parts: [String] = []
         if !wrong.isEmpty {
-            parts.append("不正解 \(wrong.map { String(describing: $0) }.joined(separator: ", "))")
+            parts.append("不正解 \(compactProblemLabels(wrong, limit: limitPerResult))")
         }
         if !correct.isEmpty {
-            parts.append("正解 \(correct.map { String(describing: $0) }.joined(separator: ", "))")
+            parts.append("正解 \(compactProblemLabels(correct, limit: limitPerResult))")
         }
         if !review.isEmpty {
-            parts.append("復習 \(review.map { String(describing: $0) }.joined(separator: ", "))")
+            parts.append("復習 \(compactProblemLabels(review, limit: limitPerResult))")
         }
         return parts.joined(separator: " / ")
+    }
+
+    private func compactProblemLabels(_ labels: [String], limit: Int?) -> String {
+        guard let limit, labels.count > limit else {
+            return labels.joined(separator: ", ")
+        }
+        let visible = labels.prefix(limit).joined(separator: ", ")
+        return "\(visible) +\(labels.count - limit)"
     }
 
     private func timeString(from millis: Int64) -> String {

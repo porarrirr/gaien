@@ -19,7 +19,7 @@ struct ReportsScreen: View {
                     title: "日別学習時間",
                     subtitle: "（直近7日）",
                     total: dailyTotalText,
-                    axisLabels: ["3時間", "2時間", "1時間", "0分"],
+                    axisLabels: chartAxisLabels(scaleMinutes: dailyScaleMinutes, divisions: 3),
                     scaleMinutes: dailyScaleMinutes,
                     items: dailyChartItems
                 )
@@ -28,7 +28,7 @@ struct ReportsScreen: View {
                     title: "週別学習時間",
                     subtitle: "（直近4週間）",
                     total: weeklyTotalText,
-                    axisLabels: ["20時間", "10時間", "0分"],
+                    axisLabels: chartAxisLabels(scaleMinutes: weeklyScaleMinutes, divisions: 2),
                     scaleMinutes: weeklyScaleMinutes,
                     items: weeklyChartItems
                 )
@@ -75,7 +75,7 @@ struct ReportsScreen: View {
     private var ratingSummarySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             reportTitle("平均評価", subtitle: "（★は5段階評価）")
-            HStack(spacing: 8) {
+            VStack(spacing: 8) {
                 ratingAverageCard(title: "今日", summary: viewModel.reports.ratingAverages.today)
                 ratingAverageCard(title: "今週", summary: viewModel.reports.ratingAverages.week)
                 ratingAverageCard(title: "今月", summary: viewModel.reports.ratingAverages.month)
@@ -90,17 +90,12 @@ struct ReportsScreen: View {
             if viewModel.reports.bySubject.isEmpty {
                 emptyText
             } else {
-                HStack(alignment: .top, spacing: 12) {
-                    SubjectBarList(items: subjectBreakdownItems)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                SubjectBarList(items: subjectBreakdownItems)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Rectangle()
-                        .fill(AppColors.cardBorder)
-                        .frame(width: 1, height: 156)
+                Divider()
 
-                    SubjectTable(items: subjectBreakdownItems, totalText: subjectTotalText)
-                        .frame(width: 150, alignment: .leading)
-                }
+                SubjectTable(items: subjectBreakdownItems, totalText: subjectTotalText)
             }
         }
         .reportCard(padding: 10)
@@ -140,7 +135,7 @@ struct ReportsScreen: View {
     }
 
     private var reportLegend: some View {
-        HStack(spacing: 8) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), alignment: .leading, spacing: 8) {
             ForEach(legendItems) { item in
                 HStack(spacing: 5) {
                     Circle()
@@ -152,18 +147,19 @@ struct ReportsScreen: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func ratingAverageCard(title: String, summary: RatingAverageSummary) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(AppColors.textPrimary)
-            HStack(alignment: .center, spacing: 7) {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .center, spacing: 10) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .frame(width: 42, alignment: .leading)
                 RatingStars(average: summary.average)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(summary.average.map { String(format: "%.1f", $0) } ?? "-")
@@ -171,8 +167,10 @@ struct ReportsScreen: View {
                     .foregroundStyle(AppColors.success)
                     .monospacedDigit()
             }
-            reportValueRow(title: "評価付き", value: summary.ratedMinutes > 0 ? Goal.format(minutes: summary.ratedMinutes) : "0分")
-            reportValueRow(title: "未評価", value: "0分")
+            HStack(spacing: 12) {
+                reportValueRow(title: "評価付き", value: summary.ratedMinutes > 0 ? Goal.format(minutes: summary.ratedMinutes) : "0分")
+                reportValueRow(title: "未評価", value: "0分")
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
@@ -194,6 +192,7 @@ struct ReportsScreen: View {
                 .foregroundStyle(AppColors.textPrimary)
                 .monospacedDigit()
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func reportMetricCard(icon: String, title: String, value: String, suffix: String, subtitle: String) -> some View {
@@ -339,6 +338,24 @@ struct ReportsScreen: View {
         guard minutes > 0 else { return 60 }
         return Int(ceil(Double(minutes) / 60.0)) * 60
     }
+
+    private func chartAxisLabels(scaleMinutes: Int, divisions: Int) -> [String] {
+        guard divisions > 0 else { return [compactAxisLabel(minutes: scaleMinutes), "0分"] }
+        return (0...divisions).map { index in
+            let minutes = Int((Double(scaleMinutes) * Double(divisions - index) / Double(divisions)).rounded())
+            return compactAxisLabel(minutes: minutes)
+        }
+    }
+
+    private func compactAxisLabel(minutes: Int) -> String {
+        guard minutes > 0 else { return "0分" }
+        let hours = minutes / 60
+        let remainingMinutes = minutes % 60
+        if hours == 0 { return "\(remainingMinutes)分" }
+        if remainingMinutes == 0 { return "\(hours)時間" }
+        if remainingMinutes == 30 { return "\(hours)時間半" }
+        return "\(hours)h\(remainingMinutes)m"
+    }
 }
 
 private struct ReportStackedSegment: Identifiable {
@@ -397,7 +414,8 @@ private struct ReportStackedBarChart: View {
                     }
                 }
             }
-            .frame(width: 44, height: 186)
+            .frame(width: 54, height: 194)
+            .padding(.bottom, 36)
 
             VStack(spacing: 0) {
                 GeometryReader { geometry in
@@ -412,7 +430,7 @@ private struct ReportStackedBarChart: View {
                                 ReportStackedBar(
                                     item: item,
                                     scaleMinutes: scaleMinutes,
-                                    plotHeight: geometry.size.height - 38,
+                                    plotHeight: geometry.size.height - 58,
                                     barWidth: barWidth
                                 )
                             }
@@ -420,7 +438,7 @@ private struct ReportStackedBarChart: View {
                         .padding(.horizontal, 6)
                     }
                 }
-                .frame(height: 212)
+                .frame(height: 252)
             }
         }
     }
@@ -440,7 +458,7 @@ private struct ReportStackedBar: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(item.valueMinutes > 0 ? item.topLabel : "")
-                .font(.caption.weight(.semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(item.isEmphasized ? AppColors.success : AppColors.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
@@ -459,10 +477,10 @@ private struct ReportStackedBar: View {
 
             VStack(spacing: 1) {
                 Text(item.primaryLabel)
-                    .font(.caption)
+                    .font(.system(size: 13, weight: .regular))
                 if !item.secondaryLabel.isEmpty {
                     Text(item.secondaryLabel)
-                        .font(.caption.weight(.semibold))
+                        .font(.system(size: 12, weight: .semibold))
                 }
             }
             .foregroundStyle(item.isEmphasized ? AppColors.success : AppColors.textPrimary.opacity(0.84))
@@ -515,27 +533,28 @@ private struct SubjectBarList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
             ForEach(items) { item in
-                HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text(item.name)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColors.textPrimary)
-                        .frame(width: 48, alignment: .leading)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
 
-                    GeometryReader { geometry in
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(item.color.gradient)
-                            .frame(width: max(CGFloat(item.minutes) / CGFloat(maxMinutes) * geometry.size.width, 8))
-                    }
-                    .frame(height: 14)
+                    HStack(spacing: 8) {
+                        GeometryReader { geometry in
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(item.color.gradient)
+                                .frame(width: max(CGFloat(item.minutes) / CGFloat(maxMinutes) * geometry.size.width, 8))
+                        }
+                        .frame(height: 14)
 
-                    Text("\(item.timeText) (\(item.percent)%)")
-                        .font(.caption2)
-                        .foregroundStyle(AppColors.textPrimary)
-                        .frame(width: 78, alignment: .leading)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.62)
+                        Text("\(item.timeText)（\(item.percent)%）")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textPrimary)
+                            .frame(width: 116, alignment: .trailing)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
                 }
             }
         }
@@ -549,18 +568,17 @@ private struct SubjectTable: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Spacer()
                 Text("時間")
                     .font(.caption)
                     .foregroundStyle(AppColors.textPrimary)
-                    .frame(width: 58, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 Text("割合")
                     .font(.caption)
                     .foregroundStyle(AppColors.textPrimary)
-                    .frame(width: 30, alignment: .trailing)
+                    .frame(width: 48, alignment: .trailing)
             }
             ForEach(items) { item in
-                HStack(spacing: 5) {
+                HStack(spacing: 8) {
                     Circle()
                         .fill(item.color)
                         .frame(width: 13, height: 13)
@@ -572,13 +590,13 @@ private struct SubjectTable: View {
                     Text(item.timeText)
                         .font(.caption)
                         .foregroundStyle(AppColors.textPrimary)
-                        .frame(width: 58, alignment: .trailing)
+                        .frame(width: 96, alignment: .trailing)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     Text("\(item.percent)%")
                         .font(.caption)
                         .foregroundStyle(AppColors.textPrimary)
-                        .frame(width: 30, alignment: .trailing)
+                        .frame(width: 48, alignment: .trailing)
                 }
             }
             Rectangle()
@@ -590,12 +608,12 @@ private struct SubjectTable: View {
                 Spacer()
                 Text(totalText)
                     .font(.caption.weight(.semibold))
-                    .frame(width: 70, alignment: .trailing)
+                    .frame(width: 96, alignment: .trailing)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Text("100%")
                     .font(.caption.weight(.semibold))
-                    .frame(width: 34, alignment: .trailing)
+                    .frame(width: 48, alignment: .trailing)
             }
             .foregroundStyle(AppColors.success)
         }

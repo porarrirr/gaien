@@ -232,7 +232,7 @@ struct HomeScreen: View {
     }
 
     private var sessionsAndExamsGrid: some View {
-        LazyVGrid(columns: columns, spacing: 8) {
+        VStack(spacing: 8) {
             sessionsCard
             examsCard
         }
@@ -300,10 +300,14 @@ struct HomeScreen: View {
                 if viewModel.recentMaterials.isEmpty {
                     emptyCompactText("最近使った教材はありません")
                 } else {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                        ForEach(Array(viewModel.recentMaterials.prefix(4).enumerated()), id: \.offset) { _, pair in
-                            MaterialMiniCard(material: pair.0, subject: pair.1)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(Array(viewModel.recentMaterials.prefix(6).enumerated()), id: \.offset) { _, pair in
+                                MaterialMiniCard(material: pair.0, subject: pair.1)
+                                    .frame(width: 138)
+                            }
                         }
+                        .padding(.vertical, 1)
                     }
                 }
             }
@@ -334,11 +338,16 @@ struct HomeScreen: View {
             Text(title)
                 .font(.headline.weight(.bold))
                 .foregroundStyle(AppColors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .layoutPriority(1)
             Spacer()
             if let countText {
                 Text(countText)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(countText.contains("/") ? AppColors.textPrimary : AppColors.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
             Image(systemName: "chevron.right")
                 .font(.subheadline.weight(.semibold))
@@ -348,10 +357,11 @@ struct HomeScreen: View {
 
     private func footerLink(_ title: String) -> some View {
         HStack {
-            Spacer()
             Text(title)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(AppColors.success)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(AppColors.textSecondary)

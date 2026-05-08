@@ -895,9 +895,9 @@ private struct LandscapeTimerFocusView: View {
     }
 
     private func gridColumns(for availableWidth: CGFloat) -> [GridItem] {
-        let minimumTileWidth: CGFloat = 40
+        let minimumTileWidth: CGFloat = 54
         let spacing: CGFloat = 8
-        let columnCount = max(5, min(10, Int((availableWidth + spacing) / (minimumTileWidth + spacing))))
+        let columnCount = max(4, min(7, Int((availableWidth + spacing) / (minimumTileWidth + spacing))))
         return Array(repeating: GridItem(.flexible(minimum: minimumTileWidth), spacing: spacing), count: columnCount)
     }
 
@@ -1028,9 +1028,9 @@ private struct LandscapeProblemProgressTile: View {
             .monospacedDigit()
             .foregroundStyle(.white)
             .lineLimit(1)
-            .minimumScaleFactor(0.75)
+            .minimumScaleFactor(0.68)
             .frame(maxWidth: .infinity)
-            .frame(height: 40)
+            .frame(height: 44)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(fill)
@@ -1303,13 +1303,16 @@ private struct TimerProblemProgressEditor: View {
     let material: Material
     let materialProblemCount: Int
     let materialProblemChapters: [ProblemChapter]
+    @State private var selectedSectionId = 0
 
-    private let columns = Array(repeating: GridItem(.flexible(minimum: 26), spacing: 8), count: 10)
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 48), spacing: 8), count: 5)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if effectiveProblemCount > 0 {
-                ForEach(problemSections) { section in
+                sectionSelector
+
+                if let section = selectedProblemSection {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .firstTextBaseline) {
                             Text(section.title)
@@ -1341,6 +1344,10 @@ private struct TimerProblemProgressEditor: View {
             let count = effectiveProblemCount
             guard count > 0 else { return }
             records.removeAll { $0.number > count }
+            clampSelectedSection()
+        }
+        .onAppear {
+            clampSelectedSection()
         }
     }
 
@@ -1381,6 +1388,45 @@ private struct TimerProblemProgressEditor: View {
         }
     }
 
+    private var selectedProblemSection: TimerProblemSection? {
+        let sections = problemSections
+        return sections.first { $0.id == selectedSectionId } ?? sections.first
+    }
+
+    @ViewBuilder
+    private var sectionSelector: some View {
+        let sections = problemSections
+        if sections.count > 1 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(sections) { section in
+                        Button {
+                            selectedSectionId = section.id
+                        } label: {
+                            VStack(spacing: 2) {
+                                Text(section.title)
+                                    .lineLimit(1)
+                                Text("\(section.start)〜\(section.end)")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .monospacedDigit()
+                            }
+                            .font(.caption.bold())
+                            .foregroundStyle(selectedSectionId == section.id ? Color.white : AppColors.success)
+                            .padding(.horizontal, 12)
+                            .frame(height: 44)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(selectedSectionId == section.id ? AppColors.success : AppColors.success.opacity(0.10))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
     private func timerProblemTile(_ number: Int) -> some View {
         Button {
             cycleRecord(number)
@@ -1389,8 +1435,10 @@ private struct TimerProblemProgressEditor: View {
                 .font(.system(size: 15, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(tileForeground(for: number))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
                 .frame(maxWidth: .infinity)
-                .frame(height: 31)
+                .frame(height: 42)
                 .background(tileBackground(for: number), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -1493,6 +1541,17 @@ private struct TimerProblemProgressEditor: View {
 
     private func decrementProblemCount() {
         setProblemCount(max(effectiveProblemCount - 1, 0))
+    }
+
+    private func clampSelectedSection() {
+        let sections = problemSections
+        guard !sections.isEmpty else {
+            selectedSectionId = 0
+            return
+        }
+        if !sections.contains(where: { $0.id == selectedSectionId }) {
+            selectedSectionId = sections[0].id
+        }
     }
 }
 
@@ -2490,7 +2549,7 @@ private struct ProblemChapterRecordRow: View {
     let section: EvaluationProblemSection
     @Binding var records: [ProblemSessionRecord]
 
-    private let columns = Array(repeating: GridItem(.flexible(minimum: 26), spacing: 6), count: 10)
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 48), spacing: 6), count: 5)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -2548,6 +2607,8 @@ private struct EvaluationProblemTile: View {
                     .font(.system(size: 13, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
                 Text(symbol)
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(tint)
