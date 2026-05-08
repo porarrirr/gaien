@@ -84,9 +84,12 @@ struct TimerScreen: View {
 
                                         VStack(spacing: 5) {
                                             Text(durationString(milliseconds: viewModel.displayMilliseconds))
-                                                .font(.system(size: 46, weight: .regular, design: .rounded))
+                                                .font(.system(size: timerTextFontSize(for: geometry.size), weight: .regular, design: .rounded))
                                                 .monospacedDigit()
                                                 .foregroundStyle(AppColors.textPrimary)
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.72)
+                                                .frame(width: timerTextWidth(for: geometry.size), alignment: .center)
                                             Text(viewModel.isRunning ? "記録中" : "待機中")
                                                 .font(.system(size: 20, weight: .bold))
                                                 .foregroundStyle(viewModel.isRunning ? AppColors.success : AppColors.textSecondary)
@@ -514,6 +517,15 @@ struct TimerScreen: View {
         let widthLimited = min(size.width - 92, 262)
         let heightLimited = min(max(size.height * 0.24, 188), 238)
         return max(188, min(widthLimited, heightLimited))
+    }
+
+    private func timerTextWidth(for size: CGSize) -> CGFloat {
+        max(timerRingSize(for: size) - 36, 132)
+    }
+
+    private func timerTextFontSize(for size: CGSize) -> CGFloat {
+        let ringSize = timerRingSize(for: size)
+        return min(max(ringSize * 0.22, 38), 46)
     }
 
     private func timerControlButton(systemImage: String, color: Color, action: @escaping () -> Void) -> some View {

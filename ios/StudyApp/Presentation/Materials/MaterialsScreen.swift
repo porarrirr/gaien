@@ -442,79 +442,83 @@ private struct MaterialCardNew: View {
                     }
                 }
 
-                HStack(alignment: .center, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 9) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text("正誤率")
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textPrimary)
-                            Spacer(minLength: 8)
-                            Text(answerAccuracyText)
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(AppColors.textPrimary)
-                                .monospacedDigit()
+                if hasProblemTracking {
+                    HStack(alignment: .center, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 9) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("正誤率")
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textPrimary)
+                                Spacer(minLength: 8)
+                                Text(answerAccuracyText)
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(AppColors.textPrimary)
+                                    .monospacedDigit()
+                            }
+
+                            HStack(spacing: 8) {
+                                AnimatedProgressBar(
+                                    value: Double(answerAccuracyPercent),
+                                    total: 100,
+                                    height: 7,
+                                    barColor: accent,
+                                    trackColor: Color(.systemGray5)
+                                )
+                                Text("\(answerAccuracyPercent)%")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AppColors.textPrimary)
+                                    .monospacedDigit()
+                                    .frame(width: 36, alignment: .trailing)
+                            }
+
+                            HStack {
+                                Text("問題数")
+                                Text("\(material.effectiveTotalProblems)問")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(AppColors.textPrimary)
+                                Text(chapterText)
+                                Spacer(minLength: 8)
+                                Text("進捗")
+                                Text("\(progressSummary?.progressedCount ?? 0)問")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(AppColors.success)
+                                    .monospacedDigit()
+                            }
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textPrimary)
                         }
 
-                        HStack(spacing: 8) {
-                            AnimatedProgressBar(
-                                value: Double(answerAccuracyPercent),
-                                total: 100,
-                                height: 7,
-                                barColor: accent,
-                                trackColor: Color(.systemGray5)
-                            )
-                            Text("\(answerAccuracyPercent)%")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(AppColors.textPrimary)
-                                .monospacedDigit()
-                                .frame(width: 36, alignment: .trailing)
-                        }
-
-                        HStack {
-                            Text("問題数")
-                            Text("\(material.effectiveTotalProblems)問")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(AppColors.textPrimary)
-                            Text(chapterText)
-                            Spacer(minLength: 8)
-                            Text("進捗")
-                            Text("\(progressSummary?.progressedCount ?? 0)問")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(AppColors.success)
-                                .monospacedDigit()
-                        }
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textPrimary)
+                        MaterialPageProgressRing(
+                            progress: Double(answerAccuracyPercent) / 100,
+                            color: accent
+                        )
+                        .frame(width: 78, height: 78)
                     }
-
-                    MaterialPageProgressRing(
-                        progress: Double(answerAccuracyPercent) / 100,
-                        color: accent
-                    )
-                    .frame(width: 78, height: 78)
                 }
             }
             .padding(12)
 
-            Divider()
+            if hasProblemTracking {
+                Divider()
 
-            HStack(alignment: .center, spacing: 10) {
-                HStack(spacing: 8) {
-                    MaterialCountTile(title: "正解", value: progressSummary?.correctCount ?? 0, color: AppColors.success)
-                    MaterialCountTile(title: "誤答", value: progressSummary?.wrongCount ?? 0, color: AppColors.danger)
-                    MaterialCountTile(title: "復習済", value: progressSummary?.reviewCorrectCount ?? 0, color: AppColors.warning)
-                }
-                .frame(maxWidth: .infinity)
+                HStack(alignment: .center, spacing: 10) {
+                    HStack(spacing: 8) {
+                        MaterialCountTile(title: "正解", value: progressSummary?.correctCount ?? 0, color: AppColors.success)
+                        MaterialCountTile(title: "誤答", value: progressSummary?.wrongCount ?? 0, color: AppColors.danger)
+                        MaterialCountTile(title: "復習済", value: progressSummary?.reviewCorrectCount ?? 0, color: AppColors.warning)
+                    }
+                    .frame(maxWidth: .infinity)
 
-                if let progressSummary {
-                    MaterialProblemPieChart(summary: progressSummary)
-                        .frame(width: 58, height: 58)
-                    MaterialProblemLegend(summary: progressSummary)
-                        .frame(width: 92)
+                    if let progressSummary {
+                        MaterialProblemPieChart(summary: progressSummary)
+                            .frame(width: 58, height: 58)
+                        MaterialProblemLegend(summary: progressSummary)
+                            .frame(width: 92)
+                    }
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
 
             Divider()
 
@@ -543,6 +547,10 @@ private struct MaterialCardNew: View {
     private var answerAccuracyText: String {
         guard let progressSummary, progressSummary.totalProblems > 0 else { return "記録なし" }
         return "\(progressSummary.correctCount + progressSummary.reviewCorrectCount) / \(progressSummary.totalProblems) 問"
+    }
+
+    private var hasProblemTracking: Bool {
+        material.effectiveTotalProblems > 0
     }
 
     private var chapterText: String {

@@ -577,7 +577,7 @@ struct CalendarScreen: View {
             }
 
             if material.wrongProblemCount > 0 || material.reviewCorrectProblemCount > 0 || !material.problemRecords.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Label("問題記録", systemImage: "list.number")
                         Spacer()
@@ -589,8 +589,11 @@ struct CalendarScreen: View {
                         }
                     }
                     if !material.problemRecords.isEmpty {
-                        Text(problemNumbersText(for: material.problemRecords, chapters: problemChapters(for: material)))
-                            .lineLimit(2)
+                        problemRecordSummaryRows(
+                            records: material.problemRecords,
+                            chapters: problemChapters(for: material),
+                            limitPerResult: 8
+                        )
                     }
                 }
                 .font(.caption)
@@ -828,6 +831,13 @@ struct CalendarScreen: View {
                             .foregroundStyle(AppColors.textPrimary)
                             .lineLimit(1)
                     }
+                    if !session.problemRecords.isEmpty {
+                        problemRecordSummaryRows(
+                            records: session.problemRecords,
+                            chapters: viewModel.materialProblemChapters(for: session),
+                            limitPerResult: 5
+                        )
+                    }
                 }
 
                 Spacer(minLength: 8)
@@ -839,7 +849,9 @@ struct CalendarScreen: View {
                             .foregroundStyle(AppColors.textPrimary)
                         ratingStars(session.rating)
                     }
-                    problemStats(session)
+                    if session.problemRecords.isEmpty {
+                        problemStats(session)
+                    }
                     Image(systemName: "pencil")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(AppColors.success)
@@ -1030,12 +1042,113 @@ struct CalendarScreen: View {
         return parts.joined(separator: " / ")
     }
 
+    @ViewBuilder
+    private func problemRecordSummaryRows(
+        records: [ProblemSessionRecord],
+        chapters: [ProblemChapter] = [],
+        limitPerResult: Int? = nil
+    ) -> some View {
+        let groups = problemRecordGroups(records: records, chapters: chapters, limitPerResult: limitPerResult)
+        if !groups.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(groups) { group in
+                    HStack(alignment: .top, spacing: 7) {
+                        Text(group.title)
+                            .font(.caption.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(group.color, in: Capsule())
+                        Text(group.labelsText)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(AppColors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private func problemRecordGroups(
+        records: [ProblemSessionRecord],
+        chapters: [ProblemChapter],
+        limitPerResult: Int?
+    ) -> [ProblemRecordDisplayGroup] {
+        [
+            ProblemRecordDisplayGroup(
+                id: "wrong",
+                title: "不正解",
+                color: AppColors.danger,
+                labelsText: compactProblemLabels(records.filter(\.isWrong).map(\.number), chapters: chapters, limit: limitPerResult)
+            ),
+            ProblemRecordDisplayGroup(
+                id: "correct",
+                title: "正解",
+                color: AppColors.success,
+                labelsText: compactProblemLabels(records.filter { $0.result == .correct }.map(\.number), chapters: chapters, limit: limitPerResult)
+            ),
+            ProblemRecordDisplayGroup(
+                id: "review",
+                title: "復習正解",
+                color: AppColors.warning,
+                labelsText: compactProblemLabels(records.filter { $0.result == .reviewCorrect }.map(\.number), chapters: chapters, limit: limitPerResult)
+            )
+        ].filter { !$0.labelsText.isEmpty }
+    }
+
     private func compactProblemLabels(_ labels: [String], limit: Int?) -> String {
         guard let limit, labels.count > limit else {
             return labels.joined(separator: ", ")
         }
         let visible = labels.prefix(limit).joined(separator: ", ")
         return "\(visible) +\(labels.count - limit)"
+    }
+
+    private func compactProblemLabels(_ numbers: [Int], chapters: [ProblemChapter], limit: Int?) -> String {
+        let ranges = compactProblemNumberRanges(numbers.sorted(), chapters: chapters)
+        guard let limit, ranges.count > limit else {
+            return ranges.joined(separator: ", ")
+        }
+        return "\(ranges.prefix(limit).joined(separator: ", ")) +\(ranges.count - limit)"
+    }
+
+    private func compactProblemNumberRanges(_ numbers: [Int], chapters: [ProblemChapter]) -> [String] {
+        guard let firstNumber = numbers.first else { return [] }
+        var result: [String] = []
+        var start = firstNumber
+        var previous = firstNumber
+
+        for number in numbers.dropFirst() {
+            if number == previous + 1, sameProblemChapter(start, number, chapters: chapters) {
+                previous = number
+            } else {
+                result.append(problemRangeLabel(start: start, end: previous, chapters: chapters))
+                start = number
+                previous = number
+            }
+        }
+        result.append(problemRangeLabel(start: start, end: previous, chapters: chapters))
+        return result
+    }
+
+    private func sameProblemChapter(_ left: Int, _ right: Int, chapters: [ProblemChapter]) -> Bool {
+        guard let leftChapter = chapters.location(for: left),
+              let rightChapter = chapters.location(for: right) else {
+            return chapters.isEmpty
+        }
+        return leftChapter.chapterIndex == rightChapter.chapterIndex
+    }
+
+    private func problemRangeLabel(start: Int, end: Int, chapters: [ProblemChapter]) -> String {
+        guard start != end else {
+            return chapters.label(for: start)
+        }
+        guard let startLocation = chapters.location(for: start),
+              let endLocation = chapters.location(for: end),
+              startLocation.chapterIndex == endLocation.chapterIndex else {
+            return "\(chapters.label(for: start))〜\(chapters.label(for: end))"
+        }
+        return "\(startLocation.chapterTitle) \(startLocation.localNumber)〜\(endLocation.localNumber)問"
     }
 
     private func timeString(from millis: Int64) -> String {
@@ -1207,6 +1320,13 @@ private struct CalendarMonthlyStatCard: View {
                 .stroke(AppColors.cardBorder, lineWidth: 1)
         }
     }
+}
+
+private struct ProblemRecordDisplayGroup: Identifiable {
+    let id: String
+    let title: String
+    let color: Color
+    let labelsText: String
 }
 
 private enum CalendarDetailDisplayMode: String, CaseIterable, Identifiable {

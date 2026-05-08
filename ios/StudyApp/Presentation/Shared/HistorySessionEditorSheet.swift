@@ -237,20 +237,102 @@ struct HistorySessionEditorSheet: View {
                 Text("問題集の記録")
                     .font(.headline.weight(.semibold))
                 Spacer()
-                Text(problemRangeDisplay)
+                Text(problemProgressHeaderText)
                     .font(.subheadline)
                     .foregroundStyle(AppColors.textSecondary)
             }
 
-            problemControls
+            if totalProblems > 0 {
+                ProblemTileSelector(
+                    totalProblems: totalProblems,
+                    chapters: chapters,
+                    records: $problemRecords
+                )
+                Text(problemRecordSummary)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+            } else {
+                problemCountControls
 
-            HistoryProblemRecordGrid(
-                range: problemDisplayRange,
-                chapters: chapters,
-                records: $problemRecords
-            )
+                if effectiveProblemCount > 0 {
+                    ProblemTileSelector(
+                        totalProblems: effectiveProblemCount,
+                        chapters: chapters,
+                        records: $problemRecords
+                    )
+                    Text(problemRecordSummary)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                } else {
+                    Text("教材に問題数が未設定です。全問題数を入力すると、タイマーと同じ番号タップで記録できます。")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+            }
         }
         .historyEditorCard(padding: 0)
+    }
+
+    private var problemProgressHeaderText: String {
+        if totalProblems > 0 {
+            return chapters.isEmpty ? "全\(totalProblems)問" : "全\(totalProblems)問 ・ \(chapters.count)章"
+        }
+        return effectiveProblemCount > 0 ? "全\(effectiveProblemCount)問" : "問題数未設定"
+    }
+
+    private var problemRecordSummary: String {
+        let done = problemRecords.count
+        let correct = problemRecords.filter { $0.result == .correct }.count
+        let wrong = problemRecords.filter(\.isWrong).count
+        let review = problemRecords.filter { $0.result == .reviewCorrect }.count
+        return "タップで正解、すばやく2回タップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
+    }
+
+    private var effectiveProblemCount: Int {
+        totalProblems > 0 ? totalProblems : parseDraftInt(problemCount)
+    }
+
+    private var problemCountControls: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack {
+                Button {
+                    setProblemCount(max(effectiveProblemCount - 1, 0))
+                } label: {
+                    Image(systemName: "minus")
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.bordered)
+                .disabled(effectiveProblemCount <= 0)
+
+                Text("全\(effectiveProblemCount)問")
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity)
+
+                Button {
+                    setProblemCount(effectiveProblemCount + 1)
+                } label: {
+                    Image(systemName: "plus")
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.bordered)
+            }
+
+            HStack(spacing: AppSpacing.xs) {
+                ForEach([10, 20, 50], id: \.self) { count in
+                    Button("\(count)問") {
+                        setProblemCount(count)
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.caption.bold())
+                }
+            }
+        }
+    }
+
+    private func setProblemCount(_ count: Int) {
+        problemCount = count > 0 ? "\(count)" : ""
+        problemEnd = count > 0 ? "\(count)" : ""
+        problemRecords.removeAll { $0.number > count }
     }
 
     private var problemControls: some View {
