@@ -1338,8 +1338,11 @@ private struct TimerProblemProgressEditor: View {
                         }
 
                         LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(section.start...section.end, id: \.self) { number in
-                                timerProblemTile(number)
+                            ForEach(section.displayStart...section.displayEnd, id: \.self) { displayNumber in
+                                timerProblemTile(
+                                    globalNumber: section.globalNumber(forDisplayNumber: displayNumber),
+                                    label: "\(displayNumber)"
+                                )
                             }
                         }
                     }
@@ -1382,6 +1385,9 @@ private struct TimerProblemProgressEditor: View {
                         title: chapter.title,
                         start: start,
                         end: end,
+                        displayStart: 1,
+                        displayEnd: chapter.problemCount,
+                        displayTotal: chapter.problemCount,
                         total: effectiveProblemCount
                     )
                 }
@@ -1395,6 +1401,9 @@ private struct TimerProblemProgressEditor: View {
                 title: "第\(index + 1)章",
                 start: start,
                 end: end,
+                displayStart: start,
+                displayEnd: end,
+                displayTotal: effectiveProblemCount,
                 total: effectiveProblemCount
             )
         }
@@ -1418,7 +1427,7 @@ private struct TimerProblemProgressEditor: View {
                             VStack(spacing: 2) {
                                 Text(section.title)
                                     .lineLimit(1)
-                                Text("\(section.start)〜\(section.end)")
+                                Text("\(section.displayStart)〜\(section.displayEnd)")
                                     .font(.system(size: 10, weight: .semibold))
                                     .monospacedDigit()
                             }
@@ -1439,26 +1448,26 @@ private struct TimerProblemProgressEditor: View {
         }
     }
 
-    private func timerProblemTile(_ number: Int) -> some View {
+    private func timerProblemTile(globalNumber: Int, label: String) -> some View {
         Button {
-            cycleRecord(number)
+            cycleRecord(globalNumber)
         } label: {
-            Text("\(number)")
+            Text(label)
                 .font(.system(size: 15, weight: .semibold))
                 .monospacedDigit()
-                .foregroundStyle(tileForeground(for: number))
+                .foregroundStyle(tileForeground(for: globalNumber))
                 .lineLimit(1)
                 .minimumScaleFactor(0.68)
                 .frame(maxWidth: .infinity)
                 .frame(height: 42)
-                .background(tileBackground(for: number), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background(tileBackground(for: globalNumber), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(tileBorder(for: number), lineWidth: 1)
+                        .stroke(tileBorder(for: globalNumber), lineWidth: 1)
                 }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(number)問目 \(records.first(where: { $0.number == number })?.result.title ?? "未解答")")
+        .accessibilityLabel("\(label)問目 \(records.first(where: { $0.number == globalNumber })?.result.title ?? "未解答")")
     }
 
     private func cycleRecord(_ number: Int) {
@@ -1572,10 +1581,17 @@ private struct TimerProblemSection: Identifiable {
     let title: String
     let start: Int
     let end: Int
+    let displayStart: Int
+    let displayEnd: Int
+    let displayTotal: Int
     let total: Int
 
     var rangeText: String {
-        "\(start) - \(end) / \(total)問"
+        "\(displayStart) - \(displayEnd) / \(displayTotal)問"
+    }
+
+    func globalNumber(forDisplayNumber displayNumber: Int) -> Int {
+        start + displayNumber - displayStart
     }
 }
 
