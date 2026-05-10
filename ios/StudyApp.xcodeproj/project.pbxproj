@@ -9,7 +9,16 @@
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* StudyAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* StudyAppApp.swift */; };
 		A40000000000000000000001 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
-		A40000000000000000000002 /* StudyEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* StudyEntities.swift */; };
+		A40000000000000000000002 /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* Subject.swift */; };
+		A4000000000000000000000B /* Material.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000B /* Material.swift */; };
+		A4000000000000000000000C /* ProblemChapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000C /* ProblemChapter.swift */; };
+		A4000000000000000000000D /* ProblemSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000D /* ProblemSessionRecord.swift */; };
+		A4000000000000000000000E /* ProblemReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000E /* ProblemReview.swift */; };
+		A4000000000000000000000F /* StudySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000F /* StudySession.swift */; };
+		A40000000000000000000010 /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000010 /* Goal.swift */; };
+		A40000000000000000000011 /* Exam.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000011 /* Exam.swift */; };
+		A40000000000000000000012 /* StudyPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000012 /* StudyPlan.swift */; };
+		A40000000000000000000013 /* ProblemReviewScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000013 /* ProblemReviewScheduler.swift */; };
 		A40000000000000000000003 /* SupportingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000003 /* SupportingModels.swift */; };
 		A40000000000000000000004 /* GoalCollectionExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000004 /* GoalCollectionExtensions.swift */; };
 		A40000000000000000000005 /* AppDataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000005 /* AppDataModels.swift */; };
@@ -24,10 +33,10 @@
 		A10000000000000000000018 /* FirebaseRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseRepositories.swift */; };
 		A10000000000000000000005 /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* ReminderScheduler.swift */; };
 		A10000000000000000000006 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Theme.swift */; };
-		A10000000000000000000007 /* StudyAppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* StudyAppStore.swift */; };
+		A10000000000000000000007 /* StudyAppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* StudyAppContainer.swift */; };
 		A10000000000000000000023 /* AutoSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* AutoSyncCoordinator.swift */; };
 		A10000000000000000000008 /* StudyAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StudyAppViews.swift */; };
-		A10000000000000000000009 /* SubjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* SubjectsView.swift */; };
+		A10000000000000000000009 /* SubjectsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* SubjectsScreen.swift */; };
 		A10000000000000000000010 /* MaterialsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MaterialsScreen.swift */; };
 		A10000000000000000000025 /* BarcodeScannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* BarcodeScannerSheet.swift */; };
 		A10000000000000000000026 /* BookResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* BookResultSheet.swift */; };
@@ -86,7 +95,16 @@
 		B10000000000000000000001 /* StudyApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StudyApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000000000000000000002 /* StudyAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppApp.swift; sourceTree = "<group>"; };
 		B40000000000000000000001 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
-		B40000000000000000000002 /* StudyEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyEntities.swift; sourceTree = "<group>"; };
+		B40000000000000000000002 /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
+		B4000000000000000000000B /* Material.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Material.swift; sourceTree = "<group>"; };
+		B4000000000000000000000C /* ProblemChapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemChapter.swift; sourceTree = "<group>"; };
+		B4000000000000000000000D /* ProblemSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemSessionRecord.swift; sourceTree = "<group>"; };
+		B4000000000000000000000E /* ProblemReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReview.swift; sourceTree = "<group>"; };
+		B4000000000000000000000F /* StudySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudySession.swift; sourceTree = "<group>"; };
+		B40000000000000000000010 /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
+		B40000000000000000000011 /* Exam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Exam.swift; sourceTree = "<group>"; };
+		B40000000000000000000012 /* StudyPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyPlan.swift; sourceTree = "<group>"; };
+		B40000000000000000000013 /* ProblemReviewScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReviewScheduler.swift; sourceTree = "<group>"; };
 		B40000000000000000000003 /* SupportingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportingModels.swift; sourceTree = "<group>"; };
 		B40000000000000000000004 /* GoalCollectionExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCollectionExtensions.swift; sourceTree = "<group>"; };
 		B40000000000000000000005 /* AppDataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataModels.swift; sourceTree = "<group>"; };
@@ -103,10 +121,10 @@
 		B10000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000000000000000000006 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		B10000000000000000000007 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		B10000000000000000000008 /* StudyAppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000008 /* StudyAppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppContainer.swift; sourceTree = "<group>"; };
 		B10000000000000000000020 /* AutoSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSyncCoordinator.swift; sourceTree = "<group>"; };
 		B10000000000000000000009 /* StudyAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppViews.swift; sourceTree = "<group>"; };
-		B10000000000000000000010 /* SubjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsView.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* SubjectsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* MaterialsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000021 /* BarcodeScannerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerSheet.swift; sourceTree = "<group>"; };
 		B10000000000000000000022 /* BookResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookResultSheet.swift; sourceTree = "<group>"; };
@@ -240,6 +258,7 @@
 				D40000000000000000000001 /* Models */,
 				D40000000000000000000002 /* Repositories */,
 				D40000000000000000000003 /* UseCases */,
+				D40000000000000000000005 /* Scheduling */,
 				D40000000000000000000004 /* Support */,
 			);
 			path = Domain;
@@ -249,7 +268,15 @@
 			isa = PBXGroup;
 			children = (
 				B40000000000000000000001 /* DomainEnums.swift */,
-				B40000000000000000000002 /* StudyEntities.swift */,
+				B40000000000000000000002 /* Subject.swift */,
+				B4000000000000000000000B /* Material.swift */,
+				B4000000000000000000000C /* ProblemChapter.swift */,
+				B4000000000000000000000D /* ProblemSessionRecord.swift */,
+				B4000000000000000000000E /* ProblemReview.swift */,
+				B4000000000000000000000F /* StudySession.swift */,
+				B40000000000000000000010 /* Goal.swift */,
+				B40000000000000000000011 /* Exam.swift */,
+				B40000000000000000000012 /* StudyPlan.swift */,
 				B40000000000000000000003 /* SupportingModels.swift */,
 				B40000000000000000000004 /* GoalCollectionExtensions.swift */,
 				B40000000000000000000005 /* AppDataModels.swift */,
@@ -282,6 +309,14 @@
 			path = Support;
 			sourceTree = "<group>";
 		};
+		D40000000000000000000005 /* Scheduling */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000013 /* ProblemReviewScheduler.swift */,
+			);
+			path = Scheduling;
+			sourceTree = "<group>";
+		};
 		D10000000000000000000005 /* Data */ = {
 			isa = PBXGroup;
 			children = (
@@ -297,7 +332,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000007 /* Theme.swift */,
-				B10000000000000000000008 /* StudyAppStore.swift */,
+				B10000000000000000000008 /* StudyAppContainer.swift */,
 				B30000000000000000000001 /* ScreenViewModel.swift */,
 				B10000000000000000000020 /* AutoSyncCoordinator.swift */,
 				B10000000000000000000009 /* StudyAppViews.swift */,
@@ -323,7 +358,7 @@
 		D10000000000000000000009 /* Subjects */ = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000010 /* SubjectsView.swift */,
+				B10000000000000000000010 /* SubjectsScreen.swift */,
 				B30000000000000000000021 /* SubjectsViewModel.swift */,
 			);
 			path = Subjects;
@@ -648,7 +683,16 @@
 			files = (
 				A10000000000000000000001 /* StudyAppApp.swift in Sources */,
 				A40000000000000000000001 /* DomainEnums.swift in Sources */,
-				A40000000000000000000002 /* StudyEntities.swift in Sources */,
+				A40000000000000000000002 /* Subject.swift in Sources */,
+				A4000000000000000000000B /* Material.swift in Sources */,
+				A4000000000000000000000C /* ProblemChapter.swift in Sources */,
+				A4000000000000000000000D /* ProblemSessionRecord.swift in Sources */,
+				A4000000000000000000000E /* ProblemReview.swift in Sources */,
+				A4000000000000000000000F /* StudySession.swift in Sources */,
+				A40000000000000000000010 /* Goal.swift in Sources */,
+				A40000000000000000000011 /* Exam.swift in Sources */,
+				A40000000000000000000012 /* StudyPlan.swift in Sources */,
+				A40000000000000000000013 /* ProblemReviewScheduler.swift in Sources */,
 				A40000000000000000000003 /* SupportingModels.swift in Sources */,
 				A40000000000000000000004 /* GoalCollectionExtensions.swift in Sources */,
 				A40000000000000000000005 /* AppDataModels.swift in Sources */,
@@ -664,10 +708,10 @@
 				A10000000000000000000019 /* AppLogger.swift in Sources */,
 				A10000000000000000000020 /* StudyLiveActivityController.swift in Sources */,
 				A10000000000000000000006 /* Theme.swift in Sources */,
-				A10000000000000000000007 /* StudyAppStore.swift in Sources */,
+				A10000000000000000000007 /* StudyAppContainer.swift in Sources */,
 				A10000000000000000000023 /* AutoSyncCoordinator.swift in Sources */,
 				A10000000000000000000008 /* StudyAppViews.swift in Sources */,
-				A10000000000000000000009 /* SubjectsView.swift in Sources */,
+				A10000000000000000000009 /* SubjectsScreen.swift in Sources */,
 				A30000000000000000000001 /* ScreenViewModel.swift in Sources */,
 				A30000000000000000000002 /* OnboardingScreen.swift in Sources */,
 				A30000000000000000000003 /* OnboardingViewModel.swift in Sources */,
