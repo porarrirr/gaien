@@ -714,8 +714,8 @@ private struct PieSliceShape: Shape {
             let fraction = startFraction + sweep * Double(step) / Double(stepCount)
             let angle = fraction * 2 * Double.pi
             let point = CGPoint(
-                x: center.x + radius * sin(angle),
-                y: center.y - radius * cos(angle)
+                x: center.x + radius * Darwin.sin(angle),
+                y: center.y - radius * Darwin.cos(angle)
             )
             path.addLine(to: point)
         }
