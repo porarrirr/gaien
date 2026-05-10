@@ -32,7 +32,19 @@
 		A10000000000000000000004 /* GoogleBooksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* GoogleBooksService.swift */; };
 		A10000000000000000000018 /* FirebaseRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseRepositories.swift */; };
 		A10000000000000000000005 /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* ReminderScheduler.swift */; };
-		A10000000000000000000006 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Theme.swift */; };
+		A10000000000000000000006 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Tokens.swift */; };
+		A10000000000000000000030 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* Typography.swift */; };
+		A10000000000000000000031 /* CardStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000031 /* CardStyles.swift */; };
+		A10000000000000000000032 /* StrictLayoutComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000032 /* StrictLayoutComponents.swift */; };
+		A10000000000000000000033 /* ProgressRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000033 /* ProgressRing.swift */; };
+		A10000000000000000000034 /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000034 /* StatCard.swift */; };
+		A10000000000000000000035 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000035 /* EmptyStateView.swift */; };
+		A10000000000000000000036 /* Charts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000036 /* Charts.swift */; };
+		A10000000000000000000037 /* SectionHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000037 /* SectionHeaderView.swift */; };
+		A10000000000000000000038 /* RatingBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000038 /* RatingBadge.swift */; };
+		A10000000000000000000039 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000039 /* Buttons.swift */; };
+		A1000000000000000000003A /* Badges.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003A /* Badges.swift */; };
+		A1000000000000000000003B /* CalendarDayCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003B /* CalendarDayCell.swift */; };
 		A10000000000000000000007 /* StudyAppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* StudyAppContainer.swift */; };
 		A10000000000000000000023 /* AutoSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* AutoSyncCoordinator.swift */; };
 		A10000000000000000000008 /* StudyAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StudyAppViews.swift */; };
@@ -120,7 +132,19 @@
 		B10000000000000000000018 /* StudyLiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyLiveActivityController.swift; sourceTree = "<group>"; };
 		B10000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000000000000000000006 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
-		B10000000000000000000007 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
+		B10000000000000000000030 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
+		B10000000000000000000031 /* CardStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStyles.swift; sourceTree = "<group>"; };
+		B10000000000000000000032 /* StrictLayoutComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrictLayoutComponents.swift; sourceTree = "<group>"; };
+		B10000000000000000000033 /* ProgressRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressRing.swift; sourceTree = "<group>"; };
+		B10000000000000000000034 /* StatCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatCard.swift; sourceTree = "<group>"; };
+		B10000000000000000000035 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		B10000000000000000000036 /* Charts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Charts.swift; sourceTree = "<group>"; };
+		B10000000000000000000037 /* SectionHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeaderView.swift; sourceTree = "<group>"; };
+		B10000000000000000000038 /* RatingBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingBadge.swift; sourceTree = "<group>"; };
+		B10000000000000000000039 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
+		B1000000000000000000003A /* Badges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Badges.swift; sourceTree = "<group>"; };
+		B1000000000000000000003B /* CalendarDayCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayCell.swift; sourceTree = "<group>"; };
 		B10000000000000000000008 /* StudyAppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppContainer.swift; sourceTree = "<group>"; };
 		B10000000000000000000020 /* AutoSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSyncCoordinator.swift; sourceTree = "<group>"; };
 		B10000000000000000000009 /* StudyAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppViews.swift; sourceTree = "<group>"; };
@@ -331,7 +355,7 @@
 		D10000000000000000000006 /* Presentation */ = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000007 /* Theme.swift */,
+				D10000000000000000000014 /* Theme */,
 				B10000000000000000000008 /* StudyAppContainer.swift */,
 				B30000000000000000000001 /* ScreenViewModel.swift */,
 				B10000000000000000000020 /* AutoSyncCoordinator.swift */,
@@ -532,8 +556,36 @@
 				B30000000000000000000023 /* StudyFormatters.swift */,
 				B30000000000000000000024 /* ProblemTileSelector.swift */,
 				B30000000000000000000027 /* HistorySessionEditorSheet.swift */,
+				D10000000000000000000015 /* Components */,
 			);
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000014 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000007 /* Tokens.swift */,
+				B10000000000000000000030 /* Typography.swift */,
+				B10000000000000000000031 /* CardStyles.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000015 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000032 /* StrictLayoutComponents.swift */,
+				B10000000000000000000033 /* ProgressRing.swift */,
+				B10000000000000000000034 /* StatCard.swift */,
+				B10000000000000000000035 /* EmptyStateView.swift */,
+				B10000000000000000000036 /* Charts.swift */,
+				B10000000000000000000037 /* SectionHeaderView.swift */,
+				B10000000000000000000038 /* RatingBadge.swift */,
+				B10000000000000000000039 /* Buttons.swift */,
+				B1000000000000000000003A /* Badges.swift */,
+				B1000000000000000000003B /* CalendarDayCell.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -707,10 +759,22 @@
 				A10000000000000000000005 /* ReminderScheduler.swift in Sources */,
 				A10000000000000000000019 /* AppLogger.swift in Sources */,
 				A10000000000000000000020 /* StudyLiveActivityController.swift in Sources */,
-				A10000000000000000000006 /* Theme.swift in Sources */,
 				A10000000000000000000007 /* StudyAppContainer.swift in Sources */,
 				A10000000000000000000023 /* AutoSyncCoordinator.swift in Sources */,
 				A10000000000000000000008 /* StudyAppViews.swift in Sources */,
+				A10000000000000000000006 /* Tokens.swift in Sources */,
+				A10000000000000000000030 /* Typography.swift in Sources */,
+				A10000000000000000000031 /* CardStyles.swift in Sources */,
+				A10000000000000000000032 /* StrictLayoutComponents.swift in Sources */,
+				A10000000000000000000033 /* ProgressRing.swift in Sources */,
+				A10000000000000000000034 /* StatCard.swift in Sources */,
+				A10000000000000000000035 /* EmptyStateView.swift in Sources */,
+				A10000000000000000000036 /* Charts.swift in Sources */,
+				A10000000000000000000037 /* SectionHeaderView.swift in Sources */,
+				A10000000000000000000038 /* RatingBadge.swift in Sources */,
+				A10000000000000000000039 /* Buttons.swift in Sources */,
+				A1000000000000000000003A /* Badges.swift in Sources */,
+				A1000000000000000000003B /* CalendarDayCell.swift in Sources */,
 				A10000000000000000000009 /* SubjectsScreen.swift in Sources */,
 				A30000000000000000000001 /* ScreenViewModel.swift in Sources */,
 				A30000000000000000000002 /* OnboardingScreen.swift in Sources */,
