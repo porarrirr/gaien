@@ -23,7 +23,16 @@
 		A40000000000000000000004 /* GoalCollectionExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000004 /* GoalCollectionExtensions.swift */; };
 		A40000000000000000000005 /* AppDataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000005 /* AppDataModels.swift */; };
 		A40000000000000000000006 /* RepositoryProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000006 /* RepositoryProtocols.swift */; };
-		A40000000000000000000007 /* StudyUseCases.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000007 /* StudyUseCases.swift */; };
+		A40000000000000000000007 /* Clock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000007 /* Clock.swift */; };
+		A40000000000000000000014 /* GetHomeDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000014 /* GetHomeDataUseCase.swift */; };
+		A40000000000000000000015 /* GetRecentMaterialsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000015 /* GetRecentMaterialsUseCase.swift */; };
+		A40000000000000000000016 /* GetUpcomingExamsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000016 /* GetUpcomingExamsUseCase.swift */; };
+		A40000000000000000000017 /* ManageGoalsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000017 /* ManageGoalsUseCase.swift */; };
+		A40000000000000000000018 /* SaveStudySessionUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000018 /* SaveStudySessionUseCase.swift */; };
+		A40000000000000000000019 /* ManageMaterialsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000019 /* ManageMaterialsUseCase.swift */; };
+		A4000000000000000000001A /* ManagePlansUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001A /* ManagePlansUseCase.swift */; };
+		A4000000000000000000001B /* GetReportsDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001B /* GetReportsDataUseCase.swift */; };
+		A4000000000000000000001C /* ExportImportDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001C /* ExportImportDataUseCase.swift */; };
 		A40000000000000000000008 /* FoundationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000008 /* FoundationExtensions.swift */; };
 		A40000000000000000000009 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
 		A4000000000000000000000A /* TimetableModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000009 /* TimetableModels.swift */; };
@@ -121,7 +130,16 @@
 		B40000000000000000000004 /* GoalCollectionExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCollectionExtensions.swift; sourceTree = "<group>"; };
 		B40000000000000000000005 /* AppDataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataModels.swift; sourceTree = "<group>"; };
 		B40000000000000000000006 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
-		B40000000000000000000007 /* StudyUseCases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyUseCases.swift; sourceTree = "<group>"; };
+		B40000000000000000000007 /* Clock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clock.swift; sourceTree = "<group>"; };
+		B40000000000000000000014 /* GetHomeDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetHomeDataUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000015 /* GetRecentMaterialsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetRecentMaterialsUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000016 /* GetUpcomingExamsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetUpcomingExamsUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000017 /* ManageGoalsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageGoalsUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000018 /* SaveStudySessionUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveStudySessionUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000019 /* ManageMaterialsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageMaterialsUseCase.swift; sourceTree = "<group>"; };
+		B4000000000000000000001A /* ManagePlansUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePlansUseCase.swift; sourceTree = "<group>"; };
+		B4000000000000000000001B /* GetReportsDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetReportsDataUseCase.swift; sourceTree = "<group>"; };
+		B4000000000000000000001C /* ExportImportDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImportDataUseCase.swift; sourceTree = "<group>"; };
 		B40000000000000000000008 /* FoundationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationExtensions.swift; sourceTree = "<group>"; };
 		B40000000000000000000009 /* TimetableModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
@@ -320,7 +338,16 @@
 		D40000000000000000000003 /* UseCases */ = {
 			isa = PBXGroup;
 			children = (
-				B40000000000000000000007 /* StudyUseCases.swift */,
+				B40000000000000000000007 /* Clock.swift */,
+				B40000000000000000000014 /* GetHomeDataUseCase.swift */,
+				B40000000000000000000015 /* GetRecentMaterialsUseCase.swift */,
+				B40000000000000000000016 /* GetUpcomingExamsUseCase.swift */,
+				B40000000000000000000017 /* ManageGoalsUseCase.swift */,
+				B40000000000000000000018 /* SaveStudySessionUseCase.swift */,
+				B40000000000000000000019 /* ManageMaterialsUseCase.swift */,
+				B4000000000000000000001A /* ManagePlansUseCase.swift */,
+				B4000000000000000000001B /* GetReportsDataUseCase.swift */,
+				B4000000000000000000001C /* ExportImportDataUseCase.swift */,
 			);
 			path = UseCases;
 			sourceTree = "<group>";
@@ -749,7 +776,16 @@
 				A40000000000000000000004 /* GoalCollectionExtensions.swift in Sources */,
 				A40000000000000000000005 /* AppDataModels.swift in Sources */,
 				A40000000000000000000006 /* RepositoryProtocols.swift in Sources */,
-				A40000000000000000000007 /* StudyUseCases.swift in Sources */,
+				A40000000000000000000007 /* Clock.swift in Sources */,
+				A40000000000000000000014 /* GetHomeDataUseCase.swift in Sources */,
+				A40000000000000000000015 /* GetRecentMaterialsUseCase.swift in Sources */,
+				A40000000000000000000016 /* GetUpcomingExamsUseCase.swift in Sources */,
+				A40000000000000000000017 /* ManageGoalsUseCase.swift in Sources */,
+				A40000000000000000000018 /* SaveStudySessionUseCase.swift in Sources */,
+				A40000000000000000000019 /* ManageMaterialsUseCase.swift in Sources */,
+				A4000000000000000000001A /* ManagePlansUseCase.swift in Sources */,
+				A4000000000000000000001B /* GetReportsDataUseCase.swift in Sources */,
+				A4000000000000000000001C /* ExportImportDataUseCase.swift in Sources */,
 				A40000000000000000000008 /* FoundationExtensions.swift in Sources */,
 				A4000000000000000000000A /* TimetableModels.swift in Sources */,
 				A10000000000000000000003 /* PersistenceController.swift in Sources */,
