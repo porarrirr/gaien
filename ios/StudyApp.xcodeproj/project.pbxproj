@@ -67,6 +67,8 @@
 		A10000000000000000000011 /* HistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HistoryScreen.swift */; };
 		A10000000000000000000012 /* PlanScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* PlanScreen.swift */; };
 		A10000000000000000000013 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SettingsScreen.swift */; };
+		A10000000000000000000042 /* DebugLogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000040 /* DebugLogSheet.swift */; };
+		A10000000000000000000043 /* AuthSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000041 /* AuthSheet.swift */; };
 		A10000000000000000000014 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* GoogleService-Info.plist */; };
 		A10000000000000000000015 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000002 /* FirebaseCore */; };
 		A10000000000000000000016 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000003 /* FirebaseAuth */; };
@@ -181,6 +183,8 @@
 		B10000000000000000000012 /* HistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* PlanScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000014 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000040 /* DebugLogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogSheet.swift; sourceTree = "<group>"; };
+		B10000000000000000000041 /* AuthSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSheet.swift; sourceTree = "<group>"; };
 		B10000000000000000000015 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = GoogleService-Info.plist; sourceTree = "<group>"; };
 		B20000000000000000000001 /* StudyAppWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000002 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
@@ -462,6 +466,8 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000014 /* SettingsScreen.swift */,
+				B10000000000000000000040 /* DebugLogSheet.swift */,
+				B10000000000000000000041 /* AuthSheet.swift */,
 				B30000000000000000000020 /* SettingsViewModel.swift */,
 			);
 			path = Settings;
@@ -867,6 +873,8 @@
 				A10000000000000000000011 /* HistoryScreen.swift in Sources */,
 				A10000000000000000000012 /* PlanScreen.swift in Sources */,
 				A10000000000000000000013 /* SettingsScreen.swift in Sources */,
+				A10000000000000000000042 /* DebugLogSheet.swift in Sources */,
+				A10000000000000000000043 /* AuthSheet.swift in Sources */,
 				A20000000000000000000002 /* WidgetSnapshotModels.swift in Sources */,
 				A20000000000000000000003 /* WidgetSnapshotSync.swift in Sources */,
 				A10000000000000000000021 /* StudyTimerActivityAttributes.swift in Sources */,
