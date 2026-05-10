@@ -66,6 +66,8 @@
 		A10000000000000000000026 /* BookResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* BookResultSheet.swift */; };
 		A10000000000000000000011 /* HistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HistoryScreen.swift */; };
 		A10000000000000000000012 /* PlanScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* PlanScreen.swift */; };
+		A10000000000000000000046 /* CreatePlanSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000044 /* CreatePlanSheet.swift */; };
+		A10000000000000000000047 /* PlanItemEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000045 /* PlanItemEditorSheet.swift */; };
 		A10000000000000000000013 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SettingsScreen.swift */; };
 		A10000000000000000000042 /* DebugLogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000040 /* DebugLogSheet.swift */; };
 		A10000000000000000000043 /* AuthSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000041 /* AuthSheet.swift */; };
@@ -182,6 +184,8 @@
 		B10000000000000000000022 /* BookResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookResultSheet.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* HistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* PlanScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000044 /* CreatePlanSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanSheet.swift; sourceTree = "<group>"; };
+		B10000000000000000000045 /* PlanItemEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanItemEditorSheet.swift; sourceTree = "<group>"; };
 		B10000000000000000000014 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000040 /* DebugLogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogSheet.swift; sourceTree = "<group>"; };
 		B10000000000000000000041 /* AuthSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSheet.swift; sourceTree = "<group>"; };
@@ -457,6 +461,8 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000013 /* PlanScreen.swift */,
+				B10000000000000000000044 /* CreatePlanSheet.swift */,
+				B10000000000000000000045 /* PlanItemEditorSheet.swift */,
 				B30000000000000000000019 /* PlanViewModel.swift */,
 			);
 			path = Plans;
@@ -872,6 +878,8 @@
 				A10000000000000000000026 /* BookResultSheet.swift in Sources */,
 				A10000000000000000000011 /* HistoryScreen.swift in Sources */,
 				A10000000000000000000012 /* PlanScreen.swift in Sources */,
+				A10000000000000000000046 /* CreatePlanSheet.swift in Sources */,
+				A10000000000000000000047 /* PlanItemEditorSheet.swift in Sources */,
 				A10000000000000000000013 /* SettingsScreen.swift in Sources */,
 				A10000000000000000000042 /* DebugLogSheet.swift in Sources */,
 				A10000000000000000000043 /* AuthSheet.swift in Sources */,
