@@ -1,7 +1,4 @@
 import SwiftUI
-#if canImport(AVFoundation)
-import AVFoundation
-#endif
 
 struct MaterialsScreen: View {
     @StateObject private var viewModel: MaterialsViewModel
@@ -238,35 +235,15 @@ struct MaterialsScreen: View {
     }
 
     private func openBarcodeScanner() {
-        #if canImport(AVFoundation)
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            viewModel.app.logger.log(category: .barcode, message: "Camera permission already authorized")
-            isShowingScanner = true
-        case .notDetermined:
-            viewModel.app.logger.log(category: .barcode, message: "Requesting camera permission")
-            AVCaptureDevice.requestAccess(for: .video) { granted in
-                Task { @MainActor in
-                    if granted {
-                        self.viewModel.app.logger.log(category: .barcode, message: "Camera permission granted")
-                        self.isShowingScanner = true
-                    } else {
-                        self.viewModel.app.logger.log(category: .barcode, level: .warning, message: "Camera permission denied by user")
-                        self.scannerMessage = "カメラへのアクセスが許可されていません。設定アプリでカメラを許可してください。"
-                    }
-                }
+        let service = CameraPermissionService(logger: viewModel.app.logger)
+        Task { @MainActor in
+            switch await service.requestAccess() {
+            case .authorized:
+                isShowingScanner = true
+            case .denied(let message), .unavailable(let message):
+                scannerMessage = message
             }
-        case .denied, .restricted:
-            viewModel.app.logger.log(category: .barcode, level: .warning, message: "Camera permission unavailable", details: "status=\(AVCaptureDevice.authorizationStatus(for: .video).rawValue)")
-            scannerMessage = "カメラへのアクセスが許可されていません。設定アプリでカメラを許可してください。"
-        @unknown default:
-            viewModel.app.logger.log(category: .barcode, level: .warning, message: "Unknown camera authorization status")
-            scannerMessage = "この端末ではバーコード読み取りを開始できませんでした。"
         }
-        #else
-        viewModel.app.logger.log(category: .barcode, level: .warning, message: "AVFoundation unavailable for barcode scanner")
-        scannerMessage = "この端末ではバーコード読み取りを利用できません。"
-        #endif
     }
 }
 
