@@ -603,7 +603,7 @@ private struct CreatePlanSheet: View {
                 .environment(\.locale, Locale(identifier: "ja_JP"))
                 .tint(AppColors.success)
                 .overlay(alignment: .leading) {
-                    Text(Self.dateFormatter.string(from: date.wrappedValue))
+                    Text(StudyFormatters.yearMonthDayWithWeekdayHalf.string(from: date.wrappedValue))
                         .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(AppColors.success)
                         .allowsHitTesting(false)
@@ -773,14 +773,6 @@ private struct CreatePlanSheet: View {
             DraftPlanItem(subjectId: second.id, ordinal: 2, dayOfWeek: .tuesday, targetMinutes: "90", timeSlot: "19:00 - 20:30")
         ]
     }
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.dateFormat = "yyyy年M月d日 (E)"
-        return formatter
-    }()
 
     private static var defaultStartDate: Date {
         makeDate(year: 2026, month: 5, day: 26)

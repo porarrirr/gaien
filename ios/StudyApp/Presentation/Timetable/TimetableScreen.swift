@@ -364,10 +364,7 @@ struct TimetableScreen: View {
     }
 
     private var selectedDateTitle: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M月 d日（E）"
-        return formatter.string(from: viewModel.selectedDate)
+        StudyFormatters.monthDayWithWeekdaySpaced.string(from: viewModel.selectedDate)
     }
 
     private var timetableGrid: some View {
@@ -1350,7 +1347,7 @@ private struct TimetableTermDateRow: View {
 
             ZStack {
                 HStack {
-                    Text(Self.dateFormatter.string(from: date))
+                    Text(StudyFormatters.yearMonthDayWithWeekdayHalf.string(from: date))
                         .font(.system(size: 18, weight: .regular))
                         .foregroundStyle(Color(.label))
 
@@ -1376,13 +1373,6 @@ private struct TimetableTermDateRow: View {
         }
         .frame(height: 73)
     }
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy年M月d日 (E)"
-        return formatter
-    }()
 }
 
 private struct TimetableTermEditorDivider: View {
@@ -1655,10 +1645,7 @@ private struct TimetableReviewEditorSheet: View {
     }
 
     private var shortDateText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M月d日（E）"
-        return formatter.string(from: occurrence.date)
+        StudyFormatters.monthDayWithWeekday.string(from: occurrence.date)
     }
 
     private var statusText: String {

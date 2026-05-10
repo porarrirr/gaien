@@ -29,9 +29,7 @@ struct GetReportsDataUseCase {
     }
 
     private func reportDailyData(subjects: [Subject], sessions: [StudySession], reference: Date) -> [DailyStudyData] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M/d (E)"
+        let formatter = StudyFormatters.shortDateWithWeekday
         return (0..<7).compactMap { offset in
             guard let date = Calendar.current.date(byAdding: .day, value: -offset, to: reference) else { return nil }
             let start = Calendar.current.startOfDay(for: date).epochMilliseconds
@@ -51,9 +49,7 @@ struct GetReportsDataUseCase {
     }
 
     private func reportWeeklyData(subjects: [Subject], sessions: [StudySession], reference: Date) -> [WeeklyStudyData] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M/d"
+        let formatter = StudyFormatters.shortDate
         return (0..<4).compactMap { offset in
             guard let date = Calendar.current.date(byAdding: .weekOfYear, value: -offset, to: reference) else { return nil }
             let interval = Calendar.current.dateInterval(of: .weekOfYear, for: date)
@@ -89,9 +85,7 @@ struct GetReportsDataUseCase {
     }
 
     private func reportMonthlyData(sessions: [StudySession], reference: Date) -> [MonthlyStudyData] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M月"
+        let formatter = StudyFormatters.monthOnly
         return (0..<6).compactMap { offset in
             guard let date = Calendar.current.date(byAdding: .month, value: -offset, to: reference),
                   let interval = Calendar.current.dateInterval(of: .month, for: date) else {

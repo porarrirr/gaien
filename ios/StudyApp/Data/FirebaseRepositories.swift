@@ -444,9 +444,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private func saveLocalBackup(_ appData: AppData, reason: String) throws {
         let backupRoot = try localBackupDirectory()
         let timestamp = Date().epochMilliseconds
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let formatter = StudyFormatters.fileSafeTimestamp
         let fileName = "sync-\(reason)-\(formatter.string(from: Date(epochMilliseconds: timestamp))).json"
         let url = backupRoot.appendingPathComponent(fileName)
         let encoder = JSONEncoder()

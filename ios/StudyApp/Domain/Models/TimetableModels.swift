@@ -74,10 +74,7 @@ struct TimetableTerm: Identifiable, Codable, Hashable {
     }
 
     var dateRangeText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
+        let formatter = StudyFormatters.mediumDateJP
         return "\(formatter.string(from: startDateValue)) - \(formatter.string(from: endDateValue))"
     }
 

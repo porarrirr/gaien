@@ -965,12 +965,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func exportCSV() async throws -> String {
         let sessions = try await getAllSessions()
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "ja_JP")
-        dateFormatter.dateFormat = "yyyy/MM/dd"
-        let timeFormatter = DateFormatter()
-        timeFormatter.locale = Locale(identifier: "ja_JP")
-        timeFormatter.dateFormat = "HH:mm"
+        let dateFormatter = StudyFormatters.slashDate
+        let timeFormatter = StudyFormatters.clock
         let header = "日付,科目,教材,開始時刻,終了時刻,時間(分),評価,メモ\n"
         let rows = sessions.map { session in
             [

@@ -659,9 +659,7 @@ private struct SessionRow: View {
     }
 
     private func timeRangeText(start: Int64, duration: Int64) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "H:mm"
+        let formatter = StudyFormatters.clockLoose
         let startDate = Date(epochMilliseconds: start)
         let endDate = Date(epochMilliseconds: start + duration)
         return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
@@ -699,10 +697,7 @@ private struct ExamRow: View {
     }
 
     private var examDateText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M/d (E)"
-        return formatter.string(from: exam.dateValue)
+        StudyFormatters.shortDateWithWeekday.string(from: exam.dateValue)
     }
 
     private var remainingText: String {

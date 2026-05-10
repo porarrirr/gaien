@@ -230,10 +230,7 @@ struct CalendarScreen: View {
     }
 
     private var calendarMonthTitle: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy年M月"
-        return formatter.string(from: viewModel.displayedMonth)
+        StudyFormatters.yearMonth.string(from: viewModel.displayedMonth)
     }
 
     private var calendarSummaryCard: some View {
@@ -461,10 +458,7 @@ struct CalendarScreen: View {
         guard let date = calendar.date(from: DateComponents(year: displayYear, month: displayMonth, day: day)) else {
             return "\(displayMonth)月\(day)日"
         }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M月d日（E）"
-        return formatter.string(from: date)
+        return StudyFormatters.monthDayWithWeekday.string(from: date)
     }
 
     private func weekdayColor(label: String, isCurrentMonth: Bool) -> Color {
@@ -1152,9 +1146,7 @@ struct CalendarScreen: View {
     }
 
     private func timeString(from millis: Int64) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: Date(epochMilliseconds: millis))
+        StudyFormatters.clock.string(from: Date(epochMilliseconds: millis))
     }
 
     private func intervalText(_ interval: StudySessionInterval) -> String {

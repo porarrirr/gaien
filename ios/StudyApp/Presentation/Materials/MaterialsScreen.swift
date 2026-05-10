@@ -1129,10 +1129,7 @@ private struct MaterialProblemRecordSummaryCard: View {
     }
 
     private func dateText(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy/MM/dd"
-        return formatter.string(from: date)
+        StudyFormatters.slashDate.string(from: date)
     }
 }
 
@@ -1883,10 +1880,7 @@ private struct MaterialProblemHistoryAccordion: View {
     }
 
     private func dateText(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M/d HH:mm"
-        return formatter.string(from: date)
+        StudyFormatters.shortDateTime.string(from: date)
     }
 
     private func color(for result: ProblemResult) -> Color {
@@ -1955,10 +1949,7 @@ private struct MaterialHistoryCalendarView: View {
     }
 
     private var monthTitle: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy年 M月"
-        return formatter.string(from: displayedMonth)
+        StudyFormatters.yearMonthSpaced.string(from: displayedMonth)
     }
 
     private var calendarCells: [Date?] {
@@ -2147,16 +2138,11 @@ private struct MaterialHistorySessionCard: View {
     }
 
     private var dateText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy/MM/dd（E）"
-        return formatter.string(from: session.startDate)
+        StudyFormatters.slashDateWithWeekday.string(from: session.startDate)
     }
 
     private var timeText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "HH:mm"
+        let formatter = StudyFormatters.clock
         return "\(formatter.string(from: session.startDate)) - \(formatter.string(from: session.endDate))"
     }
 
@@ -2247,9 +2233,7 @@ private struct LegacyMaterialHistorySessionCard: View {
     }
 
     private var intervalText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "HH:mm"
+        let formatter = StudyFormatters.clock
         return session.effectiveIntervals.map { interval in
             "\(formatter.string(from: Date(epochMilliseconds: interval.startTime))) - \(formatter.string(from: Date(epochMilliseconds: interval.endTime)))"
         }

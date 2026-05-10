@@ -106,7 +106,7 @@ private struct ExamCard: View {
                     Image(systemName: "calendar")
                         .font(.system(size: 15, weight: .semibold))
                         .frame(width: 19, height: 19)
-                    Text(Self.dateFormatter.string(from: exam.dateValue))
+                    Text(StudyFormatters.slashDateWithWeekdayLoose.string(from: exam.dateValue))
                         .font(.system(size: 18, weight: .regular))
                         .lineLimit(1)
                 }
@@ -165,14 +165,6 @@ private struct ExamCard: View {
         if daysRemaining < 0 { return Color(hex: 0xFF3B30) }
         return Color(hex: 0xFF9500)
     }
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.dateFormat = "yyyy/M/d（E）"
-        return formatter
-    }()
 }
 
 private struct ExamEditorSheet: View {
@@ -286,7 +278,7 @@ private struct ExamEditorSheet: View {
                         .foregroundStyle(AppColors.success)
                         .frame(width: 28, height: 28)
 
-                    Text(Self.dateFormatter.string(from: date))
+                    Text(StudyFormatters.examDateTime.string(from: date))
                         .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(AppColors.success)
                         .lineLimit(1)
@@ -319,13 +311,6 @@ private struct ExamEditorSheet: View {
                 .stroke(AppColors.cardBorder, lineWidth: 1)
         }
     }
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy年 M月 d日（E） H:mm"
-        return formatter
-    }()
 }
 
 private struct ExamTextCard: View {

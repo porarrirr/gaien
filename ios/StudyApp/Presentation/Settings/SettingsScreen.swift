@@ -235,7 +235,7 @@ struct SettingsScreen: View {
                 Divider()
                 compactInfoRow(icon: "person", title: "メールアドレス", value: viewModel.app.syncStatus.email ?? "-")
                 Divider()
-                compactInfoRow(icon: "clock", title: "最終同期", value: viewModel.app.syncStatus.lastSyncAt.map { Self.syncDateFormatter.string(from: Date(epochMilliseconds: $0)) } ?? "未同期")
+                compactInfoRow(icon: "clock", title: "最終同期", value: viewModel.app.syncStatus.lastSyncAt.map { StudyFormatters.slashTimestamp.string(from: Date(epochMilliseconds: $0)) } ?? "未同期")
                 Divider()
                 actionLine(icon: "arrow.triangle.2.circlepath", title: viewModel.app.syncStatus.isSyncing ? "同期中..." : "今すぐ同期", color: AppColors.success) {
                     viewModel.syncNow()
@@ -467,13 +467,6 @@ struct SettingsScreen: View {
         return formatter
     }()
 
-    private static let syncDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy/MM/dd HH:mm"
-        return formatter
-    }()
-
     private func reminderDate(hour: Int, minute: Int) -> Date {
         let now = Date()
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: now) ?? now
@@ -650,7 +643,7 @@ private struct DebugLogSheet: View {
         guard let latest = displayedEntries.first?.timestamp else {
             return "--:--:--"
         }
-        return Self.timeFormatter.string(from: latest)
+        return StudyFormatters.clockWithSeconds.string(from: latest)
     }
 
     private var displayedEntries: [DebugLogEntry] {
@@ -679,13 +672,6 @@ private struct DebugLogSheet: View {
             }
         }
     }
-
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter
-    }()
 }
 
 private struct DebugLogSummaryCard: View {
@@ -746,7 +732,7 @@ private struct DebugLogRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 5) {
-                Text(Self.timestampFormatter.string(from: entry.timestamp))
+                Text(StudyFormatters.logTimestamp.string(from: entry.timestamp))
                     .font(.system(size: 17, weight: .regular))
                     .foregroundStyle(AppColors.textPrimary)
                     .lineLimit(1)
@@ -801,22 +787,8 @@ private struct DebugLogRow: View {
     }
 
     private var dayLabel: String {
-        Calendar.current.isDateInToday(entry.timestamp) ? "今日" : Self.dayFormatter.string(from: entry.timestamp)
+        Calendar.current.isDateInToday(entry.timestamp) ? "今日" : StudyFormatters.shortDate.string(from: entry.timestamp)
     }
-
-    private static let timestampFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "MM/dd  HH:mm:ss"
-        return formatter
-    }()
-
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M/d"
-        return formatter
-    }()
 }
 
 private struct DebugLogActionRow: View {
