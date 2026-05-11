@@ -7,7 +7,7 @@ final class ExamsViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            exams = try await app.persistence.getAllExams()
+            exams = try await app.examRepo.getAllExams()
         } catch {
             app.present(error)
         }
@@ -19,9 +19,9 @@ final class ExamsViewModel: ScreenViewModel {
             guard !trimmed.isEmpty else { throw ValidationError(message: "テスト名を入力してください") }
             let exam = Exam(id: id ?? 0, name: trimmed, date: date.startOfDay.epochDay, note: note?.nilIfBlank)
             if id == nil {
-                _ = try await self.app.persistence.insertExam(exam)
+                _ = try await self.app.examRepo.insertExam(exam)
             } else {
-                try await self.app.persistence.updateExam(exam)
+                try await self.app.examRepo.updateExam(exam)
             }
             await self.load()
             self.app.bumpDataVersion()
@@ -30,7 +30,7 @@ final class ExamsViewModel: ScreenViewModel {
 
     func deleteExam(_ exam: Exam) {
         perform {
-            try await self.app.persistence.deleteExam(exam)
+            try await self.app.examRepo.deleteExam(exam)
             await self.load()
             self.app.bumpDataVersion()
         }

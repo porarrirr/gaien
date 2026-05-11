@@ -34,14 +34,14 @@ final class PlanViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            async let plansTask = app.persistence.getAllPlans()
-            async let subjectsTask = app.persistence.getAllSubjects()
+            async let plansTask = app.planRepo.getAllPlans()
+            async let subjectsTask = app.subjectRepo.getAllSubjects()
             let loadedPlans = try await plansTask
             plans = loadedPlans
             activePlan = loadedPlans.first(where: \.isActive)
             subjects = try await subjectsTask
             if let activePlan {
-                planItems = try await app.persistence.getPlanItems(planId: activePlan.id)
+                planItems = try await app.planRepo.getPlanItems(planId: activePlan.id)
                 if selectedDay == nil {
                     selectedDay = StudyWeekday.allCases.first(where: { !(weeklySchedule[$0] ?? []).isEmpty }) ?? .monday
                 }
@@ -56,7 +56,7 @@ final class PlanViewModel: ScreenViewModel {
 
     func createPlan(name: String, startDate: Date, endDate: Date, items: [PlanItem]) {
         perform {
-            let useCase = ManagePlansUseCase(repository: self.app.persistence)
+            let useCase = ManagePlansUseCase(repository: self.app.planRepo)
             let syncedItems = items.map { item -> PlanItem in
                 var value = item
                 value.subjectSyncId = self.subjects.first(where: { $0.id == item.subjectId })?.syncId
@@ -77,7 +77,7 @@ final class PlanViewModel: ScreenViewModel {
                 guard let activePlan = self.activePlan else {
                     throw ValidationError(message: "アクティブなプランがありません")
                 }
-                _ = try await self.app.persistence.insertPlanItem(
+                _ = try await self.app.planRepo.insertPlanItem(
                     PlanItem(
                         planId: activePlan.id,
                         planSyncId: activePlan.syncId,
@@ -93,7 +93,7 @@ final class PlanViewModel: ScreenViewModel {
                 var updatedItem = item
                 updatedItem.planSyncId = planSyncId
                 updatedItem.subjectSyncId = subjectSyncId
-                try await self.app.persistence.updatePlanItem(updatedItem)
+                try await self.app.planRepo.updatePlanItem(updatedItem)
             }
             await self.load()
             self.app.bumpDataVersion()
@@ -102,7 +102,7 @@ final class PlanViewModel: ScreenViewModel {
 
     func deletePlanItem(_ item: PlanItem) {
         perform {
-            try await self.app.persistence.deletePlanItem(item)
+            try await self.app.planRepo.deletePlanItem(item)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -111,7 +111,7 @@ final class PlanViewModel: ScreenViewModel {
     func deleteActivePlan() {
         perform {
             guard let activePlan = self.activePlan else { return }
-            try await self.app.persistence.deletePlan(activePlan)
+            try await self.app.planRepo.deletePlan(activePlan)
             await self.load()
             self.app.bumpDataVersion()
         }

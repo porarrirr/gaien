@@ -19,7 +19,7 @@ final class ReportsViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            let useCase = GetReportsDataUseCase(subjectRepository: app.persistence, sessionRepository: app.persistence, clock: app.clock)
+            let useCase = GetReportsDataUseCase(subjectRepository: app.subjectRepo, sessionRepository: app.sessionRepo, clock: app.clock)
             reports = try await useCase.execute()
         } catch {
             app.present(error)
