@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct TimetablePeriodSettingsSheet: View {
     let onSave: ([TimetablePeriodDraft]) -> Void
