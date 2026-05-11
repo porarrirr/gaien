@@ -74,7 +74,24 @@ jobs:
           # Tests run against the iOS Simulator so they can exercise
           # pure-logic targets without provisioning. Device-target builds
           # are validated in the step above.
-          SIMULATOR_DESTINATION='platform=iOS Simulator,name=iPhone 15,OS=latest'
+          #
+          # Pick any available iPhone simulator so CI survives runner image
+          # churn. `xcrun simctl list ... available` already filters out
+          # unavailable runtimes.
+          SIMULATOR_UDID=$(
+            xcrun simctl list devices available \
+              | awk '/-- iOS /,/^-- /' \
+              | grep -E '^[[:space:]]+iPhone' \
+              | tail -n 1 \
+              | sed -E 's/.*\(([A-F0-9-]+)\).*/\1/'
+          )
+          if [ -z "$SIMULATOR_UDID" ]; then
+            echo "No available iPhone simulator was found on this runner."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator UDID: $SIMULATOR_UDID"
+          SIMULATOR_DESTINATION="platform=iOS Simulator,id=$SIMULATOR_UDID"
           xcodebuild \
             -project ios/StudyApp.xcodeproj \
             -scheme StudyApp \
