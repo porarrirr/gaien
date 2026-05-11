@@ -37,6 +37,7 @@
 		A40000000000000000000009 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
 		A4000000000000000000000A /* TimetableModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000009 /* TimetableModels.swift */; };
 		A10000000000000000000003 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* PersistenceController.swift */; };
+		A10000000000000000000050 /* CoreDataSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000050 /* CoreDataSchema.swift */; };
 		A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* LegacySnapshotModels.swift */; };
 		A10000000000000000000004 /* GoogleBooksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* GoogleBooksService.swift */; };
 		A10000000000000000000018 /* FirebaseBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseBootstrap.swift */; };
@@ -165,6 +166,7 @@
 		B40000000000000000000008 /* FoundationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationExtensions.swift; sourceTree = "<group>"; };
 		B40000000000000000000009 /* TimetableModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
+		B10000000000000000000050 /* CoreDataSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataSchema.swift; sourceTree = "<group>"; };
 		B10000000000000000000023 /* LegacySnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacySnapshotModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* FirebaseBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseBootstrap.swift; sourceTree = "<group>"; };
@@ -416,6 +418,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000004 /* PersistenceController.swift */,
+				B10000000000000000000050 /* CoreDataSchema.swift */,
 				B10000000000000000000023 /* LegacySnapshotModels.swift */,
 				B10000000000000000000005 /* GoogleBooksService.swift */,
 				B10000000000000000000016 /* FirebaseBootstrap.swift */,
@@ -855,6 +858,7 @@
 				A40000000000000000000008 /* FoundationExtensions.swift in Sources */,
 				A4000000000000000000000A /* TimetableModels.swift in Sources */,
 				A10000000000000000000003 /* PersistenceController.swift in Sources */,
+				A10000000000000000000050 /* CoreDataSchema.swift in Sources */,
 				A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */,
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,
 				A10000000000000000000018 /* FirebaseBootstrap.swift in Sources */,
