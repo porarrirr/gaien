@@ -70,12 +70,12 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func getAllSubjects() async throws -> [Subject] {
         try await ensureLoaded()
-        return try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(Self.subject).filter { $0.deletedAt == nil }
+        return try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(PersistenceMappers.subject).filter { $0.deletedAt == nil }
     }
 
     func getSubjectById(_ id: Int64) async throws -> Subject? {
         try await ensureLoaded()
-        return try fetchOne(entity: "SubjectRecord", id: id).map(Self.subject)
+        return try fetchOne(entity: "SubjectRecord", id: id).map(PersistenceMappers.subject)
     }
 
     func insertSubject(_ subject: Subject) async throws -> Int64 {
@@ -83,7 +83,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let id = try nextIdentifier(ifNeeded: subject.id)
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "SubjectRecord", into: container.viewContext)
-        Self.apply(subject, assignedId: id, now: now, to: record)
+        PersistenceMappers.apply(subject, assignedId: id, now: now, to: record)
         try saveContext()
         return id
     }
@@ -164,7 +164,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 NSSortDescriptor(key: "sortOrder", ascending: true),
                 NSSortDescriptor(key: "updatedAt", ascending: false)
             ]
-        ).map(Self.material).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.material).filter { $0.deletedAt == nil }
     }
 
     func getMaterialsBySubjectId(_ subjectId: Int64) async throws -> [Material] {
@@ -176,7 +176,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 NSSortDescriptor(key: "sortOrder", ascending: true),
                 NSSortDescriptor(key: "updatedAt", ascending: false)
             ]
-        ).map(Self.material).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.material).filter { $0.deletedAt == nil }
     }
 
     func insertMaterial(_ material: Material) async throws -> Int64 {
@@ -184,7 +184,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let id = try nextIdentifier(ifNeeded: material.id)
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "MaterialRecord", into: container.viewContext)
-        Self.apply(
+        PersistenceMappers.apply(
             material,
             assignedId: id,
             subjectId: material.subjectId,
@@ -213,8 +213,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(Int64(material.totalPages), forKey: "totalPages")
         record.setValue(Int64(material.currentPage), forKey: "currentPage")
         record.setValue(Int64(material.totalProblems), forKey: "totalProblems")
-        record.setValue(Self.encodeProblemChapters(material.problemChapters), forKey: "problemChaptersData")
-        record.setValue(Self.encodeProblemRecords(material.problemRecords), forKey: "problemRecordsData")
+        record.setValue(PersistenceMappers.encodeProblemChapters(material.problemChapters), forKey: "problemChaptersData")
+        record.setValue(PersistenceMappers.encodeProblemRecords(material.problemRecords), forKey: "problemRecordsData")
         record.setValue(material.color.map { Int64($0) }, forKey: "color")
         record.setValue(material.note, forKey: "note")
         record.setValue(material.deletedAt, forKey: "deletedAt")
@@ -258,7 +258,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func getAllSessions() async throws -> [StudySession] {
         try await ensureLoaded()
-        return try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(Self.session).filter { $0.deletedAt == nil }
+        return try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(PersistenceMappers.session).filter { $0.deletedAt == nil }
     }
 
     func getSessionsBetweenDates(start: Int64, end: Int64) async throws -> [StudySession] {
@@ -267,7 +267,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             entity: "StudySessionRecord",
             predicate: NSPredicate(format: "startTime >= %lld AND startTime < %lld", start, end),
             sort: [NSSortDescriptor(key: "startTime", ascending: false)]
-        ).map(Self.session).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.session).filter { $0.deletedAt == nil }
     }
 
     func insertSession(_ session: StudySession) async throws -> Int64 {
@@ -362,13 +362,13 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func getAllGoals() async throws -> [Goal] {
         try await ensureLoaded()
-        return try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(Self.goal).filter { $0.deletedAt == nil }
+        return try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(PersistenceMappers.goal).filter { $0.deletedAt == nil }
     }
 
     func getActiveGoalByType(_ type: GoalType) async throws -> Goal? {
         try await ensureLoaded()
         let predicate = NSPredicate(format: "type == %@ AND isActive == YES AND dayOfWeek == NIL", type.rawValue)
-        return try fetch(entity: "GoalRecord", predicate: predicate, sort: [NSSortDescriptor(key: "updatedAt", ascending: false)]).map(Self.goal).first(where: { $0.deletedAt == nil })
+        return try fetch(entity: "GoalRecord", predicate: predicate, sort: [NSSortDescriptor(key: "updatedAt", ascending: false)]).map(PersistenceMappers.goal).first(where: { $0.deletedAt == nil })
     }
 
     func insertGoal(_ goal: Goal) async throws -> Int64 {
@@ -376,7 +376,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let id = try nextIdentifier(ifNeeded: goal.id)
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: container.viewContext)
-        Self.apply(goal, assignedId: id, now: now, to: record)
+        PersistenceMappers.apply(goal, assignedId: id, now: now, to: record)
         try saveContext()
         return id
     }
@@ -407,7 +407,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func getAllExams() async throws -> [Exam] {
         try await ensureLoaded()
-        return try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(Self.exam).filter { $0.deletedAt == nil }
+        return try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(PersistenceMappers.exam).filter { $0.deletedAt == nil }
     }
 
     func getUpcomingExams(now: Date) async throws -> [Exam] {
@@ -417,7 +417,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             entity: "ExamRecord",
             predicate: NSPredicate(format: "date >= %lld", currentDay),
             sort: [NSSortDescriptor(key: "date", ascending: true)]
-        ).map(Self.exam).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.exam).filter { $0.deletedAt == nil }
     }
 
     func insertExam(_ exam: Exam) async throws -> Int64 {
@@ -425,7 +425,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let id = try nextIdentifier(ifNeeded: exam.id)
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "ExamRecord", into: container.viewContext)
-        Self.apply(exam, assignedId: id, now: now, to: record)
+        PersistenceMappers.apply(exam, assignedId: id, now: now, to: record)
         try saveContext()
         return id
     }
@@ -454,7 +454,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func getAllPlans() async throws -> [StudyPlan] {
         try await ensureLoaded()
-        return try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(Self.plan).filter { $0.deletedAt == nil }
+        return try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(PersistenceMappers.plan).filter { $0.deletedAt == nil }
     }
 
     func getPlanItems(planId: Int64) async throws -> [PlanItem] {
@@ -463,7 +463,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             entity: "PlanItemRecord",
             predicate: NSPredicate(format: "planId == %lld", planId),
             sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true), NSSortDescriptor(key: "targetMinutes", ascending: false)]
-        ).map(Self.planItem).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.planItem).filter { $0.deletedAt == nil }
     }
 
     func createPlan(_ plan: StudyPlan, items: [PlanItem]) async throws -> Int64 {
@@ -477,7 +477,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         var nextLocalId = planId + 1
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "StudyPlanRecord", into: container.viewContext)
-        Self.apply(plan, assignedId: planId, now: now, to: record)
+        PersistenceMappers.apply(plan, assignedId: planId, now: now, to: record)
 
         for item in items {
             let itemRecord = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: container.viewContext)
@@ -485,7 +485,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             if item.id == 0 {
                 nextLocalId += 1
             }
-            Self.apply(
+            PersistenceMappers.apply(
                 item,
                 assignedId: itemId,
                 planId: planId,
@@ -506,7 +506,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let itemId = try nextIdentifier(ifNeeded: item.id)
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: container.viewContext)
-        Self.apply(
+        PersistenceMappers.apply(
             item,
             assignedId: itemId,
             planId: item.planId,
@@ -571,7 +571,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return try fetch(
             entity: "TimetablePeriodRecord",
             sort: [NSSortDescriptor(key: "sortOrder", ascending: true), NSSortDescriptor(key: "startMinute", ascending: true)]
-        ).map(Self.timetablePeriod).filter { $0.deletedAt == nil && $0.isActive }
+        ).map(PersistenceMappers.timetablePeriod).filter { $0.deletedAt == nil && $0.isActive }
     }
 
     func saveTimetablePeriod(_ period: TimetablePeriod) async throws -> Int64 {
@@ -585,14 +585,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             updated.syncId = (record.value(forKey: "syncId") as? String)?.nilIfBlank ?? period.syncId
             updated.createdAt = record.value(forKey: "createdAt") as? Int64 ?? period.createdAt
             updated.updatedAt = now
-            Self.apply(updated, assignedId: period.id, now: now, to: record)
+            PersistenceMappers.apply(updated, assignedId: period.id, now: now, to: record)
             try saveContext()
             return period.id
         }
 
         let id = try nextIdentifier(ifNeeded: period.id)
         let record = NSEntityDescription.insertNewObject(forEntityName: "TimetablePeriodRecord", into: container.viewContext)
-        Self.apply(period, assignedId: id, now: now, to: record)
+        PersistenceMappers.apply(period, assignedId: id, now: now, to: record)
         try saveContext()
         return id
     }
@@ -617,7 +617,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return try fetch(
             entity: "TimetableTermRecord",
             sort: [NSSortDescriptor(key: "startDate", ascending: false), NSSortDescriptor(key: "endDate", ascending: false)]
-        ).map(Self.timetableTerm).filter { $0.deletedAt == nil && $0.isActive }
+        ).map(PersistenceMappers.timetableTerm).filter { $0.deletedAt == nil && $0.isActive }
     }
 
     func saveTimetableTerm(_ term: TimetableTerm) async throws -> Int64 {
@@ -637,7 +637,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             updated.name = name
             updated.createdAt = record.value(forKey: "createdAt") as? Int64 ?? term.createdAt
             updated.updatedAt = now
-            Self.apply(updated, assignedId: term.id, now: now, to: record)
+            PersistenceMappers.apply(updated, assignedId: term.id, now: now, to: record)
             try saveContext()
             return term.id
         }
@@ -646,7 +646,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         inserted.name = name
         let id = try nextIdentifier(ifNeeded: term.id)
         let record = NSEntityDescription.insertNewObject(forEntityName: "TimetableTermRecord", into: container.viewContext)
-        Self.apply(inserted, assignedId: id, now: now, to: record)
+        PersistenceMappers.apply(inserted, assignedId: id, now: now, to: record)
         try saveContext()
         return id
     }
@@ -672,7 +672,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return try fetch(
             entity: "TimetableEntryRecord",
             sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true), NSSortDescriptor(key: "periodId", ascending: true)]
-        ).map(Self.timetableEntry).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.timetableEntry).filter { $0.deletedAt == nil }
     }
 
     func saveTimetableEntry(_ entry: TimetableEntry) async throws -> Int64 {
@@ -684,14 +684,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         guard StudyWeekday.timetableDays.contains(entry.dayOfWeek) else {
             throw ValidationError(message: "時間割は月曜から土曜の範囲で設定してください")
         }
-        guard let period = try fetchOne(entity: "TimetablePeriodRecord", id: entry.periodId).map(Self.timetablePeriod),
+        guard let period = try fetchOne(entity: "TimetablePeriodRecord", id: entry.periodId).map(PersistenceMappers.timetablePeriod),
               period.deletedAt == nil,
               period.isActive else {
             throw ValidationError(message: "有効な時限を選択してください")
         }
         let resolvedTermSyncId: String?
         if let termId = entry.termId {
-            guard let term = try fetchOne(entity: "TimetableTermRecord", id: termId).map(Self.timetableTerm),
+            guard let term = try fetchOne(entity: "TimetableTermRecord", id: termId).map(PersistenceMappers.timetableTerm),
                   term.deletedAt == nil,
                   term.isActive else {
                 throw ValidationError(message: "有効な学期を選択してください")
@@ -733,7 +733,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             updated.roomName = entry.roomName?.nilIfBlank
             updated.createdAt = record.value(forKey: "createdAt") as? Int64 ?? entry.createdAt
             updated.updatedAt = now
-            Self.apply(updated, assignedId: assignedId, termId: entry.termId, termSyncId: updated.termSyncId, periodId: period.id, periodSyncId: period.syncId, now: now, to: record)
+            PersistenceMappers.apply(updated, assignedId: assignedId, termId: entry.termId, termSyncId: updated.termSyncId, periodId: period.id, periodSyncId: period.syncId, now: now, to: record)
             try saveContext()
             return assignedId
         }
@@ -746,7 +746,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         inserted.termSyncId = resolvedTermSyncId
         let id = try nextIdentifier(ifNeeded: entry.id)
         let record = NSEntityDescription.insertNewObject(forEntityName: "TimetableEntryRecord", into: container.viewContext)
-        Self.apply(inserted, assignedId: id, termId: entry.termId, termSyncId: inserted.termSyncId, periodId: period.id, periodSyncId: period.syncId, now: now, to: record)
+        PersistenceMappers.apply(inserted, assignedId: id, termId: entry.termId, termSyncId: inserted.termSyncId, periodId: period.id, periodSyncId: period.syncId, now: now, to: record)
         try saveContext()
         return id
     }
@@ -765,7 +765,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return try fetch(
             entity: "TimetableReviewRecord",
             sort: [NSSortDescriptor(key: "occurrenceDate", ascending: false), NSSortDescriptor(key: "periodStartMinute", ascending: true)]
-        ).map(Self.timetableReviewRecord).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.timetableReviewRecord).filter { $0.deletedAt == nil }
     }
 
     func saveTimetableReviewRecord(_ record: TimetableReviewRecord) async throws -> Int64 {
@@ -791,14 +791,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             updated.syncId = (existing.value(forKey: "syncId") as? String)?.nilIfBlank ?? record.syncId
             updated.createdAt = existing.value(forKey: "createdAt") as? Int64 ?? record.createdAt
             updated.updatedAt = now
-            Self.apply(updated, assignedId: assignedId, now: now, to: existing)
+            PersistenceMappers.apply(updated, assignedId: assignedId, now: now, to: existing)
             try saveContext()
             return assignedId
         }
 
         let id = try nextIdentifier(ifNeeded: record.id)
         let object = NSEntityDescription.insertNewObject(forEntityName: "TimetableReviewRecord", into: container.viewContext)
-        Self.apply(record, assignedId: id, now: now, to: object)
+        PersistenceMappers.apply(record, assignedId: id, now: now, to: object)
         try saveContext()
         return id
     }
@@ -814,10 +814,10 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func overdueTimetableReviewCount(reference: Date = Date()) async throws -> Int {
         try await ensureLoaded()
-        let terms = try fetch(entity: "TimetableTermRecord").map(Self.timetableTerm).filter { $0.deletedAt == nil && $0.isActive }
-        let periods = try fetch(entity: "TimetablePeriodRecord").map(Self.timetablePeriod).filter { $0.deletedAt == nil && $0.isActive }
-        let entries = try fetch(entity: "TimetableEntryRecord").map(Self.timetableEntry).filter { $0.deletedAt == nil }
-        let reviews = try fetch(entity: "TimetableReviewRecord").map(Self.timetableReviewRecord).filter { $0.deletedAt == nil }
+        let terms = try fetch(entity: "TimetableTermRecord").map(PersistenceMappers.timetableTerm).filter { $0.deletedAt == nil && $0.isActive }
+        let periods = try fetch(entity: "TimetablePeriodRecord").map(PersistenceMappers.timetablePeriod).filter { $0.deletedAt == nil && $0.isActive }
+        let entries = try fetch(entity: "TimetableEntryRecord").map(PersistenceMappers.timetableEntry).filter { $0.deletedAt == nil }
+        let reviews = try fetch(entity: "TimetableReviewRecord").map(PersistenceMappers.timetableReviewRecord).filter { $0.deletedAt == nil }
         let periodMap = Dictionary(uniqueKeysWithValues: periods.map { ($0.id, $0) })
         let reviewMap = reviews.reduce(into: [String: TimetableReviewRecord]()) { result, review in
             let key = "\(review.termId)-\(review.entryId)-\(review.periodId)-\(review.occurrenceDate)"
@@ -866,7 +866,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return try fetch(
             entity: "ProblemReviewRecord",
             sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]
-        ).map(Self.problemReviewRecord).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.problemReviewRecord).filter { $0.deletedAt == nil }
     }
 
     func getTodayReviewProblems(reference: Date = Date()) async throws -> [TodayReviewProblem] {
@@ -877,7 +877,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             entity: "ProblemReviewRecord",
             predicate: NSPredicate(format: "deletedAt == NIL"),
             sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]
-        ).map(Self.problemReviewRecord)
+        ).map(PersistenceMappers.problemReviewRecord)
         let latestByProblem = Self.latestProblemReviews(from: reviews)
         guard !latestByProblem.isEmpty else { return [] }
 
@@ -915,17 +915,17 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     func exportData() async throws -> AppData {
         try await ensureLoaded()
         try backfillMissingSyncMetadataIfNeeded()
-        let subjects = try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(Self.subject)
-        let materials = try fetch(entity: "MaterialRecord", sort: [NSSortDescriptor(key: "id", ascending: false)]).map(Self.material)
-        let sessions = try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(Self.session)
-        let goals = try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(Self.goal)
-        let exams = try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(Self.exam)
-        let plans = try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(Self.plan)
-        let timetablePeriods = try fetch(entity: "TimetablePeriodRecord", sort: [NSSortDescriptor(key: "sortOrder", ascending: true)]).map(Self.timetablePeriod)
-        let timetableEntries = try fetch(entity: "TimetableEntryRecord", sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true)]).map(Self.timetableEntry)
-        let timetableTerms = try fetch(entity: "TimetableTermRecord", sort: [NSSortDescriptor(key: "startDate", ascending: false)]).map(Self.timetableTerm)
-        let timetableReviewRecords = try fetch(entity: "TimetableReviewRecord", sort: [NSSortDescriptor(key: "occurrenceDate", ascending: false)]).map(Self.timetableReviewRecord)
-        let problemReviewRecords = try fetch(entity: "ProblemReviewRecord", sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]).map(Self.problemReviewRecord)
+        let subjects = try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(PersistenceMappers.subject)
+        let materials = try fetch(entity: "MaterialRecord", sort: [NSSortDescriptor(key: "id", ascending: false)]).map(PersistenceMappers.material)
+        let sessions = try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(PersistenceMappers.session)
+        let goals = try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(PersistenceMappers.goal)
+        let exams = try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(PersistenceMappers.exam)
+        let plans = try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(PersistenceMappers.plan)
+        let timetablePeriods = try fetch(entity: "TimetablePeriodRecord", sort: [NSSortDescriptor(key: "sortOrder", ascending: true)]).map(PersistenceMappers.timetablePeriod)
+        let timetableEntries = try fetch(entity: "TimetableEntryRecord", sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true)]).map(PersistenceMappers.timetableEntry)
+        let timetableTerms = try fetch(entity: "TimetableTermRecord", sort: [NSSortDescriptor(key: "startDate", ascending: false)]).map(PersistenceMappers.timetableTerm)
+        let timetableReviewRecords = try fetch(entity: "TimetableReviewRecord", sort: [NSSortDescriptor(key: "occurrenceDate", ascending: false)]).map(PersistenceMappers.timetableReviewRecord)
+        let problemReviewRecords = try fetch(entity: "ProblemReviewRecord", sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]).map(PersistenceMappers.problemReviewRecord)
 
         var planData = [PlanData]()
         for plan in plans {
@@ -933,7 +933,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 entity: "PlanItemRecord",
                 predicate: NSPredicate(format: "planId == %lld", plan.id),
                 sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true), NSSortDescriptor(key: "targetMinutes", ascending: false)]
-            ).map(Self.planItem)
+            ).map(PersistenceMappers.planItem)
             planData.append(PlanData(plan: plan, items: items))
         }
 
@@ -1089,12 +1089,12 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let existingTimetableReviewRecordIds = try existingIdMap(entity: "TimetableReviewRecord")
         let existingProblemReviewRecordIds = try existingIdMap(entity: "ProblemReviewRecord")
         let existingMaterialsBySyncId = try fetch(entity: "MaterialRecord")
-            .map(Self.material)
+            .map(PersistenceMappers.material)
             .reduce(into: [String: Material]()) { result, material in
                 result[material.syncId] = material
             }
         let existingSessionsBySyncId = try fetch(entity: "StudySessionRecord")
-            .map(Self.session)
+            .map(PersistenceMappers.session)
             .reduce(into: [String: StudySession]()) { result, session in
                 result[session.syncId] = session
             }
@@ -1162,7 +1162,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             if subject.id > 0 { subjectOldMap[subject.id] = localId }
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "SubjectRecord", into: ctx)
-            Self.apply(subject, assignedId: localId, now: now, to: r)
+            PersistenceMappers.apply(subject, assignedId: localId, now: now, to: r)
         }
 
         // --- Materials ---
@@ -1177,7 +1177,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 oldId: importedMaterial.subjectId, oldMap: subjectOldMap)
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "MaterialRecord", into: ctx)
-            Self.apply(
+            PersistenceMappers.apply(
                 importedMaterial,
                 assignedId: localId,
                 subjectId: subjectId,
@@ -1200,7 +1200,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 oldId: importedSession.materialId, oldMap: materialOldMap)
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: ctx)
-            Self.apply(
+            PersistenceMappers.apply(
                 importedSession,
                 assignedId: localId,
                 subjectId: subjectId,
@@ -1214,14 +1214,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         for goal in appData.goals {
             let localId = allocateId(preferred: existingGoalIds[goal.syncId] ?? goal.id)
             let r = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: ctx)
-            Self.apply(goal, assignedId: localId, now: now, to: r)
+            PersistenceMappers.apply(goal, assignedId: localId, now: now, to: r)
         }
 
         // --- Exams ---
         for exam in appData.exams {
             let localId = allocateId(preferred: existingExamIds[exam.syncId] ?? exam.id)
             let r = NSEntityDescription.insertNewObject(forEntityName: "ExamRecord", into: ctx)
-            Self.apply(exam, assignedId: localId, now: now, to: r)
+            PersistenceMappers.apply(exam, assignedId: localId, now: now, to: r)
         }
 
         // --- Plans & PlanItems (preserve isActive as-is; no deactivation side-effects) ---
@@ -1232,7 +1232,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             if plan.id > 0 { planOldMap[plan.id] = localPlanId }
 
             let pr = NSEntityDescription.insertNewObject(forEntityName: "StudyPlanRecord", into: ctx)
-            Self.apply(plan, assignedId: localPlanId, now: now, to: pr)
+            PersistenceMappers.apply(plan, assignedId: localPlanId, now: now, to: pr)
 
             for item in planData.items {
                 let localItemId = allocateId(preferred: existingPlanItemIds[item.syncId] ?? item.id)
@@ -1241,7 +1241,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     oldId: item.subjectId, oldMap: subjectOldMap)
 
                 let ir = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: ctx)
-                Self.apply(
+                PersistenceMappers.apply(
                     item,
                     assignedId: localItemId,
                     planId: localPlanId,
@@ -1260,7 +1260,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             if period.id > 0 { timetablePeriodOldMap[period.id] = localId }
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "TimetablePeriodRecord", into: ctx)
-            Self.apply(period, assignedId: localId, now: now, to: r)
+            PersistenceMappers.apply(period, assignedId: localId, now: now, to: r)
         }
 
         // --- TimetableTerms ---
@@ -1270,7 +1270,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             if term.id > 0 { timetableTermOldMap[term.id] = localId }
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "TimetableTermRecord", into: ctx)
-            Self.apply(term, assignedId: localId, now: now, to: r)
+            PersistenceMappers.apply(term, assignedId: localId, now: now, to: r)
         }
 
         // --- TimetableEntries ---
@@ -1294,7 +1294,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             let termSyncId = entry.termSyncId ?? entry.termId.flatMap { oldId in appData.timetableTerms.first(where: { $0.id == oldId })?.syncId }
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "TimetableEntryRecord", into: ctx)
-            Self.apply(entry, assignedId: localId, termId: termId, termSyncId: termSyncId, periodId: periodId, periodSyncId: periodSyncId, now: now, to: r)
+            PersistenceMappers.apply(entry, assignedId: localId, termId: termId, termSyncId: termSyncId, periodId: periodId, periodSyncId: periodSyncId, now: now, to: r)
         }
 
         // --- TimetableReviewRecords ---
@@ -1321,7 +1321,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             )
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "TimetableReviewRecord", into: ctx)
-            Self.apply(remapped, assignedId: localId, now: now, to: r)
+            PersistenceMappers.apply(remapped, assignedId: localId, now: now, to: r)
         }
 
         // --- ProblemReviewRecords ---
@@ -1340,7 +1340,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             )
 
             let r = NSEntityDescription.insertNewObject(forEntityName: "ProblemReviewRecord", into: ctx)
-            Self.apply(remapped, assignedId: localId, now: now, to: r)
+            PersistenceMappers.apply(remapped, assignedId: localId, now: now, to: r)
         }
 
         // Commit atomically; rollback on failure preserves original data
@@ -1418,7 +1418,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 NSPredicate(format: "deletedAt == NIL")
             ]),
             sort: [NSSortDescriptor(key: "startTime", ascending: true)]
-        ).map(Self.session)
+        ).map(PersistenceMappers.session)
 
         var latestByProblem = [String: ProblemReviewRecord]()
         for session in sessions where !session.problemRecords.isEmpty {
@@ -1436,7 +1436,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 latestByProblem[problemId] = scheduled
 
                 let reviewRecord = NSEntityDescription.insertNewObject(forEntityName: "ProblemReviewRecord", into: container.viewContext)
-                Self.apply(scheduled, assignedId: allocateId(startingAt: &nextLocalId), now: now, to: reviewRecord)
+                PersistenceMappers.apply(scheduled, assignedId: allocateId(startingAt: &nextLocalId), now: now, to: reviewRecord)
             }
         }
     }
@@ -1463,7 +1463,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             predicate: NSPredicate(format: "isActive == YES AND deletedAt == NIL")
         )
         guard let activePlanRecord = activePlans.first else { return }
-        let activePlan = Self.plan(activePlanRecord)
+        let activePlan = PersistenceMappers.plan(activePlanRecord)
         let planItems = try fetch(
             entity: "PlanItemRecord",
             predicate: NSPredicate(format: "planId == %lld AND deletedAt == NIL", activePlan.id)
@@ -1474,8 +1474,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         )
 
         for itemRecord in planItems {
-            let item = Self.planItem(itemRecord)
-            let actualMinutes = sessions.map(Self.session).filter { session in
+            let item = PersistenceMappers.planItem(itemRecord)
+            let actualMinutes = sessions.map(PersistenceMappers.session).filter { session in
                 session.subjectId == item.subjectId &&
                 session.dayOfWeek == item.dayOfWeek &&
                 session.startTime >= activePlan.startDate &&
@@ -1521,250 +1521,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             lastSyncedAt: persistedLastSyncedAt ?? session.lastSyncedAt
         )
     }
-
-    private static func apply(_ subject: Subject, assignedId: Int64, now: Int64, to record: NSManagedObject) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(subject.syncId, forKey: "syncId")
-        record.setValue(subject.name, forKey: "name")
-        record.setValue(Int64(subject.color), forKey: "color")
-        record.setValue(subject.icon?.rawValue, forKey: "icon")
-        record.setValue(subject.createdAt == 0 ? now : subject.createdAt, forKey: "createdAt")
-        record.setValue(subject.updatedAt == 0 ? now : subject.updatedAt, forKey: "updatedAt")
-        record.setValue(subject.deletedAt, forKey: "deletedAt")
-        record.setValue(subject.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(
-        _ material: Material,
-        assignedId: Int64,
-        subjectId: Int64,
-        subjectSyncId: String?,
-        now: Int64,
-        to record: NSManagedObject
-    ) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(material.syncId, forKey: "syncId")
-        record.setValue(material.name, forKey: "name")
-        record.setValue(subjectId, forKey: "subjectId")
-        record.setValue(subjectSyncId, forKey: "subjectSyncId")
-        record.setValue(material.sortOrder, forKey: "sortOrder")
-        record.setValue(Int64(material.totalPages), forKey: "totalPages")
-        record.setValue(Int64(material.currentPage), forKey: "currentPage")
-        record.setValue(Int64(material.totalProblems), forKey: "totalProblems")
-        record.setValue(encodeProblemChapters(material.problemChapters), forKey: "problemChaptersData")
-        record.setValue(encodeProblemRecords(material.problemRecords), forKey: "problemRecordsData")
-        record.setValue(material.color.map { Int64($0) }, forKey: "color")
-        record.setValue(material.note, forKey: "note")
-        record.setValue(material.createdAt == 0 ? now : material.createdAt, forKey: "createdAt")
-        record.setValue(material.updatedAt == 0 ? now : material.updatedAt, forKey: "updatedAt")
-        record.setValue(material.deletedAt, forKey: "deletedAt")
-        record.setValue(material.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(
-        _ session: StudySession,
-        assignedId: Int64,
-        subjectId: Int64,
-        materialId: Int64?,
-        now: Int64,
-        to record: NSManagedObject
-    ) {
-        let effectiveIntervals = session.effectiveIntervals
-        let startTime = effectiveIntervals.first?.startTime ?? session.startTime
-        let endTime = effectiveIntervals.last?.endTime ?? session.endTime
-
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(session.syncId, forKey: "syncId")
-        record.setValue(materialId, forKey: "materialId")
-        record.setValue(session.materialSyncId, forKey: "materialSyncId")
-        record.setValue(session.materialName, forKey: "materialName")
-        record.setValue(subjectId, forKey: "subjectId")
-        record.setValue(session.subjectSyncId, forKey: "subjectSyncId")
-        record.setValue(session.subjectName, forKey: "subjectName")
-        record.setValue(session.sessionType.rawValue, forKey: "sessionType")
-        record.setValue(startTime, forKey: "startTime")
-        record.setValue(endTime, forKey: "endTime")
-        record.setValue(effectiveIntervals.reduce(0) { $0 + $1.duration }, forKey: "duration")
-        record.setValue(Date(epochMilliseconds: startTime).epochDay, forKey: "date")
-        record.setValue(encodeIntervals(effectiveIntervals), forKey: "intervalsData")
-        record.setValue(session.rating, forKey: "rating")
-        record.setValue(session.note, forKey: "note")
-        record.setValue(session.problemStart.map { Int64($0) }, forKey: "problemStart")
-        record.setValue(session.problemEnd.map { Int64($0) }, forKey: "problemEnd")
-        record.setValue(session.wrongProblemCount.map { Int64($0) }, forKey: "wrongProblemCount")
-        record.setValue(encodeProblemRecords(session.problemRecords), forKey: "problemRecordsData")
-        record.setValue(session.createdAt == 0 ? now : session.createdAt, forKey: "createdAt")
-        record.setValue(session.updatedAt == 0 ? now : session.updatedAt, forKey: "updatedAt")
-        record.setValue(session.deletedAt, forKey: "deletedAt")
-        record.setValue(session.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(_ goal: Goal, assignedId: Int64, now: Int64, to record: NSManagedObject) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(goal.syncId, forKey: "syncId")
-        record.setValue(goal.type.rawValue, forKey: "type")
-        record.setValue(Int64(goal.targetMinutes), forKey: "targetMinutes")
-        record.setValue(goal.dayOfWeek?.rawValue, forKey: "dayOfWeek")
-        record.setValue(goal.weekStartDay.rawValue, forKey: "weekStartDay")
-        record.setValue(goal.isActive, forKey: "isActive")
-        record.setValue(goal.createdAt == 0 ? now : goal.createdAt, forKey: "createdAt")
-        record.setValue(goal.updatedAt == 0 ? now : goal.updatedAt, forKey: "updatedAt")
-        record.setValue(goal.deletedAt, forKey: "deletedAt")
-        record.setValue(goal.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(_ exam: Exam, assignedId: Int64, now: Int64, to record: NSManagedObject) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(exam.syncId, forKey: "syncId")
-        record.setValue(exam.name, forKey: "name")
-        record.setValue(exam.date, forKey: "date")
-        record.setValue(exam.note, forKey: "note")
-        record.setValue(exam.createdAt == 0 ? now : exam.createdAt, forKey: "createdAt")
-        record.setValue(exam.updatedAt == 0 ? now : exam.updatedAt, forKey: "updatedAt")
-        record.setValue(exam.deletedAt, forKey: "deletedAt")
-        record.setValue(exam.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(_ plan: StudyPlan, assignedId: Int64, now: Int64, to record: NSManagedObject) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(plan.syncId, forKey: "syncId")
-        record.setValue(plan.name, forKey: "name")
-        record.setValue(plan.startDate, forKey: "startDate")
-        record.setValue(plan.endDate, forKey: "endDate")
-        record.setValue(plan.isActive, forKey: "isActive")
-        record.setValue(plan.createdAt == 0 ? now : plan.createdAt, forKey: "createdAt")
-        record.setValue(plan.updatedAt == 0 ? now : plan.updatedAt, forKey: "updatedAt")
-        record.setValue(plan.deletedAt, forKey: "deletedAt")
-        record.setValue(plan.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(
-        _ item: PlanItem,
-        assignedId: Int64,
-        planId: Int64,
-        planSyncId: String?,
-        subjectId: Int64,
-        now: Int64,
-        to record: NSManagedObject
-    ) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(item.syncId, forKey: "syncId")
-        record.setValue(planId, forKey: "planId")
-        record.setValue(planSyncId, forKey: "planSyncId")
-        record.setValue(subjectId, forKey: "subjectId")
-        record.setValue(item.subjectSyncId, forKey: "subjectSyncId")
-        record.setValue(item.dayOfWeek.rawValue, forKey: "dayOfWeek")
-        record.setValue(Int64(item.targetMinutes), forKey: "targetMinutes")
-        record.setValue(Int64(item.actualMinutes), forKey: "actualMinutes")
-        record.setValue(item.timeSlot, forKey: "timeSlot")
-        record.setValue(item.createdAt == 0 ? now : item.createdAt, forKey: "createdAt")
-        record.setValue(item.updatedAt == 0 ? now : item.updatedAt, forKey: "updatedAt")
-        record.setValue(item.deletedAt, forKey: "deletedAt")
-        record.setValue(item.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(_ period: TimetablePeriod, assignedId: Int64, now: Int64, to record: NSManagedObject) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(period.syncId, forKey: "syncId")
-        record.setValue(period.name, forKey: "name")
-        record.setValue(Int64(period.startMinute), forKey: "startMinute")
-        record.setValue(Int64(period.endMinute), forKey: "endMinute")
-        record.setValue(Int64(period.sortOrder), forKey: "sortOrder")
-        record.setValue(period.isActive, forKey: "isActive")
-        record.setValue(period.createdAt == 0 ? now : period.createdAt, forKey: "createdAt")
-        record.setValue(period.updatedAt == 0 ? now : period.updatedAt, forKey: "updatedAt")
-        record.setValue(period.deletedAt, forKey: "deletedAt")
-        record.setValue(period.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(
-        _ entry: TimetableEntry,
-        assignedId: Int64,
-        termId: Int64?,
-        termSyncId: String?,
-        periodId: Int64,
-        periodSyncId: String?,
-        now: Int64,
-        to record: NSManagedObject
-    ) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(entry.syncId, forKey: "syncId")
-        record.setValue(termId, forKey: "termId")
-        record.setValue(termSyncId, forKey: "termSyncId")
-        record.setValue(entry.dayOfWeek.rawValue, forKey: "dayOfWeek")
-        record.setValue(periodId, forKey: "periodId")
-        record.setValue(periodSyncId, forKey: "periodSyncId")
-        record.setValue(entry.subjectName, forKey: "subjectName")
-        record.setValue(entry.courseName, forKey: "courseName")
-        record.setValue(entry.roomName, forKey: "roomName")
-        record.setValue(entry.validFromDate, forKey: "validFromDate")
-        record.setValue(entry.validToDate, forKey: "validToDate")
-        record.setValue(entry.createdAt == 0 ? now : entry.createdAt, forKey: "createdAt")
-        record.setValue(entry.updatedAt == 0 ? now : entry.updatedAt, forKey: "updatedAt")
-        record.setValue(entry.deletedAt, forKey: "deletedAt")
-        record.setValue(entry.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(_ term: TimetableTerm, assignedId: Int64, now: Int64, to record: NSManagedObject) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(term.syncId, forKey: "syncId")
-        record.setValue(term.name, forKey: "name")
-        record.setValue(term.startDate, forKey: "startDate")
-        record.setValue(term.endDate, forKey: "endDate")
-        record.setValue(term.isActive, forKey: "isActive")
-        record.setValue(term.createdAt == 0 ? now : term.createdAt, forKey: "createdAt")
-        record.setValue(term.updatedAt == 0 ? now : term.updatedAt, forKey: "updatedAt")
-        record.setValue(term.deletedAt, forKey: "deletedAt")
-        record.setValue(term.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(_ review: TimetableReviewRecord, assignedId: Int64, now: Int64, to record: NSManagedObject) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(review.syncId, forKey: "syncId")
-        record.setValue(review.termId, forKey: "termId")
-        record.setValue(review.termSyncId, forKey: "termSyncId")
-        record.setValue(review.entryId, forKey: "entryId")
-        record.setValue(review.entrySyncId, forKey: "entrySyncId")
-        record.setValue(review.periodId, forKey: "periodId")
-        record.setValue(review.periodSyncId, forKey: "periodSyncId")
-        record.setValue(review.occurrenceDate, forKey: "occurrenceDate")
-        record.setValue(review.dayOfWeek.rawValue, forKey: "dayOfWeek")
-        record.setValue(review.periodName, forKey: "periodName")
-        record.setValue(Int64(review.periodStartMinute), forKey: "periodStartMinute")
-        record.setValue(Int64(review.periodEndMinute), forKey: "periodEndMinute")
-        record.setValue(review.subjectName, forKey: "subjectName")
-        record.setValue(review.courseName, forKey: "courseName")
-        record.setValue(review.roomName, forKey: "roomName")
-        record.setValue(review.isReviewed, forKey: "isReviewed")
-        record.setValue(review.note, forKey: "note")
-        record.setValue(review.isExcluded, forKey: "isExcluded")
-        record.setValue(review.reviewedAt, forKey: "reviewedAt")
-        record.setValue(review.createdAt == 0 ? now : review.createdAt, forKey: "createdAt")
-        record.setValue(review.updatedAt == 0 ? now : review.updatedAt, forKey: "updatedAt")
-        record.setValue(review.deletedAt, forKey: "deletedAt")
-        record.setValue(review.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
-    private static func apply(_ review: ProblemReviewRecord, assignedId: Int64, now: Int64, to record: NSManagedObject) {
-        record.setValue(assignedId, forKey: "id")
-        record.setValue(review.syncId, forKey: "syncId")
-        record.setValue(review.problemId, forKey: "problemId")
-        record.setValue(review.materialId, forKey: "materialId")
-        record.setValue(review.materialSyncId, forKey: "materialSyncId")
-        record.setValue(Int64(review.problemNumber), forKey: "problemNumber")
-        record.setValue(review.reviewedAt, forKey: "reviewedAt")
-        record.setValue(review.rating.rawValue, forKey: "rating")
-        record.setValue(review.nextReviewDate, forKey: "nextReviewDate")
-        record.setValue(Int64(review.consecutiveCorrectCount), forKey: "consecutiveCorrectCount")
-        record.setValue(Int64(review.wrongCount), forKey: "wrongCount")
-        record.setValue(review.createdAt == 0 ? now : review.createdAt, forKey: "createdAt")
-        record.setValue(review.updatedAt == 0 ? now : review.updatedAt, forKey: "updatedAt")
-        record.setValue(review.deletedAt, forKey: "deletedAt")
-        record.setValue(review.lastSyncedAt, forKey: "lastSyncedAt")
-    }
-
     private func apply(_ session: StudySession, to record: NSManagedObject) {
-        Self.apply(
+        PersistenceMappers.apply(
             session,
             assignedId: session.id,
             subjectId: session.subjectId,
@@ -1831,7 +1589,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
         var nextGoalId = (try fetch(entity: "GoalRecord").compactMap { $0.value(forKey: "id") as? Int64 }.max() ?? 0) + 1
         for record in legacyRecords {
-            let baseGoal = Self.goal(record)
+            let baseGoal = PersistenceMappers.goal(record)
             container.viewContext.delete(record)
 
             for day in StudyWeekday.allCases {
@@ -2084,270 +1842,6 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             return value
         }
         return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
-    }
-
-    private static func subject(_ record: NSManagedObject) -> Subject {
-        Subject(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            name: record.value(forKey: "name") as? String ?? "",
-            color: Int(record.value(forKey: "color") as? Int64 ?? 0),
-            icon: (record.value(forKey: "icon") as? String).flatMap(SubjectIcon.init(rawValue:)),
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func material(_ record: NSManagedObject) -> Material {
-        Material(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            name: record.value(forKey: "name") as? String ?? "",
-            subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
-            subjectSyncId: record.value(forKey: "subjectSyncId") as? String,
-            sortOrder: record.value(forKey: "sortOrder") as? Int64 ?? 0,
-            totalPages: Int(record.value(forKey: "totalPages") as? Int64 ?? 0),
-            currentPage: Int(record.value(forKey: "currentPage") as? Int64 ?? 0),
-            totalProblems: Int(record.value(forKey: "totalProblems") as? Int64 ?? 0),
-            problemChapters: decodeProblemChapters(record.value(forKey: "problemChaptersData") as? String),
-            problemRecords: decodeProblemRecords(record.value(forKey: "problemRecordsData") as? String),
-            color: (record.value(forKey: "color") as? Int64).map(Int.init),
-            note: record.value(forKey: "note") as? String,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func session(_ record: NSManagedObject) -> StudySession {
-        StudySession(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            materialId: record.value(forKey: "materialId") as? Int64,
-            materialSyncId: record.value(forKey: "materialSyncId") as? String,
-            materialName: record.value(forKey: "materialName") as? String ?? "",
-            subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
-            subjectSyncId: record.value(forKey: "subjectSyncId") as? String,
-            subjectName: record.value(forKey: "subjectName") as? String ?? "",
-            sessionType: StudySessionType(rawValue: record.value(forKey: "sessionType") as? String ?? "") ?? .stopwatch,
-            startTime: record.value(forKey: "startTime") as? Int64 ?? 0,
-            endTime: record.value(forKey: "endTime") as? Int64 ?? 0,
-            intervals: decodeIntervals(record.value(forKey: "intervalsData") as? String),
-            rating: (record.value(forKey: "rating") as? NSNumber)?.intValue,
-            note: record.value(forKey: "note") as? String,
-            problemStart: (record.value(forKey: "problemStart") as? Int64).map(Int.init),
-            problemEnd: (record.value(forKey: "problemEnd") as? Int64).map(Int.init),
-            wrongProblemCount: (record.value(forKey: "wrongProblemCount") as? Int64).map(Int.init),
-            problemRecords: decodeProblemRecords(record.value(forKey: "problemRecordsData") as? String),
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func goal(_ record: NSManagedObject) -> Goal {
-        Goal(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            type: GoalType(rawValue: record.value(forKey: "type") as? String ?? GoalType.daily.rawValue) ?? .daily,
-            targetMinutes: Int(record.value(forKey: "targetMinutes") as? Int64 ?? 0),
-            dayOfWeek: (record.value(forKey: "dayOfWeek") as? String).flatMap(StudyWeekday.init(rawValue:)),
-            weekStartDay: StudyWeekday(rawValue: record.value(forKey: "weekStartDay") as? String ?? StudyWeekday.monday.rawValue) ?? .monday,
-            isActive: record.value(forKey: "isActive") as? Bool ?? false,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func exam(_ record: NSManagedObject) -> Exam {
-        Exam(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            name: record.value(forKey: "name") as? String ?? "",
-            date: record.value(forKey: "date") as? Int64 ?? 0,
-            note: record.value(forKey: "note") as? String,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func plan(_ record: NSManagedObject) -> StudyPlan {
-        StudyPlan(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            name: record.value(forKey: "name") as? String ?? "",
-            startDate: record.value(forKey: "startDate") as? Int64 ?? 0,
-            endDate: record.value(forKey: "endDate") as? Int64 ?? 0,
-            isActive: record.value(forKey: "isActive") as? Bool ?? false,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func planItem(_ record: NSManagedObject) -> PlanItem {
-        PlanItem(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            planId: record.value(forKey: "planId") as? Int64 ?? 0,
-            planSyncId: record.value(forKey: "planSyncId") as? String,
-            subjectId: record.value(forKey: "subjectId") as? Int64 ?? 0,
-            subjectSyncId: record.value(forKey: "subjectSyncId") as? String,
-            dayOfWeek: StudyWeekday(rawValue: record.value(forKey: "dayOfWeek") as? String ?? StudyWeekday.monday.rawValue) ?? .monday,
-            targetMinutes: Int(record.value(forKey: "targetMinutes") as? Int64 ?? 0),
-            actualMinutes: Int(record.value(forKey: "actualMinutes") as? Int64 ?? 0),
-            timeSlot: record.value(forKey: "timeSlot") as? String,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func timetablePeriod(_ record: NSManagedObject) -> TimetablePeriod {
-        TimetablePeriod(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            name: record.value(forKey: "name") as? String ?? "",
-            startMinute: Int(record.value(forKey: "startMinute") as? Int64 ?? 0),
-            endMinute: Int(record.value(forKey: "endMinute") as? Int64 ?? 0),
-            sortOrder: Int(record.value(forKey: "sortOrder") as? Int64 ?? 0),
-            isActive: record.value(forKey: "isActive") as? Bool ?? true,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func timetableEntry(_ record: NSManagedObject) -> TimetableEntry {
-        TimetableEntry(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            termId: record.value(forKey: "termId") as? Int64,
-            termSyncId: record.value(forKey: "termSyncId") as? String,
-            dayOfWeek: StudyWeekday(rawValue: record.value(forKey: "dayOfWeek") as? String ?? StudyWeekday.monday.rawValue) ?? .monday,
-            periodId: record.value(forKey: "periodId") as? Int64 ?? 0,
-            periodSyncId: record.value(forKey: "periodSyncId") as? String,
-            subjectName: record.value(forKey: "subjectName") as? String ?? "",
-            courseName: record.value(forKey: "courseName") as? String,
-            roomName: record.value(forKey: "roomName") as? String,
-            validFromDate: record.value(forKey: "validFromDate") as? Int64,
-            validToDate: record.value(forKey: "validToDate") as? Int64,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func timetableTerm(_ record: NSManagedObject) -> TimetableTerm {
-        TimetableTerm(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            name: record.value(forKey: "name") as? String ?? "",
-            startDate: record.value(forKey: "startDate") as? Int64 ?? 0,
-            endDate: record.value(forKey: "endDate") as? Int64 ?? 0,
-            isActive: record.value(forKey: "isActive") as? Bool ?? true,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func timetableReviewRecord(_ record: NSManagedObject) -> TimetableReviewRecord {
-        TimetableReviewRecord(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            termId: record.value(forKey: "termId") as? Int64 ?? 0,
-            termSyncId: record.value(forKey: "termSyncId") as? String,
-            entryId: record.value(forKey: "entryId") as? Int64 ?? 0,
-            entrySyncId: record.value(forKey: "entrySyncId") as? String,
-            periodId: record.value(forKey: "periodId") as? Int64 ?? 0,
-            periodSyncId: record.value(forKey: "periodSyncId") as? String,
-            occurrenceDate: record.value(forKey: "occurrenceDate") as? Int64 ?? 0,
-            dayOfWeek: StudyWeekday(rawValue: record.value(forKey: "dayOfWeek") as? String ?? StudyWeekday.monday.rawValue) ?? .monday,
-            periodName: record.value(forKey: "periodName") as? String ?? "",
-            periodStartMinute: Int(record.value(forKey: "periodStartMinute") as? Int64 ?? 0),
-            periodEndMinute: Int(record.value(forKey: "periodEndMinute") as? Int64 ?? 0),
-            subjectName: record.value(forKey: "subjectName") as? String ?? "",
-            courseName: record.value(forKey: "courseName") as? String,
-            roomName: record.value(forKey: "roomName") as? String,
-            isReviewed: record.value(forKey: "isReviewed") as? Bool ?? false,
-            note: record.value(forKey: "note") as? String,
-            isExcluded: record.value(forKey: "isExcluded") as? Bool ?? false,
-            reviewedAt: record.value(forKey: "reviewedAt") as? Int64,
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func problemReviewRecord(_ record: NSManagedObject) -> ProblemReviewRecord {
-        let materialId = record.value(forKey: "materialId") as? Int64 ?? 0
-        let problemNumber = Int(record.value(forKey: "problemNumber") as? Int64 ?? 0)
-        return ProblemReviewRecord(
-            id: record.value(forKey: "id") as? Int64 ?? 0,
-            syncId: record.value(forKey: "syncId") as? String ?? "",
-            problemId: record.value(forKey: "problemId") as? String ?? ProblemReviewRecord.problemId(materialId: materialId, problemNumber: problemNumber),
-            materialId: materialId,
-            materialSyncId: record.value(forKey: "materialSyncId") as? String,
-            problemNumber: problemNumber,
-            reviewedAt: record.value(forKey: "reviewedAt") as? Int64 ?? 0,
-            rating: ProblemReviewRating(rawValue: record.value(forKey: "rating") as? String ?? "") ?? .again,
-            nextReviewDate: record.value(forKey: "nextReviewDate") as? Int64 ?? 0,
-            consecutiveCorrectCount: Int(record.value(forKey: "consecutiveCorrectCount") as? Int64 ?? 0),
-            wrongCount: Int(record.value(forKey: "wrongCount") as? Int64 ?? 0),
-            createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
-            updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
-            deletedAt: record.value(forKey: "deletedAt") as? Int64,
-            lastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
-        )
-    }
-
-    private static func encodeIntervals(_ intervals: [StudySessionInterval]) -> String? {
-        guard !intervals.isEmpty else { return nil }
-        let encoder = JSONEncoder()
-        guard let data = try? encoder.encode(intervals) else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    private static func decodeIntervals(_ value: String?) -> [StudySessionInterval] {
-        guard let value, let data = value.data(using: .utf8) else { return [] }
-        return (try? JSONDecoder().decode([StudySessionInterval].self, from: data)) ?? []
-    }
-
-    private static func encodeProblemRecords(_ records: [ProblemSessionRecord]) -> String? {
-        guard !records.isEmpty else { return nil }
-        guard let data = try? JSONEncoder().encode(records.sorted(by: { $0.number < $1.number })) else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    private static func decodeProblemRecords(_ value: String?) -> [ProblemSessionRecord] {
-        guard let value, let data = value.data(using: .utf8) else { return [] }
-        return (try? JSONDecoder().decode([ProblemSessionRecord].self, from: data)) ?? []
-    }
-
-    private static func encodeProblemChapters(_ chapters: [ProblemChapter]) -> String? {
-        guard !chapters.isEmpty else { return nil }
-        guard let data = try? JSONEncoder().encode(chapters) else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    private static func decodeProblemChapters(_ value: String?) -> [ProblemChapter] {
-        guard let value, let data = value.data(using: .utf8) else { return [] }
-        return (try? JSONDecoder().decode([ProblemChapter].self, from: data)) ?? []
     }
 
 }
