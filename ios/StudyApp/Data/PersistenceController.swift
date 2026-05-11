@@ -1,6 +1,20 @@
 import CoreData
 import Foundation
 
+/// Core Data-backed implementation of every repository protocol the app uses.
+///
+/// This class focuses on two concerns now:
+///
+/// 1. Owning the `NSPersistentContainer`, `viewContext`, and a background
+///    context for heavy work.
+/// 2. Per-entity CRUD — short, on-main-actor operations the UI depends on.
+///
+/// Everything else (export snapshot building, JSON import, sync-metadata
+/// backfill, overdue timetable calculations, legacy snapshot migration,
+/// per-material problem review rebuild, plan actual-minutes recomputation)
+/// has been extracted to focused helpers in this folder. Heavy operations
+/// now run inside `backgroundContext.perform { ... }` so the main thread is
+/// not blocked on JSON encode/decode or full-store scans.
 @MainActor
 final class PersistenceController: SubjectRepository, MaterialRepository, StudySessionRepository, GoalRepository, ExamRepository, PlanRepository, TimetableRepository, ProblemReviewRepository, AppDataRepository {
     static let shared = PersistenceController()
@@ -11,6 +25,20 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private let legacyURL: URL
     private(set) var changeToken: Int64 = 0
     private var didNormalizeLegacyDailyGoals = false
+
+    /// Main-queue context used for short repository CRUD that drives the UI.
+    private var viewContext: NSManagedObjectContext { container.viewContext }
+
+    /// Private-queue context used for heavy operations (exports, imports,
+    /// full-store migrations, and sync-metadata backfill). Saves here
+    /// automatically merge into `viewContext` via
+    /// `automaticallyMergesChangesFromParent`.
+    private lazy var backgroundContext: NSManagedObjectContext = {
+        let ctx = container.newBackgroundContext()
+        ctx.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        ctx.automaticallyMergesChangesFromParent = true
+        return ctx
+    }()
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -44,53 +72,35 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
     }
 
-    func migrateLegacySnapshotIfNeeded(preferencesRepository: AppPreferencesRepository) async throws {
-        try await ensureLoaded()
-        guard try await isEmptyStore(), fileManager.fileExists(atPath: legacyURL.path) else {
-            return
-        }
-
-        let data = try Data(contentsOf: legacyURL)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .millisecondsSince1970
-        let snapshot = try decoder.decode(LegacySnapshot.self, from: data)
-        try await importLegacySnapshot(snapshot)
-        preferencesRepository.savePreferences(snapshot.preferences)
-
-        let migratedURL = legacyURL.deletingPathExtension().appendingPathExtension("json.migrated")
-        do {
-            if fileManager.fileExists(atPath: migratedURL.path) {
-                try fileManager.removeItem(at: migratedURL)
-            }
-            try fileManager.moveItem(at: legacyURL, to: migratedURL)
-        } catch {
-            print("[StudyApp] Failed to move legacy file after migration: \(error.localizedDescription)")
-        }
-    }
+    // MARK: - SubjectRepository
 
     func getAllSubjects() async throws -> [Subject] {
         try await ensureLoaded()
-        return try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(PersistenceMappers.subject).filter { $0.deletedAt == nil }
+        return try CoreDataQuery.fetch(
+            "SubjectRecord",
+            in: viewContext,
+            sort: [NSSortDescriptor(key: "name", ascending: true)]
+        ).map(PersistenceMappers.subject).filter { $0.deletedAt == nil }
     }
 
     func getSubjectById(_ id: Int64) async throws -> Subject? {
         try await ensureLoaded()
-        return try fetchOne(entity: "SubjectRecord", id: id).map(PersistenceMappers.subject)
+        return try CoreDataQuery.fetchOne("SubjectRecord", id: id, in: viewContext).map(PersistenceMappers.subject)
     }
 
     func insertSubject(_ subject: Subject) async throws -> Int64 {
         try await ensureLoaded()
         let id = try nextIdentifier(ifNeeded: subject.id)
         let now = Date().epochMilliseconds
-        let record = NSEntityDescription.insertNewObject(forEntityName: "SubjectRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "SubjectRecord", into: viewContext)
         PersistenceMappers.apply(subject, assignedId: id, now: now, to: record)
-        try saveContext()
+        try saveViewContext()
         return id
     }
 
     func updateSubject(_ subject: Subject) async throws {
         try await ensureLoaded()
-        guard let record = try fetchOne(entity: "SubjectRecord", id: subject.id) else { return }
+        guard let record = try CoreDataQuery.fetchOne("SubjectRecord", id: subject.id, in: viewContext) else { return }
         let subjectSyncId = record.value(forKey: "syncId") as? String ?? subject.syncId
         if (record.value(forKey: "syncId") as? String)?.isEmpty != false {
             record.setValue(subjectSyncId, forKey: "syncId")
@@ -102,19 +112,27 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(subject.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
 
-        let sessions = try fetch(entity: "StudySessionRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
+        let sessions = try CoreDataQuery.fetch(
+            "StudySessionRecord",
+            in: viewContext,
+            predicate: NSPredicate(format: "subjectId == %lld", subject.id)
+        )
         for session in sessions {
             session.setValue(subjectSyncId, forKey: "subjectSyncId")
             session.setValue(subject.name, forKey: "subjectName")
             session.setValue(Date().epochMilliseconds, forKey: "updatedAt")
         }
-        try saveContext()
+        try saveViewContext()
     }
 
     func deleteSubject(_ subject: Subject) async throws {
         try await ensureLoaded()
         let now = Date().epochMilliseconds
-        let relatedMaterials = try fetch(entity: "MaterialRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
+        let relatedMaterials = try CoreDataQuery.fetch(
+            "MaterialRecord",
+            in: viewContext,
+            predicate: NSPredicate(format: "subjectId == %lld", subject.id)
+        )
         let materialIds = relatedMaterials.compactMap { $0.value(forKey: "id") as? Int64 }
 
         let sessionPredicate: NSPredicate
@@ -126,10 +144,15 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 NSPredicate(format: "materialId IN %@", materialIds.map { NSNumber(value: $0) })
             ])
         }
-        let sessions = try fetch(entity: "StudySessionRecord", predicate: sessionPredicate)
-        let planItems = try fetch(entity: "PlanItemRecord", predicate: NSPredicate(format: "subjectId == %lld", subject.id))
-        let problemReviewRecords = materialIds.isEmpty ? [] : try fetch(
-            entity: "ProblemReviewRecord",
+        let sessions = try CoreDataQuery.fetch("StudySessionRecord", in: viewContext, predicate: sessionPredicate)
+        let planItems = try CoreDataQuery.fetch(
+            "PlanItemRecord",
+            in: viewContext,
+            predicate: NSPredicate(format: "subjectId == %lld", subject.id)
+        )
+        let problemReviewRecords = materialIds.isEmpty ? [] : try CoreDataQuery.fetch(
+            "ProblemReviewRecord",
+            in: viewContext,
             predicate: NSPredicate(format: "materialId IN %@ AND deletedAt == NIL", materialIds.map { NSNumber(value: $0) })
         )
 
@@ -149,17 +172,20 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             review.setValue(now, forKey: "deletedAt")
             review.setValue(now, forKey: "updatedAt")
         }
-        if let record = try fetchOne(entity: "SubjectRecord", id: subject.id) {
+        if let record = try CoreDataQuery.fetchOne("SubjectRecord", id: subject.id, in: viewContext) {
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
         }
-        try saveContext()
+        try saveViewContext()
     }
+
+    // MARK: - MaterialRepository
 
     func getAllMaterials() async throws -> [Material] {
         try await ensureLoaded()
-        return try fetch(
-            entity: "MaterialRecord",
+        return try CoreDataQuery.fetch(
+            "MaterialRecord",
+            in: viewContext,
             sort: [
                 NSSortDescriptor(key: "sortOrder", ascending: true),
                 NSSortDescriptor(key: "updatedAt", ascending: false)
@@ -169,8 +195,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func getMaterialsBySubjectId(_ subjectId: Int64) async throws -> [Material] {
         try await ensureLoaded()
-        return try fetch(
-            entity: "MaterialRecord",
+        return try CoreDataQuery.fetch(
+            "MaterialRecord",
+            in: viewContext,
             predicate: NSPredicate(format: "subjectId == %lld", subjectId),
             sort: [
                 NSSortDescriptor(key: "sortOrder", ascending: true),
@@ -183,7 +210,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try await ensureLoaded()
         let id = try nextIdentifier(ifNeeded: material.id)
         let now = Date().epochMilliseconds
-        let record = NSEntityDescription.insertNewObject(forEntityName: "MaterialRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "MaterialRecord", into: viewContext)
         PersistenceMappers.apply(
             material,
             assignedId: id,
@@ -192,13 +219,13 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             now: now,
             to: record
         )
-        try saveContext()
+        try saveViewContext()
         return id
     }
 
     func updateMaterial(_ material: Material) async throws {
         try await ensureLoaded()
-        guard let record = try fetchOne(entity: "MaterialRecord", id: material.id) else { return }
+        guard let record = try CoreDataQuery.fetchOne("MaterialRecord", id: material.id, in: viewContext) else { return }
         let subject = try await getSubjectById(material.subjectId)
         let subjectName = subject?.name ?? ""
         let subjectSyncId = material.subjectSyncId ?? subject?.syncId
@@ -221,7 +248,11 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(material.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
 
-        let sessions = try fetch(entity: "StudySessionRecord", predicate: NSPredicate(format: "materialId == %lld", material.id))
+        let sessions = try CoreDataQuery.fetch(
+            "StudySessionRecord",
+            in: viewContext,
+            predicate: NSPredicate(format: "materialId == %lld", material.id)
+        )
         for session in sessions {
             session.setValue(materialSyncId, forKey: "materialSyncId")
             session.setValue(material.name, forKey: "materialName")
@@ -230,62 +261,89 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             session.setValue(subjectName, forKey: "subjectName")
             session.setValue(Date().epochMilliseconds, forKey: "updatedAt")
         }
-        try saveContext()
+        try saveViewContext()
     }
 
     func deleteMaterial(_ material: Material) async throws {
         try await ensureLoaded()
         let now = Date().epochMilliseconds
-        if let record = try fetchOne(entity: "MaterialRecord", id: material.id) {
+        if let record = try CoreDataQuery.fetchOne("MaterialRecord", id: material.id, in: viewContext) {
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
         }
-        let sessions = try fetch(entity: "StudySessionRecord", predicate: NSPredicate(format: "materialId == %lld", material.id))
+        let sessions = try CoreDataQuery.fetch(
+            "StudySessionRecord",
+            in: viewContext,
+            predicate: NSPredicate(format: "materialId == %lld", material.id)
+        )
         for session in sessions {
             session.setValue(now, forKey: "deletedAt")
             session.setValue(now, forKey: "updatedAt")
         }
-        let problemReviewRecords = try fetch(
-            entity: "ProblemReviewRecord",
+        let problemReviewRecords = try CoreDataQuery.fetch(
+            "ProblemReviewRecord",
+            in: viewContext,
             predicate: NSPredicate(format: "materialId == %lld AND deletedAt == NIL", material.id)
         )
         for review in problemReviewRecords {
             review.setValue(now, forKey: "deletedAt")
             review.setValue(now, forKey: "updatedAt")
         }
-        try saveContext()
+        try saveViewContext()
     }
+
+    // MARK: - StudySessionRepository
 
     func getAllSessions() async throws -> [StudySession] {
         try await ensureLoaded()
-        return try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(PersistenceMappers.session).filter { $0.deletedAt == nil }
+        return try CoreDataQuery.fetch(
+            "StudySessionRecord",
+            in: viewContext,
+            sort: [NSSortDescriptor(key: "startTime", ascending: false)]
+        ).map(PersistenceMappers.session).filter { $0.deletedAt == nil }
     }
 
     func getSessionsBetweenDates(start: Int64, end: Int64) async throws -> [StudySession] {
         try await ensureLoaded()
-        return try fetch(
-            entity: "StudySessionRecord",
+        return try CoreDataQuery.fetch(
+            "StudySessionRecord",
+            in: viewContext,
             predicate: NSPredicate(format: "startTime >= %lld AND startTime < %lld", start, end),
             sort: [NSSortDescriptor(key: "startTime", ascending: false)]
         ).map(PersistenceMappers.session).filter { $0.deletedAt == nil }
     }
 
+    /// Returns the distinct `epochDay` values on which the user has studied
+    /// (tombstoned sessions excluded). Fetched as a dictionary with
+    /// `returnsDistinctResults = true` to avoid materializing the entire
+    /// session history just to compute streaks / study-day sets for the
+    /// widget and reports screens.
+    func getDistinctStudyDays() async throws -> [Int64] {
+        try await ensureLoaded()
+        let request = NSFetchRequest<NSDictionary>(entityName: "StudySessionRecord")
+        request.predicate = NSPredicate(format: "deletedAt == NIL")
+        request.resultType = .dictionaryResultType
+        request.returnsDistinctResults = true
+        request.propertiesToFetch = ["date"]
+        let results = try viewContext.fetch(request)
+        return results.compactMap { $0["date"] as? Int64 }
+    }
+
     func insertSession(_ session: StudySession) async throws -> Int64 {
         try await ensureLoaded()
         let id = try nextIdentifier(ifNeeded: session.id)
-        let record = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: viewContext)
         let sanitized = sanitize(session: session, assignedId: id)
-        apply(sanitized, to: record)
-        try saveContext()
-        try await recalculatePlanActualMinutes()
+        applySession(sanitized, to: record)
+        try saveViewContext()
+        try recalculatePlanActualMinutesOnViewContext()
         return id
     }
 
     func insertSessionWithProblemReviews(_ session: StudySession) async throws -> Int64 {
         try await ensureLoaded()
-        let ctx = container.viewContext
         let now = Date().epochMilliseconds
-        var nextLocalId = try maxIdentifier() + 1
+        var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: CoreDataSchema.entityNames) + 1
 
         func allocateId(_ requested: Int64) -> Int64 {
             if requested > 0 {
@@ -299,28 +357,28 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let sessionId = allocateId(session.id)
         let sanitized = sanitize(session: session, assignedId: sessionId)
 
-        let record = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: ctx)
-        apply(sanitized, to: record)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: viewContext)
+        applySession(sanitized, to: record)
         if let materialId = sanitized.materialId {
-            try rebuildProblemReviewRecords(for: materialId, now: now, startingId: &nextLocalId)
+            try ProblemReviewRebuilder.rebuild(for: materialId, now: now, startingId: &nextLocalId, in: viewContext)
         }
 
         do {
-            try saveContext()
+            try saveViewContext()
         } catch {
-            ctx.rollback()
+            viewContext.rollback()
             throw error
         }
 
-        try await recalculatePlanActualMinutes()
+        try recalculatePlanActualMinutesOnViewContext()
         return sessionId
     }
 
     func updateSession(_ session: StudySession) async throws {
         try await ensureLoaded()
-        guard let record = try fetchOne(entity: "StudySessionRecord", id: session.id) else { return }
+        guard let record = try CoreDataQuery.fetchOne("StudySessionRecord", id: session.id, in: viewContext) else { return }
         let oldMaterialId = record.value(forKey: "materialId") as? Int64
-        var nextLocalId = try maxIdentifier() + 1
+        var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: CoreDataSchema.entityNames) + 1
         let now = Date().epochMilliseconds
         let sanitized = sanitize(
             session: session,
@@ -329,7 +387,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             persistedCreatedAt: record.value(forKey: "createdAt") as? Int64,
             persistedLastSyncedAt: record.value(forKey: "lastSyncedAt") as? Int64
         )
-        apply(sanitized, to: record)
+        applySession(sanitized, to: record)
         var materialIdsToRebuild = Set<Int64>()
         if let oldMaterialId {
             materialIdsToRebuild.insert(oldMaterialId)
@@ -338,52 +396,63 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             materialIdsToRebuild.insert(materialId)
         }
         for materialId in materialIdsToRebuild {
-            try rebuildProblemReviewRecords(for: materialId, now: now, startingId: &nextLocalId)
+            try ProblemReviewRebuilder.rebuild(for: materialId, now: now, startingId: &nextLocalId, in: viewContext)
         }
-        try saveContext()
-        try await recalculatePlanActualMinutes()
+        try saveViewContext()
+        try recalculatePlanActualMinutesOnViewContext()
     }
 
     func deleteSession(_ session: StudySession) async throws {
         try await ensureLoaded()
-        if let record = try fetchOne(entity: "StudySessionRecord", id: session.id) {
+        if let record = try CoreDataQuery.fetchOne("StudySessionRecord", id: session.id, in: viewContext) {
             let now = Date().epochMilliseconds
             let materialId = record.value(forKey: "materialId") as? Int64
-            var nextLocalId = try maxIdentifier() + 1
+            var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: CoreDataSchema.entityNames) + 1
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
             if let materialId {
-                try rebuildProblemReviewRecords(for: materialId, now: now, startingId: &nextLocalId)
+                try ProblemReviewRebuilder.rebuild(for: materialId, now: now, startingId: &nextLocalId, in: viewContext)
             }
-            try saveContext()
-            try await recalculatePlanActualMinutes()
+            try saveViewContext()
+            try recalculatePlanActualMinutesOnViewContext()
         }
     }
 
+    // MARK: - GoalRepository
+
     func getAllGoals() async throws -> [Goal] {
         try await ensureLoaded()
-        return try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(PersistenceMappers.goal).filter { $0.deletedAt == nil }
+        return try CoreDataQuery.fetch(
+            "GoalRecord",
+            in: viewContext,
+            sort: [NSSortDescriptor(key: "createdAt", ascending: true)]
+        ).map(PersistenceMappers.goal).filter { $0.deletedAt == nil }
     }
 
     func getActiveGoalByType(_ type: GoalType) async throws -> Goal? {
         try await ensureLoaded()
         let predicate = NSPredicate(format: "type == %@ AND isActive == YES AND dayOfWeek == NIL", type.rawValue)
-        return try fetch(entity: "GoalRecord", predicate: predicate, sort: [NSSortDescriptor(key: "updatedAt", ascending: false)]).map(PersistenceMappers.goal).first(where: { $0.deletedAt == nil })
+        return try CoreDataQuery.fetch(
+            "GoalRecord",
+            in: viewContext,
+            predicate: predicate,
+            sort: [NSSortDescriptor(key: "updatedAt", ascending: false)]
+        ).map(PersistenceMappers.goal).first(where: { $0.deletedAt == nil })
     }
 
     func insertGoal(_ goal: Goal) async throws -> Int64 {
         try await ensureLoaded()
         let id = try nextIdentifier(ifNeeded: goal.id)
         let now = Date().epochMilliseconds
-        let record = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: viewContext)
         PersistenceMappers.apply(goal, assignedId: id, now: now, to: record)
-        try saveContext()
+        try saveViewContext()
         return id
     }
 
     func updateGoal(_ goal: Goal) async throws {
         try await ensureLoaded()
-        guard let record = try fetchOne(entity: "GoalRecord", id: goal.id) else { return }
+        guard let record = try CoreDataQuery.fetchOne("GoalRecord", id: goal.id, in: viewContext) else { return }
         record.setValue(goal.type.rawValue, forKey: "type")
         record.setValue(Int64(goal.targetMinutes), forKey: "targetMinutes")
         record.setValue(goal.dayOfWeek?.rawValue, forKey: "dayOfWeek")
@@ -392,29 +461,36 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(goal.deletedAt, forKey: "deletedAt")
         record.setValue(goal.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
-        try saveContext()
+        try saveViewContext()
     }
 
     func deleteGoal(_ goal: Goal) async throws {
         try await ensureLoaded()
-        if let record = try fetchOne(entity: "GoalRecord", id: goal.id) {
+        if let record = try CoreDataQuery.fetchOne("GoalRecord", id: goal.id, in: viewContext) {
             let now = Date().epochMilliseconds
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
-            try saveContext()
+            try saveViewContext()
         }
     }
 
+    // MARK: - ExamRepository
+
     func getAllExams() async throws -> [Exam] {
         try await ensureLoaded()
-        return try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(PersistenceMappers.exam).filter { $0.deletedAt == nil }
+        return try CoreDataQuery.fetch(
+            "ExamRecord",
+            in: viewContext,
+            sort: [NSSortDescriptor(key: "date", ascending: true)]
+        ).map(PersistenceMappers.exam).filter { $0.deletedAt == nil }
     }
 
     func getUpcomingExams(now: Date) async throws -> [Exam] {
         try await ensureLoaded()
         let currentDay = now.epochDay
-        return try fetch(
-            entity: "ExamRecord",
+        return try CoreDataQuery.fetch(
+            "ExamRecord",
+            in: viewContext,
             predicate: NSPredicate(format: "date >= %lld", currentDay),
             sort: [NSSortDescriptor(key: "date", ascending: true)]
         ).map(PersistenceMappers.exam).filter { $0.deletedAt == nil }
@@ -424,43 +500,50 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try await ensureLoaded()
         let id = try nextIdentifier(ifNeeded: exam.id)
         let now = Date().epochMilliseconds
-        let record = NSEntityDescription.insertNewObject(forEntityName: "ExamRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "ExamRecord", into: viewContext)
         PersistenceMappers.apply(exam, assignedId: id, now: now, to: record)
-        try saveContext()
+        try saveViewContext()
         return id
     }
 
     func updateExam(_ exam: Exam) async throws {
         try await ensureLoaded()
-        guard let record = try fetchOne(entity: "ExamRecord", id: exam.id) else { return }
+        guard let record = try CoreDataQuery.fetchOne("ExamRecord", id: exam.id, in: viewContext) else { return }
         record.setValue(exam.name, forKey: "name")
         record.setValue(exam.date, forKey: "date")
         record.setValue(exam.note, forKey: "note")
         record.setValue(exam.deletedAt, forKey: "deletedAt")
         record.setValue(exam.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
-        try saveContext()
+        try saveViewContext()
     }
 
     func deleteExam(_ exam: Exam) async throws {
         try await ensureLoaded()
-        if let record = try fetchOne(entity: "ExamRecord", id: exam.id) {
+        if let record = try CoreDataQuery.fetchOne("ExamRecord", id: exam.id, in: viewContext) {
             let now = Date().epochMilliseconds
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
-            try saveContext()
+            try saveViewContext()
         }
     }
 
+    // MARK: - PlanRepository
+
     func getAllPlans() async throws -> [StudyPlan] {
         try await ensureLoaded()
-        return try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(PersistenceMappers.plan).filter { $0.deletedAt == nil }
+        return try CoreDataQuery.fetch(
+            "StudyPlanRecord",
+            in: viewContext,
+            sort: [NSSortDescriptor(key: "createdAt", ascending: false)]
+        ).map(PersistenceMappers.plan).filter { $0.deletedAt == nil }
     }
 
     func getPlanItems(planId: Int64) async throws -> [PlanItem] {
         try await ensureLoaded()
-        return try fetch(
-            entity: "PlanItemRecord",
+        return try CoreDataQuery.fetch(
+            "PlanItemRecord",
+            in: viewContext,
             predicate: NSPredicate(format: "planId == %lld", planId),
             sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true), NSSortDescriptor(key: "targetMinutes", ascending: false)]
         ).map(PersistenceMappers.planItem).filter { $0.deletedAt == nil }
@@ -468,7 +551,11 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func createPlan(_ plan: StudyPlan, items: [PlanItem]) async throws -> Int64 {
         try await ensureLoaded()
-        let activePlans = try fetch(entity: "StudyPlanRecord", predicate: NSPredicate(format: "isActive == YES"))
+        let activePlans = try CoreDataQuery.fetch(
+            "StudyPlanRecord",
+            in: viewContext,
+            predicate: NSPredicate(format: "isActive == YES")
+        )
         for record in activePlans {
             record.setValue(false, forKey: "isActive")
         }
@@ -476,11 +563,11 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let planId = try nextIdentifier(ifNeeded: plan.id)
         var nextLocalId = planId + 1
         let now = Date().epochMilliseconds
-        let record = NSEntityDescription.insertNewObject(forEntityName: "StudyPlanRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "StudyPlanRecord", into: viewContext)
         PersistenceMappers.apply(plan, assignedId: planId, now: now, to: record)
 
         for item in items {
-            let itemRecord = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: container.viewContext)
+            let itemRecord = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: viewContext)
             let itemId = item.id > 0 ? item.id : nextLocalId
             if item.id == 0 {
                 nextLocalId += 1
@@ -496,8 +583,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             )
         }
 
-        try saveContext()
-        try await recalculatePlanActualMinutes()
+        try saveViewContext()
+        try recalculatePlanActualMinutesOnViewContext()
         return planId
     }
 
@@ -505,7 +592,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try await ensureLoaded()
         let itemId = try nextIdentifier(ifNeeded: item.id)
         let now = Date().epochMilliseconds
-        let record = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: viewContext)
         PersistenceMappers.apply(
             item,
             assignedId: itemId,
@@ -515,14 +602,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             now: now,
             to: record
         )
-        try saveContext()
-        try await recalculatePlanActualMinutes()
+        try saveViewContext()
+        try recalculatePlanActualMinutesOnViewContext()
         return itemId
     }
 
     func updatePlanItem(_ item: PlanItem) async throws {
         try await ensureLoaded()
-        guard let record = try fetchOne(entity: "PlanItemRecord", id: item.id) else { return }
+        guard let record = try CoreDataQuery.fetchOne("PlanItemRecord", id: item.id, in: viewContext) else { return }
         if let planSyncId = item.planSyncId {
             record.setValue(planSyncId, forKey: "planSyncId")
         }
@@ -535,41 +622,48 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(item.deletedAt, forKey: "deletedAt")
         record.setValue(item.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
-        try saveContext()
-        try await recalculatePlanActualMinutes()
+        try saveViewContext()
+        try recalculatePlanActualMinutesOnViewContext()
     }
 
     func deletePlanItem(_ item: PlanItem) async throws {
         try await ensureLoaded()
-        if let record = try fetchOne(entity: "PlanItemRecord", id: item.id) {
+        if let record = try CoreDataQuery.fetchOne("PlanItemRecord", id: item.id, in: viewContext) {
             let now = Date().epochMilliseconds
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
-            try saveContext()
-            try await recalculatePlanActualMinutes()
+            try saveViewContext()
+            try recalculatePlanActualMinutesOnViewContext()
         }
     }
 
     func deletePlan(_ plan: StudyPlan) async throws {
         try await ensureLoaded()
         let now = Date().epochMilliseconds
-        if let record = try fetchOne(entity: "StudyPlanRecord", id: plan.id) {
+        if let record = try CoreDataQuery.fetchOne("StudyPlanRecord", id: plan.id, in: viewContext) {
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
             record.setValue(false, forKey: "isActive")
         }
-        let items = try fetch(entity: "PlanItemRecord", predicate: NSPredicate(format: "planId == %lld", plan.id))
+        let items = try CoreDataQuery.fetch(
+            "PlanItemRecord",
+            in: viewContext,
+            predicate: NSPredicate(format: "planId == %lld", plan.id)
+        )
         for item in items {
             item.setValue(now, forKey: "deletedAt")
             item.setValue(now, forKey: "updatedAt")
         }
-        try saveContext()
+        try saveViewContext()
     }
+
+    // MARK: - TimetableRepository
 
     func getAllTimetablePeriods() async throws -> [TimetablePeriod] {
         try await ensureLoaded()
-        return try fetch(
-            entity: "TimetablePeriodRecord",
+        return try CoreDataQuery.fetch(
+            "TimetablePeriodRecord",
+            in: viewContext,
             sort: [NSSortDescriptor(key: "sortOrder", ascending: true), NSSortDescriptor(key: "startMinute", ascending: true)]
         ).map(PersistenceMappers.timetablePeriod).filter { $0.deletedAt == nil && $0.isActive }
     }
@@ -580,42 +674,47 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             throw ValidationError(message: "終了時刻は開始時刻より後にしてください")
         }
         let now = Date().epochMilliseconds
-        if period.id > 0, let record = try fetchOne(entity: "TimetablePeriodRecord", id: period.id) {
+        if period.id > 0, let record = try CoreDataQuery.fetchOne("TimetablePeriodRecord", id: period.id, in: viewContext) {
             var updated = period
             updated.syncId = (record.value(forKey: "syncId") as? String)?.nilIfBlank ?? period.syncId
             updated.createdAt = record.value(forKey: "createdAt") as? Int64 ?? period.createdAt
             updated.updatedAt = now
             PersistenceMappers.apply(updated, assignedId: period.id, now: now, to: record)
-            try saveContext()
+            try saveViewContext()
             return period.id
         }
 
         let id = try nextIdentifier(ifNeeded: period.id)
-        let record = NSEntityDescription.insertNewObject(forEntityName: "TimetablePeriodRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "TimetablePeriodRecord", into: viewContext)
         PersistenceMappers.apply(period, assignedId: id, now: now, to: record)
-        try saveContext()
+        try saveViewContext()
         return id
     }
 
     func deleteTimetablePeriod(_ period: TimetablePeriod) async throws {
         try await ensureLoaded()
         let now = Date().epochMilliseconds
-        if let record = try fetchOne(entity: "TimetablePeriodRecord", id: period.id) {
+        if let record = try CoreDataQuery.fetchOne("TimetablePeriodRecord", id: period.id, in: viewContext) {
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
         }
-        let entries = try fetch(entity: "TimetableEntryRecord", predicate: NSPredicate(format: "periodId == %lld", period.id))
+        let entries = try CoreDataQuery.fetch(
+            "TimetableEntryRecord",
+            in: viewContext,
+            predicate: NSPredicate(format: "periodId == %lld", period.id)
+        )
         for entry in entries {
             entry.setValue(now, forKey: "deletedAt")
             entry.setValue(now, forKey: "updatedAt")
         }
-        try saveContext()
+        try saveViewContext()
     }
 
     func getAllTimetableTerms() async throws -> [TimetableTerm] {
         try await ensureLoaded()
-        return try fetch(
-            entity: "TimetableTermRecord",
+        return try CoreDataQuery.fetch(
+            "TimetableTermRecord",
+            in: viewContext,
             sort: [NSSortDescriptor(key: "startDate", ascending: false), NSSortDescriptor(key: "endDate", ascending: false)]
         ).map(PersistenceMappers.timetableTerm).filter { $0.deletedAt == nil && $0.isActive }
     }
@@ -631,46 +730,51 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
 
         let now = Date().epochMilliseconds
-        if term.id > 0, let record = try fetchOne(entity: "TimetableTermRecord", id: term.id) {
+        if term.id > 0, let record = try CoreDataQuery.fetchOne("TimetableTermRecord", id: term.id, in: viewContext) {
             var updated = term
             updated.syncId = (record.value(forKey: "syncId") as? String)?.nilIfBlank ?? term.syncId
             updated.name = name
             updated.createdAt = record.value(forKey: "createdAt") as? Int64 ?? term.createdAt
             updated.updatedAt = now
             PersistenceMappers.apply(updated, assignedId: term.id, now: now, to: record)
-            try saveContext()
+            try saveViewContext()
             return term.id
         }
 
         var inserted = term
         inserted.name = name
         let id = try nextIdentifier(ifNeeded: term.id)
-        let record = NSEntityDescription.insertNewObject(forEntityName: "TimetableTermRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "TimetableTermRecord", into: viewContext)
         PersistenceMappers.apply(inserted, assignedId: id, now: now, to: record)
-        try saveContext()
+        try saveViewContext()
         return id
     }
 
     func deleteTimetableTerm(_ term: TimetableTerm) async throws {
         try await ensureLoaded()
         let now = Date().epochMilliseconds
-        if let record = try fetchOne(entity: "TimetableTermRecord", id: term.id) {
+        if let record = try CoreDataQuery.fetchOne("TimetableTermRecord", id: term.id, in: viewContext) {
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
             record.setValue(false, forKey: "isActive")
         }
-        let entries = try fetch(entity: "TimetableEntryRecord", predicate: NSPredicate(format: "termId == %lld", term.id))
+        let entries = try CoreDataQuery.fetch(
+            "TimetableEntryRecord",
+            in: viewContext,
+            predicate: NSPredicate(format: "termId == %lld", term.id)
+        )
         for entry in entries {
             entry.setValue(now, forKey: "deletedAt")
             entry.setValue(now, forKey: "updatedAt")
         }
-        try saveContext()
+        try saveViewContext()
     }
 
     func getAllTimetableEntries() async throws -> [TimetableEntry] {
         try await ensureLoaded()
-        return try fetch(
-            entity: "TimetableEntryRecord",
+        return try CoreDataQuery.fetch(
+            "TimetableEntryRecord",
+            in: viewContext,
             sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true), NSSortDescriptor(key: "periodId", ascending: true)]
         ).map(PersistenceMappers.timetableEntry).filter { $0.deletedAt == nil }
     }
@@ -684,14 +788,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         guard StudyWeekday.timetableDays.contains(entry.dayOfWeek) else {
             throw ValidationError(message: "時間割は月曜から土曜の範囲で設定してください")
         }
-        guard let period = try fetchOne(entity: "TimetablePeriodRecord", id: entry.periodId).map(PersistenceMappers.timetablePeriod),
+        guard let period = try CoreDataQuery.fetchOne("TimetablePeriodRecord", id: entry.periodId, in: viewContext).map(PersistenceMappers.timetablePeriod),
               period.deletedAt == nil,
               period.isActive else {
             throw ValidationError(message: "有効な時限を選択してください")
         }
         let resolvedTermSyncId: String?
         if let termId = entry.termId {
-            guard let term = try fetchOne(entity: "TimetableTermRecord", id: termId).map(PersistenceMappers.timetableTerm),
+            guard let term = try CoreDataQuery.fetchOne("TimetableTermRecord", id: termId, in: viewContext).map(PersistenceMappers.timetableTerm),
                   term.deletedAt == nil,
                   term.isActive else {
                 throw ValidationError(message: "有効な学期を選択してください")
@@ -702,8 +806,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
 
         let now = Date().epochMilliseconds
-        let existing = try fetch(
-            entity: "TimetableEntryRecord",
+        let existing = try CoreDataQuery.fetch(
+            "TimetableEntryRecord",
+            in: viewContext,
             predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
                 NSPredicate(format: "termId == %lld", entry.termId ?? 0),
                 NSPredicate(format: "dayOfWeek == %@", entry.dayOfWeek.rawValue),
@@ -717,7 +822,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         if let existing {
             currentRecord = existing
         } else if entry.id > 0 {
-            currentRecord = try fetchOne(entity: "TimetableEntryRecord", id: entry.id)
+            currentRecord = try CoreDataQuery.fetchOne("TimetableEntryRecord", id: entry.id, in: viewContext)
         } else {
             currentRecord = nil
         }
@@ -734,7 +839,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             updated.createdAt = record.value(forKey: "createdAt") as? Int64 ?? entry.createdAt
             updated.updatedAt = now
             PersistenceMappers.apply(updated, assignedId: assignedId, termId: entry.termId, termSyncId: updated.termSyncId, periodId: period.id, periodSyncId: period.syncId, now: now, to: record)
-            try saveContext()
+            try saveViewContext()
             return assignedId
         }
 
@@ -745,25 +850,26 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         inserted.periodSyncId = period.syncId
         inserted.termSyncId = resolvedTermSyncId
         let id = try nextIdentifier(ifNeeded: entry.id)
-        let record = NSEntityDescription.insertNewObject(forEntityName: "TimetableEntryRecord", into: container.viewContext)
+        let record = NSEntityDescription.insertNewObject(forEntityName: "TimetableEntryRecord", into: viewContext)
         PersistenceMappers.apply(inserted, assignedId: id, termId: entry.termId, termSyncId: inserted.termSyncId, periodId: period.id, periodSyncId: period.syncId, now: now, to: record)
-        try saveContext()
+        try saveViewContext()
         return id
     }
 
     func deleteTimetableEntry(_ entry: TimetableEntry) async throws {
         try await ensureLoaded()
-        guard let record = try fetchOne(entity: "TimetableEntryRecord", id: entry.id) else { return }
+        guard let record = try CoreDataQuery.fetchOne("TimetableEntryRecord", id: entry.id, in: viewContext) else { return }
         let now = Date().epochMilliseconds
         record.setValue(now, forKey: "deletedAt")
         record.setValue(now, forKey: "updatedAt")
-        try saveContext()
+        try saveViewContext()
     }
 
     func getAllTimetableReviewRecords() async throws -> [TimetableReviewRecord] {
         try await ensureLoaded()
-        return try fetch(
-            entity: "TimetableReviewRecord",
+        return try CoreDataQuery.fetch(
+            "TimetableReviewRecord",
+            in: viewContext,
             sort: [NSSortDescriptor(key: "occurrenceDate", ascending: false), NSSortDescriptor(key: "periodStartMinute", ascending: true)]
         ).map(PersistenceMappers.timetableReviewRecord).filter { $0.deletedAt == nil }
     }
@@ -774,8 +880,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             throw ValidationError(message: "復習対象の授業が正しくありません")
         }
         let now = Date().epochMilliseconds
-        let existing = try fetch(
-            entity: "TimetableReviewRecord",
+        let existing = try CoreDataQuery.fetch(
+            "TimetableReviewRecord",
+            in: viewContext,
             predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
                 NSPredicate(format: "termId == %lld", record.termId),
                 NSPredicate(format: "entryId == %lld", record.entryId),
@@ -792,79 +899,42 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             updated.createdAt = existing.value(forKey: "createdAt") as? Int64 ?? record.createdAt
             updated.updatedAt = now
             PersistenceMappers.apply(updated, assignedId: assignedId, now: now, to: existing)
-            try saveContext()
+            try saveViewContext()
             return assignedId
         }
 
         let id = try nextIdentifier(ifNeeded: record.id)
-        let object = NSEntityDescription.insertNewObject(forEntityName: "TimetableReviewRecord", into: container.viewContext)
+        let object = NSEntityDescription.insertNewObject(forEntityName: "TimetableReviewRecord", into: viewContext)
         PersistenceMappers.apply(record, assignedId: id, now: now, to: object)
-        try saveContext()
+        try saveViewContext()
         return id
     }
 
     func deleteTimetableReviewRecord(_ record: TimetableReviewRecord) async throws {
         try await ensureLoaded()
-        guard let object = try fetchOne(entity: "TimetableReviewRecord", id: record.id) else { return }
+        guard let object = try CoreDataQuery.fetchOne("TimetableReviewRecord", id: record.id, in: viewContext) else { return }
         let now = Date().epochMilliseconds
         object.setValue(now, forKey: "deletedAt")
         object.setValue(now, forKey: "updatedAt")
-        try saveContext()
+        try saveViewContext()
     }
 
+    /// Potentially expensive scan — offloaded to the background context so
+    /// reminder refresh does not block the main thread.
     func overdueTimetableReviewCount(reference: Date = Date()) async throws -> Int {
         try await ensureLoaded()
-        let terms = try fetch(entity: "TimetableTermRecord").map(PersistenceMappers.timetableTerm).filter { $0.deletedAt == nil && $0.isActive }
-        let periods = try fetch(entity: "TimetablePeriodRecord").map(PersistenceMappers.timetablePeriod).filter { $0.deletedAt == nil && $0.isActive }
-        let entries = try fetch(entity: "TimetableEntryRecord").map(PersistenceMappers.timetableEntry).filter { $0.deletedAt == nil }
-        let reviews = try fetch(entity: "TimetableReviewRecord").map(PersistenceMappers.timetableReviewRecord).filter { $0.deletedAt == nil }
-        let periodMap = Dictionary(uniqueKeysWithValues: periods.map { ($0.id, $0) })
-        let reviewMap = reviews.reduce(into: [String: TimetableReviewRecord]()) { result, review in
-            let key = "\(review.termId)-\(review.entryId)-\(review.periodId)-\(review.occurrenceDate)"
-            if let existing = result[key], existing.updatedAt > review.updatedAt {
-                return
-            }
-            result[key] = review
+        return try await backgroundRead { ctx in
+            try TimetableOverdueCalculator.overdueCount(reference: reference, in: ctx)
         }
-        let calendar = Calendar.current
-        var overdue = 0
-
-        for term in terms {
-            var date = term.startDateValue
-            let lastDate = min(term.endDateValue, reference.startOfDay)
-            while date <= lastDate {
-                let occurrenceDate = date.epochDay
-                let weekday = StudyWeekday.from(calendarWeekday: calendar.component(.weekday, from: date))
-                for entry in entries where (entry.termId == term.id || entry.termId == nil) && entry.dayOfWeek == weekday {
-                    if let validFromDate = entry.validFromDate, occurrenceDate < validFromDate { continue }
-                    if let validToDate = entry.validToDate, occurrenceDate > validToDate { continue }
-                    guard let period = periodMap[entry.periodId] else { continue }
-                    let key = "\(term.id)-\(entry.id)-\(period.id)-\(occurrenceDate)"
-                    if let review = reviewMap[key], review.isReviewed || review.isExcluded {
-                        continue
-                    }
-                    let endDate = calendar.date(
-                        bySettingHour: period.endMinute / 60,
-                        minute: period.endMinute % 60,
-                        second: 0,
-                        of: date
-                    ) ?? date
-                    if reference >= endDate.addingTimeInterval(48 * 60 * 60) {
-                        overdue += 1
-                    }
-                }
-                guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
-                date = next
-            }
-        }
-
-        return overdue
     }
+
+    // MARK: - ProblemReviewRepository
 
     func getAllProblemReviewRecords() async throws -> [ProblemReviewRecord] {
         try await ensureLoaded()
-        return try fetch(
-            entity: "ProblemReviewRecord",
+        return try CoreDataQuery.fetch(
+            "ProblemReviewRecord",
+            in: viewContext,
             sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]
         ).map(PersistenceMappers.problemReviewRecord).filter { $0.deletedAt == nil }
     }
@@ -873,8 +943,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try await ensureLoaded()
         let calendar = Calendar.current
         let dueEnd = (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: reference)) ?? reference).epochMilliseconds - 1
-        let reviews = try fetch(
-            entity: "ProblemReviewRecord",
+        let reviews = try CoreDataQuery.fetch(
+            "ProblemReviewRecord",
+            in: viewContext,
             predicate: NSPredicate(format: "deletedAt == NIL"),
             sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]
         ).map(PersistenceMappers.problemReviewRecord)
@@ -912,539 +983,131 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             }
     }
 
+    // MARK: - AppDataRepository
+
+    /// Builds the full export on a background context. The backfill step may
+    /// mutate records to populate missing sync metadata; the export itself is
+    /// read-only.
     func exportData() async throws -> AppData {
         try await ensureLoaded()
-        try backfillMissingSyncMetadataIfNeeded()
-        let subjects = try fetch(entity: "SubjectRecord", sort: [NSSortDescriptor(key: "name", ascending: true)]).map(PersistenceMappers.subject)
-        let materials = try fetch(entity: "MaterialRecord", sort: [NSSortDescriptor(key: "id", ascending: false)]).map(PersistenceMappers.material)
-        let sessions = try fetch(entity: "StudySessionRecord", sort: [NSSortDescriptor(key: "startTime", ascending: false)]).map(PersistenceMappers.session)
-        let goals = try fetch(entity: "GoalRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: true)]).map(PersistenceMappers.goal)
-        let exams = try fetch(entity: "ExamRecord", sort: [NSSortDescriptor(key: "date", ascending: true)]).map(PersistenceMappers.exam)
-        let plans = try fetch(entity: "StudyPlanRecord", sort: [NSSortDescriptor(key: "createdAt", ascending: false)]).map(PersistenceMappers.plan)
-        let timetablePeriods = try fetch(entity: "TimetablePeriodRecord", sort: [NSSortDescriptor(key: "sortOrder", ascending: true)]).map(PersistenceMappers.timetablePeriod)
-        let timetableEntries = try fetch(entity: "TimetableEntryRecord", sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true)]).map(PersistenceMappers.timetableEntry)
-        let timetableTerms = try fetch(entity: "TimetableTermRecord", sort: [NSSortDescriptor(key: "startDate", ascending: false)]).map(PersistenceMappers.timetableTerm)
-        let timetableReviewRecords = try fetch(entity: "TimetableReviewRecord", sort: [NSSortDescriptor(key: "occurrenceDate", ascending: false)]).map(PersistenceMappers.timetableReviewRecord)
-        let problemReviewRecords = try fetch(entity: "ProblemReviewRecord", sort: [NSSortDescriptor(key: "reviewedAt", ascending: false)]).map(PersistenceMappers.problemReviewRecord)
-
-        var planData = [PlanData]()
-        for plan in plans {
-            let items = try fetch(
-                entity: "PlanItemRecord",
-                predicate: NSPredicate(format: "planId == %lld", plan.id),
-                sort: [NSSortDescriptor(key: "dayOfWeek", ascending: true), NSSortDescriptor(key: "targetMinutes", ascending: false)]
-            ).map(PersistenceMappers.planItem)
-            planData.append(PlanData(plan: plan, items: items))
+        try await backgroundWrite { ctx in
+            _ = try SyncMetadataBackfiller.backfill(in: ctx)
         }
-
-        return AppData(
-            subjects: subjects,
-            materials: materials,
-            sessions: sessions,
-            goals: goals,
-            exams: exams,
-            plans: planData,
-            timetablePeriods: timetablePeriods,
-            timetableEntries: timetableEntries,
-            timetableTerms: timetableTerms,
-            timetableReviewRecords: timetableReviewRecords,
-            problemReviewRecords: problemReviewRecords,
-            exportDate: Date().epochMilliseconds
-        )
+        return try await backgroundRead { ctx in
+            try AppDataArchiver.buildExport(in: ctx)
+        }
     }
 
+    /// Encodes the export as pretty-printed JSON entirely off the main thread.
     func exportJSON() async throws -> String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(try await exportData())
-        guard let json = String(data: data, encoding: .utf8) else {
-            throw CocoaError(.coderInvalidValue)
+        try await ensureLoaded()
+        try await backgroundWrite { ctx in
+            _ = try SyncMetadataBackfiller.backfill(in: ctx)
         }
-        return json
+        return try await backgroundContext.perform { [backgroundContext] in
+            let appData = try AppDataArchiver.buildExport(in: backgroundContext)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let bytes = try encoder.encode(appData)
+            guard let json = String(data: bytes, encoding: .utf8) else {
+                throw CocoaError(.coderInvalidValue)
+            }
+            return json
+        }
     }
 
     func exportCSV() async throws -> String {
         let sessions = try await getAllSessions()
-        let dateFormatter = StudyFormatters.slashDate
-        let timeFormatter = StudyFormatters.clock
-        let header = "日付,科目,教材,開始時刻,終了時刻,時間(分),評価,メモ\n"
-        let rows = sessions.map { session in
-            [
-                csvEscaped(dateFormatter.string(from: session.startDate)),
-                csvEscaped(session.subjectName),
-                csvEscaped(session.materialName),
-                csvEscaped(timeFormatter.string(from: session.startDate)),
-                csvEscaped(timeFormatter.string(from: session.endDate)),
-                "\(session.durationMinutes)",
-                session.rating.map { String($0) } ?? "",
-                csvEscaped(session.note ?? "")
-            ].joined(separator: ",")
-        }
-        return header + rows.joined(separator: "\n")
+        return AppDataArchiver.buildSessionsCSV(from: sessions)
     }
 
+    /// Decodes JSON and replaces the persistent store on the background
+    /// context, then recomputes plan actual minutes in the same pass so the
+    /// saved data is immediately coherent.
     func importJSON(_ json: String, currentPreferences: AppPreferences) async throws -> AppPreferences {
         try await ensureLoaded()
-        let appData = try JSONDecoder().decode(AppData.self, from: Data(json.utf8))
-        try await replaceData(with: appData)
+        let jsonData = Data(json.utf8)
+        try await backgroundContext.perform { [backgroundContext] in
+            do {
+                let appData = try JSONDecoder().decode(AppData.self, from: jsonData)
+                try AppDataArchiver.replaceData(with: appData, in: backgroundContext)
+                try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
+                try backgroundContext.save()
+            } catch {
+                backgroundContext.rollback()
+                throw error
+            }
+        }
+        changeToken += 1
         return currentPreferences
     }
 
+    /// Wipes every entity using batch deletes on the background context.
+    /// Changes merge into `viewContext` automatically via the parent context.
     func deleteAllData() async throws {
         try await ensureLoaded()
-        var deletedObjectIDs = [NSManagedObjectID]()
-        for entity in CoreDataSchema.entityNames {
-            let request = NSFetchRequest<NSFetchRequestResult>(entityName: entity)
-            let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
-            deleteRequest.resultType = .resultTypeObjectIDs
-            let result = try container.viewContext.execute(deleteRequest) as? NSBatchDeleteResult
-            let objectIDs = result?.result as? [NSManagedObjectID] ?? []
-            deletedObjectIDs.append(contentsOf: objectIDs)
+        var deletedObjectIDs: [NSManagedObjectID] = []
+        try await backgroundContext.perform { [backgroundContext] in
+            for entity in CoreDataSchema.entityNames {
+                let request = NSFetchRequest<NSFetchRequestResult>(entityName: entity)
+                let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
+                deleteRequest.resultType = .resultTypeObjectIDs
+                let result = try backgroundContext.execute(deleteRequest) as? NSBatchDeleteResult
+                let objectIDs = result?.result as? [NSManagedObjectID] ?? []
+                deletedObjectIDs.append(contentsOf: objectIDs)
+            }
         }
         guard !deletedObjectIDs.isEmpty else { return }
         NSManagedObjectContext.mergeChanges(
             fromRemoteContextSave: [NSDeletedObjectsKey: deletedObjectIDs],
-            into: [container.viewContext]
+            into: [viewContext]
         )
         changeToken += 1
     }
 
-    private func importLegacySnapshot(_ snapshot: LegacySnapshot) async throws {
-        let data = AppData(
-            subjects: snapshot.subjects.map {
-                Subject(id: $0.id, name: $0.name, color: $0.color, icon: $0.icon, createdAt: Date().epochMilliseconds, updatedAt: Date().epochMilliseconds)
-            },
-            materials: snapshot.materials.map {
-                Material(
-                    id: $0.id,
-                    name: $0.name,
-                    subjectId: $0.subjectId,
-                    totalPages: $0.totalPages,
-                    currentPage: $0.currentPage,
-                    color: $0.color,
-                    note: $0.note
-                )
-            },
-            sessions: snapshot.sessions.map {
-                StudySession(
-                    id: $0.id,
-                    materialId: $0.materialId,
-                    materialName: $0.materialName,
-                    subjectId: $0.subjectId,
-                    subjectName: $0.subjectName,
-                    startTime: $0.startTime.epochMilliseconds,
-                    endTime: $0.endTime.epochMilliseconds,
-                    note: $0.note
-                )
-            },
-            goals: snapshot.goals.map {
-                Goal(id: $0.id, type: $0.type, targetMinutes: $0.targetMinutes, dayOfWeek: $0.dayOfWeek, weekStartDay: $0.weekStartDay, isActive: $0.isActive)
-            },
-            exams: snapshot.exams.map {
-                Exam(id: $0.id, name: $0.name, date: $0.date.epochDay, note: $0.note)
-            },
-            plans: snapshot.plans.map { plan in
-                PlanData(
-                    plan: StudyPlan(
-                        id: plan.id,
-                        name: plan.name,
-                        startDate: plan.startDate.epochMilliseconds,
-                        endDate: plan.endDate.epochMilliseconds,
-                        isActive: plan.isActive,
-                        createdAt: plan.createdAt.epochMilliseconds
-                    ),
-                    items: snapshot.planItems
-                        .filter { $0.planId == plan.id }
-                        .map {
-                            PlanItem(
-                                id: $0.id,
-                                planId: $0.planId,
-                                subjectId: $0.subjectId,
-                                dayOfWeek: $0.dayOfWeek,
-                                targetMinutes: $0.targetMinutes,
-                                actualMinutes: $0.actualMinutes,
-                                timeSlot: $0.timeSlot
-                            )
-                        }
-                )
-            },
-            exportDate: Date().epochMilliseconds
-        )
-        try await replaceData(with: data)
-    }
+    /// One-time migration from the legacy ``studyapp-store.json`` flat file.
+    /// Decoding and the wholesale replace both happen on the background
+    /// context.
+    func migrateLegacySnapshotIfNeeded(preferencesRepository: AppPreferencesRepository) async throws {
+        try await ensureLoaded()
+        let alreadyPopulated = try await backgroundRead { ctx in
+            !(try CoreDataQuery.isEmpty(in: ctx, entities: CoreDataSchema.entityNames))
+        }
+        guard !alreadyPopulated, fileManager.fileExists(atPath: legacyURL.path) else {
+            return
+        }
 
-    private func replaceData(with appData: AppData) async throws {
-        let ctx = container.viewContext
-
-        let existingSubjectIds = try existingIdMap(entity: "SubjectRecord")
-        let existingMaterialIds = try existingIdMap(entity: "MaterialRecord")
-        let existingSessionIds = try existingIdMap(entity: "StudySessionRecord")
-        let existingGoalIds = try existingIdMap(entity: "GoalRecord")
-        let existingExamIds = try existingIdMap(entity: "ExamRecord")
-        let existingPlanIds = try existingIdMap(entity: "StudyPlanRecord")
-        let existingPlanItemIds = try existingIdMap(entity: "PlanItemRecord")
-        let existingTimetablePeriodIds = try existingIdMap(entity: "TimetablePeriodRecord")
-        let existingTimetableEntryIds = try existingIdMap(entity: "TimetableEntryRecord")
-        let existingTimetableTermIds = try existingIdMap(entity: "TimetableTermRecord")
-        let existingTimetableReviewRecordIds = try existingIdMap(entity: "TimetableReviewRecord")
-        let existingProblemReviewRecordIds = try existingIdMap(entity: "ProblemReviewRecord")
-        let existingMaterialsBySyncId = try fetch(entity: "MaterialRecord")
-            .map(PersistenceMappers.material)
-            .reduce(into: [String: Material]()) { result, material in
-                result[material.syncId] = material
+        let data = try Data(contentsOf: legacyURL)
+        let capturedPreferences: AppPreferences = try await backgroundContext.perform { [backgroundContext] in
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .millisecondsSince1970
+            let snapshot = try decoder.decode(LegacySnapshot.self, from: data)
+            let appData = AppDataArchiver.convert(legacy: snapshot)
+            do {
+                try AppDataArchiver.replaceData(with: appData, in: backgroundContext)
+                try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
+                try backgroundContext.save()
+            } catch {
+                backgroundContext.rollback()
+                throw error
             }
-        let existingSessionsBySyncId = try fetch(entity: "StudySessionRecord")
-            .map(PersistenceMappers.session)
-            .reduce(into: [String: StudySession]()) { result, session in
-                result[session.syncId] = session
-            }
-
-        // Delete all existing records in-memory (not yet committed)
-        for entityName in CoreDataSchema.entityNames {
-            let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
-            let records = try ctx.fetch(request)
-            records.forEach { ctx.delete($0) }
+            return snapshot.preferences
         }
+        preferencesRepository.savePreferences(capturedPreferences)
+        changeToken += 1
 
-        let importedPlanIds = appData.plans.map { $0.plan.id }
-        let importedPlanItemIds = appData.plans.flatMap { $0.items.map(\.id) }
-        let importedIdCandidates: [Int64] = [
-            appData.subjects.map(\.id).max() ?? 0,
-            appData.materials.map(\.id).max() ?? 0,
-            appData.sessions.map(\.id).max() ?? 0,
-            appData.goals.map(\.id).max() ?? 0,
-            appData.exams.map(\.id).max() ?? 0,
-            importedPlanIds.max() ?? 0,
-            importedPlanItemIds.max() ?? 0,
-            appData.timetablePeriods.map(\.id).max() ?? 0,
-            appData.timetableEntries.map(\.id).max() ?? 0,
-            appData.timetableTerms.map(\.id).max() ?? 0,
-            appData.timetableReviewRecords.map(\.id).max() ?? 0,
-            appData.problemReviewRecords.map(\.id).max() ?? 0
-        ]
-        let maxImportedId = importedIdCandidates.max() ?? 0
-        var nextId = maxImportedId + 1
-        var usedIds = Set<Int64>()
-        let now = Date().epochMilliseconds
-
-        func allocateId(preferred: Int64) -> Int64 {
-            if preferred > 0, !usedIds.contains(preferred) {
-                usedIds.insert(preferred)
-                return preferred
-            }
-            while nextId <= 0 || usedIds.contains(nextId) {
-                nextId += 1
-            }
-            let allocated = nextId
-            usedIds.insert(allocated)
-            nextId += 1
-            return allocated
-        }
-
-        // ID remap tables: syncId → freshLocalId, oldId → freshLocalId
-        var subjectSyncMap: [String: Int64] = [:]
-        var subjectOldMap:  [Int64: Int64]   = [:]
-        var materialSyncMap: [String: Int64] = [:]
-        var materialOldMap:  [Int64: Int64]   = [:]
-        var planSyncMap: [String: Int64] = [:]
-        var planOldMap:  [Int64: Int64]   = [:]
-        var timetablePeriodSyncMap: [String: Int64] = [:]
-        var timetablePeriodOldMap:  [Int64: Int64]   = [:]
-        var timetableTermSyncMap: [String: Int64] = [:]
-        var timetableTermOldMap:  [Int64: Int64]   = [:]
-        var timetableEntrySyncMap: [String: Int64] = [:]
-        var timetableEntryOldMap:  [Int64: Int64]   = [:]
-
-        // --- Subjects ---
-        for subject in appData.subjects {
-            let localId = allocateId(preferred: existingSubjectIds[subject.syncId] ?? subject.id)
-            subjectSyncMap[subject.syncId] = localId
-            if subject.id > 0 { subjectOldMap[subject.id] = localId }
-
-            let r = NSEntityDescription.insertNewObject(forEntityName: "SubjectRecord", into: ctx)
-            PersistenceMappers.apply(subject, assignedId: localId, now: now, to: r)
-        }
-
-        // --- Materials ---
-        for material in appData.materials {
-            let localId = allocateId(preferred: existingMaterialIds[material.syncId] ?? material.id)
-            let importedMaterial = Self.preserveProblemProgress(in: material, existing: existingMaterialsBySyncId[material.syncId])
-            materialSyncMap[material.syncId] = localId
-            if material.id > 0 { materialOldMap[material.id] = localId }
-
-            let subjectId: Int64 = Self.resolveFK(
-                syncId: importedMaterial.subjectSyncId, syncMap: subjectSyncMap,
-                oldId: importedMaterial.subjectId, oldMap: subjectOldMap)
-
-            let r = NSEntityDescription.insertNewObject(forEntityName: "MaterialRecord", into: ctx)
-            PersistenceMappers.apply(
-                importedMaterial,
-                assignedId: localId,
-                subjectId: subjectId,
-                subjectSyncId: importedMaterial.subjectSyncId,
-                now: now,
-                to: r
-            )
-        }
-
-        // --- Sessions ---
-        for session in appData.sessions {
-            let localId = allocateId(preferred: existingSessionIds[session.syncId] ?? session.id)
-            let importedSession = Self.preserveProblemProgress(in: session, existing: existingSessionsBySyncId[session.syncId])
-
-            let subjectId = Self.resolveFK(
-                syncId: importedSession.subjectSyncId, syncMap: subjectSyncMap,
-                oldId: importedSession.subjectId, oldMap: subjectOldMap)
-            let materialId = Self.resolveOptFK(
-                syncId: importedSession.materialSyncId, syncMap: materialSyncMap,
-                oldId: importedSession.materialId, oldMap: materialOldMap)
-
-            let r = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: ctx)
-            PersistenceMappers.apply(
-                importedSession,
-                assignedId: localId,
-                subjectId: subjectId,
-                materialId: materialId,
-                now: now,
-                to: r
-            )
-        }
-
-        // --- Goals ---
-        for goal in appData.goals {
-            let localId = allocateId(preferred: existingGoalIds[goal.syncId] ?? goal.id)
-            let r = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: ctx)
-            PersistenceMappers.apply(goal, assignedId: localId, now: now, to: r)
-        }
-
-        // --- Exams ---
-        for exam in appData.exams {
-            let localId = allocateId(preferred: existingExamIds[exam.syncId] ?? exam.id)
-            let r = NSEntityDescription.insertNewObject(forEntityName: "ExamRecord", into: ctx)
-            PersistenceMappers.apply(exam, assignedId: localId, now: now, to: r)
-        }
-
-        // --- Plans & PlanItems (preserve isActive as-is; no deactivation side-effects) ---
-        for planData in appData.plans {
-            let plan = planData.plan
-            let localPlanId = allocateId(preferred: existingPlanIds[plan.syncId] ?? plan.id)
-            planSyncMap[plan.syncId] = localPlanId
-            if plan.id > 0 { planOldMap[plan.id] = localPlanId }
-
-            let pr = NSEntityDescription.insertNewObject(forEntityName: "StudyPlanRecord", into: ctx)
-            PersistenceMappers.apply(plan, assignedId: localPlanId, now: now, to: pr)
-
-            for item in planData.items {
-                let localItemId = allocateId(preferred: existingPlanItemIds[item.syncId] ?? item.id)
-                let itemSubjectId = Self.resolveFK(
-                    syncId: item.subjectSyncId, syncMap: subjectSyncMap,
-                    oldId: item.subjectId, oldMap: subjectOldMap)
-
-                let ir = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: ctx)
-                PersistenceMappers.apply(
-                    item,
-                    assignedId: localItemId,
-                    planId: localPlanId,
-                    planSyncId: item.planSyncId ?? plan.syncId,
-                    subjectId: itemSubjectId,
-                    now: now,
-                    to: ir
-                )
-            }
-        }
-
-        // --- TimetablePeriods ---
-        for period in appData.timetablePeriods {
-            let localId = allocateId(preferred: existingTimetablePeriodIds[period.syncId] ?? period.id)
-            timetablePeriodSyncMap[period.syncId] = localId
-            if period.id > 0 { timetablePeriodOldMap[period.id] = localId }
-
-            let r = NSEntityDescription.insertNewObject(forEntityName: "TimetablePeriodRecord", into: ctx)
-            PersistenceMappers.apply(period, assignedId: localId, now: now, to: r)
-        }
-
-        // --- TimetableTerms ---
-        for term in appData.timetableTerms {
-            let localId = allocateId(preferred: existingTimetableTermIds[term.syncId] ?? term.id)
-            timetableTermSyncMap[term.syncId] = localId
-            if term.id > 0 { timetableTermOldMap[term.id] = localId }
-
-            let r = NSEntityDescription.insertNewObject(forEntityName: "TimetableTermRecord", into: ctx)
-            PersistenceMappers.apply(term, assignedId: localId, now: now, to: r)
-        }
-
-        // --- TimetableEntries ---
-        for entry in appData.timetableEntries {
-            let localId = allocateId(preferred: existingTimetableEntryIds[entry.syncId] ?? entry.id)
-            timetableEntrySyncMap[entry.syncId] = localId
-            if entry.id > 0 { timetableEntryOldMap[entry.id] = localId }
-            let periodId = Self.resolveFK(
-                syncId: entry.periodSyncId,
-                syncMap: timetablePeriodSyncMap,
-                oldId: entry.periodId,
-                oldMap: timetablePeriodOldMap
-            )
-            let termId = Self.resolveOptFK(
-                syncId: entry.termSyncId,
-                syncMap: timetableTermSyncMap,
-                oldId: entry.termId,
-                oldMap: timetableTermOldMap
-            )
-            let periodSyncId = entry.periodSyncId ?? appData.timetablePeriods.first(where: { $0.id == entry.periodId })?.syncId
-            let termSyncId = entry.termSyncId ?? entry.termId.flatMap { oldId in appData.timetableTerms.first(where: { $0.id == oldId })?.syncId }
-
-            let r = NSEntityDescription.insertNewObject(forEntityName: "TimetableEntryRecord", into: ctx)
-            PersistenceMappers.apply(entry, assignedId: localId, termId: termId, termSyncId: termSyncId, periodId: periodId, periodSyncId: periodSyncId, now: now, to: r)
-        }
-
-        // --- TimetableReviewRecords ---
-        for review in appData.timetableReviewRecords {
-            let localId = allocateId(preferred: existingTimetableReviewRecordIds[review.syncId] ?? review.id)
-            var remapped = review
-            remapped.termId = Self.resolveFK(
-                syncId: review.termSyncId,
-                syncMap: timetableTermSyncMap,
-                oldId: review.termId,
-                oldMap: timetableTermOldMap
-            )
-            remapped.entryId = Self.resolveFK(
-                syncId: review.entrySyncId,
-                syncMap: timetableEntrySyncMap,
-                oldId: review.entryId,
-                oldMap: timetableEntryOldMap
-            )
-            remapped.periodId = Self.resolveFK(
-                syncId: review.periodSyncId,
-                syncMap: timetablePeriodSyncMap,
-                oldId: review.periodId,
-                oldMap: timetablePeriodOldMap
-            )
-
-            let r = NSEntityDescription.insertNewObject(forEntityName: "TimetableReviewRecord", into: ctx)
-            PersistenceMappers.apply(remapped, assignedId: localId, now: now, to: r)
-        }
-
-        // --- ProblemReviewRecords ---
-        for review in appData.problemReviewRecords {
-            let localId = allocateId(preferred: existingProblemReviewRecordIds[review.syncId] ?? review.id)
-            var remapped = review
-            remapped.materialId = Self.resolveFK(
-                syncId: review.materialSyncId,
-                syncMap: materialSyncMap,
-                oldId: review.materialId,
-                oldMap: materialOldMap
-            )
-            remapped.problemId = ProblemReviewRecord.problemId(
-                materialId: remapped.materialId,
-                problemNumber: remapped.problemNumber
-            )
-
-            let r = NSEntityDescription.insertNewObject(forEntityName: "ProblemReviewRecord", into: ctx)
-            PersistenceMappers.apply(remapped, assignedId: localId, now: now, to: r)
-        }
-
-        // Commit atomically; rollback on failure preserves original data
+        let migratedURL = legacyURL.deletingPathExtension().appendingPathExtension("json.migrated")
         do {
-            try saveContext()
-        } catch {
-            ctx.rollback()
-            throw error
-        }
-
-        try await recalculatePlanActualMinutes()
-    }
-
-    private static func resolveFK(syncId: String?, syncMap: [String: Int64], oldId: Int64, oldMap: [Int64: Int64]) -> Int64 {
-        if let sid = syncId, let mapped = syncMap[sid] { return mapped }
-        if let mapped = oldMap[oldId] { return mapped }
-        return oldId
-    }
-
-    private static func resolveOptFK(syncId: String?, syncMap: [String: Int64], oldId: Int64?, oldMap: [Int64: Int64]) -> Int64? {
-        guard let oid = oldId else { return nil }
-        return resolveFK(syncId: syncId, syncMap: syncMap, oldId: oid, oldMap: oldMap)
-    }
-
-    private static func preserveProblemProgress(in imported: Material, existing: Material?) -> Material {
-        guard imported.deletedAt == nil, let existing else { return imported }
-        var preserved = imported
-        if preserved.problemChapters.isEmpty, !existing.problemChapters.isEmpty {
-            preserved.problemChapters = existing.problemChapters
-        }
-        if preserved.problemRecords.isEmpty, !existing.problemRecords.isEmpty {
-            preserved.problemRecords = existing.problemRecords
-        }
-        if preserved.totalProblems == 0, existing.totalProblems > 0 {
-            preserved.totalProblems = existing.totalProblems
-        }
-        return preserved
-    }
-
-    private static func preserveProblemProgress(in imported: StudySession, existing: StudySession?) -> StudySession {
-        guard imported.deletedAt == nil, let existing else { return imported }
-        var preserved = imported
-        if preserved.problemRecords.isEmpty, !existing.problemRecords.isEmpty {
-            preserved.problemRecords = existing.problemRecords
-        }
-        if preserved.problemStart == nil {
-            preserved.problemStart = existing.problemStart
-        }
-        if preserved.problemEnd == nil {
-            preserved.problemEnd = existing.problemEnd
-        }
-        if preserved.wrongProblemCount == nil {
-            preserved.wrongProblemCount = existing.wrongProblemCount
-        }
-        return preserved
-    }
-
-    private func rebuildProblemReviewRecords(for materialId: Int64, now: Int64, startingId nextLocalId: inout Int64) throws {
-        let existingReviews = try fetch(
-            entity: "ProblemReviewRecord",
-            predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
-                NSPredicate(format: "materialId == %lld", materialId),
-                NSPredicate(format: "deletedAt == NIL")
-            ])
-        )
-        for review in existingReviews {
-            review.setValue(now, forKey: "deletedAt")
-            review.setValue(now, forKey: "updatedAt")
-        }
-
-        let sessions = try fetch(
-            entity: "StudySessionRecord",
-            predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
-                NSPredicate(format: "materialId == %lld", materialId),
-                NSPredicate(format: "deletedAt == NIL")
-            ]),
-            sort: [NSSortDescriptor(key: "startTime", ascending: true)]
-        ).map(PersistenceMappers.session)
-
-        var latestByProblem = [String: ProblemReviewRecord]()
-        for session in sessions where !session.problemRecords.isEmpty {
-            for problem in session.problemRecords.sorted(by: { $0.number < $1.number }) where problem.number > 0 {
-                let rating: ProblemReviewRating = problem.result == .wrong ? .again : .good
-                let problemId = ProblemReviewRecord.problemId(materialId: materialId, problemNumber: problem.number)
-                let scheduled = ProblemReviewScheduler.schedule(
-                    materialId: materialId,
-                    materialSyncId: session.materialSyncId,
-                    problemNumber: problem.number,
-                    rating: rating,
-                    reviewedAt: session.sessionEndTime,
-                    previous: latestByProblem[problemId]
-                )
-                latestByProblem[problemId] = scheduled
-
-                let reviewRecord = NSEntityDescription.insertNewObject(forEntityName: "ProblemReviewRecord", into: container.viewContext)
-                PersistenceMappers.apply(scheduled, assignedId: allocateId(startingAt: &nextLocalId), now: now, to: reviewRecord)
+            if fileManager.fileExists(atPath: migratedURL.path) {
+                try fileManager.removeItem(at: migratedURL)
             }
+            try fileManager.moveItem(at: legacyURL, to: migratedURL)
+        } catch {
+            print("[StudyApp] Failed to move legacy file after migration: \(error.localizedDescription)")
         }
     }
 
-    private func allocateId(startingAt nextLocalId: inout Int64) -> Int64 {
-        defer { nextLocalId += 1 }
-        return nextLocalId
-    }
+    // MARK: - Private helpers
 
     private static func latestProblemReviews(from reviews: [ProblemReviewRecord]) -> [String: ProblemReviewRecord] {
         reviews.reduce(into: [String: ProblemReviewRecord]()) { result, review in
@@ -1457,35 +1120,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
     }
 
-    private func recalculatePlanActualMinutes() async throws {
-        let activePlans = try fetch(
-            entity: "StudyPlanRecord",
-            predicate: NSPredicate(format: "isActive == YES AND deletedAt == NIL")
-        )
-        guard let activePlanRecord = activePlans.first else { return }
-        let activePlan = PersistenceMappers.plan(activePlanRecord)
-        let planItems = try fetch(
-            entity: "PlanItemRecord",
-            predicate: NSPredicate(format: "planId == %lld AND deletedAt == NIL", activePlan.id)
-        )
-        let sessions = try fetch(
-            entity: "StudySessionRecord",
-            predicate: NSPredicate(format: "deletedAt == NIL")
-        )
-
-        for itemRecord in planItems {
-            let item = PersistenceMappers.planItem(itemRecord)
-            let actualMinutes = sessions.map(PersistenceMappers.session).filter { session in
-                session.subjectId == item.subjectId &&
-                session.dayOfWeek == item.dayOfWeek &&
-                session.startTime >= activePlan.startDate &&
-                session.startTime <= activePlan.endDate
-            }
-            .reduce(0) { $0 + $1.durationMinutes }
-            itemRecord.setValue(Int64(actualMinutes), forKey: "actualMinutes")
-            itemRecord.setValue(Date().epochMilliseconds, forKey: "updatedAt")
-        }
-        try saveContext()
+    private func recalculatePlanActualMinutesOnViewContext() throws {
+        try PlanActualMinutesRecalculator.recalculate(in: viewContext)
+        try saveViewContext()
     }
 
     private func sanitize(
@@ -1521,7 +1158,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             lastSyncedAt: persistedLastSyncedAt ?? session.lastSyncedAt
         )
     }
-    private func apply(_ session: StudySession, to record: NSManagedObject) {
+
+    private func applySession(_ session: StudySession, to record: NSManagedObject) {
         PersistenceMappers.apply(
             session,
             assignedId: session.id,
@@ -1535,315 +1173,50 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private func ensureLoaded() async throws {
         try await loadTask.value
         if !didNormalizeLegacyDailyGoals {
-            try normalizeLegacyDailyGoalsIfNeeded()
+            let mutated = try LegacyDailyGoalNormalizer.normalize(in: viewContext)
+            if mutated {
+                try saveViewContext()
+            }
             didNormalizeLegacyDailyGoals = true
         }
-    }
-
-    private func isEmptyStore() async throws -> Bool {
-        for entity in CoreDataSchema.entityNames {
-            let request = NSFetchRequest<NSFetchRequestResult>(entityName: entity)
-            request.fetchLimit = 1
-            if try container.viewContext.count(for: request) > 0 {
-                return false
-            }
-        }
-        return true
     }
 
     private func nextIdentifier(ifNeeded requested: Int64) throws -> Int64 {
         if requested > 0 {
             return requested
         }
-        return try maxIdentifier() + 1
+        return try CoreDataQuery.maxIdentifier(in: viewContext, entities: CoreDataSchema.entityNames) + 1
     }
 
-    private func maxIdentifier() throws -> Int64 {
-        var maxId: Int64 = 0
-        for entityName in CoreDataSchema.entityNames {
-            let request = NSFetchRequest<NSDictionary>(entityName: entityName)
-            request.resultType = .dictionaryResultType
-            let expression = NSExpressionDescription()
-            expression.name = "maxId"
-            expression.expression = NSExpression(forFunction: "max:", arguments: [NSExpression(forKeyPath: "id")])
-            expression.expressionResultType = .integer64AttributeType
-            request.propertiesToFetch = [expression]
-            let result = try container.viewContext.fetch(request).first?["maxId"] as? Int64 ?? 0
-            maxId = max(maxId, result)
-        }
-        return maxId
-    }
-
-    private func normalizeLegacyDailyGoalsIfNeeded() throws {
-        let legacyRecords = try fetch(
-            entity: "GoalRecord",
-            predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
-                NSPredicate(format: "type == %@", GoalType.daily.rawValue),
-                NSPredicate(format: "isActive == YES"),
-                NSPredicate(format: "deletedAt == NIL"),
-                NSPredicate(format: "dayOfWeek == NIL")
-            ])
-        )
-
-        guard !legacyRecords.isEmpty else { return }
-
-        var nextGoalId = (try fetch(entity: "GoalRecord").compactMap { $0.value(forKey: "id") as? Int64 }.max() ?? 0) + 1
-        for record in legacyRecords {
-            let baseGoal = PersistenceMappers.goal(record)
-            container.viewContext.delete(record)
-
-            for day in StudyWeekday.allCases {
-                let newRecord = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: container.viewContext)
-                newRecord.setValue(nextGoalId, forKey: "id")
-                newRecord.setValue("\(baseGoal.syncId)-\(day.rawValue.lowercased())", forKey: "syncId")
-                newRecord.setValue(baseGoal.type.rawValue, forKey: "type")
-                newRecord.setValue(Int64(baseGoal.targetMinutes), forKey: "targetMinutes")
-                newRecord.setValue(day.rawValue, forKey: "dayOfWeek")
-                newRecord.setValue(baseGoal.weekStartDay.rawValue, forKey: "weekStartDay")
-                newRecord.setValue(baseGoal.isActive, forKey: "isActive")
-                newRecord.setValue(baseGoal.createdAt, forKey: "createdAt")
-                newRecord.setValue(baseGoal.updatedAt, forKey: "updatedAt")
-                newRecord.setValue(baseGoal.deletedAt, forKey: "deletedAt")
-                newRecord.setValue(baseGoal.lastSyncedAt, forKey: "lastSyncedAt")
-                nextGoalId += 1
-            }
-        }
-
-        try saveContext()
-    }
-
-    private func fetch(
-        entity: String,
-        predicate: NSPredicate? = nil,
-        sort: [NSSortDescriptor] = []
-    ) throws -> [NSManagedObject] {
-        let request = NSFetchRequest<NSManagedObject>(entityName: entity)
-        request.predicate = predicate
-        request.sortDescriptors = sort
-        return try container.viewContext.fetch(request)
-    }
-
-    private func fetchOne(entity: String, id: Int64) throws -> NSManagedObject? {
-        let request = NSFetchRequest<NSManagedObject>(entityName: entity)
-        request.predicate = NSPredicate(format: "id == %lld", id)
-        request.fetchLimit = 1
-        return try container.viewContext.fetch(request).first
-    }
-
-    private func existingIdMap(entity: String) throws -> [String: Int64] {
-        let records = try fetch(entity: entity)
-        var result = [String: Int64]()
-        result.reserveCapacity(records.count)
-        for record in records {
-            guard let syncId = record.value(forKey: "syncId") as? String, !syncId.isEmpty else { continue }
-            guard let id = record.value(forKey: "id") as? Int64, id > 0 else { continue }
-            result[syncId] = id
-        }
-        return result
-    }
-
-    private func saveContext() throws {
-        if container.viewContext.hasChanges {
-            try container.viewContext.save()
+    private func saveViewContext() throws {
+        if viewContext.hasChanges {
+            try viewContext.save()
             changeToken += 1
         }
     }
 
-    private func backfillMissingSyncMetadataIfNeeded() throws {
-        var didChange = false
-
-        let subjectRecords = try fetch(entity: "SubjectRecord")
-        var subjectSyncIds = [Int64: String]()
-        var subjectNames = [Int64: String]()
-        for record in subjectRecords {
-            let id = record.value(forKey: "id") as? Int64 ?? 0
-            let syncId = ensureSyncId(on: record, didChange: &didChange)
-            subjectSyncIds[id] = syncId
-            subjectNames[id] = record.value(forKey: "name") as? String ?? ""
-        }
-
-        let planRecords = try fetch(entity: "StudyPlanRecord")
-        var planSyncIds = [Int64: String]()
-        for record in planRecords {
-            let id = record.value(forKey: "id") as? Int64 ?? 0
-            planSyncIds[id] = ensureSyncId(on: record, didChange: &didChange)
-        }
-
-        let materialRecords = try fetch(entity: "MaterialRecord")
-        var materialSyncIds = [Int64: String]()
-        var materialNames = [Int64: String]()
-        for record in materialRecords {
-            let id = record.value(forKey: "id") as? Int64 ?? 0
-            let syncId = ensureSyncId(on: record, didChange: &didChange)
-            materialSyncIds[id] = syncId
-            materialNames[id] = record.value(forKey: "name") as? String ?? ""
-            let subjectId = record.value(forKey: "subjectId") as? Int64 ?? 0
-            ensureStringValue(
-                on: record,
-                key: "subjectSyncId",
-                value: subjectSyncIds[subjectId],
-                didChange: &didChange
-            )
-        }
-
-        let sessionRecords = try fetch(entity: "StudySessionRecord")
-        for record in sessionRecords {
-            _ = ensureSyncId(on: record, didChange: &didChange)
-            let subjectId = record.value(forKey: "subjectId") as? Int64 ?? 0
-            ensureStringValue(
-                on: record,
-                key: "subjectSyncId",
-                value: subjectSyncIds[subjectId],
-                didChange: &didChange
-            )
-            ensureStringValue(
-                on: record,
-                key: "subjectName",
-                value: subjectNames[subjectId],
-                didChange: &didChange
-            )
-            if let materialId = record.value(forKey: "materialId") as? Int64 {
-                ensureStringValue(
-                    on: record,
-                    key: "materialSyncId",
-                    value: materialSyncIds[materialId],
-                    didChange: &didChange
-                )
-                ensureStringValue(
-                    on: record,
-                    key: "materialName",
-                    value: materialNames[materialId],
-                    didChange: &didChange
-                )
-            }
-        }
-
-        let planItemRecords = try fetch(entity: "PlanItemRecord")
-        for record in planItemRecords {
-            _ = ensureSyncId(on: record, didChange: &didChange)
-            let planId = record.value(forKey: "planId") as? Int64 ?? 0
-            let subjectId = record.value(forKey: "subjectId") as? Int64 ?? 0
-            ensureStringValue(
-                on: record,
-                key: "planSyncId",
-                value: planSyncIds[planId],
-                didChange: &didChange
-            )
-            ensureStringValue(
-                on: record,
-                key: "subjectSyncId",
-                value: subjectSyncIds[subjectId],
-                didChange: &didChange
-            )
-        }
-
-        let timetablePeriodRecords = try fetch(entity: "TimetablePeriodRecord")
-        var timetablePeriodSyncIds = [Int64: String]()
-        for record in timetablePeriodRecords {
-            let id = record.value(forKey: "id") as? Int64 ?? 0
-            timetablePeriodSyncIds[id] = ensureSyncId(on: record, didChange: &didChange)
-        }
-
-        let timetableTermRecords = try fetch(entity: "TimetableTermRecord")
-        var timetableTermSyncIds = [Int64: String]()
-        for record in timetableTermRecords {
-            let id = record.value(forKey: "id") as? Int64 ?? 0
-            timetableTermSyncIds[id] = ensureSyncId(on: record, didChange: &didChange)
-        }
-
-        let timetableEntryRecords = try fetch(entity: "TimetableEntryRecord")
-        var timetableEntrySyncIds = [Int64: String]()
-        for record in timetableEntryRecords {
-            let id = record.value(forKey: "id") as? Int64 ?? 0
-            timetableEntrySyncIds[id] = ensureSyncId(on: record, didChange: &didChange)
-            let periodId = record.value(forKey: "periodId") as? Int64 ?? 0
-            ensureStringValue(
-                on: record,
-                key: "periodSyncId",
-                value: timetablePeriodSyncIds[periodId],
-                didChange: &didChange
-            )
-            if let termId = record.value(forKey: "termId") as? Int64 {
-                ensureStringValue(
-                    on: record,
-                    key: "termSyncId",
-                    value: timetableTermSyncIds[termId],
-                    didChange: &didChange
-                )
-            }
-        }
-
-        let timetableReviewRecords = try fetch(entity: "TimetableReviewRecord")
-        for record in timetableReviewRecords {
-            _ = ensureSyncId(on: record, didChange: &didChange)
-            let termId = record.value(forKey: "termId") as? Int64 ?? 0
-            let entryId = record.value(forKey: "entryId") as? Int64 ?? 0
-            let periodId = record.value(forKey: "periodId") as? Int64 ?? 0
-            ensureStringValue(on: record, key: "termSyncId", value: timetableTermSyncIds[termId], didChange: &didChange)
-            ensureStringValue(on: record, key: "entrySyncId", value: timetableEntrySyncIds[entryId], didChange: &didChange)
-            ensureStringValue(on: record, key: "periodSyncId", value: timetablePeriodSyncIds[periodId], didChange: &didChange)
-        }
-
-        let problemReviewRecords = try fetch(entity: "ProblemReviewRecord")
-        for record in problemReviewRecords {
-            _ = ensureSyncId(on: record, didChange: &didChange)
-            let materialId = record.value(forKey: "materialId") as? Int64 ?? 0
-            let problemNumber = Int(record.value(forKey: "problemNumber") as? Int64 ?? 0)
-            ensureStringValue(on: record, key: "materialSyncId", value: materialSyncIds[materialId], didChange: &didChange)
-            ensureStringValue(
-                on: record,
-                key: "problemId",
-                value: ProblemReviewRecord.problemId(materialId: materialId, problemNumber: problemNumber),
-                didChange: &didChange
-            )
-        }
-
-        for entity in ["GoalRecord", "ExamRecord"] {
-            let records = try fetch(entity: entity)
-            for record in records {
-                _ = ensureSyncId(on: record, didChange: &didChange)
-            }
-        }
-
-        if didChange {
-            try saveContext()
+    /// Runs a read-only block on the background context's private queue.
+    private func backgroundRead<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
+        let ctx = backgroundContext
+        return try await ctx.perform {
+            try block(ctx)
         }
     }
 
-    @discardableResult
-    private func ensureSyncId(on record: NSManagedObject, didChange: inout Bool) -> String {
-        if let existing = record.value(forKey: "syncId") as? String, !existing.isEmpty {
-            return existing
-        }
-        let syncId = UUID().uuidString.lowercased()
-        record.setValue(syncId, forKey: "syncId")
-        record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
-        didChange = true
-        return syncId
-    }
-
-    private func ensureStringValue(
-        on record: NSManagedObject,
-        key: String,
-        value: String?,
-        didChange: inout Bool
-    ) {
-        guard let value, !value.isEmpty else { return }
-        if let existing = record.value(forKey: key) as? String, !existing.isEmpty {
-            return
-        }
-        record.setValue(value, forKey: key)
-        record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
-        didChange = true
-    }
-
-    private func csvEscaped(_ value: String) -> String {
-        guard value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r") else {
+    /// Runs a mutating block on the background context and saves if there are
+    /// changes. The view context picks up the merge automatically.
+    private func backgroundWrite<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
+        let ctx = backgroundContext
+        let result = try await ctx.perform {
+            let value = try block(ctx)
+            if ctx.hasChanges {
+                try ctx.save()
+            }
             return value
         }
-        return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        changeToken += 1
+        return result
     }
-
 }
 
 struct UserDefaultsPreferencesRepository: AppPreferencesRepository {

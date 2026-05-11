@@ -13,15 +13,28 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private let logger: AppLogger
     private let lastSyncKey = "studyapp.sync.lastSyncAt"
     private let localSyncOwnerKey = "studyapp.sync.localOwnerUserId"
+    /// Per-user delta cursor. Stored under
+    /// `studyapp.sync.deltaCursor.<uid>` so switching accounts does not mix
+    /// cursors. Measured in client-clock milliseconds.
+    private let deltaCursorKeyPrefix = "studyapp.sync.deltaCursor."
+    /// Set to true once we have migrated a user away from the legacy
+    /// chunked-v2 snapshot and cleaned up those documents. Stored per user.
+    private let deltaMigrationDoneKeyPrefix = "studyapp.sync.deltaMigrationDone."
     private var lastLoadedVersion: Int64 = 0
     private var cancellables = Set<AnyCancellable>()
 
     private static let maxSyncRetries = 3
     private static let syncSchemaVersion = AppData.currentSchemaVersion
     private static let backupRetentionDays = 30
+    /// Delta tombstones are kept for at least this long so offline devices
+    /// can still see deletions on their next sync. 90 days is comfortably
+    /// longer than typical offline usage while bounding storage.
+    private static let tombstoneRetentionMillis: Int64 = 90 * 24 * 60 * 60 * 1000
     private static let alreadySyncingMessage = "同期はすでに実行中です。完了までお待ちください。"
     private static let accountSwitchMessage = "この端末のローカルデータは別の同期アカウントに紐づいています。全データを削除してから再度同期してください。"
     private static let destructiveSyncMessage = "同期により問題集の進捗履歴が大きく減少するため停止しました。自動バックアップを確認してください。"
+
+    private lazy var deltaStore = FirestoreDeltaSyncStore(firestore: firestore, logger: logger)
 
     @Published private(set) var status = SyncStatus()
 
@@ -98,75 +111,101 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             )
         }
         do {
+            try await migrateLegacyChunkedSnapshotIfNeeded(session: session)
+
             for attempt in 0..<Self.maxSyncRetries {
                 logger.log(category: .sync, message: "syncNow attempt started", details: "attempt=\(attempt + 1)")
                 let local = try await persistence.exportData()
-                try saveLocalBackup(local, reason: "before-syncNow")
+                try await saveLocalBackup(local, reason: "before-syncNow")
                 try ensureLocalSyncOwnership(session: session, local: local)
-                let remotePayload = try await loadSnapshot(userId: session.localId)
+
                 let localChangeToken = persistence.changeToken
-                let merged: AppData
-                if let remotePayload {
-                    logger.log(
-                        category: .sync,
-                        message: "Remote snapshot loaded",
-                        details: "payloadBytes=\(remotePayload.lengthOfBytes(using: .utf8)) localSubjects=\(local.subjects.count) localMaterials=\(local.materials.count) localSessions=\(local.sessions.count)"
-                    )
-                    do {
-                        let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
-                        try ensureRemoteCanMerge(remote)
-                        logger.log(
-                            category: .sync,
-                            message: "Remote snapshot decoded",
-                            details: "remoteSubjects=\(remote.subjects.count) remoteMaterials=\(remote.materials.count) remoteSessions=\(remote.sessions.count) remoteGoals=\(remote.goals.count) remoteExams=\(remote.exams.count) remotePlans=\(remote.plans.count)"
-                        )
-                        merged = merge(local: local, remote: remote)
-                    } catch {
-                        logger.log(category: .sync, level: .error, message: "Remote snapshot decode failed", details: "attempt=\(attempt + 1)", error: error)
-                        throw ValidationError(message: "クラウド同期データの読み込みに失敗しました")
-                    }
-                } else {
-                    logger.log(category: .sync, message: "No remote snapshot found", details: "uid=\(session.localId)")
-                    merged = local
-                }
-                let synced = markSynced(merged, at: Date().epochMilliseconds)
-                try ensureNoProblemProgressLoss(from: local, to: synced, operation: "syncNow")
-                let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
+                let cursor = loadDeltaCursor(userId: session.localId)
+
+                // Pull: only fetch what changed since our last cursor.
+                let remoteEnvelopes = try await deltaStore.fetchEnvelopes(
+                    userId: session.localId,
+                    changedSince: cursor
+                )
+
+                // Merge off the main actor. Includes tombstone propagation
+                // and problem-progress preservation via SyncMergeEngine.
+                let mergeOutcome = try await MergeExecutor.apply(
+                    envelopes: remoteEnvelopes,
+                    onto: local,
+                    syncedAt: Date().epochMilliseconds
+                )
+                let merged = mergeOutcome.merged
+                try ensureNoProblemProgressLoss(from: local, to: merged, operation: "syncNow")
+
+                // Push: only the entities whose updatedAt is strictly newer
+                // than the cursor (i.e. local changes since last sync).
+                let outboundEnvelopes = SyncDeltaSerializer.changedSince(merged, cursor: cursor)
                 logger.log(
                     category: .sync,
-                    message: "Prepared merged payload",
-                    details: "attempt=\(attempt + 1) payloadBytes=\(payload.lengthOfBytes(using: .utf8)) mergedSubjects=\(synced.subjects.count) mergedMaterials=\(synced.materials.count) mergedSessions=\(synced.sessions.count)"
+                    message: "Prepared delta sync",
+                    details: "attempt=\(attempt + 1) cursor=\(cursor) inbound=\(remoteEnvelopes.count) outbound=\(outboundEnvelopes.count)"
                 )
-                do {
-                    try await saveSnapshot(
-                        userId: session.localId,
-                        payload: payload,
-                        updatedAt: synced.exportDate,
-                        expectedVersion: lastLoadedVersion
-                    )
-                } catch {
-                    if isSyncSnapshotConflict(error) {
-                        logger.log(category: .sync, level: .warning, message: "Remote snapshot save conflict", details: "attempt=\(attempt + 1)", error: error)
-                        continue
-                    }
-                    logger.log(category: .sync, level: .error, message: "Remote snapshot save failed", details: "attempt=\(attempt + 1)", error: error)
-                    throw error
-                }
+
                 guard persistence.changeToken == localChangeToken else {
-                    logger.log(category: .sync, level: .warning, message: "Local change detected during sync", details: "attempt=\(attempt + 1)")
+                    logger.log(
+                        category: .sync,
+                        level: .warning,
+                        message: "Local change detected before delta commit",
+                        details: "attempt=\(attempt + 1)"
+                    )
                     continue
                 }
-                do {
-                    let useCase = ExportImportDataUseCase(repository: persistence)
-                    _ = try await useCase.importJSON(payload, currentPreferences: preferencesRepository.loadPreferences())
-                } catch {
-                    logger.log(category: .sync, level: .error, message: "Merged snapshot import failed", details: "attempt=\(attempt + 1)", error: error)
-                    throw ValidationError(message: "同期後のローカル反映に失敗しました")
+
+                // Apply merge locally first so a Firestore write failure
+                // doesn't leave us out of sync with what we intend to push.
+                try await applyMergedSnapshotLocally(merged)
+
+                if !outboundEnvelopes.isEmpty {
+                    try await deltaStore.writeEnvelopes(outboundEnvelopes, userId: session.localId)
                 }
-                UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
+
+                let newCursor = max(
+                    merged.exportDate,
+                    SyncDeltaSerializer.decompose(merged)
+                        .map(\.updatedAt)
+                        .max() ?? cursor
+                )
+                saveDeltaCursor(userId: session.localId, cursor: newCursor)
+                UserDefaults.standard.set(merged.exportDate, forKey: lastSyncKey)
                 UserDefaults.standard.set(session.localId, forKey: localSyncOwnerKey)
-                status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
-                logger.log(category: .sync, message: "syncNow succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(synced.exportDate)")
+                status = SyncStatus(
+                    isAuthenticated: true,
+                    email: session.email,
+                    isSyncing: false,
+                    lastSyncAt: merged.exportDate
+                )
+
+                // Background purge of stale tombstones. Run best-effort; a
+                // failure here doesn't invalidate the successful sync.
+                Task { [weak self] in
+                    guard let self else { return }
+                    do {
+                        try await self.deltaStore.purgeTombstonesOlderThan(
+                            retentionMillis: Self.tombstoneRetentionMillis,
+                            now: Date().epochMilliseconds,
+                            userId: session.localId
+                        )
+                    } catch {
+                        self.logger.log(
+                            category: .sync,
+                            level: .warning,
+                            message: "Tombstone purge failed",
+                            error: error
+                        )
+                    }
+                }
+
+                logger.log(
+                    category: .sync,
+                    message: "syncNow succeeded",
+                    details: "attempt=\(attempt + 1) lastSyncAt=\(merged.exportDate) cursor=\(newCursor)"
+                )
                 return
             }
             throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
@@ -193,46 +232,45 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             )
         }
         do {
+            try await migrateLegacyChunkedSnapshotIfNeeded(session: session)
+
             for attempt in 0..<Self.maxSyncRetries {
                 let localData = try await persistence.exportData()
-                try saveLocalBackup(localData, reason: "before-importLocalDataToCloud")
+                try await saveLocalBackup(localData, reason: "before-importLocalDataToCloud")
                 try ensureLocalSyncOwnership(session: session, local: localData)
-                if let remotePayload = try await loadSnapshot(userId: session.localId) {
-                    let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
-                    try ensureRemoteCanMerge(remote)
-                    try ensureNoProblemProgressLoss(from: remote, to: localData, operation: "importLocalDataToCloud")
+
+                // Defend against destructive uploads: if the cloud already
+                // has progress we don't, bail out and force the user to
+                // pull first.
+                let cursor = loadDeltaCursor(userId: session.localId)
+                let remoteEnvelopes = try await deltaStore.fetchEnvelopes(userId: session.localId, changedSince: cursor)
+                if !remoteEnvelopes.isEmpty {
+                    let remoteApp = SyncDeltaSerializer.assemble(envelopes: remoteEnvelopes, onto: localData)
+                    try ensureNoProblemProgressLoss(from: remoteApp, to: localData, operation: "importLocalDataToCloud")
                 }
-                let local = markSynced(localData, at: Date().epochMilliseconds)
+
+                let nowMs = Date().epochMilliseconds
+                let stampedLocal = SyncMergeEngine.markSynced(localData, at: nowMs)
+                let envelopes = SyncDeltaSerializer.decompose(stampedLocal)
                 let localChangeToken = persistence.changeToken
-                let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
+
                 logger.log(
                     category: .sync,
-                    message: "Prepared local upload payload",
-                    details: "attempt=\(attempt + 1) payloadBytes=\(payload.lengthOfBytes(using: .utf8)) subjects=\(local.subjects.count) materials=\(local.materials.count) sessions=\(local.sessions.count)"
+                    message: "Prepared local upload",
+                    details: "attempt=\(attempt + 1) envelopes=\(envelopes.count)"
                 )
-                do {
-                    try await saveSnapshot(
-                        userId: session.localId,
-                        payload: payload,
-                        updatedAt: local.exportDate,
-                        expectedVersion: lastLoadedVersion
-                    )
-                } catch {
-                    if isSyncSnapshotConflict(error) {
-                        logger.log(category: .sync, level: .warning, message: "Local upload save conflict", details: "attempt=\(attempt + 1)", error: error)
-                        continue
-                    }
-                    logger.log(category: .sync, level: .error, message: "Local upload save failed", details: "attempt=\(attempt + 1)", error: error)
-                    throw error
-                }
                 guard persistence.changeToken == localChangeToken else {
                     logger.log(category: .sync, level: .warning, message: "Local change detected during upload", details: "attempt=\(attempt + 1)")
                     continue
                 }
-                UserDefaults.standard.set(local.exportDate, forKey: lastSyncKey)
+
+                try await deltaStore.writeEnvelopes(envelopes, userId: session.localId)
+                let newCursor = envelopes.map(\.updatedAt).max() ?? nowMs
+                saveDeltaCursor(userId: session.localId, cursor: newCursor)
+                UserDefaults.standard.set(nowMs, forKey: lastSyncKey)
                 UserDefaults.standard.set(session.localId, forKey: localSyncOwnerKey)
-                status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: local.exportDate)
-                logger.log(category: .sync, message: "importLocalDataToCloud succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(local.exportDate)")
+                status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: nowMs)
+                logger.log(category: .sync, message: "importLocalDataToCloud succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(nowMs) envelopes=\(envelopes.count)")
                 return
             }
             throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
@@ -246,8 +284,104 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     func clearLocalSyncState() async {
         UserDefaults.standard.removeObject(forKey: lastSyncKey)
         UserDefaults.standard.removeObject(forKey: localSyncOwnerKey)
+        // Scrub every per-user delta cursor / migration marker so a later
+        // sign-in starts from a clean slate (mirrors the pre-delta
+        // behaviour where there was no per-user state to leak).
+        for key in UserDefaults.standard.dictionaryRepresentation().keys {
+            if key.hasPrefix(deltaCursorKeyPrefix) || key.hasPrefix(deltaMigrationDoneKeyPrefix) {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
         status.lastSyncAt = nil
         status.errorMessage = nil
+    }
+
+    // MARK: - Delta helpers
+
+    private func deltaCursorKey(for userId: String) -> String {
+        deltaCursorKeyPrefix + userId
+    }
+
+    private func deltaMigrationDoneKey(for userId: String) -> String {
+        deltaMigrationDoneKeyPrefix + userId
+    }
+
+    private func loadDeltaCursor(userId: String) -> Int64 {
+        let raw = UserDefaults.standard.object(forKey: deltaCursorKey(for: userId))
+        if let number = raw as? NSNumber {
+            return number.int64Value
+        }
+        if let int64 = raw as? Int64 {
+            return int64
+        }
+        return 0
+    }
+
+    private func saveDeltaCursor(userId: String, cursor: Int64) {
+        UserDefaults.standard.set(NSNumber(value: cursor), forKey: deltaCursorKey(for: userId))
+    }
+
+    /// On the first sync for a given user, pull any legacy chunked-v2
+    /// snapshot, materialise it as per-entity delta documents, then delete
+    /// the legacy manifest + chunks. After this migration runs exactly
+    /// once, all subsequent syncs use the delta collection only.
+    private func migrateLegacyChunkedSnapshotIfNeeded(session: AuthSession) async throws {
+        let doneKey = deltaMigrationDoneKey(for: session.localId)
+        if UserDefaults.standard.bool(forKey: doneKey) {
+            return
+        }
+        do {
+            guard let legacyPayload = try await loadSnapshot(userId: session.localId) else {
+                // Nothing to migrate; record that we looked so we don't
+                // repeat this round-trip every sync.
+                UserDefaults.standard.set(true, forKey: doneKey)
+                return
+            }
+            logger.log(
+                category: .sync,
+                message: "Migrating legacy chunked snapshot to delta",
+                details: "payloadBytes=\(legacyPayload.lengthOfBytes(using: .utf8))"
+            )
+            let remote = try await SyncPayloadCodec.decode(legacyPayload)
+            try ensureRemoteCanMerge(remote)
+            let envelopes = SyncDeltaSerializer.decompose(remote)
+            if !envelopes.isEmpty {
+                try await deltaStore.writeEnvelopes(envelopes, userId: session.localId)
+            }
+            try await deltaStore.clearLegacyChunkedSnapshot(userId: session.localId)
+            let cursor = envelopes.map(\.updatedAt).max() ?? 0
+            // Keep cursor at 0 so the very next sync still fetches the
+            // envelopes we just wrote and merges them locally as well.
+            saveDeltaCursor(userId: session.localId, cursor: min(cursor, 0))
+            UserDefaults.standard.set(true, forKey: doneKey)
+            logger.log(
+                category: .sync,
+                message: "Legacy chunked snapshot migrated",
+                details: "envelopes=\(envelopes.count)"
+            )
+        } catch {
+            logger.log(
+                category: .sync,
+                level: .warning,
+                message: "Legacy chunked snapshot migration failed (continuing with delta)",
+                error: error
+            )
+            // Even if migration fails we proceed; subsequent writes still
+            // land on the delta collection, and the user's data stays
+            // safe because we never delete the legacy manifest on error.
+            UserDefaults.standard.set(true, forKey: doneKey)
+        }
+    }
+
+    /// Persists the merged snapshot into Core Data. We intentionally reuse
+    /// the existing `importJSON` path so all of the import-time coherence
+    /// logic (ID remapping, plan actual-minute recompute, problem progress
+    /// preservation) runs exactly as in a manual import.
+    private func applyMergedSnapshotLocally(_ merged: AppData) async throws {
+        let payload = try await SyncPayloadCodec.encode(merged)
+        let json = String(data: payload, encoding: .utf8) ?? "{}"
+        let useCase = ExportImportDataUseCase(repository: persistence)
+        _ = try await useCase.importJSON(json, currentPreferences: preferencesRepository.loadPreferences())
     }
 
     private func beginSyncOperation(named operation: String, session: AuthSession) throws {
@@ -308,15 +442,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         throw ValidationError(message: Self.destructiveSyncMessage)
     }
 
-    private func saveLocalBackup(_ appData: AppData, reason: String) throws {
+    private func saveLocalBackup(_ appData: AppData, reason: String) async throws {
         let backupRoot = try localBackupDirectory()
         let timestamp = Date().epochMilliseconds
         let formatter = StudyFormatters.fileSafeTimestamp
         let fileName = "sync-\(reason)-\(formatter.string(from: Date(epochMilliseconds: timestamp))).json"
         let url = backupRoot.appendingPathComponent(fileName)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(appData)
+        // Encode off the main actor so the UI stays responsive with large data sets.
+        let data = try await SyncPayloadCodec.encode(appData, prettyPrinted: true)
         try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         try protectLocalBackupItem(at: url)
         try pruneLocalBackups(in: backupRoot, now: timestamp)
@@ -414,178 +547,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         return parts.joined()
     }
 
-    private func saveSnapshot(userId: String, payload: String, updatedAt: Int64, expectedVersion: Int64?) async throws {
-        let chunks = splitSyncPayloadIntoChunks(payload)
-        let newChunkCount = chunks.count
-        let saveResult = try await saveChunkedSyncSnapshot(
-            firestore: firestore,
-            userId: userId,
-            chunks: chunks,
-            payloadBytes: payload.lengthOfBytes(using: .utf8),
-            payloadCounts: SyncDataSummary(payload: payload).firestoreData,
-            updatedAt: updatedAt,
-            expectedVersion: expectedVersion,
-            syncSchemaVersion: Self.syncSchemaVersion,
-            backupRetentionDays: Self.backupRetentionDays
-        )
-        lastLoadedVersion = saveResult.version
-        if let cleanupError = saveResult.staleChunkCleanupError {
-            logger.log(category: .sync, level: .warning, message: "Stale sync chunks cleanup failed", details: "uid=\(userId) version=\(lastLoadedVersion)", error: cleanupError)
-        }
-        try await pruneRemoteSnapshots(userId: userId, now: updatedAt)
-        logger.log(category: .sync, message: "Saved sync manifest", details: "uid=\(userId) version=\(lastLoadedVersion) chunkCount=\(newChunkCount) payloadBytes=\(payload.lengthOfBytes(using: .utf8)) updatedAt=\(updatedAt)")
-    }
-
-    private func pruneRemoteSnapshots(userId: String, now: Int64) async throws {
-        let cutoff = now - Int64(Self.backupRetentionDays) * 24 * 60 * 60 * 1000
-        let snapshots = try await firestore.collection("users").document(userId)
-            .collection("sync_snapshots")
-            .whereField("createdAt", isLessThan: cutoff)
-            .getDocuments()
-        guard !snapshots.documents.isEmpty else { return }
-
-        for snapshot in snapshots.documents {
-            let chunks = try await snapshot.reference.collection("chunks").getDocuments()
-            var batch = firestore.batch()
-            var writeCount = 0
-            for chunk in chunks.documents {
-                batch.deleteDocument(chunk.reference)
-                writeCount += 1
-                if writeCount >= 450 {
-                    try await batch.commit()
-                    batch = firestore.batch()
-                    writeCount = 0
-                }
-            }
-            batch.deleteDocument(snapshot.reference)
-            try await batch.commit()
-        }
-        logger.log(category: .sync, message: "Pruned remote sync snapshots", details: "count=\(snapshots.documents.count) cutoff=\(cutoff)")
-    }
-
-    // MARK: - Merge helpers
+    // MARK: - Merge helpers (delegated to SyncMergeEngine for testability)
 
     private func merge(local: AppData, remote: AppData) -> AppData {
-        AppData(
-            subjects: merge(local.subjects, remote.subjects, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            materials: mergeMaterials(local.materials, remote.materials),
-            sessions: mergeSessions(local.sessions, remote.sessions),
-            goals: merge(local.goals, remote.goals, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            exams: merge(local.exams, remote.exams, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            plans: mergePlans(local.plans, remote.plans),
-            timetablePeriods: merge(local.timetablePeriods, remote.timetablePeriods, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            timetableEntries: merge(local.timetableEntries, remote.timetableEntries, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            timetableTerms: merge(local.timetableTerms, remote.timetableTerms, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            timetableReviewRecords: merge(local.timetableReviewRecords, remote.timetableReviewRecords, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            problemReviewRecords: merge(local.problemReviewRecords, remote.problemReviewRecords, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            exportDate: max(local.exportDate, remote.exportDate)
-        )
-    }
-
-    private func mergeMaterials(_ local: [Material], _ remote: [Material]) -> [Material] {
-        merge(local, remote, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt) { selected, other in
-            guard selected.deletedAt == nil else { return selected }
-            var enriched = selected
-            if enriched.problemChapters.isEmpty, !other.problemChapters.isEmpty {
-                enriched.problemChapters = other.problemChapters
-            }
-            if enriched.problemRecords.isEmpty, !other.problemRecords.isEmpty {
-                enriched.problemRecords = other.problemRecords
-            }
-            if enriched.totalProblems == 0, other.totalProblems > 0 {
-                enriched.totalProblems = other.totalProblems
-            }
-            return enriched
-        }
-    }
-
-    private func mergeSessions(_ local: [StudySession], _ remote: [StudySession]) -> [StudySession] {
-        merge(local, remote, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt) { selected, other in
-            guard selected.deletedAt == nil else { return selected }
-            var enriched = selected
-            if enriched.problemRecords.isEmpty, !other.problemRecords.isEmpty {
-                enriched.problemRecords = other.problemRecords
-            }
-            if enriched.problemStart == nil {
-                enriched.problemStart = other.problemStart
-            }
-            if enriched.problemEnd == nil {
-                enriched.problemEnd = other.problemEnd
-            }
-            if enriched.wrongProblemCount == nil {
-                enriched.wrongProblemCount = other.wrongProblemCount
-            }
-            return enriched
-        }
-    }
-
-    private func mergePlans(_ local: [PlanData], _ remote: [PlanData]) -> [PlanData] {
-        let plans = merge(local.map(\.plan), remote.map(\.plan), key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt)
-        let items = merge(local.flatMap(\.items), remote.flatMap(\.items), key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt)
-        let grouped = Dictionary(grouping: items, by: \.planSyncId)
-        return plans.map { plan in
-            PlanData(plan: plan, items: grouped[plan.syncId] ?? [])
-        }
-    }
-
-    private func merge<T>(_ lhs: [T], _ rhs: [T], key: KeyPath<T, String>, updatedAt: KeyPath<T, Int64>, deletedAt: KeyPath<T, Int64?>) -> [T] {
-        merge(lhs, rhs, key: key, updatedAt: updatedAt, deletedAt: deletedAt) { selected, _ in selected }
-    }
-
-    private func merge<T>(
-        _ lhs: [T],
-        _ rhs: [T],
-        key: KeyPath<T, String>,
-        updatedAt: KeyPath<T, Int64>,
-        deletedAt: KeyPath<T, Int64?>,
-        preservingDetails enrich: (T, T) -> T
-    ) -> [T] {
-        var result: [String: T] = [:]
-        for item in lhs + rhs {
-            let id = item[keyPath: key]
-            guard let existing = result[id] else {
-                result[id] = item
-                continue
-            }
-            let existingDelete = existing[keyPath: deletedAt] ?? .min
-            let candidateDelete = item[keyPath: deletedAt] ?? .min
-            if candidateDelete > existing[keyPath: updatedAt] && candidateDelete >= existingDelete {
-                result[id] = item
-            } else if existingDelete > item[keyPath: updatedAt] && existingDelete >= candidateDelete {
-                result[id] = existing
-            } else if item[keyPath: updatedAt] >= existing[keyPath: updatedAt] {
-                result[id] = enrich(item, existing)
-            } else {
-                result[id] = enrich(existing, item)
-            }
-        }
-        return Array(result.values)
+        SyncMergeEngine.merge(local: local, remote: remote)
     }
 
     private func markSynced(_ appData: AppData, at timestamp: Int64) -> AppData {
-        AppData(
-            subjects: appData.subjects.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            materials: appData.materials.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            sessions: appData.sessions.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            goals: appData.goals.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            exams: appData.exams.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            plans: appData.plans.map {
-                var plan = $0.plan
-                plan.lastSyncedAt = timestamp
-                let items = $0.items.map { item -> PlanItem in
-                    var value = item
-                    value.lastSyncedAt = timestamp
-                    return value
-                }
-                return PlanData(plan: plan, items: items)
-            },
-            timetablePeriods: appData.timetablePeriods.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            timetableEntries: appData.timetableEntries.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            timetableTerms: appData.timetableTerms.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            timetableReviewRecords: appData.timetableReviewRecords.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            problemReviewRecords: appData.problemReviewRecords.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            exportDate: timestamp
-        )
+        SyncMergeEngine.markSynced(appData, at: timestamp)
     }
 }
 
@@ -604,171 +573,8 @@ private func readFirestoreInteger(_ value: Any?) -> Int64? {
     }
 }
 
-private func makeSyncSnapshotId(for version: Int64) -> String {
-    String(format: "%020lld", version)
-}
-
 private func makeSyncChunkId(for index: Int) -> String {
     String(format: "%06d", index)
-}
-
-private func splitSyncPayloadIntoChunks(_ payload: String) -> [String] {
-    let maxChunkBytes = 200_000
-    let utf8 = Array(payload.utf8)
-    guard !utf8.isEmpty else { return [""] }
-    var chunks = [String]()
-    var start = 0
-    while start < utf8.count {
-        var end = min(start + maxChunkBytes, utf8.count)
-        // Avoid splitting in the middle of a multi-byte UTF-8 character.
-        while end < utf8.count && end > start && (utf8[end] & 0xC0) == 0x80 {
-            end -= 1
-        }
-        if end <= start { end = min(start + maxChunkBytes, utf8.count) }
-        if let chunk = String(bytes: utf8[start..<end], encoding: .utf8) {
-            chunks.append(chunk)
-        }
-        start = end
-    }
-    return chunks
-}
-
-private struct SyncSnapshotSaveResult {
-    let version: Int64
-    let staleChunkCleanupError: Error?
-}
-
-private enum SyncSnapshotSaveError: LocalizedError {
-    case conflict(expected: Int64, actual: Int64)
-
-    var errorDescription: String? {
-        switch self {
-        case .conflict:
-            return "同期の競合が発生しました。再試行してください。"
-        }
-    }
-}
-
-private func isSyncSnapshotConflict(_ error: Error) -> Bool {
-    guard let error = error as? SyncSnapshotSaveError else { return false }
-    if case .conflict = error {
-        return true
-    }
-    return false
-}
-
-private struct SyncWriteOperation {
-    enum Kind {
-        case set([String: Any])
-        case delete
-    }
-
-    let ref: DocumentReference
-    let kind: Kind
-}
-
-private func commitWriteBatch(firestore: Firestore, operations: [SyncWriteOperation]) async throws {
-    let maxBatchOperations = 450
-    guard !operations.isEmpty else { return }
-
-    var index = 0
-    while index < operations.count {
-        let batch = firestore.batch()
-        let end = min(index + maxBatchOperations, operations.count)
-        for operation in operations[index..<end] {
-            switch operation.kind {
-            case .set(let data):
-                batch.setData(data, forDocument: operation.ref)
-            case .delete:
-                batch.deleteDocument(operation.ref)
-            }
-        }
-        try await batch.commit()
-        index = end
-    }
-}
-
-private func saveChunkedSyncSnapshot(
-    firestore: Firestore,
-    userId: String,
-    chunks: [String],
-    payloadBytes: Int,
-    payloadCounts: [String: Any],
-    updatedAt: Int64,
-    expectedVersion: Int64?,
-    syncSchemaVersion: Int,
-    backupRetentionDays: Int
-) async throws -> SyncSnapshotSaveResult {
-    let manifestRef = firestore.collection("users").document(userId)
-        .collection("sync").document("default")
-    let chunksCol = manifestRef.collection("chunks")
-
-    let version = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int64, Error>) in
-        firestore.runTransaction({ transaction, errorPointer in
-            do {
-                let manifestSnap = try transaction.getDocument(manifestRef)
-                let currentData = manifestSnap.data() ?? [:]
-                let currentVersion: Int64 = readFirestoreInteger(currentData["version"]) ?? 0
-                let oldChunkCount = Int(readFirestoreInteger(currentData["chunkCount"]) ?? 0)
-
-                if let expected = expectedVersion, currentVersion != expected {
-                    throw SyncSnapshotSaveError.conflict(expected: expected, actual: currentVersion)
-                }
-
-                let newVersion = currentVersion + 1
-                let snapshotId = makeSyncSnapshotId(for: newVersion)
-                let snapshotRef = firestore.collection("users").document(userId)
-                    .collection("sync_snapshots").document(snapshotId)
-                let snapshotChunksCol = snapshotRef.collection("chunks")
-                let manifestData: [String: Any] = [
-                    "format": "chunked-v2",
-                    "schemaVersion": syncSchemaVersion,
-                    "supportsProblemRecords": true,
-                    "version": newVersion,
-                    "updatedAt": updatedAt,
-                    "chunkCount": chunks.count,
-                    "payloadBytes": payloadBytes,
-                    "retentionDays": backupRetentionDays,
-                    "counts": payloadCounts
-                ]
-                let snapshotData = manifestData.merging([
-                    "snapshotId": snapshotId,
-                    "createdAt": updatedAt
-                ]) { current, _ in current }
-
-                transaction.setData(snapshotData, forDocument: snapshotRef)
-                for (i, part) in chunks.enumerated() {
-                    let chunkData: [String: Any] = [
-                        "version": newVersion,
-                        "index": i,
-                        "payloadPart": part
-                    ]
-                    transaction.setData(chunkData, forDocument: chunksCol.document(makeSyncChunkId(for: i)))
-                    transaction.setData(chunkData, forDocument: snapshotChunksCol.document(makeSyncChunkId(for: i)))
-                }
-                if oldChunkCount > chunks.count {
-                    for index in chunks.count..<oldChunkCount {
-                        transaction.deleteDocument(chunksCol.document(makeSyncChunkId(for: index)))
-                    }
-                }
-                transaction.setData(manifestData, forDocument: manifestRef)
-                return NSNumber(value: newVersion)
-            } catch {
-                errorPointer?.pointee = error as NSError
-                return nil
-            }
-        }, completion: { result, error in
-            if let error {
-                continuation.resume(throwing: error)
-            } else if let version = result as? NSNumber {
-                continuation.resume(returning: version.int64Value)
-            } else {
-                continuation.resume(throwing: SyncSnapshotSaveError.conflict(expected: expectedVersion ?? 0, actual: 0))
-            }
-        })
-    }
-
-    return SyncSnapshotSaveResult(version: version, staleChunkCleanupError: nil)
 }
 
 private extension AppData {

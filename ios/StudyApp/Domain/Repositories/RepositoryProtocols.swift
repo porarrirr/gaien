@@ -24,6 +24,12 @@ protocol StudySessionRepository {
     func insertSessionWithProblemReviews(_ session: StudySession) async throws -> Int64
     func updateSession(_ session: StudySession) async throws
     func deleteSession(_ session: StudySession) async throws
+
+    /// Returns the set of distinct `epochDay` values on which the user has
+    /// at least one study session (excluding tombstoned sessions). Used by
+    /// the widget to compute streak/best-streak without loading every
+    /// session record.
+    func getDistinctStudyDays() async throws -> [Int64]
 }
 
 protocol ProblemReviewRepository {
