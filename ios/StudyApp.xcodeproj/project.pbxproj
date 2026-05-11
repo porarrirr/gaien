@@ -62,6 +62,9 @@
 		A10000000000000000000008 /* StudyAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StudyAppViews.swift */; };
 		A10000000000000000000009 /* SubjectsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* SubjectsScreen.swift */; };
 		A10000000000000000000010 /* MaterialsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MaterialsScreen.swift */; };
+		A1000000000000000000004B /* MaterialListComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000048 /* MaterialListComponents.swift */; };
+		A1000000000000000000004C /* MaterialHistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000049 /* MaterialHistoryScreen.swift */; };
+		A1000000000000000000004D /* MaterialEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004A /* MaterialEditorSheet.swift */; };
 		A10000000000000000000025 /* BarcodeScannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* BarcodeScannerSheet.swift */; };
 		A10000000000000000000026 /* BookResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* BookResultSheet.swift */; };
 		A10000000000000000000011 /* HistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HistoryScreen.swift */; };
@@ -188,6 +191,9 @@
 		B10000000000000000000009 /* StudyAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppViews.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* SubjectsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* MaterialsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000048 /* MaterialListComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialListComponents.swift; sourceTree = "<group>"; };
+		B10000000000000000000049 /* MaterialHistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialHistoryScreen.swift; sourceTree = "<group>"; };
+		B1000000000000000000004A /* MaterialEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialEditorSheet.swift; sourceTree = "<group>"; };
 		B10000000000000000000021 /* BarcodeScannerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerSheet.swift; sourceTree = "<group>"; };
 		B10000000000000000000022 /* BookResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookResultSheet.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* HistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryScreen.swift; sourceTree = "<group>"; };
@@ -456,6 +462,9 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000011 /* MaterialsScreen.swift */,
+				B10000000000000000000048 /* MaterialListComponents.swift */,
+				B10000000000000000000049 /* MaterialHistoryScreen.swift */,
+				B1000000000000000000004A /* MaterialEditorSheet.swift */,
 				B10000000000000000000021 /* BarcodeScannerSheet.swift */,
 				B10000000000000000000022 /* BookResultSheet.swift */,
 				B30000000000000000000016 /* MaterialsViewModel.swift */,
@@ -906,6 +915,9 @@
 				A30000000000000000000037 /* TimetablePeriodSettingsSheet.swift in Sources */,
 				A30000000000000000000026 /* TimetableViewModel.swift in Sources */,
 				A10000000000000000000010 /* MaterialsScreen.swift in Sources */,
+				A1000000000000000000004B /* MaterialListComponents.swift in Sources */,
+				A1000000000000000000004C /* MaterialHistoryScreen.swift in Sources */,
+				A1000000000000000000004D /* MaterialEditorSheet.swift in Sources */,
 				A10000000000000000000025 /* BarcodeScannerSheet.swift in Sources */,
 				A10000000000000000000026 /* BookResultSheet.swift in Sources */,
 				A10000000000000000000011 /* HistoryScreen.swift in Sources */,
