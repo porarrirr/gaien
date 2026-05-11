@@ -101,47 +101,58 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             for attempt in 0..<Self.maxSyncRetries {
                 logger.log(category: .sync, message: "syncNow attempt started", details: "attempt=\(attempt + 1)")
                 let local = try await persistence.exportData()
-                try saveLocalBackup(local, reason: "before-syncNow")
+                try await saveLocalBackup(local, reason: "before-syncNow")
                 try ensureLocalSyncOwnership(session: session, local: local)
                 let remotePayload = try await loadSnapshot(userId: session.localId)
                 let localChangeToken = persistence.changeToken
-                let merged: AppData
                 if let remotePayload {
                     logger.log(
                         category: .sync,
                         message: "Remote snapshot loaded",
                         details: "payloadBytes=\(remotePayload.lengthOfBytes(using: .utf8)) localSubjects=\(local.subjects.count) localMaterials=\(local.materials.count) localSessions=\(local.sessions.count)"
                     )
-                    do {
-                        let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
-                        try ensureRemoteCanMerge(remote)
+                }
+                let merged: AppData
+                let remote: AppData?
+                let payload: String
+                do {
+                    // Heavy work (decode remote, merge, re-encode, stamp) runs off the
+                    // main actor to keep the UI responsive as data grows.
+                    let prepared = try await SyncPayloadCodec.prepareMergedPayload(
+                        local: local,
+                        remotePayload: remotePayload,
+                        syncedAt: Date().epochMilliseconds
+                    )
+                    merged = prepared.merged
+                    remote = prepared.remote
+                    payload = prepared.payload
+                    if let remote {
                         logger.log(
                             category: .sync,
                             message: "Remote snapshot decoded",
                             details: "remoteSubjects=\(remote.subjects.count) remoteMaterials=\(remote.materials.count) remoteSessions=\(remote.sessions.count) remoteGoals=\(remote.goals.count) remoteExams=\(remote.exams.count) remotePlans=\(remote.plans.count)"
                         )
-                        merged = merge(local: local, remote: remote)
-                    } catch {
-                        logger.log(category: .sync, level: .error, message: "Remote snapshot decode failed", details: "attempt=\(attempt + 1)", error: error)
-                        throw ValidationError(message: "クラウド同期データの読み込みに失敗しました")
+                    } else {
+                        logger.log(category: .sync, message: "No remote snapshot found", details: "uid=\(session.localId)")
                     }
-                } else {
-                    logger.log(category: .sync, message: "No remote snapshot found", details: "uid=\(session.localId)")
-                    merged = local
+                } catch {
+                    logger.log(category: .sync, level: .error, message: "Remote snapshot decode/merge failed", details: "attempt=\(attempt + 1)", error: error)
+                    throw ValidationError(message: "クラウド同期データの読み込みに失敗しました")
                 }
-                let synced = markSynced(merged, at: Date().epochMilliseconds)
-                try ensureNoProblemProgressLoss(from: local, to: synced, operation: "syncNow")
-                let payload = String(data: try JSONEncoder().encode(synced), encoding: .utf8) ?? "{}"
+                if let remote {
+                    try ensureRemoteCanMerge(remote)
+                }
+                try ensureNoProblemProgressLoss(from: local, to: merged, operation: "syncNow")
                 logger.log(
                     category: .sync,
                     message: "Prepared merged payload",
-                    details: "attempt=\(attempt + 1) payloadBytes=\(payload.lengthOfBytes(using: .utf8)) mergedSubjects=\(synced.subjects.count) mergedMaterials=\(synced.materials.count) mergedSessions=\(synced.sessions.count)"
+                    details: "attempt=\(attempt + 1) payloadBytes=\(payload.lengthOfBytes(using: .utf8)) mergedSubjects=\(merged.subjects.count) mergedMaterials=\(merged.materials.count) mergedSessions=\(merged.sessions.count)"
                 )
                 do {
                     try await saveSnapshot(
                         userId: session.localId,
                         payload: payload,
-                        updatedAt: synced.exportDate,
+                        updatedAt: merged.exportDate,
                         expectedVersion: lastLoadedVersion
                     )
                 } catch {
@@ -163,10 +174,10 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     logger.log(category: .sync, level: .error, message: "Merged snapshot import failed", details: "attempt=\(attempt + 1)", error: error)
                     throw ValidationError(message: "同期後のローカル反映に失敗しました")
                 }
-                UserDefaults.standard.set(synced.exportDate, forKey: lastSyncKey)
+                UserDefaults.standard.set(merged.exportDate, forKey: lastSyncKey)
                 UserDefaults.standard.set(session.localId, forKey: localSyncOwnerKey)
-                status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: synced.exportDate)
-                logger.log(category: .sync, message: "syncNow succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(synced.exportDate)")
+                status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: merged.exportDate)
+                logger.log(category: .sync, message: "syncNow succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(merged.exportDate)")
                 return
             }
             throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
@@ -195,16 +206,17 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         do {
             for attempt in 0..<Self.maxSyncRetries {
                 let localData = try await persistence.exportData()
-                try saveLocalBackup(localData, reason: "before-importLocalDataToCloud")
+                try await saveLocalBackup(localData, reason: "before-importLocalDataToCloud")
                 try ensureLocalSyncOwnership(session: session, local: localData)
                 if let remotePayload = try await loadSnapshot(userId: session.localId) {
-                    let remote = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
+                    let remote = try await SyncPayloadCodec.decode(remotePayload)
                     try ensureRemoteCanMerge(remote)
                     try ensureNoProblemProgressLoss(from: remote, to: localData, operation: "importLocalDataToCloud")
                 }
-                let local = markSynced(localData, at: Date().epochMilliseconds)
+                let prepared = try await SyncPayloadCodec.prepareLocalPayload(local: localData, syncedAt: Date().epochMilliseconds)
+                let local = prepared.synced
+                let payload = prepared.payload
                 let localChangeToken = persistence.changeToken
-                let payload = String(data: try JSONEncoder().encode(local), encoding: .utf8) ?? "{}"
                 logger.log(
                     category: .sync,
                     message: "Prepared local upload payload",
@@ -308,15 +320,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         throw ValidationError(message: Self.destructiveSyncMessage)
     }
 
-    private func saveLocalBackup(_ appData: AppData, reason: String) throws {
+    private func saveLocalBackup(_ appData: AppData, reason: String) async throws {
         let backupRoot = try localBackupDirectory()
         let timestamp = Date().epochMilliseconds
         let formatter = StudyFormatters.fileSafeTimestamp
         let fileName = "sync-\(reason)-\(formatter.string(from: Date(epochMilliseconds: timestamp))).json"
         let url = backupRoot.appendingPathComponent(fileName)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(appData)
+        // Encode off the main actor so the UI stays responsive with large data sets.
+        let data = try await SyncPayloadCodec.encode(appData, prettyPrinted: true)
         try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         try protectLocalBackupItem(at: url)
         try pruneLocalBackups(in: backupRoot, now: timestamp)
@@ -463,129 +474,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         logger.log(category: .sync, message: "Pruned remote sync snapshots", details: "count=\(snapshots.documents.count) cutoff=\(cutoff)")
     }
 
-    // MARK: - Merge helpers
+    // MARK: - Merge helpers (delegated to SyncMergeEngine for testability)
 
     private func merge(local: AppData, remote: AppData) -> AppData {
-        AppData(
-            subjects: merge(local.subjects, remote.subjects, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            materials: mergeMaterials(local.materials, remote.materials),
-            sessions: mergeSessions(local.sessions, remote.sessions),
-            goals: merge(local.goals, remote.goals, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            exams: merge(local.exams, remote.exams, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            plans: mergePlans(local.plans, remote.plans),
-            timetablePeriods: merge(local.timetablePeriods, remote.timetablePeriods, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            timetableEntries: merge(local.timetableEntries, remote.timetableEntries, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            timetableTerms: merge(local.timetableTerms, remote.timetableTerms, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            timetableReviewRecords: merge(local.timetableReviewRecords, remote.timetableReviewRecords, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            problemReviewRecords: merge(local.problemReviewRecords, remote.problemReviewRecords, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
-            exportDate: max(local.exportDate, remote.exportDate)
-        )
-    }
-
-    private func mergeMaterials(_ local: [Material], _ remote: [Material]) -> [Material] {
-        merge(local, remote, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt) { selected, other in
-            guard selected.deletedAt == nil else { return selected }
-            var enriched = selected
-            if enriched.problemChapters.isEmpty, !other.problemChapters.isEmpty {
-                enriched.problemChapters = other.problemChapters
-            }
-            if enriched.problemRecords.isEmpty, !other.problemRecords.isEmpty {
-                enriched.problemRecords = other.problemRecords
-            }
-            if enriched.totalProblems == 0, other.totalProblems > 0 {
-                enriched.totalProblems = other.totalProblems
-            }
-            return enriched
-        }
-    }
-
-    private func mergeSessions(_ local: [StudySession], _ remote: [StudySession]) -> [StudySession] {
-        merge(local, remote, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt) { selected, other in
-            guard selected.deletedAt == nil else { return selected }
-            var enriched = selected
-            if enriched.problemRecords.isEmpty, !other.problemRecords.isEmpty {
-                enriched.problemRecords = other.problemRecords
-            }
-            if enriched.problemStart == nil {
-                enriched.problemStart = other.problemStart
-            }
-            if enriched.problemEnd == nil {
-                enriched.problemEnd = other.problemEnd
-            }
-            if enriched.wrongProblemCount == nil {
-                enriched.wrongProblemCount = other.wrongProblemCount
-            }
-            return enriched
-        }
-    }
-
-    private func mergePlans(_ local: [PlanData], _ remote: [PlanData]) -> [PlanData] {
-        let plans = merge(local.map(\.plan), remote.map(\.plan), key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt)
-        let items = merge(local.flatMap(\.items), remote.flatMap(\.items), key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt)
-        let grouped = Dictionary(grouping: items, by: \.planSyncId)
-        return plans.map { plan in
-            PlanData(plan: plan, items: grouped[plan.syncId] ?? [])
-        }
-    }
-
-    private func merge<T>(_ lhs: [T], _ rhs: [T], key: KeyPath<T, String>, updatedAt: KeyPath<T, Int64>, deletedAt: KeyPath<T, Int64?>) -> [T] {
-        merge(lhs, rhs, key: key, updatedAt: updatedAt, deletedAt: deletedAt) { selected, _ in selected }
-    }
-
-    private func merge<T>(
-        _ lhs: [T],
-        _ rhs: [T],
-        key: KeyPath<T, String>,
-        updatedAt: KeyPath<T, Int64>,
-        deletedAt: KeyPath<T, Int64?>,
-        preservingDetails enrich: (T, T) -> T
-    ) -> [T] {
-        var result: [String: T] = [:]
-        for item in lhs + rhs {
-            let id = item[keyPath: key]
-            guard let existing = result[id] else {
-                result[id] = item
-                continue
-            }
-            let existingDelete = existing[keyPath: deletedAt] ?? .min
-            let candidateDelete = item[keyPath: deletedAt] ?? .min
-            if candidateDelete > existing[keyPath: updatedAt] && candidateDelete >= existingDelete {
-                result[id] = item
-            } else if existingDelete > item[keyPath: updatedAt] && existingDelete >= candidateDelete {
-                result[id] = existing
-            } else if item[keyPath: updatedAt] >= existing[keyPath: updatedAt] {
-                result[id] = enrich(item, existing)
-            } else {
-                result[id] = enrich(existing, item)
-            }
-        }
-        return Array(result.values)
+        SyncMergeEngine.merge(local: local, remote: remote)
     }
 
     private func markSynced(_ appData: AppData, at timestamp: Int64) -> AppData {
-        AppData(
-            subjects: appData.subjects.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            materials: appData.materials.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            sessions: appData.sessions.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            goals: appData.goals.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            exams: appData.exams.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            plans: appData.plans.map {
-                var plan = $0.plan
-                plan.lastSyncedAt = timestamp
-                let items = $0.items.map { item -> PlanItem in
-                    var value = item
-                    value.lastSyncedAt = timestamp
-                    return value
-                }
-                return PlanData(plan: plan, items: items)
-            },
-            timetablePeriods: appData.timetablePeriods.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            timetableEntries: appData.timetableEntries.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            timetableTerms: appData.timetableTerms.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            timetableReviewRecords: appData.timetableReviewRecords.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            problemReviewRecords: appData.problemReviewRecords.map { var value = $0; value.lastSyncedAt = timestamp; return value },
-            exportDate: timestamp
-        )
+        SyncMergeEngine.markSynced(appData, at: timestamp)
     }
 }
 

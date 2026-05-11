@@ -234,11 +234,9 @@ final class TimerViewModel: ScreenViewModel {
         wrongProblemCount: Int?
     ) {
         perform {
-            guard StudySession.allowedRatings.contains(rating) else {
-                throw ValidationError(message: "評価は1〜5で入力してください")
-            }
+            try TimerProblemValidation.validateRating(rating)
             let normalizedRecords = problemRecords.sorted { $0.number < $1.number }
-            try self.validateProblemRecord(
+            try TimerProblemValidation.validate(
                 problemStart: normalizedRecords.first?.number ?? problemStart,
                 problemEnd: normalizedRecords.last?.number ?? problemEnd,
                 wrongProblemCount: normalizedRecords.isEmpty ? wrongProblemCount : normalizedRecords.filter(\.isWrong).count
@@ -301,12 +299,10 @@ final class TimerViewModel: ScreenViewModel {
                 throw ValidationError(message: "終了時刻は開始時刻より後にしてください")
             }
             if let rating {
-                guard StudySession.allowedRatings.contains(rating) else {
-                    throw ValidationError(message: "評価は1〜5で入力してください")
-                }
+                try TimerProblemValidation.validateRating(rating)
             }
             let normalizedRecords = problemRecords.sorted { $0.number < $1.number }
-            try self.validateProblemRecord(
+            try TimerProblemValidation.validate(
                 problemStart: normalizedRecords.first?.number ?? problemStart,
                 problemEnd: normalizedRecords.last?.number ?? problemEnd,
                 wrongProblemCount: normalizedRecords.isEmpty ? wrongProblemCount : normalizedRecords.filter(\.isWrong).count
@@ -339,23 +335,11 @@ final class TimerViewModel: ScreenViewModel {
     }
 
     private func validateProblemRecord(problemStart: Int?, problemEnd: Int?, wrongProblemCount: Int?) throws {
-        if problemStart == nil && problemEnd == nil && wrongProblemCount == nil {
-            return
-        }
-        guard let problemStart, let problemEnd else {
-            throw ValidationError(message: "問題範囲は開始と終了を両方入力してください")
-        }
-        guard problemStart > 0, problemEnd >= problemStart else {
-            throw ValidationError(message: "問題範囲を正しく入力してください")
-        }
-        if let wrongProblemCount {
-            guard wrongProblemCount >= 0 else {
-                throw ValidationError(message: "間違えた数は0以上で入力してください")
-            }
-            guard wrongProblemCount <= (problemEnd - problemStart + 1) else {
-                throw ValidationError(message: "間違えた数は実施問題数以下にしてください")
-            }
-        }
+        try TimerProblemValidation.validate(
+            problemStart: problemStart,
+            problemEnd: problemEnd,
+            wrongProblemCount: wrongProblemCount
+        )
     }
 
     private func configureTicker() {
