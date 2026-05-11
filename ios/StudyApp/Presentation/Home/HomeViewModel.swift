@@ -9,14 +9,14 @@ final class HomeViewModel: ScreenViewModel {
     func load() async {
         do {
             let homeUseCase = GetHomeDataUseCase(
-                studySessionRepository: app.persistence,
-                goalRepository: app.persistence,
-                examRepository: app.persistence,
-                timetableRepository: app.persistence,
-                problemReviewRepository: app.persistence,
+                studySessionRepository: app.sessionRepo,
+                goalRepository: app.goalRepo,
+                examRepository: app.examRepo,
+                timetableRepository: app.timetableRepo,
+                problemReviewRepository: app.problemReviewRepo,
                 clock: app.clock
             )
-            let recentUseCase = GetRecentMaterialsUseCase(materialRepository: app.persistence, studySessionRepository: app.persistence, subjectRepository: app.persistence)
+            let recentUseCase = GetRecentMaterialsUseCase(materialRepository: app.materialRepo, studySessionRepository: app.sessionRepo, subjectRepository: app.subjectRepo)
             homeData = try await homeUseCase.execute()
             recentMaterials = try await recentUseCase.execute()
         } catch {

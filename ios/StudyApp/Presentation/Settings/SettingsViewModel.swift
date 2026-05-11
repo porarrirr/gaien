@@ -14,7 +14,7 @@ final class SettingsViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            let useCase = GetSettingsSummaryUseCase(sessionRepository: app.persistence)
+            let useCase = GetSettingsSummaryUseCase(sessionRepository: app.sessionRepo)
             summary = try await useCase.execute()
             app.refreshSyncStatus()
             debugLogEntries = app.logger.recentEntries()
@@ -25,7 +25,7 @@ final class SettingsViewModel: ScreenViewModel {
 
     func export(format: ExportFormat) {
         perform {
-            let useCase = ExportImportDataUseCase(repository: self.app.persistence)
+            let useCase = ExportImportDataUseCase(repository: self.app.appDataRepo)
             let contents = try await (format == .json ? useCase.exportJSON() : useCase.exportCSV())
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("studyapp_backup_\(Int(Date().timeIntervalSince1970)).\(format.rawValue)")
             try contents.write(to: url, atomically: true, encoding: .utf8)
@@ -37,7 +37,7 @@ final class SettingsViewModel: ScreenViewModel {
     func importBackup(from url: URL) {
         perform {
             let contents = try String(contentsOf: url, encoding: .utf8)
-            let useCase = ExportImportDataUseCase(repository: self.app.persistence)
+            let useCase = ExportImportDataUseCase(repository: self.app.appDataRepo)
             let preferences = try await useCase.importJSON(contents, currentPreferences: self.app.preferences)
             self.app.savePreferences { $0 = preferences }
             self.app.logger.log(category: .app, message: "Backup import completed", details: "file=\(url.lastPathComponent)")
@@ -47,7 +47,7 @@ final class SettingsViewModel: ScreenViewModel {
 
     func deleteAllData() {
         perform {
-            try await self.app.persistence.deleteAllData()
+            try await self.app.appDataRepo.deleteAllData()
             if self.app.syncStatus.isAuthenticated {
                 try await self.app.syncRepository.importLocalDataToCloud()
             } else {
@@ -103,7 +103,7 @@ final class SettingsViewModel: ScreenViewModel {
         perform {
             try await self.app.syncRepository.syncNow()
             self.app.refreshSyncStatus()
-            self.summary = try await GetSettingsSummaryUseCase(sessionRepository: self.app.persistence).execute()
+            self.summary = try await GetSettingsSummaryUseCase(sessionRepository: self.app.sessionRepo).execute()
             self.debugLogEntries = self.app.logger.recentEntries()
             self.app.bumpDataVersion(shouldScheduleAutoSync: false)
             self.app.recordManualSyncApplied()

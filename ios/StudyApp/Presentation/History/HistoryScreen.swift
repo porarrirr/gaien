@@ -279,10 +279,7 @@ private struct HistoryDaySection: View {
     }
 
     private func dateLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy年M月d日（E）"
-        return formatter.string(from: date)
+        StudyFormatters.yearMonthDayWithWeekday.string(from: date)
     }
 }
 
@@ -392,9 +389,7 @@ private struct HistorySessionCardNew: View {
     }
 
     private func historyTimeLabel(_ session: StudySession) -> String {
-        let tf = DateFormatter()
-        tf.locale = Locale(identifier: "ja_JP")
-        tf.dateFormat = "HH:mm"
+        let tf = StudyFormatters.clock
         return "\(tf.string(from: session.startDate)) - \(tf.string(from: session.endDate))"
     }
 

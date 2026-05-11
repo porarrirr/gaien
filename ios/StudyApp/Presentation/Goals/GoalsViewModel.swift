@@ -16,9 +16,9 @@ final class GoalsViewModel: ScreenViewModel {
             let dayMs: Int64 = 86_400_000
             let weekMs = dayMs * 7
 
-            async let goalsTask = app.persistence.getAllGoals()
-            async let todaySessionsTask = app.persistence.getSessionsBetweenDates(start: todayStart, end: todayStart + dayMs)
-            async let weeklySessionsTask = app.persistence.getSessionsBetweenDates(start: weekStart, end: weekStart + weekMs)
+            async let goalsTask = app.goalRepo.getAllGoals()
+            async let todaySessionsTask = app.sessionRepo.getSessionsBetweenDates(start: todayStart, end: todayStart + dayMs)
+            async let weeklySessionsTask = app.sessionRepo.getSessionsBetweenDates(start: weekStart, end: weekStart + weekMs)
 
             let goals = try await goalsTask
             let todaySessions = try await todaySessionsTask
@@ -37,7 +37,7 @@ final class GoalsViewModel: ScreenViewModel {
     func updateDailyGoal(dayOfWeek: StudyWeekday, targetMinutes: Int) {
         perform {
             guard targetMinutes > 0 else { throw ValidationError(message: "目標時間は0より大きくしてください") }
-            let useCase = ManageGoalsUseCase(repository: self.app.persistence)
+            let useCase = ManageGoalsUseCase(repository: self.app.goalRepo)
             try await useCase.updateGoal(type: .daily, targetMinutes: targetMinutes, dayOfWeek: dayOfWeek)
             await self.load()
             self.app.bumpDataVersion()
@@ -47,7 +47,7 @@ final class GoalsViewModel: ScreenViewModel {
     func updateWeeklyGoal(targetMinutes: Int) {
         perform {
             guard targetMinutes > 0 else { throw ValidationError(message: "目標時間は0より大きくしてください") }
-            let useCase = ManageGoalsUseCase(repository: self.app.persistence)
+            let useCase = ManageGoalsUseCase(repository: self.app.goalRepo)
             try await useCase.updateGoal(type: .weekly, targetMinutes: targetMinutes)
             await self.load()
             self.app.bumpDataVersion()

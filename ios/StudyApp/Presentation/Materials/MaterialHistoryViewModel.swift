@@ -50,10 +50,10 @@ final class MaterialHistoryViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            async let materialsTask = app.persistence.getAllMaterials()
-            async let subjectsTask = app.persistence.getAllSubjects()
-            async let sessionsTask = app.persistence.getAllSessions()
-            async let problemReviewRecordsTask = app.persistence.getAllProblemReviewRecords()
+            async let materialsTask = app.materialRepo.getAllMaterials()
+            async let subjectsTask = app.subjectRepo.getAllSubjects()
+            async let sessionsTask = app.sessionRepo.getAllSessions()
+            async let problemReviewRecordsTask = app.problemReviewRepo.getAllProblemReviewRecords()
 
             let materials = try await materialsTask
             let subjects = try await subjectsTask

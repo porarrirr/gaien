@@ -19,8 +19,8 @@ final class TimerViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            async let subjectsTask = app.persistence.getAllSubjects()
-            async let materialsTask = app.persistence.getAllMaterials()
+            async let subjectsTask = app.subjectRepo.getAllSubjects()
+            async let materialsTask = app.materialRepo.getAllMaterials()
             subjects = try await subjectsTask
             materials = try await materialsTask
             let activeTimer = app.preferences.activeTimer
@@ -175,10 +175,10 @@ final class TimerViewModel: ScreenViewModel {
                 self.configureTicker()
                 return
             }
-            guard let subject = try await self.app.persistence.getSubjectById(timer.subjectId) else {
+            guard let subject = try await self.app.subjectRepo.getSubjectById(timer.subjectId) else {
                 throw ValidationError(message: "科目を選択してください")
             }
-            let materials = try await self.app.persistence.getAllMaterials()
+            let materials = try await self.app.materialRepo.getAllMaterials()
             let materialId = timer.materialId
             let material = materials.first(where: { $0.id == materialId })
             let materialName = material?.name ?? ""
@@ -251,19 +251,19 @@ final class TimerViewModel: ScreenViewModel {
             draft.session.problemEnd = normalizedRecords.last?.number ?? problemEnd
             draft.session.wrongProblemCount = normalizedRecords.isEmpty ? wrongProblemCount : normalizedRecords.filter(\.isWrong).count
             if totalProblems > 0, let materialId = draft.session.materialId {
-                let materials = try await self.app.persistence.getAllMaterials()
+                let materials = try await self.app.materialRepo.getAllMaterials()
                 if var material = materials.first(where: { $0.id == materialId }) {
                     let storedTotalProblems = material.totalProblems
                     material.totalProblems = totalProblems
                     if storedTotalProblems != totalProblems {
-                        try await self.app.persistence.updateMaterial(material)
+                        try await self.app.materialRepo.updateMaterial(material)
                     }
                     if let index = self.materials.firstIndex(where: { $0.id == materialId }) {
                         self.materials[index] = material
                     }
                 }
             }
-            _ = try await self.app.persistence.insertSessionWithProblemReviews(draft.session)
+            _ = try await self.app.sessionRepo.insertSessionWithProblemReviews(draft.session)
             self.pendingSessionEvaluation = nil
             self.app.updateActiveTimer(nil)
             self.timerProblemRecords = []
@@ -293,7 +293,7 @@ final class TimerViewModel: ScreenViewModel {
         wrongProblemCount: Int? = nil
     ) {
         perform {
-            guard let subject = try await self.app.persistence.getSubjectById(subjectId) else {
+            guard let subject = try await self.app.subjectRepo.getSubjectById(subjectId) else {
                 throw ValidationError(message: "科目を選択してください")
             }
             let duration = endTime - startTime
@@ -311,9 +311,9 @@ final class TimerViewModel: ScreenViewModel {
                 problemEnd: normalizedRecords.last?.number ?? problemEnd,
                 wrongProblemCount: normalizedRecords.isEmpty ? wrongProblemCount : normalizedRecords.filter(\.isWrong).count
             )
-            let materials = try await self.app.persistence.getAllMaterials()
+            let materials = try await self.app.materialRepo.getAllMaterials()
             let material = materials.first(where: { $0.id == materialId })
-            _ = try await self.app.persistence.insertSessionWithProblemReviews(
+            _ = try await self.app.sessionRepo.insertSessionWithProblemReviews(
                 StudySession(
                     materialId: materialId,
                     materialSyncId: material?.syncId,

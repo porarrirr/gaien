@@ -7,7 +7,7 @@ final class SubjectsViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            subjects = try await app.persistence.getAllSubjects()
+            subjects = try await app.subjectRepo.getAllSubjects()
         } catch {
             app.present(error)
         }
@@ -18,11 +18,11 @@ final class SubjectsViewModel: ScreenViewModel {
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { throw ValidationError(message: "科目名を入力してください") }
             if let id {
-                try await self.app.persistence.updateSubject(
+                try await self.app.subjectRepo.updateSubject(
                     Subject(id: id, name: trimmed, color: color, icon: icon, createdAt: Date().epochMilliseconds, updatedAt: Date().epochMilliseconds)
                 )
             } else {
-                _ = try await self.app.persistence.insertSubject(Subject(name: trimmed, color: color, icon: icon))
+                _ = try await self.app.subjectRepo.insertSubject(Subject(name: trimmed, color: color, icon: icon))
             }
             await self.load()
             self.app.bumpDataVersion()
@@ -31,7 +31,7 @@ final class SubjectsViewModel: ScreenViewModel {
 
     func deleteSubject(_ subject: Subject) {
         perform {
-            try await self.app.persistence.deleteSubject(subject)
+            try await self.app.subjectRepo.deleteSubject(subject)
             await self.load()
             self.app.bumpDataVersion()
         }

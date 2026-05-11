@@ -235,22 +235,8 @@ struct SessionEvaluationSheet: View {
     }
 
     private var sessionPeriodText: String {
-        "\(Self.periodDateFormatter.string(from: session.startDate)) \(Self.timeFormatter.string(from: session.startDate)) 〜 \(Self.timeFormatter.string(from: session.endDate))"
+        "\(StudyFormatters.slashDateWithWeekdayHalf.string(from: session.startDate)) \(StudyFormatters.clock.string(from: session.startDate)) 〜 \(StudyFormatters.clock.string(from: session.endDate))"
     }
-
-    private static let periodDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy/MM/dd (E)"
-        return formatter
-    }()
-
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
 }
 
 private struct SessionInfoColumn: View {

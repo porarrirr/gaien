@@ -15,9 +15,9 @@ final class HistoryViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            async let sessionsTask = app.persistence.getAllSessions()
-            async let subjectsTask = app.persistence.getAllSubjects()
-            async let materialsTask = app.persistence.getAllMaterials()
+            async let sessionsTask = app.sessionRepo.getAllSessions()
+            async let subjectsTask = app.subjectRepo.getAllSubjects()
+            async let materialsTask = app.materialRepo.getAllMaterials()
             sessions = try await sessionsTask
             subjects = try await subjectsTask
             materials = try await materialsTask
@@ -69,7 +69,7 @@ final class HistoryViewModel: ScreenViewModel {
             updated.problemEnd = problemEnd
             updated.wrongProblemCount = wrongProblemCount
             updated.problemRecords = problemRecords
-            try await self.app.persistence.updateSession(updated)
+            try await self.app.sessionRepo.updateSession(updated)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -77,7 +77,7 @@ final class HistoryViewModel: ScreenViewModel {
 
     func deleteSession(_ session: StudySession) {
         perform {
-            try await self.app.persistence.deleteSession(session)
+            try await self.app.sessionRepo.deleteSession(session)
             await self.load()
             self.app.bumpDataVersion()
         }

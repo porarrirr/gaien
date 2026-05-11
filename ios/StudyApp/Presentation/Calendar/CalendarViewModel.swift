@@ -16,14 +16,14 @@ final class CalendarViewModel: ScreenViewModel {
             let monthInterval = Calendar.current.dateInterval(of: .month, for: displayedMonth)
             let start = monthInterval?.start ?? displayedMonth.startOfDay
             let end = monthInterval?.end ?? displayedMonth
-            async let sessionsTask = app.persistence.getSessionsBetweenDates(
+            async let sessionsTask = app.sessionRepo.getSessionsBetweenDates(
                 start: start.epochMilliseconds,
                 end: end.epochMilliseconds
             )
-            async let materialsTask = app.persistence.getAllMaterials()
-            async let timetablePeriodsTask = app.persistence.getAllTimetablePeriods()
-            async let timetableEntriesTask = app.persistence.getAllTimetableEntries()
-            async let timetableTermsTask = app.persistence.getAllTimetableTerms()
+            async let materialsTask = app.materialRepo.getAllMaterials()
+            async let timetablePeriodsTask = app.timetableRepo.getAllTimetablePeriods()
+            async let timetableEntriesTask = app.timetableRepo.getAllTimetableEntries()
+            async let timetableTermsTask = app.timetableRepo.getAllTimetableTerms()
             let sessions = try await sessionsTask
             materials = try await materialsTask
             timetablePeriods = try await timetablePeriodsTask
@@ -127,7 +127,7 @@ final class CalendarViewModel: ScreenViewModel {
             updated.problemEnd = problemEnd
             updated.wrongProblemCount = wrongProblemCount
             updated.problemRecords = problemRecords
-            try await self.app.persistence.updateSession(updated)
+            try await self.app.sessionRepo.updateSession(updated)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -135,7 +135,7 @@ final class CalendarViewModel: ScreenViewModel {
 
     func deleteSession(_ session: StudySession) {
         perform {
-            try await self.app.persistence.deleteSession(session)
+            try await self.app.sessionRepo.deleteSession(session)
             await self.load()
             self.app.bumpDataVersion()
         }

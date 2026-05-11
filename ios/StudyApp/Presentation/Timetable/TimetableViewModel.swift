@@ -89,27 +89,27 @@ final class TimetableViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            var loadedPeriods = try await app.persistence.getAllTimetablePeriods()
+            var loadedPeriods = try await app.timetableRepo.getAllTimetablePeriods()
             if loadedPeriods.isEmpty {
                 for period in TimetablePeriod.defaultPeriods {
-                    _ = try await app.persistence.saveTimetablePeriod(period)
+                    _ = try await app.timetableRepo.saveTimetablePeriod(period)
                 }
-                loadedPeriods = try await app.persistence.getAllTimetablePeriods()
+                loadedPeriods = try await app.timetableRepo.getAllTimetablePeriods()
                 app.bumpDataVersion()
             }
             periods = loadedPeriods
-            terms = try await app.persistence.getAllTimetableTerms()
+            terms = try await app.timetableRepo.getAllTimetableTerms()
             if terms.isEmpty {
                 let defaultTerm = Self.defaultTerm()
-                let id = try await app.persistence.saveTimetableTerm(defaultTerm)
-                terms = try await app.persistence.getAllTimetableTerms()
+                let id = try await app.timetableRepo.saveTimetableTerm(defaultTerm)
+                terms = try await app.timetableRepo.getAllTimetableTerms()
                 selectedTermId = id
                 app.bumpDataVersion()
             } else if selectedTermId == nil || !terms.contains(where: { $0.id == selectedTermId }) {
                 selectedTermId = Self.initialTerm(from: terms, reference: Date())?.id
             }
-            entries = try await app.persistence.getAllTimetableEntries()
-            reviewRecords = try await app.persistence.getAllTimetableReviewRecords()
+            entries = try await app.timetableRepo.getAllTimetableEntries()
+            reviewRecords = try await app.timetableRepo.getAllTimetableReviewRecords()
             syncDisplayedMonthWithSelectedDateIfNeeded()
         } catch {
             app.present(error)
@@ -125,13 +125,13 @@ final class TimetableViewModel: ScreenViewModel {
                 }
             }
             for period in self.periods where !activeIds.contains(period.syncId) {
-                try await self.app.persistence.deleteTimetablePeriod(period)
+                try await self.app.timetableRepo.deleteTimetablePeriod(period)
             }
             for (index, draft) in drafts.enumerated() {
                 var period = draft.period
                 period.sortOrder = index + 1
                 period.updatedAt = Date().epochMilliseconds
-                try await self.app.persistence.saveTimetablePeriod(period)
+                try await self.app.timetableRepo.saveTimetablePeriod(period)
             }
             await self.load()
             self.app.bumpDataVersion()
@@ -152,10 +152,10 @@ final class TimetableViewModel: ScreenViewModel {
                 futureEntry.validFromDate = today
                 futureEntry.validToDate = nil
                 futureEntry.createdAt = Date().epochMilliseconds
-                _ = try await self.app.persistence.saveTimetableEntry(archivedEntry)
-                _ = try await self.app.persistence.saveTimetableEntry(futureEntry)
+                _ = try await self.app.timetableRepo.saveTimetableEntry(archivedEntry)
+                _ = try await self.app.timetableRepo.saveTimetableEntry(futureEntry)
             } else {
-                _ = try await self.app.persistence.saveTimetableEntry(entry)
+                _ = try await self.app.timetableRepo.saveTimetableEntry(entry)
             }
             await self.load()
             self.app.bumpDataVersion()
@@ -164,7 +164,7 @@ final class TimetableViewModel: ScreenViewModel {
 
     func deleteEntry(_ entry: TimetableEntry) {
         perform {
-            try await self.app.persistence.deleteTimetableEntry(entry)
+            try await self.app.timetableRepo.deleteTimetableEntry(entry)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -172,7 +172,7 @@ final class TimetableViewModel: ScreenViewModel {
 
     func saveTerm(_ term: TimetableTerm) {
         perform {
-            let id = try await self.app.persistence.saveTimetableTerm(term)
+            let id = try await self.app.timetableRepo.saveTimetableTerm(term)
             self.selectedTermId = id
             self.selectedDate = term.contains(self.selectedDate) ? self.selectedDate : term.startDateValue
             await self.load()
@@ -207,7 +207,7 @@ final class TimetableViewModel: ScreenViewModel {
             record.note = note?.nilIfBlank
             record.reviewedAt = reviewed ? now : nil
             record.updatedAt = now
-            _ = try await self.app.persistence.saveTimetableReviewRecord(record)
+            _ = try await self.app.timetableRepo.saveTimetableReviewRecord(record)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -223,7 +223,7 @@ final class TimetableViewModel: ScreenViewModel {
                 record.reviewedAt = nil
             }
             record.updatedAt = now
-            _ = try await self.app.persistence.saveTimetableReviewRecord(record)
+            _ = try await self.app.timetableRepo.saveTimetableReviewRecord(record)
             await self.load()
             self.app.bumpDataVersion()
         }

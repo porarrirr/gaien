@@ -14,9 +14,9 @@ final class MaterialsViewModel: ScreenViewModel {
 
     func load() async {
         do {
-            async let subjectsTask = app.persistence.getAllSubjects()
-            async let materialsTask = app.persistence.getAllMaterials()
-            async let sessionsTask = app.persistence.getAllSessions()
+            async let subjectsTask = app.subjectRepo.getAllSubjects()
+            async let materialsTask = app.materialRepo.getAllMaterials()
+            async let sessionsTask = app.sessionRepo.getAllSessions()
             subjects = try await subjectsTask
             materials = try await materialsTask
             let sessions = try await sessionsTask
@@ -62,7 +62,7 @@ final class MaterialsViewModel: ScreenViewModel {
         lastRequestedIsbn = normalizedIsbn
         perform {
             defer { self.isSearchingBook = false }
-            let useCase = ManageMaterialsUseCase(materialRepository: self.app.persistence, subjectRepository: self.app.persistence, bookSearchRepository: self.app.googleBooksService)
+            let useCase = ManageMaterialsUseCase(materialRepository: self.app.materialRepo, subjectRepository: self.app.subjectRepo, bookSearchRepository: self.app.bookSearchRepo)
             self.bookSearchResult = try await useCase.searchBook(isbn: normalizedIsbn)
             self.isShowingBookResult = self.bookSearchResult != nil
         }
@@ -104,11 +104,11 @@ final class MaterialsViewModel: ScreenViewModel {
             }
             guard totalPages == 0 || currentPage <= totalPages else { throw ValidationError(message: "現在のページは総ページ数以下にしてください") }
             if let id {
-                let existing = try await self.app.persistence.getAllMaterials().first(where: { $0.id == id })
-                guard let subject = try await self.app.persistence.getSubjectById(subjectId) else {
+                let existing = try await self.app.materialRepo.getAllMaterials().first(where: { $0.id == id })
+                guard let subject = try await self.app.subjectRepo.getSubjectById(subjectId) else {
                     throw ValidationError(message: "科目を選択してください")
                 }
-                try await self.app.persistence.updateMaterial(
+                try await self.app.materialRepo.updateMaterial(
                     Material(
                         id: id,
                         name: trimmed,
@@ -125,12 +125,12 @@ final class MaterialsViewModel: ScreenViewModel {
                     )
                 )
             } else {
-                let useCase = ManageMaterialsUseCase(materialRepository: self.app.persistence, subjectRepository: self.app.persistence, bookSearchRepository: self.app.googleBooksService)
-                let nextOrder = (try await self.app.persistence.getAllMaterials().map(\.sortOrder).max() ?? -1) + 1
-                guard let subject = try await self.app.persistence.getSubjectById(subjectId) else {
+                let useCase = ManageMaterialsUseCase(materialRepository: self.app.materialRepo, subjectRepository: self.app.subjectRepo, bookSearchRepository: self.app.bookSearchRepo)
+                let nextOrder = (try await self.app.materialRepo.getAllMaterials().map(\.sortOrder).max() ?? -1) + 1
+                guard let subject = try await self.app.subjectRepo.getSubjectById(subjectId) else {
                     throw ValidationError(message: "科目を選択してください")
                 }
-                try await self.app.persistence.insertMaterial(
+                try await self.app.materialRepo.insertMaterial(
                     Material(
                         name: trimmed,
                         subjectId: subjectId,
@@ -152,13 +152,13 @@ final class MaterialsViewModel: ScreenViewModel {
 
     func updateProgress(materialId: Int64, currentPage: Int) {
         perform {
-            let materials = try await self.app.persistence.getAllMaterials()
+            let materials = try await self.app.materialRepo.getAllMaterials()
             guard let material = materials.first(where: { $0.id == materialId }) else {
                 throw ValidationError(message: "教材が見つかりません")
             }
             var updated = material
             updated.currentPage = currentPage
-            try await self.app.persistence.updateMaterial(updated)
+            try await self.app.materialRepo.updateMaterial(updated)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -166,7 +166,7 @@ final class MaterialsViewModel: ScreenViewModel {
 
     func deleteMaterial(_ material: Material) {
         perform {
-            try await self.app.persistence.deleteMaterial(material)
+            try await self.app.materialRepo.deleteMaterial(material)
             await self.load()
             self.app.bumpDataVersion()
         }
@@ -174,7 +174,7 @@ final class MaterialsViewModel: ScreenViewModel {
 
     func moveMaterial(_ materialId: Int64, direction: Int) {
         perform {
-            var materials = try await self.app.persistence.getAllMaterials()
+            var materials = try await self.app.materialRepo.getAllMaterials()
             guard let currentIndex = materials.firstIndex(where: { $0.id == materialId }) else { return }
             let targetIndex = currentIndex + direction
             guard materials.indices.contains(targetIndex) else { return }
@@ -183,7 +183,7 @@ final class MaterialsViewModel: ScreenViewModel {
             for (index, material) in materials.enumerated() {
                 var updated = material
                 updated.sortOrder = Int64(index)
-                try await self.app.persistence.updateMaterial(updated)
+                try await self.app.materialRepo.updateMaterial(updated)
             }
             await self.load()
             self.app.bumpDataVersion()
@@ -192,12 +192,12 @@ final class MaterialsViewModel: ScreenViewModel {
 
     func moveMaterials(from source: IndexSet, to destination: Int) {
         perform {
-            var materials = try await self.app.persistence.getAllMaterials()
+            var materials = try await self.app.materialRepo.getAllMaterials()
             materials.move(fromOffsets: source, toOffset: destination)
             for (index, material) in materials.enumerated() {
                 var updated = material
                 updated.sortOrder = Int64(index)
-                try await self.app.persistence.updateMaterial(updated)
+                try await self.app.materialRepo.updateMaterial(updated)
             }
             await self.load()
             self.app.bumpDataVersion()
