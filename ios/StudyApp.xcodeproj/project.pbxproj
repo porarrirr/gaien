@@ -124,6 +124,8 @@
 		A30000000000000000000027 /* HistorySessionEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000027 /* HistorySessionEditorSheet.swift */; };
 		A3000000000000000000002A /* IdleTimerLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3000000000000000000002A /* IdleTimerLock.swift */; };
 		A1000000000000000000003C /* CameraPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* CameraPermissionService.swift */; };
+		A1000000000000000000004E /* ReminderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004B /* ReminderCoordinator.swift */; };
+		A1000000000000000000004F /* RepositoryFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004C /* RepositoryFactory.swift */; };
 		A30000000000000000000025 /* TimetableScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000025 /* TimetableScreen.swift */; };
 		A30000000000000000000034 /* TimetableEntryEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000034 /* TimetableEntryEditorSheet.swift */; };
 		A30000000000000000000035 /* TimetableTermEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000035 /* TimetableTermEditorSheet.swift */; };
@@ -247,6 +249,8 @@
 		B30000000000000000000027 /* HistorySessionEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionEditorSheet.swift; sourceTree = "<group>"; };
 		B3000000000000000000002A /* IdleTimerLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleTimerLock.swift; sourceTree = "<group>"; };
 		B1000000000000000000003C /* CameraPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionService.swift; sourceTree = "<group>"; };
+		B1000000000000000000004B /* ReminderCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCoordinator.swift; sourceTree = "<group>"; };
+		B1000000000000000000004C /* RepositoryFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryFactory.swift; sourceTree = "<group>"; };
 		B30000000000000000000025 /* TimetableScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000034 /* TimetableEntryEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableEntryEditorSheet.swift; sourceTree = "<group>"; };
 		B30000000000000000000035 /* TimetableTermEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableTermEditorSheet.swift; sourceTree = "<group>"; };
@@ -524,6 +528,8 @@
 				B10000000000000000000006 /* ReminderScheduler.swift */,
 				B10000000000000000000018 /* StudyLiveActivityController.swift */,
 				B1000000000000000000003C /* CameraPermissionService.swift */,
+				B1000000000000000000004B /* ReminderCoordinator.swift */,
+				B1000000000000000000004C /* RepositoryFactory.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -908,6 +914,8 @@
 				A30000000000000000000027 /* HistorySessionEditorSheet.swift in Sources */,
 				A3000000000000000000002A /* IdleTimerLock.swift in Sources */,
 				A1000000000000000000003C /* CameraPermissionService.swift in Sources */,
+				A1000000000000000000004E /* ReminderCoordinator.swift in Sources */,
+				A1000000000000000000004F /* RepositoryFactory.swift in Sources */,
 				A30000000000000000000025 /* TimetableScreen.swift in Sources */,
 				A30000000000000000000034 /* TimetableEntryEditorSheet.swift in Sources */,
 				A30000000000000000000035 /* TimetableTermEditorSheet.swift in Sources */,

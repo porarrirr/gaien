@@ -42,6 +42,11 @@ final class StudyAppContainer: ObservableObject {
         currentDataVersion: { [weak self] in self?.dataVersion ?? 0 },
         onSyncStatusChanged: { [weak self] in self?.refreshSyncStatus() }
     )
+    private lazy var reminderCoordinator = ReminderCoordinator(
+        scheduler: reminderScheduler,
+        persistence: persistence,
+        logger: logger
+    )
     private var cancellables = Set<AnyCancellable>()
     private var liveActivitySyncTask: Task<Void, Never>?
 
@@ -51,21 +56,11 @@ final class StudyAppContainer: ObservableObject {
         let googleBooksService = GoogleBooksService()
         let reminderScheduler = ReminderScheduler()
         let logger = AppLogger()
-        let authRepository: any AuthRepository
-        let syncRepository: (any SyncRepository)?
-        if FirebaseBootstrap.status.isConfigured {
-            let firebaseAuthRepository = FirebaseAuthRepository(logger: logger)
-            authRepository = firebaseAuthRepository
-            syncRepository = FirebaseSyncRepository(
-                authRepository: firebaseAuthRepository,
-                persistence: persistence,
-                preferencesRepository: preferencesRepository,
-                logger: logger
-            )
-        } else {
-            authRepository = DisabledAuthRepository()
-            syncRepository = DisabledSyncRepository(logger: logger)
-        }
+        let repositories = RepositoryFactory.make(
+            persistence: persistence,
+            preferencesRepository: preferencesRepository,
+            logger: logger
+        )
 
         self.init(
             persistence: persistence,
@@ -73,8 +68,8 @@ final class StudyAppContainer: ObservableObject {
             googleBooksService: googleBooksService,
             reminderScheduler: reminderScheduler,
             logger: logger,
-            authRepository: authRepository,
-            syncRepository: syncRepository
+            authRepository: repositories.authRepository,
+            syncRepository: repositories.syncRepository
         )
     }
 
@@ -164,23 +159,14 @@ final class StudyAppContainer: ObservableObject {
     }
 
     func setReminderEnabled(_ enabled: Bool) async {
-        if enabled {
-            do {
-                let granted = try await reminderScheduler.requestAuthorizationIfNeeded()
-                guard granted else {
-                    present("通知の許可が必要です")
-                    return
-                }
-                try await reminderScheduler.scheduleDailyReminder(hour: preferences.reminderHour, minute: preferences.reminderMinute)
-                let overdueCount = try await persistence.overdueTimetableReviewCount()
-                try await reminderScheduler.scheduleTimetableReviewReminder(overdueCount: overdueCount)
-                savePreferences { $0.reminderEnabled = true }
-            } catch {
-                present(error)
-            }
-        } else {
-            reminderScheduler.cancelReminder()
-            savePreferences { $0.reminderEnabled = false }
+        let result = await reminderCoordinator.setEnabled(enabled, preferences: preferences)
+        switch result {
+        case .success(let applied):
+            savePreferences { $0.reminderEnabled = applied }
+        case .failure(.permissionDenied):
+            present("通知の許可が必要です")
+        case .failure(.scheduling(let error)):
+            present(error)
         }
     }
 
@@ -189,18 +175,13 @@ final class StudyAppContainer: ObservableObject {
             present("時刻の形式が正しくありません")
             return
         }
-        do {
-            if preferences.reminderEnabled {
-                try await reminderScheduler.scheduleDailyReminder(hour: hour, minute: minute)
-                let overdueCount = try await persistence.overdueTimetableReviewCount()
-                try await reminderScheduler.scheduleTimetableReviewReminder(overdueCount: overdueCount)
-            }
-            savePreferences {
-                $0.reminderHour = hour
-                $0.reminderMinute = minute
-            }
-        } catch {
+        if case .failure(let error) = await reminderCoordinator.applyReminderTime(hour: hour, minute: minute, preferences: preferences) {
             present(error)
+            return
+        }
+        savePreferences {
+            $0.reminderHour = hour
+            $0.reminderMinute = minute
         }
     }
 
@@ -240,8 +221,7 @@ final class StudyAppContainer: ObservableObject {
 
     func refreshTimetableReviewReminder() async {
         do {
-            let overdueCount = try await persistence.overdueTimetableReviewCount()
-            try await reminderScheduler.scheduleTimetableReviewReminder(overdueCount: overdueCount)
+            try await reminderCoordinator.refreshTimetableReviewReminder()
         } catch {
             present(error)
         }
