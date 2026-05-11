@@ -70,26 +70,25 @@ jobs:
       - name: Run unit tests (simulator)
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           # Tests run against the iOS Simulator so they can exercise
           # pure-logic targets without provisioning. Device-target builds
           # are validated in the step above.
           #
           # Pick any available iPhone simulator so CI survives runner image
-          # churn. `xcrun simctl list ... available` already filters out
-          # unavailable runtimes.
+          # churn (exact iPhone model availability varies per Xcode version).
           SIMULATOR_UDID=$(
-            xcrun simctl list devices available \
-              | awk '/-- iOS /,/^-- /' \
-              | grep -E '^[[:space:]]+iPhone' \
+            xcrun simctl list devices available 2>/dev/null \
+              | grep -E '^[[:space:]]+iPhone.*\(' \
               | tail -n 1 \
-              | sed -E 's/.*\(([A-F0-9-]+)\).*/\1/'
-          )
+              | sed -E 's/.*\(([A-F0-9-]{36})\).*/\1/'
+          ) || SIMULATOR_UDID=""
           if [ -z "$SIMULATOR_UDID" ]; then
-            echo "No available iPhone simulator was found on this runner."
-            xcrun simctl list devices available
+            echo "No available iPhone simulator was found on this runner. Listing for diagnosis:"
+            xcrun simctl list devices available || true
             exit 1
           fi
+          set -e
           echo "Using simulator UDID: $SIMULATOR_UDID"
           SIMULATOR_DESTINATION="platform=iOS Simulator,id=$SIMULATOR_UDID"
           xcodebuild \
