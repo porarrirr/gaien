@@ -122,6 +122,10 @@
 		A3000000000000000000002A /* IdleTimerLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3000000000000000000002A /* IdleTimerLock.swift */; };
 		A1000000000000000000003C /* CameraPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* CameraPermissionService.swift */; };
 		A30000000000000000000025 /* TimetableScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000025 /* TimetableScreen.swift */; };
+		A30000000000000000000034 /* TimetableEntryEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000034 /* TimetableEntryEditorSheet.swift */; };
+		A30000000000000000000035 /* TimetableTermEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000035 /* TimetableTermEditorSheet.swift */; };
+		A30000000000000000000036 /* TimetableReviewEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000036 /* TimetableReviewEditorSheet.swift */; };
+		A30000000000000000000037 /* TimetablePeriodSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000037 /* TimetablePeriodSettingsSheet.swift */; };
 		A30000000000000000000026 /* TimetableViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000026 /* TimetableViewModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -238,6 +242,10 @@
 		B3000000000000000000002A /* IdleTimerLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleTimerLock.swift; sourceTree = "<group>"; };
 		B1000000000000000000003C /* CameraPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionService.swift; sourceTree = "<group>"; };
 		B30000000000000000000025 /* TimetableScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000034 /* TimetableEntryEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableEntryEditorSheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000035 /* TimetableTermEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableTermEditorSheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000036 /* TimetableReviewEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableReviewEditorSheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000037 /* TimetablePeriodSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePeriodSettingsSheet.swift; sourceTree = "<group>"; };
 		B30000000000000000000026 /* TimetableViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -491,6 +499,10 @@
 			isa = PBXGroup;
 			children = (
 				B30000000000000000000025 /* TimetableScreen.swift */,
+				B30000000000000000000034 /* TimetableEntryEditorSheet.swift */,
+				B30000000000000000000035 /* TimetableTermEditorSheet.swift */,
+				B30000000000000000000036 /* TimetableReviewEditorSheet.swift */,
+				B30000000000000000000037 /* TimetablePeriodSettingsSheet.swift */,
 				B30000000000000000000026 /* TimetableViewModel.swift */,
 			);
 			path = Timetable;
@@ -888,6 +900,10 @@
 				A3000000000000000000002A /* IdleTimerLock.swift in Sources */,
 				A1000000000000000000003C /* CameraPermissionService.swift in Sources */,
 				A30000000000000000000025 /* TimetableScreen.swift in Sources */,
+				A30000000000000000000034 /* TimetableEntryEditorSheet.swift in Sources */,
+				A30000000000000000000035 /* TimetableTermEditorSheet.swift in Sources */,
+				A30000000000000000000036 /* TimetableReviewEditorSheet.swift in Sources */,
+				A30000000000000000000037 /* TimetablePeriodSettingsSheet.swift in Sources */,
 				A30000000000000000000026 /* TimetableViewModel.swift in Sources */,
 				A10000000000000000000010 /* MaterialsScreen.swift in Sources */,
 				A10000000000000000000025 /* BarcodeScannerSheet.swift in Sources */,
