@@ -74,8 +74,7 @@ jobs:
           set -uo pipefail
           # Tests run against the iOS Simulator in a dedicated DerivedData
           # directory so the prior iphoneos build above cannot pollute its
-          # module cache (which causes "Unable to find module dependency:
-          # FirebaseAuth" when mixing device and simulator SDKs).
+          # module cache.
           SIMULATOR_UDID=$(
             xcrun simctl list devices available 2>/dev/null \
               | grep -E '^[[:space:]]+iPhone.*\(' \
@@ -90,6 +89,14 @@ jobs:
           set -e
           echo "Using simulator UDID: $SIMULATOR_UDID"
           SIMULATOR_DESTINATION="platform=iOS Simulator,id=$SIMULATOR_UDID"
+
+          # Split "build for testing" and "test without building" so the
+          # app's module and Firebase SPM modules are produced before the
+          # test bundle links against them. Explicit Swift modules are
+          # disabled to avoid a well-known Xcode 26 ordering issue where
+          # the dependency scanner cannot find FirebaseAuth/FirebaseFirestore
+          # during the host-app swift frontend invocation even though the
+          # SPM products build successfully earlier in the same invocation.
           xcodebuild \
             -project ios/StudyApp.xcodeproj \
             -scheme StudyApp \
@@ -100,7 +107,24 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY= \
             DEVELOPMENT_TEAM= \
-            test | tee test.log | xcpretty --report junit --output test-results.xml || {
+            SWIFT_ENABLE_EXPLICIT_MODULES=NO \
+            build-for-testing | tee test.log | xcpretty || {
+              echo "build-for-testing failed; last 200 lines of xcodebuild output:"
+              tail -n 200 test.log
+              exit 1
+            }
+
+          xcodebuild \
+            -project ios/StudyApp.xcodeproj \
+            -scheme StudyApp \
+            -configuration Debug \
+            -destination "$SIMULATOR_DESTINATION" \
+            -derivedDataPath .derived-simulator \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY= \
+            DEVELOPMENT_TEAM= \
+            test-without-building | tee -a test.log | xcpretty --report junit --output test-results.xml || {
               echo "Tests failed; last 200 lines of xcodebuild output:"
               tail -n 200 test.log
               exit 1

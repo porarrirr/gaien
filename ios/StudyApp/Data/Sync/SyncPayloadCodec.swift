@@ -72,3 +72,25 @@ enum SyncPayloadCodec {
         }.value
     }
 }
+
+/// Thin wrapper that runs `SyncDeltaSerializer.assemble` plus
+/// `SyncMergeEngine.markSynced` off the main actor. Exists so
+/// `FirebaseSyncRepository` can keep its delta pipeline on MainActor for
+/// Firestore I/O while still offloading CPU-bound merge work.
+enum MergeExecutor {
+    struct Outcome {
+        let merged: AppData
+    }
+
+    static func apply(
+        envelopes: [SyncEntityEnvelope],
+        onto base: AppData,
+        syncedAt: Int64
+    ) async throws -> Outcome {
+        try await Task.detached(priority: .userInitiated) {
+            let merged = SyncDeltaSerializer.assemble(envelopes: envelopes, onto: base)
+            let stamped = SyncMergeEngine.markSynced(merged, at: syncedAt)
+            return Outcome(merged: stamped)
+        }.value
+    }
+}

@@ -48,6 +48,8 @@
 		A10000000000000000000076 /* AppDataArchiver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000076 /* AppDataArchiver.swift */; };
 		A10000000000000000000078 /* SyncMergeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000078 /* SyncMergeEngine.swift */; };
 		A10000000000000000000079 /* SyncPayloadCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000079 /* SyncPayloadCodec.swift */; };
+		A10000000000000000000080 /* SyncDeltaSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000080 /* SyncDeltaSerializer.swift */; };
+		A10000000000000000000081 /* FirestoreDeltaSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */; };
 		A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */; };
 		A30000000000000000000080 /* TimerProblemValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000080 /* TimerProblemValidation.swift */; };
 		A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* LegacySnapshotModels.swift */; };
@@ -151,6 +153,7 @@
 		A30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift */; };
 		A30000000000000000000055 /* TimerProblemValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000055 /* TimerProblemValidationTests.swift */; };
 		A30000000000000000000056 /* GoalCollectionExtensionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */; };
+		A30000000000000000000057 /* SyncDeltaSerializerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000057 /* SyncDeltaSerializerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -195,6 +198,8 @@
 		B10000000000000000000076 /* AppDataArchiver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataArchiver.swift; sourceTree = "<group>"; };
 		B10000000000000000000078 /* SyncMergeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncMergeEngine.swift; path = Sync/SyncMergeEngine.swift; sourceTree = "<group>"; };
 		B10000000000000000000079 /* SyncPayloadCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncPayloadCodec.swift; path = Sync/SyncPayloadCodec.swift; sourceTree = "<group>"; };
+		B10000000000000000000080 /* SyncDeltaSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaSerializer.swift; path = Sync/SyncDeltaSerializer.swift; sourceTree = "<group>"; };
+		B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FirestoreDeltaSyncStore.swift; path = Sync/FirestoreDeltaSyncStore.swift; sourceTree = "<group>"; };
 		B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyWidgetSnapshotComputer.swift; sourceTree = "<group>"; };
 		B30000000000000000000080 /* TimerProblemValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidation.swift; sourceTree = "<group>"; };
 		B10000000000000000000023 /* LegacySnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacySnapshotModels.swift; sourceTree = "<group>"; };
@@ -296,6 +301,7 @@
 		B30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyWidgetSnapshotComputerTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000055 /* TimerProblemValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidationTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCollectionExtensionsTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000057 /* SyncDeltaSerializerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeltaSerializerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -482,6 +488,8 @@
 				B10000000000000000000076 /* AppDataArchiver.swift */,
 				B10000000000000000000078 /* SyncMergeEngine.swift */,
 				B10000000000000000000079 /* SyncPayloadCodec.swift */,
+				B10000000000000000000080 /* SyncDeltaSerializer.swift */,
+				B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */,
 				B10000000000000000000023 /* LegacySnapshotModels.swift */,
 				B10000000000000000000005 /* GoogleBooksService.swift */,
 				B10000000000000000000016 /* FirebaseBootstrap.swift */,
@@ -758,6 +766,7 @@
 				B30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift */,
 				B30000000000000000000055 /* TimerProblemValidationTests.swift */,
 				B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */,
+				B30000000000000000000057 /* SyncDeltaSerializerTests.swift */,
 			);
 			path = StudyAppTests;
 			sourceTree = "<group>";
@@ -979,6 +988,8 @@
 				A10000000000000000000076 /* AppDataArchiver.swift in Sources */,
 				A10000000000000000000078 /* SyncMergeEngine.swift in Sources */,
 				A10000000000000000000079 /* SyncPayloadCodec.swift in Sources */,
+				A10000000000000000000080 /* SyncDeltaSerializer.swift in Sources */,
+				A10000000000000000000081 /* FirestoreDeltaSyncStore.swift in Sources */,
 				A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */,
 				A30000000000000000000080 /* TimerProblemValidation.swift in Sources */,
 				A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */,
@@ -1090,6 +1101,7 @@
 				A30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift in Sources */,
 				A30000000000000000000055 /* TimerProblemValidationTests.swift in Sources */,
 				A30000000000000000000056 /* GoalCollectionExtensionsTests.swift in Sources */,
+				A30000000000000000000057 /* SyncDeltaSerializerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
