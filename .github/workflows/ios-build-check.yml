@@ -57,6 +57,7 @@ jobs:
             -configuration Debug \
             -sdk iphoneos \
             -destination generic/platform=iOS \
+            -derivedDataPath .derived-device \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY= \
@@ -71,12 +72,10 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          # Tests run against the iOS Simulator so they can exercise
-          # pure-logic targets without provisioning. Device-target builds
-          # are validated in the step above.
-          #
-          # Pick any available iPhone simulator so CI survives runner image
-          # churn (exact iPhone model availability varies per Xcode version).
+          # Tests run against the iOS Simulator in a dedicated DerivedData
+          # directory so the prior iphoneos build above cannot pollute its
+          # module cache (which causes "Unable to find module dependency:
+          # FirebaseAuth" when mixing device and simulator SDKs).
           SIMULATOR_UDID=$(
             xcrun simctl list devices available 2>/dev/null \
               | grep -E '^[[:space:]]+iPhone.*\(' \
@@ -91,23 +90,17 @@ jobs:
           set -e
           echo "Using simulator UDID: $SIMULATOR_UDID"
           SIMULATOR_DESTINATION="platform=iOS Simulator,id=$SIMULATOR_UDID"
-          # Re-resolve packages against the simulator SDK so Firebase's
-          # simulator slices are available to the test build.
-          xcodebuild \
-            -resolvePackageDependencies \
-            -project ios/StudyApp.xcodeproj \
-            -scheme StudyApp \
-            -destination "$SIMULATOR_DESTINATION"
           xcodebuild \
             -project ios/StudyApp.xcodeproj \
             -scheme StudyApp \
             -configuration Debug \
             -destination "$SIMULATOR_DESTINATION" \
+            -derivedDataPath .derived-simulator \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY= \
             DEVELOPMENT_TEAM= \
-            clean test | tee test.log | xcpretty --report junit --output test-results.xml || {
+            test | tee test.log | xcpretty --report junit --output test-results.xml || {
               echo "Tests failed; last 200 lines of xcodebuild output:"
               tail -n 200 test.log
               exit 1
