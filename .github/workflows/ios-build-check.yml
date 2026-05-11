@@ -91,6 +91,13 @@ jobs:
           set -e
           echo "Using simulator UDID: $SIMULATOR_UDID"
           SIMULATOR_DESTINATION="platform=iOS Simulator,id=$SIMULATOR_UDID"
+          # Re-resolve packages against the simulator SDK so Firebase's
+          # simulator slices are available to the test build.
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project ios/StudyApp.xcodeproj \
+            -scheme StudyApp \
+            -destination "$SIMULATOR_DESTINATION"
           xcodebuild \
             -project ios/StudyApp.xcodeproj \
             -scheme StudyApp \
@@ -100,7 +107,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY= \
             DEVELOPMENT_TEAM= \
-            test | tee test.log | xcpretty --report junit --output test-results.xml || {
+            clean test | tee test.log | xcpretty --report junit --output test-results.xml || {
               echo "Tests failed; last 200 lines of xcodebuild output:"
               tail -n 200 test.log
               exit 1
