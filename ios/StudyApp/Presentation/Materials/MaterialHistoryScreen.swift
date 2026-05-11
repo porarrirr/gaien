@@ -597,11 +597,11 @@ struct MaterialProblemProgressCard: View {
         }
     }
 
-    private var chapterSections: [ProblemChapterSection] {
+    private var chapterSections: [MaterialProblemChapterSection] {
         var start = 1
         return chapters.filter { $0.problemCount > 0 }.map { chapter in
             defer { start += chapter.problemCount }
-            return ProblemChapterSection(chapter: chapter, startGlobalNumber: start)
+            return MaterialProblemChapterSection(chapter: chapter, startGlobalNumber: start)
         }
     }
 

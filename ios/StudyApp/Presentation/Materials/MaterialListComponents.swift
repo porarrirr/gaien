@@ -477,7 +477,7 @@ struct PieSliceShape: Shape {
     }
 }
 
-struct ProblemChapterSection {
+struct MaterialProblemChapterSection {
     let chapter: ProblemChapter
     let startGlobalNumber: Int
 }
