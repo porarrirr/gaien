@@ -1,6 +1,6 @@
 import SwiftUI
 
-private struct CreatePlanSheet: View {
+struct CreatePlanSheet: View {
     let subjects: [Subject]
     let onCreate: (String, Date, Date, [PlanItem]) -> Void
     let onCancel: () -> Void

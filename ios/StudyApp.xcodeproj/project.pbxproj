@@ -94,6 +94,9 @@
 		A30000000000000000000004 /* HomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000004 /* HomeScreen.swift */; };
 		A30000000000000000000005 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000005 /* HomeViewModel.swift */; };
 		A30000000000000000000006 /* TimerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000006 /* TimerScreen.swift */; };
+		A30000000000000000000030 /* LandscapeTimerFocusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000030 /* LandscapeTimerFocusView.swift */; };
+		A30000000000000000000031 /* LandscapeClockOnlyTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000031 /* LandscapeClockOnlyTimerView.swift */; };
+		A30000000000000000000032 /* TimerProblemProgressEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000032 /* TimerProblemProgressEditor.swift */; };
 		A30000000000000000000007 /* TimerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000007 /* TimerViewModel.swift */; };
 		A30000000000000000000028 /* TimerManualEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000028 /* TimerManualEntrySheet.swift */; };
 		A30000000000000000000029 /* TimerSessionEvaluationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */; };
@@ -206,6 +209,9 @@
 		B30000000000000000000004 /* HomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000005 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		B30000000000000000000006 /* TimerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000030 /* LandscapeTimerFocusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandscapeTimerFocusView.swift; sourceTree = "<group>"; };
+		B30000000000000000000031 /* LandscapeClockOnlyTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandscapeClockOnlyTimerView.swift; sourceTree = "<group>"; };
+		B30000000000000000000032 /* TimerProblemProgressEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemProgressEditor.swift; sourceTree = "<group>"; };
 		B30000000000000000000007 /* TimerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerViewModel.swift; sourceTree = "<group>"; };
 		B30000000000000000000028 /* TimerManualEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerManualEntrySheet.swift; sourceTree = "<group>"; };
 		B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerSessionEvaluationSheet.swift; sourceTree = "<group>"; };
@@ -552,6 +558,9 @@
 			isa = PBXGroup;
 			children = (
 				B30000000000000000000006 /* TimerScreen.swift */,
+				B30000000000000000000030 /* LandscapeTimerFocusView.swift */,
+				B30000000000000000000031 /* LandscapeClockOnlyTimerView.swift */,
+				B30000000000000000000032 /* TimerProblemProgressEditor.swift */,
 				B30000000000000000000028 /* TimerManualEntrySheet.swift */,
 				B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */,
 				B30000000000000000000007 /* TimerViewModel.swift */,
@@ -848,6 +857,9 @@
 				A30000000000000000000004 /* HomeScreen.swift in Sources */,
 				A30000000000000000000005 /* HomeViewModel.swift in Sources */,
 				A30000000000000000000006 /* TimerScreen.swift in Sources */,
+				A30000000000000000000030 /* LandscapeTimerFocusView.swift in Sources */,
+				A30000000000000000000031 /* LandscapeClockOnlyTimerView.swift in Sources */,
+				A30000000000000000000032 /* TimerProblemProgressEditor.swift in Sources */,
 				A30000000000000000000028 /* TimerManualEntrySheet.swift in Sources */,
 				A30000000000000000000029 /* TimerSessionEvaluationSheet.swift in Sources */,
 				A30000000000000000000007 /* TimerViewModel.swift in Sources */,

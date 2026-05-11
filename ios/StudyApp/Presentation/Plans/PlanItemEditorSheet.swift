@@ -1,6 +1,6 @@
 import SwiftUI
 
-private struct PlanItemEditorSheet: View {
+struct PlanItemEditorSheet: View {
     let subjects: [Subject]
     let activePlanId: Int64
     let item: PlanItem?

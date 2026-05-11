@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 #endif
 
-private struct DebugLogSheet: View {
+struct DebugLogSheet: View {
     @ObservedObject var viewModel: SettingsViewModel
     let isClearUnlocked: Bool
     @Environment(\.dismiss) private var dismiss

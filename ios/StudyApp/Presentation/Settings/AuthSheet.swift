@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 #endif
 
-private struct AuthSheet: View {
+struct AuthSheet: View {
     @ObservedObject var viewModel: SettingsViewModel
     @Binding var isPresented: Bool
     @State private var isSignInPasswordVisible = false
