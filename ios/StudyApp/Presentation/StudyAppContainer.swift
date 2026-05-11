@@ -18,6 +18,22 @@ final class StudyAppContainer: ObservableObject {
     let authRepository: any AuthRepository
     let syncRepository: any SyncRepository
 
+    // MARK: - Repository facades
+    //
+    // Expose the repository protocols implemented by `persistence` as protocol-typed
+    // properties so ViewModels can depend on protocols instead of the concrete
+    // `PersistenceController`. This unlocks testability and keeps call sites tidy.
+    var subjectRepo: SubjectRepository { persistence }
+    var materialRepo: MaterialRepository { persistence }
+    var sessionRepo: StudySessionRepository { persistence }
+    var goalRepo: GoalRepository { persistence }
+    var examRepo: ExamRepository { persistence }
+    var planRepo: PlanRepository { persistence }
+    var timetableRepo: TimetableRepository { persistence }
+    var problemReviewRepo: ProblemReviewRepository { persistence }
+    var appDataRepo: AppDataRepository { persistence }
+    var bookSearchRepo: BookSearchRepository { googleBooksService }
+
     private lazy var widgetSnapshotSync = WidgetSnapshotSync(container: self)
     private lazy var liveActivityController = StudyLiveActivityController(persistence: persistence, logger: logger)
     private lazy var autoSyncCoordinator = AutoSyncCoordinator(
