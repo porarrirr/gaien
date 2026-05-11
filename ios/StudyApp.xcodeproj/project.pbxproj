@@ -101,6 +101,7 @@
 		A30000000000000000000028 /* TimerManualEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000028 /* TimerManualEntrySheet.swift */; };
 		A30000000000000000000029 /* TimerSessionEvaluationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */; };
 		A30000000000000000000008 /* CalendarScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000008 /* CalendarScreen.swift */; };
+		A30000000000000000000033 /* CalendarScreenComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000033 /* CalendarScreenComponents.swift */; };
 		A30000000000000000000009 /* CalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000009 /* CalendarViewModel.swift */; };
 		A30000000000000000000010 /* ReportsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000010 /* ReportsScreen.swift */; };
 		A30000000000000000000011 /* ReportsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000011 /* ReportsViewModel.swift */; };
@@ -216,6 +217,7 @@
 		B30000000000000000000028 /* TimerManualEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerManualEntrySheet.swift; sourceTree = "<group>"; };
 		B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerSessionEvaluationSheet.swift; sourceTree = "<group>"; };
 		B30000000000000000000008 /* CalendarScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000033 /* CalendarScreenComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScreenComponents.swift; sourceTree = "<group>"; };
 		B30000000000000000000009 /* CalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewModel.swift; sourceTree = "<group>"; };
 		B30000000000000000000010 /* ReportsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000011 /* ReportsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsViewModel.swift; sourceTree = "<group>"; };
@@ -572,6 +574,7 @@
 			isa = PBXGroup;
 			children = (
 				B30000000000000000000008 /* CalendarScreen.swift */,
+				B30000000000000000000033 /* CalendarScreenComponents.swift */,
 				B30000000000000000000009 /* CalendarViewModel.swift */,
 			);
 			path = Calendar;
@@ -864,6 +867,7 @@
 				A30000000000000000000029 /* TimerSessionEvaluationSheet.swift in Sources */,
 				A30000000000000000000007 /* TimerViewModel.swift in Sources */,
 				A30000000000000000000008 /* CalendarScreen.swift in Sources */,
+				A30000000000000000000033 /* CalendarScreenComponents.swift in Sources */,
 				A30000000000000000000009 /* CalendarViewModel.swift in Sources */,
 				A30000000000000000000010 /* ReportsScreen.swift in Sources */,
 				A30000000000000000000011 /* ReportsViewModel.swift in Sources */,
