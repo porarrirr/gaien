@@ -44,6 +44,10 @@ struct HomeScreen: View {
         Int(weeklyProgress * 100)
     }
 
+    private var todayReviewGroups: [TodayReviewMaterialGroup] {
+        TodayReviewMaterialGroup.makeGroups(from: viewModel.homeData.todayReviewProblems)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 10) {
@@ -153,13 +157,13 @@ struct HomeScreen: View {
                         .foregroundStyle(AppColors.textSecondary)
                         .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
                 } else {
-                    ForEach(Array(viewModel.homeData.todayReviewProblems.prefix(3).enumerated()), id: \.element.id) { index, problem in
-                        ReviewRow(
-                            problem: problem,
-                            dueText: reviewDueRelativeText(problem.nextReviewDate),
+                    ForEach(Array(todayReviewGroups.prefix(3).enumerated()), id: \.element.id) { index, group in
+                        ReviewGroupRow(
+                            group: group,
+                            dueText: reviewDueRelativeText(group.earliestReviewDate),
                             color: reviewColor(at: index)
                         )
-                        if index < min(viewModel.homeData.todayReviewProblems.count, 3) - 1 {
+                        if index < min(todayReviewGroups.count, 3) - 1 {
                             Divider()
                         }
                     }
@@ -397,50 +401,56 @@ struct HomeScreen: View {
     }
 }
 
-private struct ReviewRow: View {
-    let problem: TodayReviewProblem
+private struct ReviewGroupRow: View {
+    let group: TodayReviewMaterialGroup
     let dueText: String
     let color: Color
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             Circle()
                 .fill(color)
                 .frame(width: 42, height: 42)
                 .overlay {
-                    Text("\(problem.problemNumber)")
-                        .font(.headline.weight(.bold))
+                    Text("\(group.problems.count)")
+                        .font(.subheadline.weight(.bold))
                         .monospacedDigit()
                         .foregroundStyle(.white)
                         .minimumScaleFactor(0.65)
                 }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(problem.materialName)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(group.materialName)
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(AppColors.textPrimary)
                     .lineLimit(1)
-                Text("\(problem.subjectName.isEmpty ? "科目未設定" : problem.subjectName)")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(AppColors.textSecondary)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(group.subjectText)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppColors.textSecondary)
+                        .lineLimit(1)
+                    Text(dueText)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(dueText == "今日まで" ? AppColors.danger : (dueText == "明日まで" ? AppColors.orange : AppColors.textPrimary))
+                }
+                Text(group.compactProblemLabels(limit: 4))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 4)
 
-            Text(dueText)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(dueText == "今日まで" ? AppColors.danger : (dueText == "明日まで" ? AppColors.orange : AppColors.textPrimary))
-                .frame(width: 50, alignment: .center)
-
-            ReviewMetric(title: "連続正解", value: problem.consecutiveCorrectCount, color: AppColors.success)
-            ReviewMetric(title: "連続不正解", value: problem.wrongCount, color: AppColors.danger)
+            ReviewMetric(title: "復習", value: group.problems.count, color: color)
 
             Image(systemName: "chevron.right")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppColors.textSecondary)
+                .padding(.top, 14)
         }
-        .frame(minHeight: 52)
+        .frame(minHeight: 64)
     }
 }
 
@@ -466,6 +476,59 @@ private struct ReviewMetric: View {
             }
         }
         .frame(width: 58)
+    }
+}
+
+private struct TodayReviewMaterialGroup: Identifiable, Hashable {
+    var materialId: Int64
+    var materialName: String
+    var subjectName: String
+    var problems: [TodayReviewProblem]
+
+    var id: Int64 { materialId }
+
+    var subjectText: String {
+        subjectName.isEmpty ? "科目未設定" : subjectName
+    }
+
+    var earliestReviewDate: Int64 {
+        problems.map(\.nextReviewDate).min() ?? 0
+    }
+
+    func compactProblemLabels(limit: Int) -> String {
+        let labels = problems.map(\.problemLabel)
+        guard labels.count > limit else {
+            return labels.joined(separator: "、")
+        }
+        return "\(labels.prefix(limit).joined(separator: "、")) ほか\(labels.count - limit)問"
+    }
+
+    static func makeGroups(from problems: [TodayReviewProblem]) -> [TodayReviewMaterialGroup] {
+        let grouped = Dictionary(grouping: problems, by: \.materialId)
+        return grouped.values.map { values in
+            let sortedProblems = values.sorted {
+                if $0.nextReviewDate != $1.nextReviewDate {
+                    return $0.nextReviewDate < $1.nextReviewDate
+                }
+                return $0.problemNumber < $1.problemNumber
+            }
+            let first = sortedProblems[0]
+            return TodayReviewMaterialGroup(
+                materialId: first.materialId,
+                materialName: first.materialName,
+                subjectName: first.subjectName,
+                problems: sortedProblems
+            )
+        }
+        .sorted {
+            if $0.earliestReviewDate != $1.earliestReviewDate {
+                return $0.earliestReviewDate < $1.earliestReviewDate
+            }
+            if $0.materialName != $1.materialName {
+                return $0.materialName < $1.materialName
+            }
+            return $0.materialId < $1.materialId
+        }
     }
 }
 
@@ -562,16 +625,20 @@ private struct TodayReviewListScreen: View {
     let problems: [TodayReviewProblem]
     let dueText: (Int64) -> String
 
+    private var groups: [TodayReviewMaterialGroup] {
+        TodayReviewMaterialGroup.makeGroups(from: problems)
+    }
+
     var body: some View {
         List {
             if problems.isEmpty {
                 Text("今日の復習はありません")
                     .foregroundStyle(AppColors.textSecondary)
             } else {
-                ForEach(Array(problems.enumerated()), id: \.element.id) { index, problem in
-                    TodayReviewListRow(
-                        problem: problem,
-                        dueText: dueText(problem.nextReviewDate),
+                ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                    TodayReviewListGroupRow(
+                        group: group,
+                        dueText: dueText(group.earliestReviewDate),
                         color: [AppColors.success, AppColors.orange, AppColors.blue][index % 3]
                     )
                     .padding(.vertical, 6)
@@ -583,8 +650,8 @@ private struct TodayReviewListScreen: View {
     }
 }
 
-private struct TodayReviewListRow: View {
-    let problem: TodayReviewProblem
+private struct TodayReviewListGroupRow: View {
+    let group: TodayReviewMaterialGroup
     let dueText: String
     let color: Color
 
@@ -594,33 +661,68 @@ private struct TodayReviewListRow: View {
                 .fill(color)
                 .frame(width: 46, height: 46)
                 .overlay {
-                    Text("\(problem.problemNumber)")
-                        .font(.headline.weight(.bold))
+                    Text("\(group.problems.count)")
+                        .font(.subheadline.weight(.bold))
                         .monospacedDigit()
                         .foregroundStyle(.white)
                         .minimumScaleFactor(0.65)
                 }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(problem.materialName)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(group.materialName)
                     .font(.headline.weight(.bold))
                     .foregroundStyle(AppColors.textPrimary)
                     .lineLimit(3)
-                Text(problem.subjectName.isEmpty ? "科目未設定" : problem.subjectName)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppColors.textSecondary)
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    Text(group.subjectText)
+                        .foregroundStyle(AppColors.textSecondary)
                     Text(dueText)
                         .foregroundStyle(dueText == "今日まで" ? AppColors.danger : AppColors.orange)
-                    Text("連続正解 \(problem.consecutiveCorrectCount)問")
-                        .foregroundStyle(AppColors.success)
-                    Text("連続不正解 \(problem.wrongCount)問")
-                        .foregroundStyle(AppColors.danger)
+                    Text("\(group.problems.count)問")
+                        .foregroundStyle(color)
                 }
                 .font(.caption.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 82), spacing: 6)],
+                    alignment: .leading,
+                    spacing: 6
+                ) {
+                    ForEach(group.problems, id: \.id) { problem in
+                        TodayReviewProblemChip(problem: problem, color: color)
+                    }
+                }
             }
+            .layoutPriority(1)
+        }
+    }
+}
+
+private struct TodayReviewProblemChip: View {
+    let problem: TodayReviewProblem
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(problem.problemLabel)
+                .lineLimit(1)
+                .minimumScaleFactor(0.76)
+            if problem.wrongCount > 0 {
+                Text("×\(problem.wrongCount)")
+                    .foregroundStyle(AppColors.danger)
+                    .monospacedDigit()
+            }
+        }
+        .font(.caption.weight(.bold))
+        .foregroundStyle(AppColors.textPrimary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(color.opacity(0.22), lineWidth: 1)
         }
     }
 }

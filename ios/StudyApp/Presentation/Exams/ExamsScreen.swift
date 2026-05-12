@@ -174,6 +174,7 @@ private struct ExamEditorSheet: View {
     let title: String
     let onSave: () -> Void
     let onCancel: () -> Void
+    @State private var isDateSelectionPresented = false
 
     private var isSaveDisabled: Bool {
         name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -235,6 +236,9 @@ private struct ExamEditorSheet: View {
                 note = String(newValue.prefix(500))
             }
         }
+        .navigationDestination(isPresented: $isDateSelectionPresented) {
+            ExamDateSelectionScreen(date: $date)
+        }
     }
 
     private var sheetHeader: some View {
@@ -271,7 +275,9 @@ private struct ExamEditorSheet: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(AppColors.textPrimary)
 
-            ZStack {
+            Button {
+                isDateSelectionPresented = true
+            } label: {
                 HStack(spacing: 18) {
                     Image(systemName: "calendar")
                         .font(.system(size: 22, weight: .semibold))
@@ -290,17 +296,13 @@ private struct ExamEditorSheet: View {
                         .font(.system(size: 26, weight: .semibold))
                         .foregroundStyle(Color(.systemGray3))
                 }
-
-                DatePicker(
-                    "",
-                    selection: $date,
-                    displayedComponents: [.date, .hourAndMinute]
-                )
-                .labelsHidden()
-                .environment(\.locale, Locale(identifier: "ja_JP"))
-                .opacity(0.02)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .accessibilityLabel("日付")
+            .accessibilityValue(StudyFormatters.examDateTime.string(from: date))
+            .accessibilityHint("日付と時刻を変更します")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 22)
@@ -309,6 +311,63 @@ private struct ExamEditorSheet: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(AppColors.cardBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct ExamDateSelectionScreen: View {
+    @Binding var date: Date
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                DatePicker(
+                    "日付",
+                    selection: $date,
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.graphical)
+                .environment(\.locale, Locale(identifier: "ja_JP"))
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("時刻")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(AppColors.textPrimary)
+
+                    DatePicker(
+                        "時刻",
+                        selection: $date,
+                        displayedComponents: .hourAndMinute
+                    )
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .environment(\.locale, Locale(identifier: "ja_JP"))
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(AppColors.cardBorder, lineWidth: 1)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 18)
+        }
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .navigationTitle("日付を選択")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("完了") {
+                    dismiss()
+                }
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(AppColors.success)
+            }
         }
     }
 }

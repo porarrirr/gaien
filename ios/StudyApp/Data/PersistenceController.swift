@@ -967,6 +967,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     materialName: material.name,
                     subjectName: subject?.name ?? "",
                     problemNumber: review.problemNumber,
+                    problemLabel: material.problemLabel(for: review.problemNumber),
                     nextReviewDate: review.nextReviewDate,
                     consecutiveCorrectCount: review.consecutiveCorrectCount,
                     wrongCount: review.wrongCount

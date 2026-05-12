@@ -73,6 +73,7 @@ struct TodayReviewProblem: Identifiable, Hashable {
     var materialName: String
     var subjectName: String
     var problemNumber: Int
+    var problemLabel: String
     var nextReviewDate: Int64
     var consecutiveCorrectCount: Int
     var wrongCount: Int
