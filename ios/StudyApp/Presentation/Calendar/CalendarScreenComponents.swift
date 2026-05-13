@@ -6,6 +6,7 @@ struct CalendarSummaryGridDay: Identifiable, Hashable {
     var weekday: Int
     var isCurrentMonth: Bool
     var minutes: Int
+    var heatmapLevel: Int
 
     var id: Int64 {
         date.startOfDay.epochMilliseconds
@@ -23,7 +24,7 @@ struct CalendarSummaryDayCell: View {
             .frame(maxWidth: .infinity, minHeight: 32)
             .background(
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(isSelected ? AppColors.success : Self.fillColor(minutes: item.minutes).opacity(item.isCurrentMonth ? 1 : 0.28))
+                    .fill(isSelected ? AppColors.success : Self.fillColor(level: item.heatmapLevel).opacity(item.isCurrentMonth ? 1 : 0.28))
             )
             .overlay {
                 if isSelected {
@@ -39,19 +40,20 @@ struct CalendarSummaryDayCell: View {
             .accessibilityLabel("\(item.day)日 \(item.minutes)分")
     }
 
-    static func fillColor(minutes: Int) -> Color {
-        switch minutes {
-        case 120...:
-            return Color(hex: 0x08944A)
-        case 60...119:
-            return Color(hex: 0x58BE75)
-        case 30...59:
-            return Color(hex: 0x9EDFB0)
-        case 1...29:
-            return Color(hex: 0xE8F6EB)
-        default:
-            return Color(hex: 0xF8F9FA)
-        }
+    static func fillColor(level: Int) -> Color {
+        let palette = [
+            Color(hex: 0xF8F9FA),
+            Color(hex: 0xEAF6ED),
+            Color(hex: 0xD5EEDB),
+            Color(hex: 0xBFE6C8),
+            Color(hex: 0xA5DDB3),
+            Color(hex: 0x89D19B),
+            Color(hex: 0x69C27F),
+            Color(hex: 0x46AE62),
+            Color(hex: 0x259B4B),
+            Color(hex: 0x087F3C)
+        ]
+        return palette[min(max(level, 0), palette.count - 1)]
     }
 
     private var textColor: Color {

@@ -43,17 +43,24 @@ struct CalendarScreen: View {
         calendar.range(of: .day, in: .month, for: viewModel.displayedMonth)?.count ?? 30
     }
 
+    private var maxMonthStudyMinutes: Int {
+        viewModel.monthStudyMap.values.max() ?? 0
+    }
+
     private var calendarGridDays: [CalendarSummaryGridDay] {
+        let maxMinutes = maxMonthStudyMinutes
         visibleCalendarDates.map { date in
             let isCurrentMonth = calendar.component(.year, from: date) == displayYear &&
                 calendar.component(.month, from: date) == displayMonth
             let day = calendar.component(.day, from: date)
+            let minutes = isCurrentMonth ? (viewModel.monthStudyMap[day] ?? 0) : 0
             return CalendarSummaryGridDay(
                 date: date,
                 day: day,
                 weekday: calendar.component(.weekday, from: date),
                 isCurrentMonth: isCurrentMonth,
-                minutes: isCurrentMonth ? (viewModel.monthStudyMap[day] ?? 0) : 0
+                minutes: minutes,
+                heatmapLevel: calendarHeatmapLevel(minutes: minutes, maxMinutes: maxMinutes)
             )
         }
     }
@@ -302,15 +309,35 @@ struct CalendarScreen: View {
     }
 
     private var calendarSummaryLegend: some View {
-        HStack(spacing: 0) {
-            CalendarSummaryLegendItem(color: CalendarSummaryDayCell.fillColor(minutes: 0), title: "0分")
-            CalendarSummaryLegendItem(color: CalendarSummaryDayCell.fillColor(minutes: 1), title: "1〜29分")
-            CalendarSummaryLegendItem(color: CalendarSummaryDayCell.fillColor(minutes: 30), title: "30〜59分")
-            CalendarSummaryLegendItem(color: CalendarSummaryDayCell.fillColor(minutes: 60), title: "60〜119分")
-            CalendarSummaryLegendItem(color: CalendarSummaryDayCell.fillColor(minutes: 120), title: "120分以上")
+        HStack(spacing: 8) {
+            Text("少")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(AppColors.textSecondary)
+
+            HStack(spacing: 3) {
+                ForEach(0..<10, id: \.self) { level in
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(CalendarSummaryDayCell.fillColor(level: level))
+                        .frame(width: 16, height: 16)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .stroke(AppColors.cardBorder, lineWidth: 1)
+                        }
+                }
+            }
+
+            Text("多")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(AppColors.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
+    }
+
+    private func calendarHeatmapLevel(minutes: Int, maxMinutes: Int) -> Int {
+        guard minutes > 0, maxMinutes > 0 else { return 0 }
+        let ratio = Double(minutes) / Double(maxMinutes)
+        return min(max(Int(ceil(ratio * 9)), 1), 9)
     }
 
     private func selectedDayHeader(day: Int, totalMinutes: Int, sessionCount: Int) -> some View {
