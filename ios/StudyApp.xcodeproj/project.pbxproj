@@ -52,6 +52,11 @@
 		A10000000000000000000081 /* FirestoreDeltaSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */; };
 		A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */; };
 		A30000000000000000000080 /* TimerProblemValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000080 /* TimerProblemValidation.swift */; };
+		A30000000000000000000081 /* TimerAmbientModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000081 /* TimerAmbientModels.swift */; };
+		A10000000000000000000081 /* TimerAmbientResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* TimerAmbientResolver.swift */; };
+		A10000000000000000000082 /* OpenMeteoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000082 /* OpenMeteoService.swift */; };
+		A10000000000000000000083 /* LocationWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000083 /* LocationWeatherService.swift */; };
+		A30000000000000000000082 /* TimerAmbientResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000082 /* TimerAmbientResolverTests.swift */; };
 		A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* LegacySnapshotModels.swift */; };
 		A10000000000000000000004 /* GoogleBooksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* GoogleBooksService.swift */; };
 		A10000000000000000000018 /* FirebaseBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseBootstrap.swift */; };
@@ -202,6 +207,11 @@
 		B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FirestoreDeltaSyncStore.swift; path = Sync/FirestoreDeltaSyncStore.swift; sourceTree = "<group>"; };
 		B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyWidgetSnapshotComputer.swift; sourceTree = "<group>"; };
 		B30000000000000000000080 /* TimerProblemValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidation.swift; sourceTree = "<group>"; };
+		B30000000000000000000081 /* TimerAmbientModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000081 /* TimerAmbientResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolver.swift; sourceTree = "<group>"; };
+		B10000000000000000000082 /* OpenMeteoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoService.swift; sourceTree = "<group>"; };
+		B10000000000000000000083 /* LocationWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationWeatherService.swift; sourceTree = "<group>"; };
+		B30000000000000000000082 /* TimerAmbientResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolverTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000023 /* LegacySnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacySnapshotModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* FirebaseBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseBootstrap.swift; sourceTree = "<group>"; };
@@ -604,6 +614,9 @@
 				B1000000000000000000003C /* CameraPermissionService.swift */,
 				B1000000000000000000004B /* ReminderCoordinator.swift */,
 				B1000000000000000000004C /* RepositoryFactory.swift */,
+				B10000000000000000000081 /* TimerAmbientResolver.swift */,
+				B10000000000000000000082 /* OpenMeteoService.swift */,
+				B10000000000000000000083 /* LocationWeatherService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -669,6 +682,7 @@
 				B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */,
 				B30000000000000000000007 /* TimerViewModel.swift */,
 				B30000000000000000000080 /* TimerProblemValidation.swift */,
+				B30000000000000000000081 /* TimerAmbientModels.swift */,
 			);
 			path = Timer;
 			sourceTree = "<group>";
@@ -765,6 +779,7 @@
 				B30000000000000000000053 /* SyncMergeEngineTests.swift */,
 				B30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift */,
 				B30000000000000000000055 /* TimerProblemValidationTests.swift */,
+				B30000000000000000000082 /* TimerAmbientResolverTests.swift */,
 				B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */,
 				B30000000000000000000057 /* SyncDeltaSerializerTests.swift */,
 			);
@@ -992,6 +1007,10 @@
 				A10000000000000000000081 /* FirestoreDeltaSyncStore.swift in Sources */,
 				A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */,
 				A30000000000000000000080 /* TimerProblemValidation.swift in Sources */,
+				A30000000000000000000081 /* TimerAmbientModels.swift in Sources */,
+				A10000000000000000000081 /* TimerAmbientResolver.swift in Sources */,
+				A10000000000000000000082 /* OpenMeteoService.swift in Sources */,
+				A10000000000000000000083 /* LocationWeatherService.swift in Sources */,
 				A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */,
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,
 				A10000000000000000000018 /* FirebaseBootstrap.swift in Sources */,
@@ -1100,6 +1119,7 @@
 				A30000000000000000000053 /* SyncMergeEngineTests.swift in Sources */,
 				A30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift in Sources */,
 				A30000000000000000000055 /* TimerProblemValidationTests.swift in Sources */,
+				A30000000000000000000082 /* TimerAmbientResolverTests.swift in Sources */,
 				A30000000000000000000056 /* GoalCollectionExtensionsTests.swift in Sources */,
 				A30000000000000000000057 /* SyncDeltaSerializerTests.swift in Sources */,
 			);
@@ -1153,6 +1173,7 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "現在地の天気と日の出・日の入りに合わせてタイマー画面を切り替えるために使用します。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -1183,6 +1204,7 @@
 				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "現在地の天気と日の出・日の入りに合わせてタイマー画面を切り替えるために使用します。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

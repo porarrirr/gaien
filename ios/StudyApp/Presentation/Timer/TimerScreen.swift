@@ -4,6 +4,7 @@ import SwiftUI
 // MARK: - TimerScreen
 
 struct TimerScreen: View {
+    @ObservedObject private var app: StudyAppContainer
     @StateObject private var viewModel: TimerViewModel
     @State private var showManualEntry = false
     @State private var manualNote = ""
@@ -18,12 +19,14 @@ struct TimerScreen: View {
     @State private var ringScale: CGFloat = 1.0
 
     init(app: StudyAppContainer) {
+        _app = ObservedObject(wrappedValue: app)
         _viewModel = StateObject(wrappedValue: TimerViewModel(app: app))
     }
 
     var body: some View {
         GeometryReader { geometry in
             let isLandscapeFocus = shouldShowLandscapeFocus(size: geometry.size)
+            let ambientTheme = TimerAmbientTheme.make(context: app.timerAmbientContext)
             Group {
                 if isLandscapeFocus {
                     switch viewModel.app.preferences.landscapeTimerDisplayPreset {
@@ -61,77 +64,86 @@ struct TimerScreen: View {
                         )
                     }
                 } else {
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 10) {
-                            selectorSection
+                    ZStack {
+                        TimerAmbientBackgroundView(theme: ambientTheme)
 
-                            VStack(spacing: 12) {
-                                timerModeSection
+                        ScrollView(showsIndicators: false) {
+                            VStack(spacing: 10) {
+                                ambientStatusHeader(theme: ambientTheme)
+                                selectorSection
+                                quickSelectionSection
 
-                                VStack(spacing: 14) {
-                                    ZStack {
-                                        ProgressRing(
-                                            progress: timerProgress,
-                                            size: timerRingSize(for: geometry.size),
-                                            lineWidth: 12,
-                                            ringColor: viewModel.isRunning ? AppColors.success : Color.secondary.opacity(0.4),
-                                            trackColor: Color(.systemGray5),
-                                            showPercentage: false
-                                        )
-                                        .scaleEffect(ringScale)
+                                VStack(spacing: 12) {
+                                    timerModeSection
 
-                                        VStack(spacing: 5) {
-                                            Text(durationString(milliseconds: viewModel.displayMilliseconds))
-                                                .font(.system(size: timerTextFontSize(for: geometry.size), weight: .regular, design: .rounded))
-                                                .monospacedDigit()
-                                                .foregroundStyle(AppColors.textPrimary)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.72)
-                                                .frame(width: timerTextWidth(for: geometry.size), alignment: .center)
-                                            Text(viewModel.isRunning ? "記録中" : "待機中")
-                                                .font(.system(size: 20, weight: .bold))
-                                                .foregroundStyle(viewModel.isRunning ? AppColors.success : AppColors.textSecondary)
-                                            Text(viewModel.mode == .timer ? "カウントダウン" : "記録中")
-                                                .font(.system(size: 13, weight: .medium))
-                                                .foregroundStyle(AppColors.textSecondary)
+                                    VStack(spacing: 14) {
+                                        ZStack {
+                                            ProgressRing(
+                                                progress: timerProgress,
+                                                size: timerRingSize(for: geometry.size),
+                                                lineWidth: 12,
+                                                ringColor: viewModel.isRunning ? ambientTheme.accent : Color.secondary.opacity(0.42),
+                                                trackColor: ambientTheme.ringTrack,
+                                                showPercentage: false
+                                            )
+                                            .scaleEffect(ringScale)
+
+                                            VStack(spacing: 5) {
+                                                Text(viewModel.isRunning ? "記録中" : "待機中")
+                                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                                    .foregroundStyle(viewModel.isRunning ? ambientTheme.accent : AppColors.textSecondary)
+                                                Text(durationString(milliseconds: viewModel.displayMilliseconds))
+                                                    .font(.system(size: timerTextFontSize(for: geometry.size), weight: .regular, design: .rounded))
+                                                    .monospacedDigit()
+                                                    .foregroundStyle(AppColors.textPrimary)
+                                                    .lineLimit(1)
+                                                    .minimumScaleFactor(0.72)
+                                                    .frame(width: timerTextWidth(for: geometry.size), alignment: .center)
+                                                Text(targetEndText)
+                                                    .font(.system(size: 13, weight: .medium))
+                                                    .foregroundStyle(AppColors.textSecondary)
+                                                    .lineLimit(1)
+                                                    .minimumScaleFactor(0.82)
+                                            }
+                                            .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
                                         }
-                                        .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
+
+                                        controlButtonsSection
+                                            .padding(.horizontal, 8)
                                     }
-
-                                    controlButtonsSection
-                                        .padding(.horizontal, 46)
-                                }
-                                .onChange(of: viewModel.isRunning) { running in
-                                    if running {
-                                        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                                            ringScale = 1.02
-                                        }
-                                    } else {
-                                        withAnimation(.easeOut(duration: 0.3)) {
-                                            ringScale = 1.0
+                                    .onChange(of: viewModel.isRunning) { running in
+                                        if running {
+                                            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                                                ringScale = 1.02
+                                            }
+                                        } else {
+                                            withAnimation(.easeOut(duration: 0.3)) {
+                                                ringScale = 1.0
+                                            }
                                         }
                                     }
                                 }
+                                .strictCard(padding: 12)
+
+                                timerProblemProgressSection
                             }
-                            .strictCard(padding: 12)
-
-                            timerProblemProgressSection
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 10)
+                            .padding(.top, 10)
+                            .padding(.bottom, 88)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 10)
-                        .padding(.top, 10)
-                        .padding(.bottom, 88)
-                    }
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        VStack(spacing: 0) {
-                            manualEntryButton
-                                .padding(.horizontal, 10)
-                                .padding(.top, 10)
-                                .padding(.bottom, 10)
-                            Divider()
+                        .safeAreaInset(edge: .bottom, spacing: 0) {
+                            VStack(spacing: 0) {
+                                manualEntryButton
+                                    .padding(.horizontal, 10)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 10)
+                                Divider()
+                            }
+                            .background(ambientTheme.bottomBarBackground)
                         }
-                        .background(AppColors.subtleBackground)
                     }
+                    .environment(\.colorScheme, ambientTheme.colorScheme)
                 }
             }
             .toolbar(isLandscapeFocus ? .hidden : .visible, for: .navigationBar)
@@ -192,6 +204,9 @@ struct TimerScreen: View {
         }
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
+        }
+        .task(id: app.preferences.timerVisualMode) {
+            app.refreshTimerAmbient(reason: "timer-screen")
         }
         .onChange(of: viewModel.selectedSubjectId) { _ in
             viewModel.handleSubjectSelectionChange()
@@ -281,14 +296,8 @@ struct TimerScreen: View {
     }
 
     private var controlButtonsSection: some View {
-        HStack {
-            timerControlButton(
-                systemImage: viewModel.isRunning ? "pause.fill" : "play.fill",
-                color: AppColors.success,
-                action: {
-                    viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
-                }
-            )
+        HStack(spacing: 14) {
+            primaryTimerButton
 
             Spacer(minLength: 0)
 
@@ -301,6 +310,25 @@ struct TimerScreen: View {
             )
             .disabled(viewModel.displayMilliseconds == 0)
         }
+    }
+
+    private var primaryTimerButton: some View {
+        Button {
+            viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
+                    .font(.system(size: 20, weight: .bold))
+                Text(primaryTimerButtonLabel)
+                    .font(.system(size: 20, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 58)
+            .background(TimerAmbientTheme.make(context: app.timerAmbientContext).accent, in: Capsule())
+            .shadow(color: TimerAmbientTheme.make(context: app.timerAmbientContext).accent.opacity(0.32), radius: 10, x: 0, y: 5)
+        }
+        .buttonStyle(.plain)
     }
 
     private var timerModeSection: some View {
@@ -317,12 +345,12 @@ struct TimerScreen: View {
                         } label: {
                             Text("\(minutes)分")
                                 .font(.subheadline.bold())
-                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : AppColors.success)
+                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : TimerAmbientTheme.make(context: app.timerAmbientContext).accent)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
                                 .background(
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(viewModel.countdownMinutes == minutes ? AppColors.success : AppColors.greenSoft)
+                                        .fill(viewModel.countdownMinutes == minutes ? TimerAmbientTheme.make(context: app.timerAmbientContext).accent : TimerAmbientTheme.make(context: app.timerAmbientContext).accentSoft)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -340,7 +368,7 @@ struct TimerScreen: View {
         } label: {
             Text(title)
                 .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(viewModel.mode == mode ? AppColors.success : AppColors.textSecondary)
+                .foregroundStyle(viewModel.mode == mode ? TimerAmbientTheme.make(context: app.timerAmbientContext).accent : AppColors.textSecondary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 42)
                 .background(
@@ -349,7 +377,7 @@ struct TimerScreen: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(viewModel.mode == mode ? AppColors.success : Color.clear, lineWidth: 1.5)
+                        .stroke(viewModel.mode == mode ? TimerAmbientTheme.make(context: app.timerAmbientContext).accent : Color.clear, lineWidth: 1.5)
                 )
         }
         .buttonStyle(.plain)
@@ -368,8 +396,109 @@ struct TimerScreen: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(AppColors.blue, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(TimerAmbientTheme.make(context: app.timerAmbientContext).accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
+    }
+
+    private func ambientStatusHeader(theme: TimerAmbientTheme) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: app.timerAmbientContext.weatherCondition.systemImage)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(theme.accent)
+                .frame(width: 34, height: 34)
+                .background(theme.accent.opacity(0.14), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(app.timerAmbientContext.phase.title)の集中モード")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                Text(ambientStatusText)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            Spacer(minLength: 8)
+            Text(app.preferences.timerVisualMode.title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(theme.accent)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(theme.accent.opacity(0.12), in: Capsule())
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(theme.panelStroke, lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var quickSelectionSection: some View {
+        if !viewModel.subjects.isEmpty || !viewModel.recentMaterialPairs.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                if !viewModel.subjects.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.subjects.prefix(5)) { subject in
+                                quickChip(
+                                    title: subject.name,
+                                    systemImage: "circle.fill",
+                                    isSelected: viewModel.effectiveSelectedSubjectId == subject.id
+                                ) {
+                                    viewModel.selectedSubjectId = subject.id
+                                }
+                            }
+                        }
+                        .padding(.vertical, 1)
+                    }
+                }
+
+                if !viewModel.recentMaterialPairs.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        let pairs = Array(viewModel.recentMaterialPairs.prefix(4))
+                        HStack(spacing: 8) {
+                            ForEach(pairs.indices, id: \.self) { index in
+                                let pair = pairs[index]
+                                quickChip(
+                                    title: pair.0.name,
+                                    systemImage: "book",
+                                    isSelected: viewModel.selectedMaterialId == pair.0.id
+                                ) {
+                                    viewModel.selectedSubjectId = pair.1.id
+                                    viewModel.selectedMaterialId = pair.0.id
+                                }
+                            }
+                        }
+                        .padding(.vertical, 1)
+                    }
+                }
+            }
+        }
+    }
+
+    private func quickChip(title: String, systemImage: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        let theme = TimerAmbientTheme.make(context: app.timerAmbientContext)
+        return Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .bold))
+                Text(title)
+                    .font(.caption.weight(.bold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isSelected ? Color.white : theme.accent)
+            .padding(.horizontal, 11)
+            .frame(height: 34)
+            .background(isSelected ? theme.accent : theme.accent.opacity(0.12), in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(theme.accent.opacity(isSelected ? 0 : 0.30), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var timerProblemProgressSection: some View {
@@ -486,6 +615,30 @@ struct TimerScreen: View {
     private var timerProblemProgressTotalProblems: Int {
         selectedMaterialTotalProblems > 0 ? selectedMaterialTotalProblems : parseDraftInt(viewModel.timerProblemCountDraft)
     }
+
+    private var targetEndText: String {
+        if viewModel.mode == .timer, viewModel.displayMilliseconds > 0 {
+            let target = Date().addingTimeInterval(TimeInterval(viewModel.displayMilliseconds) / 1000)
+            return "目標終了 \(Self.hourMinuteFormatter.string(from: target))"
+        }
+        return viewModel.mode == .timer ? "カウントダウン" : "経過を記録中"
+    }
+
+    private var ambientStatusText: String {
+        let context = app.timerAmbientContext
+        let weather = context.weatherCondition.title
+        if let error = context.errorMessage, context.source == .clock {
+            return "\(context.source.title)で判定 ・ \(error)"
+        }
+        return "\(context.source.title)で判定 ・ \(weather)"
+    }
+
+    private static let hourMinuteFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 
     private func shouldShowLandscapeFocus(size: CGSize) -> Bool {
         viewModel.isRunning && size.width > size.height && size.height < 520
