@@ -49,7 +49,7 @@ struct CalendarScreen: View {
 
     private var calendarGridDays: [CalendarSummaryGridDay] {
         let maxMinutes = maxMonthStudyMinutes
-        visibleCalendarDates.map { date in
+        return visibleCalendarDates.map { date in
             let isCurrentMonth = calendar.component(.year, from: date) == displayYear &&
                 calendar.component(.month, from: date) == displayMonth
             let day = calendar.component(.day, from: date)
