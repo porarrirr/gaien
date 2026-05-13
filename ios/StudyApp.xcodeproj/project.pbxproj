@@ -53,7 +53,7 @@
 		A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */; };
 		A30000000000000000000080 /* TimerProblemValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000080 /* TimerProblemValidation.swift */; };
 		A30000000000000000000081 /* TimerAmbientModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000081 /* TimerAmbientModels.swift */; };
-		A10000000000000000000081 /* TimerAmbientResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* TimerAmbientResolver.swift */; };
+		A10000000000000000000099 /* TimerAmbientResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000099 /* TimerAmbientResolver.swift */; };
 		A10000000000000000000082 /* OpenMeteoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000082 /* OpenMeteoService.swift */; };
 		A10000000000000000000083 /* LocationWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000083 /* LocationWeatherService.swift */; };
 		A30000000000000000000082 /* TimerAmbientResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000082 /* TimerAmbientResolverTests.swift */; };
@@ -208,7 +208,7 @@
 		B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyWidgetSnapshotComputer.swift; sourceTree = "<group>"; };
 		B30000000000000000000080 /* TimerProblemValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidation.swift; sourceTree = "<group>"; };
 		B30000000000000000000081 /* TimerAmbientModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientModels.swift; sourceTree = "<group>"; };
-		B10000000000000000000081 /* TimerAmbientResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolver.swift; sourceTree = "<group>"; };
+		B10000000000000000000099 /* TimerAmbientResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolver.swift; sourceTree = "<group>"; };
 		B10000000000000000000082 /* OpenMeteoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoService.swift; sourceTree = "<group>"; };
 		B10000000000000000000083 /* LocationWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationWeatherService.swift; sourceTree = "<group>"; };
 		B30000000000000000000082 /* TimerAmbientResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolverTests.swift; sourceTree = "<group>"; };
@@ -614,7 +614,7 @@
 				B1000000000000000000003C /* CameraPermissionService.swift */,
 				B1000000000000000000004B /* ReminderCoordinator.swift */,
 				B1000000000000000000004C /* RepositoryFactory.swift */,
-				B10000000000000000000081 /* TimerAmbientResolver.swift */,
+				B10000000000000000000099 /* TimerAmbientResolver.swift */,
 				B10000000000000000000082 /* OpenMeteoService.swift */,
 				B10000000000000000000083 /* LocationWeatherService.swift */,
 			);
@@ -1008,7 +1008,7 @@
 				A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */,
 				A30000000000000000000080 /* TimerProblemValidation.swift in Sources */,
 				A30000000000000000000081 /* TimerAmbientModels.swift in Sources */,
-				A10000000000000000000081 /* TimerAmbientResolver.swift in Sources */,
+				A10000000000000000000099 /* TimerAmbientResolver.swift in Sources */,
 				A10000000000000000000082 /* OpenMeteoService.swift in Sources */,
 				A10000000000000000000083 /* LocationWeatherService.swift in Sources */,
 				A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */,
