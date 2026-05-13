@@ -13,6 +13,7 @@ enum TimerAmbientResolver {
             return TimerAmbientContext(
                 phase: mode.fixedPhase,
                 weatherCondition: snapshot?.condition ?? .unknown,
+                weatherCode: snapshot?.weatherCode,
                 source: .manual,
                 lastUpdatedAt: snapshot?.fetchedAt,
                 errorMessage: nil
@@ -22,6 +23,7 @@ enum TimerAmbientResolver {
             return TimerAmbientContext(
                 phase: automaticPhase(snapshot: snapshot, now: now),
                 weatherCondition: snapshot?.condition ?? .unknown,
+                weatherCode: snapshot?.weatherCode,
                 source: resolvedSource,
                 lastUpdatedAt: snapshot?.fetchedAt,
                 errorMessage: errorMessage
@@ -61,16 +63,36 @@ enum TimerAmbientResolver {
 
     static func weatherCondition(for code: Int) -> TimerWeatherCondition {
         switch code {
-        case 0, 1:
+        case 0:
             return .clear
-        case 2, 3, 45, 48:
-            return .cloudy
-        case 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82:
+        case 1:
+            return .mainlyClear
+        case 2:
+            return .partlyCloudy
+        case 3:
+            return .overcast
+        case 45, 48:
+            return .fog
+        case 51, 53, 55:
+            return .drizzle
+        case 56, 57:
+            return .freezingDrizzle
+        case 61, 63, 65:
             return .rain
-        case 71, 73, 75, 77, 85, 86:
+        case 66, 67:
+            return .freezingRain
+        case 71, 73, 75:
             return .snow
-        case 95, 96, 99:
-            return .thunder
+        case 77:
+            return .snowGrains
+        case 80, 81, 82:
+            return .rainShowers
+        case 85, 86:
+            return .snowShowers
+        case 95:
+            return .thunderstorm
+        case 96, 99:
+            return .thunderstormWithHail
         default:
             return .unknown
         }

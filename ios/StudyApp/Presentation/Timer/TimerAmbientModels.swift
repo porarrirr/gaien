@@ -17,19 +17,39 @@ enum TimerAmbientPhase: String, Codable, Equatable {
 
 enum TimerWeatherCondition: String, Codable, Equatable {
     case clear
-    case cloudy
+    case mainlyClear
+    case partlyCloudy
+    case overcast
+    case fog
+    case drizzle
+    case freezingDrizzle
     case rain
+    case freezingRain
     case snow
-    case thunder
+    case snowGrains
+    case rainShowers
+    case snowShowers
+    case thunderstorm
+    case thunderstormWithHail
     case unknown
 
     var title: String {
         switch self {
         case .clear: return "晴れ"
-        case .cloudy: return "くもり"
+        case .mainlyClear: return "ほぼ晴れ"
+        case .partlyCloudy: return "一部くもり"
+        case .overcast: return "くもり"
+        case .fog: return "霧"
+        case .drizzle: return "霧雨"
+        case .freezingDrizzle: return "着氷性の霧雨"
         case .rain: return "雨"
+        case .freezingRain: return "着氷性の雨"
         case .snow: return "雪"
-        case .thunder: return "雷"
+        case .snowGrains: return "細雪"
+        case .rainShowers: return "にわか雨"
+        case .snowShowers: return "にわか雪"
+        case .thunderstorm: return "雷雨"
+        case .thunderstormWithHail: return "雷雨とひょう"
         case .unknown: return "天気未取得"
         }
     }
@@ -37,10 +57,18 @@ enum TimerWeatherCondition: String, Codable, Equatable {
     var systemImage: String {
         switch self {
         case .clear: return "sun.max.fill"
-        case .cloudy: return "cloud.fill"
+        case .mainlyClear: return "sun.min.fill"
+        case .partlyCloudy: return "cloud.sun.fill"
+        case .overcast: return "cloud.fill"
+        case .fog: return "cloud.fog.fill"
+        case .drizzle: return "cloud.drizzle.fill"
+        case .freezingDrizzle: return "cloud.sleet.fill"
         case .rain: return "cloud.rain.fill"
-        case .snow: return "snowflake"
-        case .thunder: return "cloud.bolt.rain.fill"
+        case .freezingRain: return "cloud.sleet.fill"
+        case .snow, .snowGrains: return "snowflake"
+        case .rainShowers: return "cloud.heavyrain.fill"
+        case .snowShowers: return "cloud.snow.fill"
+        case .thunderstorm, .thunderstormWithHail: return "cloud.bolt.rain.fill"
         case .unknown: return "location.slash"
         }
     }
@@ -79,6 +107,7 @@ enum TimerAmbientSource: String, Equatable {
 struct TimerAmbientContext: Equatable {
     var phase: TimerAmbientPhase
     var weatherCondition: TimerWeatherCondition
+    var weatherCode: Int?
     var source: TimerAmbientSource
     var lastUpdatedAt: Date?
     var errorMessage: String?
@@ -87,6 +116,7 @@ struct TimerAmbientContext: Equatable {
         TimerAmbientContext(
             phase: TimerAmbientResolver.clockPhase(at: now),
             weatherCondition: .unknown,
+            weatherCode: nil,
             source: .clock,
             lastUpdatedAt: nil,
             errorMessage: nil
@@ -108,8 +138,10 @@ struct TimerAmbientTheme {
     let panelOverlay: Color
     let panelStroke: Color
     let bottomBarBackground: Color
+    let visualProfile: TimerWeatherVisualProfile
 
     static func make(context: TimerAmbientContext) -> TimerAmbientTheme {
+        let profile = TimerWeatherVisualProfile.make(context: context)
         switch context.phase {
         case .morning:
             return TimerAmbientTheme(
@@ -125,7 +157,8 @@ struct TimerAmbientTheme {
                 secondaryForeground: Color(hex: 0x54706C),
                 panelOverlay: Color.white.opacity(0.74),
                 panelStroke: Color.white.opacity(0.82),
-                bottomBarBackground: Color(hex: 0xF3FBF8).opacity(0.94)
+                bottomBarBackground: Color(hex: 0xF3FBF8).opacity(0.94),
+                visualProfile: profile
             )
         case .day:
             return TimerAmbientTheme(
@@ -141,7 +174,8 @@ struct TimerAmbientTheme {
                 secondaryForeground: Color(hex: 0x5C6976),
                 panelOverlay: Color.white.opacity(0.80),
                 panelStroke: Color.white.opacity(0.88),
-                bottomBarBackground: Color(hex: 0xF6FAFE).opacity(0.96)
+                bottomBarBackground: Color(hex: 0xF6FAFE).opacity(0.96),
+                visualProfile: profile
             )
         case .night:
             return TimerAmbientTheme(
@@ -157,8 +191,184 @@ struct TimerAmbientTheme {
                 secondaryForeground: Color.white.opacity(0.72),
                 panelOverlay: Color(hex: 0x07101F).opacity(0.70),
                 panelStroke: Color.white.opacity(0.12),
-                bottomBarBackground: Color(hex: 0x030A16).opacity(0.94)
+                bottomBarBackground: Color(hex: 0x030A16).opacity(0.94),
+                visualProfile: profile
             )
+        }
+    }
+}
+
+enum TimerWeatherBaseAsset: String, Equatable {
+    case clear = "TimerWeatherClear"
+    case partlyCloudy = "TimerWeatherPartlyCloudy"
+    case overcast = "TimerWeatherOvercast"
+    case fog = "TimerWeatherFog"
+    case rain = "TimerWeatherRain"
+    case snow = "TimerWeatherSnow"
+    case thunder = "TimerWeatherThunder"
+    case night = "TimerWeatherNight"
+}
+
+enum TimerWeatherPrecipitation: Equatable {
+    case none
+    case drizzle
+    case rain
+    case snow
+}
+
+struct TimerWeatherVisualProfile: Equatable {
+    let baseAsset: TimerWeatherBaseAsset
+    let precipitation: TimerWeatherPrecipitation
+    let intensity: Double
+    let cloudOpacity: Double
+    let fogOpacity: Double
+    let lightning: Bool
+
+    var assetName: String { baseAsset.rawValue }
+
+    static func make(context: TimerAmbientContext) -> TimerWeatherVisualProfile {
+        let condition = context.weatherCondition
+        let intensity = intensity(for: condition, code: context.weatherCode)
+        let nightBase = context.phase == .night
+
+        switch condition {
+        case .clear:
+            return TimerWeatherVisualProfile(
+                baseAsset: nightBase ? .night : .clear,
+                precipitation: .none,
+                intensity: intensity,
+                cloudOpacity: 0.10,
+                fogOpacity: 0,
+                lightning: false
+            )
+        case .mainlyClear:
+            return TimerWeatherVisualProfile(
+                baseAsset: nightBase ? .night : .clear,
+                precipitation: .none,
+                intensity: intensity,
+                cloudOpacity: 0.18,
+                fogOpacity: 0,
+                lightning: false
+            )
+        case .partlyCloudy:
+            return TimerWeatherVisualProfile(
+                baseAsset: nightBase ? .night : .partlyCloudy,
+                precipitation: .none,
+                intensity: intensity,
+                cloudOpacity: 0.42,
+                fogOpacity: 0,
+                lightning: false
+            )
+        case .overcast:
+            return TimerWeatherVisualProfile(
+                baseAsset: nightBase ? .night : .overcast,
+                precipitation: .none,
+                intensity: intensity,
+                cloudOpacity: 0.70,
+                fogOpacity: 0.05,
+                lightning: false
+            )
+        case .fog:
+            return TimerWeatherVisualProfile(
+                baseAsset: .fog,
+                precipitation: .none,
+                intensity: intensity,
+                cloudOpacity: 0.34,
+                fogOpacity: context.weatherCode == 48 ? 0.82 : 0.62,
+                lightning: false
+            )
+        case .drizzle, .freezingDrizzle:
+            return TimerWeatherVisualProfile(
+                baseAsset: .rain,
+                precipitation: .drizzle,
+                intensity: intensity,
+                cloudOpacity: 0.62,
+                fogOpacity: condition == .freezingDrizzle ? 0.34 : 0.16,
+                lightning: false
+            )
+        case .rain, .freezingRain:
+            return TimerWeatherVisualProfile(
+                baseAsset: .rain,
+                precipitation: .rain,
+                intensity: intensity,
+                cloudOpacity: 0.74,
+                fogOpacity: condition == .freezingRain ? 0.24 : 0.10,
+                lightning: false
+            )
+        case .rainShowers:
+            return TimerWeatherVisualProfile(
+                baseAsset: .rain,
+                precipitation: .rain,
+                intensity: intensity,
+                cloudOpacity: 0.66,
+                fogOpacity: 0.08,
+                lightning: false
+            )
+        case .snow, .snowGrains, .snowShowers:
+            return TimerWeatherVisualProfile(
+                baseAsset: .snow,
+                precipitation: .snow,
+                intensity: intensity,
+                cloudOpacity: 0.50,
+                fogOpacity: condition == .snowGrains ? 0.20 : 0.10,
+                lightning: false
+            )
+        case .thunderstorm, .thunderstormWithHail:
+            return TimerWeatherVisualProfile(
+                baseAsset: .thunder,
+                precipitation: .rain,
+                intensity: intensity,
+                cloudOpacity: 0.88,
+                fogOpacity: 0.10,
+                lightning: true
+            )
+        case .unknown:
+            return TimerWeatherVisualProfile(
+                baseAsset: nightBase ? .night : .partlyCloudy,
+                precipitation: .none,
+                intensity: 0.18,
+                cloudOpacity: 0.20,
+                fogOpacity: 0,
+                lightning: false
+            )
+        }
+    }
+
+    private static func intensity(for condition: TimerWeatherCondition, code: Int?) -> Double {
+        guard let code else {
+            return condition == .unknown ? 0.18 : 0.32
+        }
+
+        switch code {
+        case 0: return 0.08
+        case 1: return 0.16
+        case 2: return 0.34
+        case 3: return 0.54
+        case 45: return 0.58
+        case 48: return 0.76
+        case 51: return 0.24
+        case 53: return 0.34
+        case 55: return 0.46
+        case 56: return 0.36
+        case 57: return 0.54
+        case 61: return 0.42
+        case 63: return 0.58
+        case 65: return 0.76
+        case 66: return 0.52
+        case 67: return 0.72
+        case 71: return 0.38
+        case 73: return 0.54
+        case 75: return 0.72
+        case 77: return 0.30
+        case 80: return 0.50
+        case 81: return 0.66
+        case 82: return 0.86
+        case 85: return 0.56
+        case 86: return 0.76
+        case 95: return 0.72
+        case 96: return 0.84
+        case 99: return 0.94
+        default: return 0.18
         }
     }
 }
@@ -167,97 +377,242 @@ struct TimerAmbientBackgroundView: View {
     let theme: TimerAmbientTheme
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [theme.backgroundTop, theme.backgroundBottom],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+        TimelineView(.animation) { timeline in
+            GeometryReader { proxy in
+                let progress = timeline.date.timeIntervalSinceReferenceDate
+                let size = proxy.size
+                ZStack {
+                    Image(theme.visualProfile.assetName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
 
-            weatherTexture
-
-            if theme.phase == .night {
-                nightDetails
-            } else {
-                dayDetails
+                    phaseTint
+                    cloudLayer(size: size, progress: progress)
+                    fogLayer(size: size, progress: progress)
+                    precipitationLayer(size: size, progress: progress)
+                    lightningLayer(progress: progress)
+                    readabilityScrim
+                }
+                .frame(width: size.width, height: size.height)
             }
         }
         .ignoresSafeArea()
     }
 
     @ViewBuilder
-    private var weatherTexture: some View {
-        switch theme.weatherCondition {
-        case .rain:
-            VStack(spacing: 24) {
-                ForEach(0..<8, id: \.self) { index in
-                    HStack(spacing: 46) {
-                        ForEach(0..<6, id: \.self) { column in
-                            Capsule()
-                                .fill(theme.secondaryForeground.opacity(theme.phase == .night ? 0.12 : 0.18))
-                                .frame(width: 2, height: 16)
-                                .rotationEffect(.degrees(16))
-                                .offset(x: CGFloat((index + column) % 3) * 12)
-                        }
-                    }
-                }
-            }
-            .offset(y: -40)
-        case .snow:
-            VStack(spacing: 30) {
-                ForEach(0..<7, id: \.self) { index in
-                    HStack(spacing: 52) {
-                        ForEach(0..<5, id: \.self) { column in
-                            Circle()
-                                .fill(theme.foreground.opacity(theme.phase == .night ? 0.16 : 0.26))
-                                .frame(width: CGFloat(2 + ((index + column) % 3)), height: CGFloat(2 + ((index + column) % 3)))
-                        }
-                    }
-                }
-            }
-            .offset(y: -30)
-        default:
-            EmptyView()
+    private var phaseTint: some View {
+        switch theme.phase {
+        case .morning:
+            LinearGradient(
+                colors: [Color(hex: 0xFFF1D8).opacity(0.25), Color.clear, Color(hex: 0xA8E7FF).opacity(0.16)],
+                startPoint: .bottomLeading,
+                endPoint: .topTrailing
+            )
+        case .day:
+            LinearGradient(
+                colors: [Color.white.opacity(0.10), Color.clear, Color(hex: 0x68C7FF).opacity(0.10)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .night:
+            LinearGradient(
+                colors: [Color(hex: 0x020817).opacity(0.54), Color(hex: 0x07182E).opacity(0.36)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
     }
 
-    private var dayDetails: some View {
+    private func cloudLayer(size: CGSize, progress: TimeInterval) -> some View {
         ZStack {
-            Circle()
-                .fill(Color.white.opacity(0.38))
-                .frame(width: 190, height: 190)
-                .blur(radius: 12)
-                .offset(x: 130, y: -300)
-
-            ForEach(0..<3, id: \.self) { index in
+            ForEach(0..<5, id: \.self) { index in
+                let width = size.width * CGFloat(0.44 + Double(index % 3) * 0.10)
+                let offset = movingOffset(
+                    progress: progress,
+                    speed: 16 + Double(index * 4),
+                    span: size.width + width,
+                    seed: Double(index) * 71
+                )
                 Capsule()
-                    .fill(Color.white.opacity(0.34 - Double(index) * 0.06))
-                    .frame(width: 148 + CGFloat(index * 34), height: 28 + CGFloat(index * 3))
-                    .blur(radius: 5)
-                    .offset(x: CGFloat(index * 74 - 120), y: CGFloat(index * 82 - 160))
-            }
-        }
-    }
-
-    private var nightDetails: some View {
-        ZStack {
-            ForEach(0..<22, id: \.self) { index in
-                Circle()
-                    .fill(Color.white.opacity(index.isMultiple(of: 3) ? 0.55 : 0.28))
-                    .frame(width: index.isMultiple(of: 4) ? 3 : 2, height: index.isMultiple(of: 4) ? 3 : 2)
+                    .fill(Color.white.opacity(cloudOpacity(for: index)))
+                    .frame(width: width, height: 38 + CGFloat(index % 2) * 18)
+                    .blur(radius: 12 + CGFloat(index % 3) * 4)
                     .offset(
-                        x: CGFloat((index * 37) % 320) - 160,
-                        y: CGFloat((index * 53) % 360) - 300
+                        x: offset,
+                        y: CGFloat(index) * size.height * 0.13 - size.height * 0.34
                     )
             }
+        }
+        .opacity(theme.visualProfile.cloudOpacity)
+    }
 
-            VStack {
-                Spacer()
-                RoundedRectangle(cornerRadius: 90, style: .continuous)
-                    .fill(Color.black.opacity(0.34))
-                    .frame(height: 118)
-                    .offset(y: 52)
+    private func fogLayer(size: CGSize, progress: TimeInterval) -> some View {
+        ZStack {
+            ForEach(0..<4, id: \.self) { index in
+                let width = size.width * CGFloat(0.72 + Double(index) * 0.12)
+                Capsule()
+                    .fill(Color.white.opacity(0.22))
+                    .frame(width: width, height: 54 + CGFloat(index) * 10)
+                    .blur(radius: 20)
+                    .offset(
+                        x: movingOffset(progress: progress, speed: 9 + Double(index * 2), span: size.width + width, seed: Double(index) * 97),
+                        y: size.height * (0.08 + CGFloat(index) * 0.16)
+                    )
+            }
+        }
+        .opacity(theme.visualProfile.fogOpacity)
+    }
+
+    @ViewBuilder
+    private func precipitationLayer(size: CGSize, progress: TimeInterval) -> some View {
+        switch theme.visualProfile.precipitation {
+        case .none:
+            EmptyView()
+        case .drizzle:
+            RainParticleLayer(
+                size: size,
+                progress: progress,
+                count: particleCount(base: 22),
+                intensity: theme.visualProfile.intensity,
+                color: precipitationColor,
+                length: 12,
+                width: 1.2
+            )
+        case .rain:
+            RainParticleLayer(
+                size: size,
+                progress: progress,
+                count: particleCount(base: 34),
+                intensity: theme.visualProfile.intensity,
+                color: precipitationColor,
+                length: 18 + CGFloat(theme.visualProfile.intensity) * 12,
+                width: 1.6
+            )
+        case .snow:
+            SnowParticleLayer(
+                size: size,
+                progress: progress,
+                count: particleCount(base: 30),
+                intensity: theme.visualProfile.intensity,
+                color: precipitationColor
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func lightningLayer(progress: TimeInterval) -> some View {
+        if theme.visualProfile.lightning {
+            let flash = sin(progress * 2.7) > 0.985 || sin(progress * 1.4 + 1.1) > 0.992
+            Color.white
+                .opacity(flash ? 0.34 : 0)
+                .animation(.easeOut(duration: 0.12), value: flash)
+        }
+    }
+
+    private var readabilityScrim: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(theme.phase == .night ? 0.26 : 0.08),
+                    Color.clear,
+                    Color.black.opacity(theme.phase == .night ? 0.38 : 0.12)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            Color.white.opacity(theme.phase == .night ? 0 : 0.08)
+                .blendMode(.screen)
+        }
+    }
+
+    private var precipitationColor: Color {
+        theme.phase == .night ? Color.white.opacity(0.64) : Color.white.opacity(0.72)
+    }
+
+    private func cloudOpacity(for index: Int) -> Double {
+        max(0.08, 0.22 - Double(index) * 0.025)
+    }
+
+    private func particleCount(base: Int) -> Int {
+        base + Int(theme.visualProfile.intensity * 34)
+    }
+
+    private func movingOffset(progress: TimeInterval, speed: Double, span: CGFloat, seed: Double) -> CGFloat {
+        let cycle = (progress * speed + seed).truncatingRemainder(dividingBy: Double(span))
+        return CGFloat(cycle) - span / 2
+    }
+}
+
+private struct RainParticleLayer: View {
+    let size: CGSize
+    let progress: TimeInterval
+    let count: Int
+    let intensity: Double
+    let color: Color
+    let length: CGFloat
+    let width: CGFloat
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<count, id: \.self) { index in
+                Capsule()
+                    .fill(color.opacity(0.32 + intensity * 0.34))
+                    .frame(width: width, height: length)
+                    .rotationEffect(.degrees(14))
+                    .offset(x: xPosition(index), y: yPosition(index))
             }
         }
     }
+
+    private func xPosition(_ index: Int) -> CGFloat {
+        let raw = CGFloat((index * 47) % 101) / 100
+        return raw * (size.width + 90) - size.width / 2 - 45
+    }
+
+    private func yPosition(_ index: Int) -> CGFloat {
+        let speed = 180 + intensity * 260
+        let seed = Double((index * 83) % 127)
+        let cycle = (progress * speed + seed).truncatingRemainder(dividingBy: Double(size.height + 160))
+        return CGFloat(cycle) - size.height / 2 - 80
+    }
+}
+
+private struct SnowParticleLayer: View {
+    let size: CGSize
+    let progress: TimeInterval
+    let count: Int
+    let intensity: Double
+    let color: Color
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<count, id: \.self) { index in
+                Circle()
+                    .fill(color.opacity(0.42 + intensity * 0.28))
+                    .frame(width: flakeSize(index), height: flakeSize(index))
+                    .blur(radius: index.isMultiple(of: 5) ? 0.8 : 0)
+                    .offset(x: xPosition(index), y: yPosition(index))
+            }
+        }
+    }
+
+    private func flakeSize(_ index: Int) -> CGFloat {
+        CGFloat(2 + (index % 4))
+    }
+
+    private func xPosition(_ index: Int) -> CGFloat {
+        let raw = CGFloat((index * 43) % 101) / 100
+        let drift = sin(progress * 0.7 + Double(index)) * 18
+        return raw * (size.width + 70) - size.width / 2 - 35 + CGFloat(drift)
+    }
+
+    private func yPosition(_ index: Int) -> CGFloat {
+        let speed = 36 + intensity * 86
+        let seed = Double((index * 89) % 137)
+        let cycle = (progress * speed + seed).truncatingRemainder(dividingBy: Double(size.height + 120))
+        return CGFloat(cycle) - size.height / 2 - 60
+    }
+}
 }
