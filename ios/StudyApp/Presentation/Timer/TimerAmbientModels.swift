@@ -615,4 +615,3 @@ private struct SnowParticleLayer: View {
         return CGFloat(cycle) - size.height / 2 - 60
     }
 }
-}
