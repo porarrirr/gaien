@@ -11,6 +11,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private let persistence: PersistenceController
     private let preferencesRepository: UserDefaultsPreferencesRepository
     private let logger: AppLogger
+    private let currentFirebaseUserId: () -> String?
     private let lastSyncKey = "studyapp.sync.lastSyncAt"
     private let localSyncOwnerKey = "studyapp.sync.localOwnerUserId"
     /// Per-user delta cursor. Stored under
@@ -30,9 +31,11 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     /// can still see deletions on their next sync. 90 days is comfortably
     /// longer than typical offline usage while bounding storage.
     private static let tombstoneRetentionMillis: Int64 = 90 * 24 * 60 * 60 * 1000
+    private static let signInRequiredMessage = "同期するにはサインインが必要です"
     private static let alreadySyncingMessage = "同期はすでに実行中です。完了までお待ちください。"
     private static let accountSwitchMessage = "この端末のローカルデータは別の同期アカウントに紐づいています。全データを削除してから再度同期してください。"
     private static let destructiveSyncMessage = "同期により問題集の進捗履歴が大きく減少するため停止しました。自動バックアップを確認してください。"
+    private static let firestorePermissionMessage = "クラウド同期に失敗しました。Firestoreルールが未反映か、このアカウントに十分な権限がありません。"
 
     private lazy var deltaStore = FirestoreDeltaSyncStore(firestore: firestore, logger: logger)
 
@@ -47,13 +50,15 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         firestore: Firestore,
         persistence: PersistenceController,
         preferencesRepository: UserDefaultsPreferencesRepository,
-        logger: AppLogger
+        logger: AppLogger,
+        currentFirebaseUserId: @escaping () -> String? = { Auth.auth().currentUser?.uid }
     ) {
         self.authRepository = authRepository
         self.firestore = firestore
         self.persistence = persistence
         self.preferencesRepository = preferencesRepository
         self.logger = logger
+        self.currentFirebaseUserId = currentFirebaseUserId
         self.status = SyncStatus(
             isAuthenticated: authRepository.session != nil,
             email: authRepository.session?.email,
@@ -96,10 +101,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     }
 
     func syncNow() async throws {
-        guard let session = authRepository.session else {
-            logger.log(category: .sync, level: .warning, message: "syncNow rejected", details: "reason=unauthenticated")
-            throw ValidationError(message: "同期するにはサインインが必要です")
-        }
+        let session = try requireActiveSession(operation: "syncNow")
         try beginSyncOperation(named: "syncNow", session: session)
         logger.log(category: .sync, message: "syncNow started")
         defer {
@@ -210,17 +212,15 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             }
             throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
         } catch {
-            status.errorMessage = error.localizedDescription
+            let mapped = mapSyncFailure(error)
+            status.errorMessage = mapped.localizedDescription
             logger.log(category: .sync, level: .error, message: "syncNow failed", details: "uid=\(session.localId)", error: error)
-            throw error
+            throw mapped
         }
     }
 
     func importLocalDataToCloud() async throws {
-        guard let session = authRepository.session else {
-            logger.log(category: .sync, level: .warning, message: "importLocalDataToCloud rejected", details: "reason=unauthenticated")
-            throw ValidationError(message: "同期するにはサインインが必要です")
-        }
+        let session = try requireActiveSession(operation: "importLocalDataToCloud")
         try beginSyncOperation(named: "importLocalDataToCloud", session: session)
         logger.log(category: .sync, message: "importLocalDataToCloud started")
         defer {
@@ -275,9 +275,10 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             }
             throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
         } catch {
-            status.errorMessage = error.localizedDescription
+            let mapped = mapSyncFailure(error)
+            status.errorMessage = mapped.localizedDescription
             logger.log(category: .sync, level: .error, message: "importLocalDataToCloud failed", details: "uid=\(session.localId)", error: error)
-            throw error
+            throw mapped
         }
     }
 
@@ -330,47 +331,34 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         if UserDefaults.standard.bool(forKey: doneKey) {
             return
         }
-        do {
-            guard let legacyPayload = try await loadSnapshot(userId: session.localId) else {
-                // Nothing to migrate; record that we looked so we don't
-                // repeat this round-trip every sync.
-                UserDefaults.standard.set(true, forKey: doneKey)
-                return
-            }
-            logger.log(
-                category: .sync,
-                message: "Migrating legacy chunked snapshot to delta",
-                details: "payloadBytes=\(legacyPayload.lengthOfBytes(using: .utf8))"
-            )
-            let remote = try await SyncPayloadCodec.decode(legacyPayload)
-            try ensureRemoteCanMerge(remote)
-            let envelopes = SyncDeltaSerializer.decompose(remote)
-            if !envelopes.isEmpty {
-                try await deltaStore.writeEnvelopes(envelopes, userId: session.localId)
-            }
-            try await deltaStore.clearLegacyChunkedSnapshot(userId: session.localId)
-            let cursor = envelopes.map(\.updatedAt).max() ?? 0
-            // Keep cursor at 0 so the very next sync still fetches the
-            // envelopes we just wrote and merges them locally as well.
-            saveDeltaCursor(userId: session.localId, cursor: min(cursor, 0))
+        guard let legacyPayload = try await loadSnapshot(userId: session.localId) else {
+            // Nothing to migrate; record that we looked so we don't
+            // repeat this round-trip every sync.
             UserDefaults.standard.set(true, forKey: doneKey)
-            logger.log(
-                category: .sync,
-                message: "Legacy chunked snapshot migrated",
-                details: "envelopes=\(envelopes.count)"
-            )
-        } catch {
-            logger.log(
-                category: .sync,
-                level: .warning,
-                message: "Legacy chunked snapshot migration failed (continuing with delta)",
-                error: error
-            )
-            // Even if migration fails we proceed; subsequent writes still
-            // land on the delta collection, and the user's data stays
-            // safe because we never delete the legacy manifest on error.
-            UserDefaults.standard.set(true, forKey: doneKey)
+            return
         }
+        logger.log(
+            category: .sync,
+            message: "Migrating legacy chunked snapshot to delta",
+            details: "payloadBytes=\(legacyPayload.lengthOfBytes(using: .utf8))"
+        )
+        let remote = try await SyncPayloadCodec.decode(legacyPayload)
+        try ensureRemoteCanMerge(remote)
+        let envelopes = SyncDeltaSerializer.decompose(remote)
+        if !envelopes.isEmpty {
+            try await deltaStore.writeEnvelopes(envelopes, userId: session.localId)
+        }
+        try await deltaStore.clearLegacyChunkedSnapshot(userId: session.localId)
+        let cursor = envelopes.map(\.updatedAt).max() ?? 0
+        // Keep cursor at 0 so the very next sync still fetches the
+        // envelopes we just wrote and merges them locally as well.
+        saveDeltaCursor(userId: session.localId, cursor: min(cursor, 0))
+        UserDefaults.standard.set(true, forKey: doneKey)
+        logger.log(
+            category: .sync,
+            message: "Legacy chunked snapshot migrated",
+            details: "envelopes=\(envelopes.count)"
+        )
     }
 
     /// Persists the merged snapshot into Core Data. We intentionally reuse
@@ -400,6 +388,39 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
     private func endSyncOperation() {
         status.isSyncing = false
+    }
+
+    private func requireActiveSession(operation: String) throws -> AuthSession {
+        guard let session = authRepository.session else {
+            logger.log(category: .sync, level: .warning, message: "\(operation) rejected", details: "reason=unauthenticated")
+            throw ValidationError(message: Self.signInRequiredMessage)
+        }
+        guard currentFirebaseUserId() == session.localId else {
+            logger.log(
+                category: .sync,
+                level: .warning,
+                message: "\(operation) rejected",
+                details: "reason=firebase-auth-session-mismatch"
+            )
+            status.isAuthenticated = false
+            status.email = nil
+            throw ValidationError(message: Self.signInRequiredMessage)
+        }
+        return session
+    }
+
+    private func mapSyncFailure(_ error: Error) -> Error {
+        if isPermissionDenied(error) {
+            return ValidationError(message: Self.firestorePermissionMessage)
+        }
+        return error
+    }
+
+    private func isPermissionDenied(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return (nsError.code == 7 && nsError.domain.localizedCaseInsensitiveContains("firestore")) ||
+            error.localizedDescription.localizedCaseInsensitiveContains("permission_denied") ||
+            error.localizedDescription.localizedCaseInsensitiveContains("Missing or insufficient permissions")
     }
 
     private func ensureLocalSyncOwnership(session: AuthSession, local: AppData) throws {
