@@ -107,10 +107,12 @@ data class StudySession(
     val problemRangeText: String?
         get() {
             if (problemRecords.isNotEmpty()) {
-                val numbers = problemRecords.map { it.number }.sorted()
+                val numbers = problemRecords.map { it.number }.distinct().sorted()
                 val first = numbers.firstOrNull() ?: return null
                 val last = numbers.lastOrNull() ?: return null
-                return if (first == last) "${first}問" else "$first-${last}問"
+                val range = if (first == last) "${first}問" else "$first-${last}問"
+                val subQuestionCount = problemRecords.count { it.normalizedSubNumber != null }
+                return if (subQuestionCount > 0) "$range（小問${subQuestionCount}件）" else range
             }
             val start = problemStart ?: return null
             val end = problemEnd ?: return null

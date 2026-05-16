@@ -128,4 +128,24 @@ final class TimerProblemValidationTests: XCTestCase {
         let normalised = TimerProblemValidation.normalise(records: records, totalProblems: 0)
         XCTAssertEqual(normalised.count, 2)
     }
+
+    func test_normalise_keepsSubQuestionsAsSeparateRecords() {
+        let records = [
+            ProblemSessionRecord(number: 1, result: .correct),
+            ProblemSessionRecord(number: 1, result: .wrong, subNumber: "2"),
+            ProblemSessionRecord(number: 1, result: .correct, subNumber: "1")
+        ]
+        let normalised = TimerProblemValidation.normalise(records: records, totalProblems: 0)
+
+        XCTAssertEqual(normalised.map(\.stableKey), ["1", "1:1", "1:2"])
+    }
+
+    func test_problemSessionRecord_decodesOldMainProblemPayload() throws {
+        let data = #"[{"number":3,"result":"WRONG"}]"#.data(using: .utf8)!
+        let records = try JSONDecoder().decode([ProblemSessionRecord].self, from: data)
+
+        XCTAssertEqual(records.first?.number, 3)
+        XCTAssertEqual(records.first?.normalizedSubNumber, nil)
+        XCTAssertEqual(records.first?.result, .wrong)
+    }
 }

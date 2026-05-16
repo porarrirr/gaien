@@ -59,8 +59,17 @@ enum TimerProblemValidation {
         records: [ProblemSessionRecord],
         totalProblems: Int
     ) -> [ProblemSessionRecord] {
-        records
-            .filter { totalProblems <= 0 || $0.number <= totalProblems }
-            .sorted { $0.number < $1.number }
+        Array(
+            Dictionary(
+                grouping: records.filter { totalProblems <= 0 || $0.number <= totalProblems },
+                by: \.stableKey
+            )
+            .compactMap { $0.value.last }
+        )
+        .sorted { lhs, rhs in
+            lhs.number == rhs.number
+                ? (lhs.normalizedSubNumber ?? "") < (rhs.normalizedSubNumber ?? "")
+                : lhs.number < rhs.number
+        }
     }
 }

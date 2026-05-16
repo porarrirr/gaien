@@ -56,6 +56,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,6 +71,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.ProblemResult
+import com.studyapp.domain.model.ProblemSessionRecord
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.presentation.components.CircularProgressRing
@@ -271,6 +274,7 @@ fun TimerScreen(
     uiState.pendingSessionEvaluation?.let { evaluation ->
         SessionEvaluationSheet(
             session = evaluation.session,
+            initialProblemRecords = uiState.problemStates.toProblemSessionRecords(),
             onSave = { rating, note, problemRecords, problemStart, problemEnd, wrongCount ->
                 viewModel.savePendingSessionEvaluation(
                     rating = rating,
@@ -668,15 +672,25 @@ private fun ProblemProgressSection(
 @Composable
 private fun SessionEvaluationSheet(
     session: com.studyapp.domain.model.StudySession,
-    onSave: (rating: Int, note: String?, problemRecords: List<com.studyapp.domain.model.ProblemSessionRecord>, problemStart: Int?, problemEnd: Int?, wrongCount: Int?) -> Unit,
+    initialProblemRecords: List<ProblemSessionRecord>,
+    onSave: (rating: Int, note: String?, problemRecords: List<ProblemSessionRecord>, problemStart: Int?, problemEnd: Int?, wrongCount: Int?) -> Unit,
     onCancel: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var rating by remember { mutableStateOf(session.rating ?: 5) }
     var note by remember { mutableStateOf(session.note ?: "") }
-    var problemStart by remember { mutableStateOf(session.problemStart?.toString() ?: "") }
-    var problemEnd by remember { mutableStateOf(session.problemEnd?.toString() ?: "") }
-    var wrongCount by remember { mutableStateOf(session.wrongProblemCount?.toString() ?: "") }
+    val effectiveProblemRecords = remember(initialProblemRecords, session.problemRecords) {
+        session.problemRecords.ifEmpty { initialProblemRecords }
+    }
+    val subQuestionRecords = remember { mutableStateListOf<ProblemSessionRecord>() }
+    val recordedNumbers = (effectiveProblemRecords + subQuestionRecords).map { it.number }
+    var subQuestionNumber by remember { mutableStateOf("") }
+    var subQuestionLabel by remember { mutableStateOf("") }
+    var subQuestionDetail by remember { mutableStateOf("") }
+    var subQuestionWrong by remember { mutableStateOf(false) }
+    var problemStart by remember { mutableStateOf(session.problemStart?.toString() ?: recordedNumbers.minOrNull()?.toString().orEmpty()) }
+    var problemEnd by remember { mutableStateOf(session.problemEnd?.toString() ?: recordedNumbers.maxOrNull()?.toString().orEmpty()) }
+    var wrongCount by remember { mutableStateOf(session.wrongProblemCount?.toString() ?: effectiveProblemRecords.count { it.result == ProblemResult.WRONG }.takeIf { effectiveProblemRecords.isNotEmpty() }?.toString().orEmpty()) }
 
     ModalBottomSheet(
         onDismissRequest = onCancel,
@@ -745,6 +759,13 @@ private fun SessionEvaluationSheet(
                     text = "問題進捗（任意）",
                     style = MaterialTheme.typography.labelLarge
                 )
+                if (effectiveProblemRecords.isNotEmpty()) {
+                    Text(
+                        text = "タイル入力から ${effectiveProblemRecords.size} 件を保存します",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -768,6 +789,80 @@ private fun SessionEvaluationSheet(
                         label = { Text("不正解") },
                         modifier = Modifier.weight(1f),
                         singleLine = true
+                    )
+                }
+
+                Text(
+                    text = "小問を追加",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = subQuestionNumber,
+                        onValueChange = { subQuestionNumber = it.filter { c -> c.isDigit() } },
+                        label = { Text("大問") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = subQuestionLabel,
+                        onValueChange = { subQuestionLabel = it },
+                        label = { Text("小問") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+                OutlinedTextField(
+                    value = subQuestionDetail,
+                    onValueChange = { subQuestionDetail = it },
+                    label = { Text("小問メモ（任意）") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !subQuestionWrong,
+                        onClick = { subQuestionWrong = false },
+                        label = { Text("正解") }
+                    )
+                    FilterChip(
+                        selected = subQuestionWrong,
+                        onClick = { subQuestionWrong = true },
+                        label = { Text("不正解") }
+                    )
+                    Button(
+                        onClick = {
+                            val number = subQuestionNumber.toIntOrNull()
+                            val subNumber = subQuestionLabel.trim().takeIf { it.isNotEmpty() }
+                            if (number != null && number > 0 && subNumber != null) {
+                                subQuestionRecords.removeAll { it.number == number && it.normalizedSubNumber == subNumber }
+                                subQuestionRecords.add(
+                                    ProblemSessionRecord(
+                                        number = number,
+                                        result = if (subQuestionWrong) ProblemResult.WRONG else ProblemResult.CORRECT,
+                                        detail = subQuestionDetail.trim().takeIf { it.isNotEmpty() },
+                                        subNumber = subNumber
+                                    )
+                                )
+                                subQuestionRecords.sortWith(compareBy<ProblemSessionRecord> { it.number }.thenBy { it.normalizedSubNumber ?: "" })
+                                if (problemStart.isBlank()) problemStart = number.toString()
+                                if (problemEnd.isBlank() || number > (problemEnd.toIntOrNull() ?: 0)) problemEnd = number.toString()
+                                if (subQuestionWrong) wrongCount = ((wrongCount.toIntOrNull() ?: 0) + 1).toString()
+                                subQuestionNumber = ""
+                                subQuestionLabel = ""
+                                subQuestionDetail = ""
+                            }
+                        }
+                    ) {
+                        Text("追加")
+                    }
+                }
+                if (subQuestionRecords.isNotEmpty()) {
+                    Text(
+                        text = subQuestionRecords.joinToString { "${it.displayNumber}:${it.result.title}" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -798,7 +893,7 @@ private fun SessionEvaluationSheet(
                         onSave(
                             rating,
                             note.takeIf { it.isNotBlank() },
-                            emptyList(),
+                            (effectiveProblemRecords + subQuestionRecords).distinctBy { it.stableKey },
                             problemStart.toIntOrNull(),
                             problemEnd.toIntOrNull(),
                             wrongCount.toIntOrNull()
@@ -813,3 +908,14 @@ private fun SessionEvaluationSheet(
         }
     }
 }
+
+
+private fun Map<Int, ProblemTileState>.toProblemSessionRecords(): List<ProblemSessionRecord> =
+    entries.mapNotNull { (number, state) ->
+        val result = when (state) {
+            ProblemTileState.CORRECT -> ProblemResult.CORRECT
+            ProblemTileState.WRONG -> ProblemResult.WRONG
+            ProblemTileState.UNTOUCHED -> return@mapNotNull null
+        }
+        ProblemSessionRecord(number = number, result = result)
+    }.sortedBy { it.number }

@@ -39,4 +39,22 @@ class StudySessionTest {
         assertEquals("3-4問", session.problemRangeText)
         assertEquals(1, session.effectiveWrongProblemCount)
     }
+
+    @Test
+    fun `problem summaries include sub question count without breaking main problem records`() {
+        val session = StudySession(
+            subjectId = 1,
+            startTime = 0,
+            endTime = 10_000,
+            problemRecords = listOf(
+                ProblemSessionRecord(number = 3, result = ProblemResult.CORRECT),
+                ProblemSessionRecord(number = 3, result = ProblemResult.WRONG, subNumber = "2"),
+                ProblemSessionRecord(number = 4, result = ProblemResult.CORRECT, subNumber = "1")
+            )
+        )
+
+        assertEquals("3-4問（小問2件）", session.problemRangeText)
+        assertEquals(1, session.effectiveWrongProblemCount)
+        assertEquals("3:2", session.problemRecords[1].stableKey)
+    }
 }

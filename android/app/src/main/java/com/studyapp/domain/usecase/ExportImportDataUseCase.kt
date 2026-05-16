@@ -209,16 +209,25 @@ private fun JSONObject.toProblemChapter() = ProblemChapter(
 private fun ProblemSessionRecord.toJson() = JSONObject().apply {
     put("number", number); put("result", result.name); put("isWrong", isWrong)
     detail?.let { put("detail", it) }
+    normalizedSubNumber?.let { put("subNumber", it) }
 }
 
 private fun JSONObject.toProblemSessionRecord(): ProblemSessionRecord? {
     val number = optInt("number")
     if (number == 0) return null
     val resultStr = optString("result", "CORRECT")
-    val result = try { ProblemResult.valueOf(resultStr) } catch (_: Exception) {
-        if (optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT
+    val result = when (resultStr) {
+        "CORRECT", "correct" -> ProblemResult.CORRECT
+        "WRONG", "wrong" -> ProblemResult.WRONG
+        "REVIEW_CORRECT", "reviewCorrect" -> ProblemResult.REVIEW_CORRECT
+        else -> if (optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT
     }
-    return ProblemSessionRecord(number = number, result = result, detail = optString("detail").takeIf { it.isNotEmpty() })
+    return ProblemSessionRecord(
+        number = number,
+        result = result,
+        detail = optString("detail").takeIf { it.isNotEmpty() },
+        subNumber = optString("subNumber").takeIf { it.isNotEmpty() }
+    )
 }
 
 private fun StudySession.toJson() = JSONObject().apply {
@@ -797,7 +806,7 @@ private fun MaterialEntity.toDomain() = Material(
         try { JSONArray(json).let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let { obj -> ProblemChapter(id = obj.optString("id", ""), title = obj.optString("title", "章"), problemCount = obj.optInt("problemCount", 0)) } } } } catch (_: Exception) { emptyList() }
     } ?: emptyList(),
     problemRecords = problemRecordsJson?.let { json ->
-        try { JSONArray(json).let { arr -> (0 until arr.length()).mapNotNull { obj -> obj?.let { val o = arr.optJSONObject(it); ProblemSessionRecord(number = o.optInt("number"), result = try { ProblemResult.valueOf(o.optString("result", "CORRECT")) } catch (_: Exception) { if (o.optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT }, detail = o.optString("detail").takeIf { s -> s.isNotEmpty() }) } } } } catch (_: Exception) { emptyList() }
+        try { JSONArray(json).let { arr -> (0 until arr.length()).mapNotNull { obj -> obj?.let { val o = arr.optJSONObject(it); ProblemSessionRecord(number = o.optInt("number"), result = when (o.optString("result", "CORRECT")) { "CORRECT", "correct" -> ProblemResult.CORRECT; "WRONG", "wrong" -> ProblemResult.WRONG; "REVIEW_CORRECT", "reviewCorrect" -> ProblemResult.REVIEW_CORRECT; else -> if (o.optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT }, detail = o.optString("detail").takeIf { s -> s.isNotEmpty() }, subNumber = o.optString("subNumber").takeIf { s -> s.isNotEmpty() }) } } } } catch (_: Exception) { emptyList() }
     } ?: emptyList(),
     color = color, note = note, createdAt = createdAt, updatedAt = updatedAt,
     deletedAt = deletedAt, lastSyncedAt = lastSyncedAt
@@ -816,7 +825,7 @@ private fun StudySessionWithNames.toDomain() = StudySession(
     problemStart = session.problemStart, problemEnd = session.problemEnd,
     wrongProblemCount = session.wrongProblemCount,
     problemRecords = session.problemRecordsJson?.let { json ->
-        try { JSONArray(json).let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let { o -> ProblemSessionRecord(number = o.optInt("number"), result = try { ProblemResult.valueOf(o.optString("result", "CORRECT")) } catch (_: Exception) { if (o.optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT }, detail = o.optString("detail").takeIf { s -> s.isNotEmpty() }) } } } } catch (_: Exception) { emptyList() }
+        try { JSONArray(json).let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let { o -> ProblemSessionRecord(number = o.optInt("number"), result = when (o.optString("result", "CORRECT")) { "CORRECT", "correct" -> ProblemResult.CORRECT; "WRONG", "wrong" -> ProblemResult.WRONG; "REVIEW_CORRECT", "reviewCorrect" -> ProblemResult.REVIEW_CORRECT; else -> if (o.optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT }, detail = o.optString("detail").takeIf { s -> s.isNotEmpty() }, subNumber = o.optString("subNumber").takeIf { s -> s.isNotEmpty() }) } } } } catch (_: Exception) { emptyList() }
     } ?: emptyList(),
     createdAt = session.createdAt, updatedAt = session.updatedAt,
     deletedAt = session.deletedAt, lastSyncedAt = session.lastSyncedAt

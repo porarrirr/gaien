@@ -421,9 +421,17 @@ private struct HistorySessionCardNew: View {
     private func problemResultLine(title: String, color: Color, result: ProblemResult) -> some View {
         let numbers = session.problemRecords
             .filter { $0.result == result }
-            .map(\.number)
-            .sorted()
-            .map { problemChapters.label(for: $0) }
+            .sorted { lhs, rhs in
+                lhs.number == rhs.number
+                    ? (lhs.normalizedSubNumber ?? "") < (rhs.normalizedSubNumber ?? "")
+                    : lhs.number < rhs.number
+            }
+            .map { record in
+                if let subNumber = record.normalizedSubNumber {
+                    return "\(problemChapters.label(for: record.number))(\(subNumber))"
+                }
+                return problemChapters.label(for: record.number)
+            }
         if !numbers.isEmpty {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(title)
@@ -457,9 +465,11 @@ private struct HistorySessionCardNew: View {
 
     private var problemRangeText: String {
         if !session.problemRecords.isEmpty {
-            let numbers = session.problemRecords.map(\.number).sorted()
+            let numbers = Array(Set(session.problemRecords.map(\.number))).sorted()
             guard let first = numbers.first, let last = numbers.last else { return "範囲未入力" }
-            return first == last ? problemChapters.label(for: first) : "\(problemChapters.label(for: first)) - \(problemChapters.label(for: last))"
+            let range = first == last ? problemChapters.label(for: first) : "\(problemChapters.label(for: first)) - \(problemChapters.label(for: last))"
+            let subQuestionCount = session.problemRecords.filter { $0.normalizedSubNumber != nil }.count
+            return subQuestionCount > 0 ? "\(range)（小問\(subQuestionCount)件）" : range
         }
         guard let start = session.problemStart, let end = session.problemEnd else { return session.problemRangeText ?? "範囲未入力" }
         return start == end ? problemChapters.label(for: start) : "\(problemChapters.label(for: start)) - \(problemChapters.label(for: end))"

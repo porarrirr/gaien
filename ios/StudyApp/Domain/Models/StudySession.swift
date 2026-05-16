@@ -106,9 +106,11 @@ struct StudySession: Identifiable, Codable, Hashable {
 
     var problemRangeText: String? {
         if !problemRecords.isEmpty {
-            let numbers = problemRecords.map(\.number).sorted()
+            let numbers = Array(Set(problemRecords.map(\.number))).sorted()
             guard let first = numbers.first, let last = numbers.last else { return nil }
-            return first == last ? "\(first)問" : "\(first)-\(last)問"
+            let range = first == last ? "\(first)問" : "\(first)-\(last)問"
+            let subQuestionCount = problemRecords.filter { $0.normalizedSubNumber != nil }.count
+            return subQuestionCount > 0 ? "\(range)（小問\(subQuestionCount)件）" : range
         }
         guard let problemStart, let problemEnd else { return nil }
         if problemStart == problemEnd {
