@@ -87,6 +87,49 @@ service cloud.firestore {
         data.payloadPart.size() <= 200000;
     }
 
+    function validDeltaKind(kind) {
+      return kind in [
+        "subject",
+        "material",
+        "session",
+        "goal",
+        "exam",
+        "plan",
+        "planItem",
+        "timetablePeriod",
+        "timetableEntry",
+        "timetableTerm",
+        "timetableReviewRecord",
+        "problemReviewRecord"
+      ];
+    }
+
+    function validDeltaTimestampOrNull(value) {
+      return value == null || isIntInRange(value, 0, 4102444800000);
+    }
+
+    function validDeltaEntity(data, docId) {
+      return data.keys().hasOnly([
+          "kind",
+          "syncId",
+          "updatedAt",
+          "deletedAt",
+          "serverUpdatedAt",
+          "json"
+        ]) &&
+        validDeltaKind(data.kind) &&
+        data.syncId is string &&
+        data.syncId.size() > 0 &&
+        data.syncId.size() <= 128 &&
+        docId == data.kind + "-" + data.syncId &&
+        isIntInRange(data.updatedAt, 0, 4102444800000) &&
+        validDeltaTimestampOrNull(data.deletedAt) &&
+        data.serverUpdatedAt == request.time &&
+        data.json is string &&
+        data.json.size() > 0 &&
+        data.json.size() <= 900000;
+    }
+
     match /users/{userId} {
       allow read: if isSignedInOwner(userId);
       allow write: if false;
@@ -115,6 +158,12 @@ service cloud.firestore {
           allow create, update: if isSignedInOwner(userId) &&
             validChunk(request.resource.data, chunkId);
         }
+      }
+
+      match /sync_entities/{entityId} {
+        allow read, delete: if isSignedInOwner(userId);
+        allow create, update: if isSignedInOwner(userId) &&
+          validDeltaEntity(request.resource.data, entityId);
       }
     }
   }

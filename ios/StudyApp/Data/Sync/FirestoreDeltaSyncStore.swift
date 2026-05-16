@@ -47,6 +47,11 @@ struct FirestoreDeltaSyncStore {
         guard !envelopes.isEmpty else { return }
 
         let collection = entitiesCollection(userId: userId)
+        logger.log(
+            category: .sync,
+            message: "Delta envelope write started",
+            details: "path=users/<uid>/sync_entities count=\(envelopes.count) batches=\((envelopes.count + maxBatchOperations - 1) / maxBatchOperations)"
+        )
         var operations: [(DocumentReference, [String: Any])] = []
         operations.reserveCapacity(envelopes.count)
         for envelope in envelopes {
@@ -69,7 +74,17 @@ struct FirestoreDeltaSyncStore {
             for operation in operations[index..<end] {
                 batch.setData(operation.1, forDocument: operation.0, merge: false)
             }
-            try await batch.commit()
+            do {
+                try await batch.commit()
+            } catch {
+                logFirestoreFailure(
+                    operation: "writeDeltaEnvelopes",
+                    userId: userId,
+                    details: "path=users/<uid>/sync_entities batchStart=\(index) batchEnd=\(end) total=\(operations.count)",
+                    error: error
+                )
+                throw error
+            }
             index = end
         }
 
@@ -94,12 +109,29 @@ struct FirestoreDeltaSyncStore {
         var results: [SyncEntityEnvelope] = []
         var lastSeen: Int64 = cursor
 
+        logger.log(
+            category: .sync,
+            message: "Delta envelope fetch started",
+            details: "path=users/<uid>/sync_entities cursor=\(cursor) pageSize=\(pageSize)"
+        )
+
         while true {
-            let snapshot = try await collection
-                .whereField("updatedAt", isGreaterThan: lastSeen)
-                .order(by: "updatedAt")
-                .limit(to: pageSize)
-                .getDocuments()
+            let snapshot: QuerySnapshot
+            do {
+                snapshot = try await collection
+                    .whereField("updatedAt", isGreaterThan: lastSeen)
+                    .order(by: "updatedAt")
+                    .limit(to: pageSize)
+                    .getDocuments()
+            } catch {
+                logFirestoreFailure(
+                    operation: "fetchDeltaEnvelopes",
+                    userId: userId,
+                    details: "path=users/<uid>/sync_entities cursor=\(cursor) lastSeen=\(lastSeen) pageSize=\(pageSize)",
+                    error: error
+                )
+                throw error
+            }
 
             if snapshot.documents.isEmpty {
                 break
@@ -144,10 +176,21 @@ struct FirestoreDeltaSyncStore {
     func purgeTombstonesOlderThan(retentionMillis: Int64, now: Int64, userId: String) async throws {
         let cutoff = now - retentionMillis
         let collection = entitiesCollection(userId: userId)
-        let snapshot = try await collection
-            .whereField("deletedAt", isLessThan: cutoff)
-            .limit(to: 500)
-            .getDocuments()
+        let snapshot: QuerySnapshot
+        do {
+            snapshot = try await collection
+                .whereField("deletedAt", isLessThan: cutoff)
+                .limit(to: 500)
+                .getDocuments()
+        } catch {
+            logFirestoreFailure(
+                operation: "fetchDeltaTombstonesForPurge",
+                userId: userId,
+                details: "path=users/<uid>/sync_entities cutoff=\(cutoff)",
+                error: error
+            )
+            throw error
+        }
         guard !snapshot.documents.isEmpty else { return }
 
         var index = 0
@@ -157,7 +200,17 @@ struct FirestoreDeltaSyncStore {
             for document in snapshot.documents[index..<end] {
                 batch.deleteDocument(document.reference)
             }
-            try await batch.commit()
+            do {
+                try await batch.commit()
+            } catch {
+                logFirestoreFailure(
+                    operation: "purgeDeltaTombstones",
+                    userId: userId,
+                    details: "path=users/<uid>/sync_entities batchStart=\(index) batchEnd=\(end) total=\(snapshot.documents.count)",
+                    error: error
+                )
+                throw error
+            }
             index = end
         }
         logger.log(
@@ -219,6 +272,20 @@ struct FirestoreDeltaSyncStore {
             updatedAt: updatedAt,
             deletedAt: deletedAt,
             json: json
+        )
+    }
+
+    private func logFirestoreFailure(operation: String, userId: String, details: String, error: Error) {
+        let nsError = error as NSError
+        let permissionHint = error.localizedDescription.localizedCaseInsensitiveContains("permission")
+            ? " hint=verify Firestore rules for users/{uid}/sync_entities and authenticated uid ownership"
+            : ""
+        logger.log(
+            category: .sync,
+            level: .error,
+            message: "Firestore delta operation failed",
+            details: "operation=\(operation) uid=\(userId) \(details) nsDomain=\(nsError.domain) nsCode=\(nsError.code)\(permissionHint)",
+            error: error
         )
     }
 
