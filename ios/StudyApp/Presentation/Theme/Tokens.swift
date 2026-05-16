@@ -59,8 +59,12 @@ enum AppColors {
     }
     static let groupedBackground = Color(hex: 0xF4F5F7)
     static let cardBorder = Color(hex: 0xE3E5EA)
-    static let green = Color(hex: 0x2BA247)
-    static let greenSoft = Color(hex: 0xEAF8EF)
+    static var green: Color {
+        Color.accentColor
+    }
+    static var greenSoft: Color {
+        Color.accentColor.opacity(0.12)
+    }
     static let blue = Color(hex: 0x1D7FEA)
     static let blueSoft = Color(hex: 0xEAF3FF)
     static let orange = Color(hex: 0xF59E0B)
@@ -72,7 +76,9 @@ enum AppColors {
     static var textSecondary: Color {
         Color(.secondaryLabel)
     }
-    static let success = Color(hex: 0x2E9D45)
+    static var success: Color {
+        Color.accentColor
+    }
     static let warning = Color(hex: 0xF59E0B)
     static let danger = Color(hex: 0xE53935)
 }

@@ -25,6 +25,7 @@ struct RootView: View {
             }
         }
         .preferredColorScheme(app.preferences.selectedThemeMode.colorScheme)
+        .accentColor(app.preferences.selectedColorTheme.primaryColor)
         .tint(app.preferences.selectedColorTheme.primaryColor)
         .alert("エラー", isPresented: errorBinding) {
             Button("OK", role: .cancel) {
