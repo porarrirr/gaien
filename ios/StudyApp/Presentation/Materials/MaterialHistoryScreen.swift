@@ -733,7 +733,8 @@ struct MaterialProblemProgressSnapshot {
                     ProblemHistoryEntry(
                         date: session.startDate,
                         result: record.result,
-                        detail: record.detail?.nilIfBlank
+                        detail: record.detail?.nilIfBlank,
+                        subNumber: record.normalizedSubNumber
                     )
                 )
             }
@@ -751,7 +752,8 @@ struct MaterialProblemProgressSnapshot {
                 ProblemHistoryEntry(
                     date: entryDate,
                     result: result,
-                    detail: nil
+                    detail: nil,
+                    subNumber: nil
                 )
             )
         }
@@ -1062,9 +1064,14 @@ struct ProblemHistoryEntry: Identifiable {
     let date: Date
     let result: ProblemResult
     let detail: String?
+    let subNumber: String?
 
     var id: String {
-        "\(date.timeIntervalSince1970)-\(result.rawValue)-\(detail ?? "")"
+        "\(date.timeIntervalSince1970)-\(result.rawValue)-\(subNumber ?? "")-\(detail ?? "")"
+    }
+
+    var subNumberLabel: String? {
+        subNumber.map { "小問(\($0))" }
     }
 }
 
@@ -1105,6 +1112,11 @@ struct MaterialProblemHistoryAccordion: View {
                     Text(entry.result.title)
                         .font(.caption2.bold())
                         .foregroundStyle(color(for: entry.result))
+                    if let subNumberLabel = entry.subNumberLabel {
+                        Text(subNumberLabel)
+                            .font(.caption2.bold())
+                            .foregroundStyle(AppColors.textPrimary)
+                    }
                     if let detail = entry.detail {
                         Text(detail)
                             .font(.caption2)

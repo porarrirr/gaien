@@ -8,6 +8,10 @@ struct TimerProblemProgressEditor: View {
     let materialProblemCount: Int
     let materialProblemChapters: [ProblemChapter]
     @State private var selectedSectionId = 0
+    @State private var editingSubQuestionNumber: Int?
+    @State private var editingSubQuestionStatus: TimerSubQuestionStatus = .correct
+    @State private var editingSubQuestionLabel = ""
+    @State private var editingSubQuestionDetail = ""
 
     private let columns = Array(repeating: GridItem(.flexible(minimum: 48), spacing: 8), count: 5)
 
@@ -55,6 +59,37 @@ struct TimerProblemProgressEditor: View {
         }
         .onAppear {
             clampSelectedSection()
+        }
+        .sheet(item: Binding(
+            get: { editingSubQuestionNumber.map(TimerSubQuestionEditTarget.init(number:)) },
+            set: { if $0 == nil { editingSubQuestionNumber = nil } }
+        )) { target in
+            NavigationStack {
+                Form {
+                    Text("大問: \(displayTitle(for: target.number))")
+                    TextField("小問（例: 1、(2)、a）", text: $editingSubQuestionLabel)
+                    Picker("状態", selection: $editingSubQuestionStatus) {
+                        Text("正解").tag(TimerSubQuestionStatus.correct)
+                        Text("不正解").tag(TimerSubQuestionStatus.wrong)
+                        Text("復習正解").tag(TimerSubQuestionStatus.reviewCorrect)
+                    }
+                    TextField("メモ（任意）", text: $editingSubQuestionDetail, axis: .vertical)
+                }
+                .navigationTitle("小問を記録")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("閉じる") { editingSubQuestionNumber = nil }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("保存") {
+                            saveSubQuestion(for: target.number)
+                            editingSubQuestionNumber = nil
+                        }
+                        .disabled(editingSubQuestionLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
         }
     }
 
@@ -159,11 +194,18 @@ struct TimerProblemProgressEditor: View {
                 }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(label)問目 \(records.first(where: { $0.number == globalNumber })?.result.title ?? "未解答")")
+        .onLongPressGesture(minimumDuration: 0.45) {
+            editingSubQuestionNumber = globalNumber
+            editingSubQuestionStatus = .correct
+            editingSubQuestionLabel = ""
+            editingSubQuestionDetail = ""
+        }
+        .accessibilityLabel("\(label)問目 \(displayRecord(for: globalNumber)?.result.title ?? "未解答")")
+        .accessibilityHint("タップで大問の状態を切り替え、長押しで小問を追加")
     }
 
     private func cycleRecord(_ number: Int) {
-        if let index = records.firstIndex(where: { $0.number == number }) {
+        if let index = records.firstIndex(where: { $0.number == number && $0.normalizedSubNumber == nil }) {
             switch records[index].result {
             case .correct:
                 records[index].result = .wrong
@@ -175,11 +217,52 @@ struct TimerProblemProgressEditor: View {
         } else {
             records.append(ProblemSessionRecord(number: number, result: .correct))
         }
-        records.sort { $0.number < $1.number }
+        sortRecords()
+    }
+
+    private func saveSubQuestion(for number: Int) {
+        let subNumber = editingSubQuestionLabel.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        guard let subNumber else { return }
+        let detail = editingSubQuestionDetail.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let record = ProblemSessionRecord(
+            number: number,
+            result: editingSubQuestionStatus.problemResult,
+            detail: detail,
+            subNumber: subNumber
+        )
+        records.removeAll { $0.stableKey == record.stableKey }
+        records.append(record)
+        sortRecords()
+    }
+
+    private func sortRecords() {
+        records.sort { lhs, rhs in
+            lhs.number == rhs.number
+                ? (lhs.normalizedSubNumber ?? "") < (rhs.normalizedSubNumber ?? "")
+                : lhs.number < rhs.number
+        }
+    }
+
+    private func displayRecord(for number: Int) -> ProblemSessionRecord? {
+        let matching = records.filter { $0.number == number }
+        if matching.contains(where: { $0.result == .wrong }) {
+            return ProblemSessionRecord(number: number, result: .wrong)
+        }
+        if matching.contains(where: { $0.result == .reviewCorrect }) {
+            return ProblemSessionRecord(number: number, result: .reviewCorrect)
+        }
+        if matching.contains(where: { $0.result == .correct }) {
+            return ProblemSessionRecord(number: number, result: .correct)
+        }
+        return nil
+    }
+
+    private func displayTitle(for number: Int) -> String {
+        materialProblemChapters.label(for: number)
     }
 
     private func tileBackground(for number: Int) -> Color {
-        guard let result = records.first(where: { $0.number == number })?.result else {
+        guard let result = displayRecord(for: number)?.result else {
             return AppColors.cardBackground
         }
         switch result {
@@ -190,7 +273,7 @@ struct TimerProblemProgressEditor: View {
     }
 
     private func tileForeground(for number: Int) -> Color {
-        guard let result = records.first(where: { $0.number == number })?.result else {
+        guard let result = displayRecord(for: number)?.result else {
             return AppColors.textPrimary
         }
         switch result {
@@ -201,7 +284,7 @@ struct TimerProblemProgressEditor: View {
     }
 
     private func tileBorder(for number: Int) -> Color {
-        guard let result = records.first(where: { $0.number == number })?.result else {
+        guard let result = displayRecord(for: number)?.result else {
             return Color(.systemGray5)
         }
         switch result {
@@ -287,3 +370,23 @@ private struct TimerProblemSection: Identifiable {
     }
 }
 
+
+
+private struct TimerSubQuestionEditTarget: Identifiable {
+    let number: Int
+    var id: Int { number }
+}
+
+private enum TimerSubQuestionStatus: Hashable {
+    case correct
+    case wrong
+    case reviewCorrect
+
+    var problemResult: ProblemResult {
+        switch self {
+        case .correct: return .correct
+        case .wrong: return .wrong
+        case .reviewCorrect: return .reviewCorrect
+        }
+    }
+}

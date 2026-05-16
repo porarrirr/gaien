@@ -7,6 +7,7 @@ struct ProblemTileSelector: View {
     @State private var editingNumber: Int?
     @State private var editingStatus: ProblemTileEditStatus = .untouched
     @State private var detailText = ""
+    @State private var subNumberText = ""
     @State private var selectedPageIndex = 0
 
     private let pageSize = 50
@@ -39,7 +40,9 @@ struct ProblemTileSelector: View {
                         Text("不正解").tag(ProblemTileEditStatus.wrong)
                         Text("復習正解").tag(ProblemTileEditStatus.reviewCorrect)
                     }
-                    TextField("大問・小問メモ（例: 大問2の(4)、計算ミス）", text: $detailText, axis: .vertical)
+                    TextField("小問（任意・例: 1、(2)、a）", text: $subNumberText)
+                        .keyboardType(.default)
+                    TextField("メモ（例: 計算ミス、解き直し必要）", text: $detailText, axis: .vertical)
                         .keyboardType(.default)
                 }
                 .navigationTitle(editingTitle(for: target.number))
@@ -211,16 +214,17 @@ struct ProblemTileSelector: View {
             number: globalNumber,
             label: localLabel,
             accessibilityPrefix: accessibilityPrefix,
-            record: records.first(where: { $0.number == globalNumber }),
+            record: displayRecord(for: globalNumber),
             onCorrectTap: { toggleCorrect(globalNumber) },
             onWrongTap: { setWrong(globalNumber) },
             onLongPress: {
-                let record = records.first(where: { $0.number == globalNumber })
+                let record = records.first { $0.number == globalNumber && $0.normalizedSubNumber == nil }
                 if let record {
                     editingStatus = record.result.editStatus
                 } else {
                     editingStatus = .untouched
                 }
+                subNumberText = ""
                 detailText = record?.detail ?? ""
                 editingNumber = globalNumber
             }
@@ -231,8 +235,22 @@ struct ProblemTileSelector: View {
         chapters.label(for: number)
     }
 
+    private func displayRecord(for number: Int) -> ProblemSessionRecord? {
+        let matching = records.filter { $0.number == number }
+        if matching.contains(where: { $0.result == .wrong }) {
+            return ProblemSessionRecord(number: number, result: .wrong)
+        }
+        if matching.contains(where: { $0.result == .reviewCorrect }) {
+            return ProblemSessionRecord(number: number, result: .reviewCorrect)
+        }
+        if matching.contains(where: { $0.result == .correct }) {
+            return ProblemSessionRecord(number: number, result: .correct)
+        }
+        return nil
+    }
+
     private func toggleCorrect(_ number: Int) {
-        if let index = records.firstIndex(where: { $0.number == number }) {
+        if let index = records.firstIndex(where: { $0.number == number && $0.normalizedSubNumber == nil }) {
             if records[index].result == .correct {
                 records.remove(at: index)
             } else {
@@ -241,30 +259,45 @@ struct ProblemTileSelector: View {
             return
         }
         records.append(ProblemSessionRecord(number: number, result: .correct))
-        records.sort { $0.number < $1.number }
+        records.sort { lhs, rhs in
+            lhs.number == rhs.number
+                ? (lhs.normalizedSubNumber ?? "") < (rhs.normalizedSubNumber ?? "")
+                : lhs.number < rhs.number
+        }
     }
 
     private func setWrong(_ number: Int) {
-        if let index = records.firstIndex(where: { $0.number == number }) {
+        if let index = records.firstIndex(where: { $0.number == number && $0.normalizedSubNumber == nil }) {
             records[index].result = .wrong
             return
         }
         records.append(ProblemSessionRecord(number: number, result: .wrong))
-        records.sort { $0.number < $1.number }
+        records.sort { lhs, rhs in
+            lhs.number == rhs.number
+                ? (lhs.normalizedSubNumber ?? "") < (rhs.normalizedSubNumber ?? "")
+                : lhs.number < rhs.number
+        }
     }
 
     private func saveEditedRecord(number: Int) {
-        let trimmed = detailText.trimmingCharacters(in: .whitespacesAndNewlines)
-        records.removeAll { $0.number == number }
+        let trimmedDetail = detailText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSubNumber = subNumberText.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let targetKey = ProblemSessionRecord(number: number, result: .correct, subNumber: trimmedSubNumber).stableKey
+        records.removeAll { $0.stableKey == targetKey }
         guard editingStatus != .untouched else { return }
         records.append(
             ProblemSessionRecord(
                 number: number,
                 result: editingStatus.problemResult ?? .correct,
-                detail: trimmed.isEmpty ? nil : trimmed
+                detail: trimmedDetail.isEmpty ? nil : trimmedDetail,
+                subNumber: trimmedSubNumber
             )
         )
-        records.sort { $0.number < $1.number }
+        records.sort { lhs, rhs in
+            lhs.number == rhs.number
+                ? (lhs.normalizedSubNumber ?? "") < (rhs.normalizedSubNumber ?? "")
+                : lhs.number < rhs.number
+        }
     }
 }
 

@@ -20,9 +20,13 @@ enum class ProblemResult {
 data class ProblemSessionRecord(
     val number: Int,
     val result: ProblemResult = ProblemResult.CORRECT,
-    val detail: String? = null
+    val detail: String? = null,
+    val subNumber: String? = null
 ) {
-    val id: Int get() = number
+    val normalizedSubNumber: String? get() = subNumber?.trim()?.takeIf { it.isNotEmpty() }
+    val stableKey: String get() = normalizedSubNumber?.let { "$number:$it" } ?: number.toString()
+    val id: String get() = stableKey
+    val displayNumber: String get() = normalizedSubNumber?.let { "${number}問($it)" } ?: "${number}問"
 
     var isWrong: Boolean
         get() = result == ProblemResult.WRONG

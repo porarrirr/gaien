@@ -246,16 +246,18 @@ class MaterialRepositoryImpl @Inject constructor(
                 for (index in 0 until jsonArray.length()) {
                     val item = jsonArray.optJSONObject(index) ?: continue
                     val resultStr = item.optString("result", "CORRECT")
-                    val result = try {
-                        ProblemResult.valueOf(resultStr)
-                    } catch (_: Exception) {
-                        if (item.optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT
+                    val result = when (resultStr) {
+                        "CORRECT", "correct" -> ProblemResult.CORRECT
+                        "WRONG", "wrong" -> ProblemResult.WRONG
+                        "REVIEW_CORRECT", "reviewCorrect" -> ProblemResult.REVIEW_CORRECT
+                        else -> if (item.optBoolean("isWrong", false)) ProblemResult.WRONG else ProblemResult.CORRECT
                     }
                     add(
                         ProblemSessionRecord(
                             number = item.optInt("number"),
                             result = result,
-                            detail = item.optString("detail", null)
+                            detail = item.optString("detail").takeIf { it.isNotEmpty() },
+                            subNumber = item.optString("subNumber").takeIf { it.isNotEmpty() }
                         )
                     )
                 }
@@ -274,6 +276,7 @@ class MaterialRepositoryImpl @Inject constructor(
                     put("result", record.result.name)
                     put("isWrong", record.isWrong)
                     record.detail?.let { put("detail", it) }
+                    record.normalizedSubNumber?.let { put("subNumber", it) }
                 }
             }
         ).toString()

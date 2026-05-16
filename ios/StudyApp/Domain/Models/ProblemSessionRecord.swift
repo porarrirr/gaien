@@ -32,22 +32,42 @@ struct ProblemSessionRecord: Identifiable, Codable, Hashable {
     var number: Int
     var result: ProblemResult
     var detail: String?
+    var subNumber: String?
 
-    var id: Int { number }
+    var normalizedSubNumber: String? {
+        subNumber?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+    }
+
+    var stableKey: String {
+        if let normalizedSubNumber {
+            return "\(number):\(normalizedSubNumber)"
+        }
+        return "\(number)"
+    }
+
+    var id: String { stableKey }
+
+    var displayNumber: String {
+        if let normalizedSubNumber {
+            return "\(number)問(\(normalizedSubNumber))"
+        }
+        return "\(number)問"
+    }
 
     var isWrong: Bool {
         get { result == .wrong }
         set { result = newValue ? .wrong : .correct }
     }
 
-    init(number: Int, result: ProblemResult, detail: String? = nil) {
+    init(number: Int, result: ProblemResult, detail: String? = nil, subNumber: String? = nil) {
         self.number = number
         self.result = result
         self.detail = detail
+        self.subNumber = subNumber?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
     }
 
-    init(number: Int, isWrong: Bool, detail: String? = nil) {
-        self.init(number: number, result: isWrong ? .wrong : .correct, detail: detail)
+    init(number: Int, isWrong: Bool, detail: String? = nil, subNumber: String? = nil) {
+        self.init(number: number, result: isWrong ? .wrong : .correct, detail: detail, subNumber: subNumber)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -55,14 +75,29 @@ struct ProblemSessionRecord: Identifiable, Codable, Hashable {
         case result
         case isWrong
         case detail
+        case subNumber
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         number = try container.decode(Int.self, forKey: .number)
-        result = try container.decodeIfPresent(ProblemResult.self, forKey: .result)
-            ?? ((try container.decodeIfPresent(Bool.self, forKey: .isWrong) ?? false) ? .wrong : .correct)
+        if let resultValue = try container.decodeIfPresent(String.self, forKey: .result) {
+            switch resultValue {
+            case ProblemResult.correct.rawValue, "CORRECT":
+                result = .correct
+            case ProblemResult.wrong.rawValue, "WRONG":
+                result = .wrong
+            case ProblemResult.reviewCorrect.rawValue, "REVIEW_CORRECT":
+                result = .reviewCorrect
+            default:
+                result = (try container.decodeIfPresent(Bool.self, forKey: .isWrong) ?? false) ? .wrong : .correct
+            }
+        } else {
+            result = (try container.decodeIfPresent(Bool.self, forKey: .isWrong) ?? false) ? .wrong : .correct
+        }
         detail = try container.decodeIfPresent(String.self, forKey: .detail)
+        subNumber = try container.decodeIfPresent(String.self, forKey: .subNumber)
+        subNumber = subNumber?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
     }
 
     func encode(to encoder: Encoder) throws {
@@ -71,5 +106,6 @@ struct ProblemSessionRecord: Identifiable, Codable, Hashable {
         try container.encode(result, forKey: .result)
         try container.encode(isWrong, forKey: .isWrong)
         try container.encodeIfPresent(detail, forKey: .detail)
+        try container.encodeIfPresent(normalizedSubNumber, forKey: .subNumber)
     }
 }
