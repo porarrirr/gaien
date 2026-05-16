@@ -68,20 +68,20 @@ struct TimerScreen: View {
                         TimerAmbientBackgroundView(theme: ambientTheme)
 
                         ScrollView(showsIndicators: false) {
-                            VStack(spacing: 10) {
+                            VStack(spacing: 12) {
                                 ambientStatusHeader(theme: ambientTheme)
-                                selectorSection
-                                quickSelectionSection
+                                selectorSection(theme: ambientTheme)
+                                quickSelectionSection(theme: ambientTheme)
 
                                 VStack(spacing: 12) {
-                                    timerModeSection
+                                    timerModeSection(theme: ambientTheme)
 
                                     VStack(spacing: 14) {
                                         ZStack {
                                             ProgressRing(
                                                 progress: timerProgress,
                                                 size: timerRingSize(for: geometry.size),
-                                                lineWidth: 12,
+                                                lineWidth: 13,
                                                 ringColor: viewModel.isRunning ? ambientTheme.accent : Color.secondary.opacity(0.42),
                                                 trackColor: ambientTheme.ringTrack,
                                                 showPercentage: false
@@ -108,8 +108,7 @@ struct TimerScreen: View {
                                             .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
                                         }
 
-                                        controlButtonsSection
-                                            .padding(.horizontal, 8)
+                                        controlButtonsSection(theme: ambientTheme)
                                     }
                                     .onChange(of: viewModel.isRunning) { running in
                                         if running {
@@ -123,19 +122,19 @@ struct TimerScreen: View {
                                         }
                                     }
                                 }
-                                .strictCard(padding: 12)
+                                .timerGlassPanel(theme: ambientTheme, padding: 12)
 
-                                timerProblemProgressSection
+                                timerProblemProgressSection(theme: ambientTheme)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 10)
-                            .padding(.top, 10)
-                            .padding(.bottom, 88)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 12)
+                            .padding(.bottom, 92)
                         }
                         .safeAreaInset(edge: .bottom, spacing: 0) {
                             VStack(spacing: 0) {
-                                manualEntryButton
-                                    .padding(.horizontal, 10)
+                                manualEntryButton(theme: ambientTheme)
+                                    .padding(.horizontal, 12)
                                     .padding(.top, 10)
                                     .padding(.bottom, 10)
                                 Divider()
@@ -227,9 +226,9 @@ struct TimerScreen: View {
         return min(Double(viewModel.elapsedMilliseconds) / targetMs, 1.0)
     }
 
-    private var selectorSection: some View {
+    private func selectorSection(theme: TimerAmbientTheme) -> some View {
         VStack(spacing: 0) {
-            selectionRow(icon: "circle.fill", title: "科目") {
+            selectionRow(icon: "circle.fill", title: "科目", tint: AppColors.blue) {
                 Menu {
                     if viewModel.subjects.isEmpty {
                         Text("科目を追加してください")
@@ -256,7 +255,7 @@ struct TimerScreen: View {
             }
             Divider()
 
-            selectionRow(icon: "book", title: "教材") {
+            selectionRow(icon: "book.closed", title: "教材", tint: theme.accent) {
                 Menu {
                     Button {
                         viewModel.selectedMaterialId = nil
@@ -288,21 +287,20 @@ struct TimerScreen: View {
                 .disabled(viewModel.effectiveSelectedSubjectId == nil)
             }
         }
-        .strictCard(padding: 0)
+        .timerGlassPanel(theme: theme, padding: 0)
     }
 
     private var primaryTimerButtonLabel: String {
         viewModel.isRunning ? "一時停止" : (viewModel.displayMilliseconds > 0 ? "再開" : "開始")
     }
 
-    private var controlButtonsSection: some View {
-        HStack(spacing: 14) {
-            primaryTimerButton
+    private func controlButtonsSection(theme: TimerAmbientTheme) -> some View {
+        HStack(spacing: 10) {
+            primaryTimerButton(theme: theme)
 
-            Spacer(minLength: 0)
-
-            timerControlButton(
+            stopTimerButton(
                 systemImage: "stop.fill",
+                title: "停止",
                 color: viewModel.displayMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3),
                 action: {
                     viewModel.stop()
@@ -312,7 +310,7 @@ struct TimerScreen: View {
         }
     }
 
-    private var primaryTimerButton: some View {
+    private func primaryTimerButton(theme: TimerAmbientTheme) -> some View {
         Button {
             viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
         } label: {
@@ -324,18 +322,18 @@ struct TimerScreen: View {
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .frame(height: 58)
-            .background(TimerAmbientTheme.make(context: app.timerAmbientContext).accent, in: Capsule())
-            .shadow(color: TimerAmbientTheme.make(context: app.timerAmbientContext).accent.opacity(0.32), radius: 10, x: 0, y: 5)
+            .frame(height: 56)
+            .background(theme.accent, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .shadow(color: theme.accent.opacity(0.26), radius: 10, x: 0, y: 6)
         }
         .buttonStyle(.plain)
     }
 
-    private var timerModeSection: some View {
+    private func timerModeSection(theme: TimerAmbientTheme) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack(spacing: AppSpacing.sm) {
-                timerModeButton(title: "ストップウォッチ", mode: .stopwatch)
-                timerModeButton(title: "タイマー", mode: .timer)
+                timerModeButton(title: "ストップウォッチ", mode: .stopwatch, theme: theme)
+                timerModeButton(title: "タイマー", mode: .timer, theme: theme)
             }
             if viewModel.mode == .timer {
                 HStack(spacing: AppSpacing.sm) {
@@ -345,12 +343,12 @@ struct TimerScreen: View {
                         } label: {
                             Text("\(minutes)分")
                                 .font(.subheadline.bold())
-                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : TimerAmbientTheme.make(context: app.timerAmbientContext).accent)
+                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : theme.accent)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(viewModel.countdownMinutes == minutes ? TimerAmbientTheme.make(context: app.timerAmbientContext).accent : TimerAmbientTheme.make(context: app.timerAmbientContext).accentSoft)
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(viewModel.countdownMinutes == minutes ? theme.accent : theme.accent.opacity(0.14))
                                 )
                         }
                         .buttonStyle(.plain)
@@ -362,29 +360,29 @@ struct TimerScreen: View {
         .padding(.bottom, 2)
     }
 
-    private func timerModeButton(title: String, mode: TimerSnapshot.Mode) -> some View {
+    private func timerModeButton(title: String, mode: TimerSnapshot.Mode, theme: TimerAmbientTheme) -> some View {
         Button {
             viewModel.setMode(mode)
         } label: {
             Text(title)
                 .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(viewModel.mode == mode ? TimerAmbientTheme.make(context: app.timerAmbientContext).accent : AppColors.textSecondary)
+                .foregroundStyle(viewModel.mode == mode ? Color.white : theme.secondaryForeground)
                 .frame(maxWidth: .infinity)
                 .frame(height: 42)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(viewModel.mode == mode ? AppColors.cardBackground : Color(.secondarySystemFill).opacity(0.72))
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(viewModel.mode == mode ? theme.accent : Color.white.opacity(theme.colorScheme == .dark ? 0.08 : 0.64))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(viewModel.mode == mode ? TimerAmbientTheme.make(context: app.timerAmbientContext).accent : Color.clear, lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(viewModel.mode == mode ? Color.white.opacity(0.22) : theme.panelStroke, lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
         .disabled(viewModel.isRunning)
     }
 
-    private var manualEntryButton: some View {
+    private func manualEntryButton(theme: TimerAmbientTheme) -> some View {
         Button {
             showManualEntry = true
         } label: {
@@ -395,8 +393,9 @@ struct TimerScreen: View {
             .font(.system(size: 17, weight: .bold))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(TimerAmbientTheme.make(context: app.timerAmbientContext).accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .frame(height: 54)
+            .background(Color(hex: 0x2563EB), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .shadow(color: Color.black.opacity(theme.colorScheme == .dark ? 0.28 : 0.12), radius: 12, x: 0, y: 6)
         }
     }
 
@@ -428,15 +427,15 @@ struct TimerScreen: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(theme.panelStroke, lineWidth: 1)
         }
     }
 
     @ViewBuilder
-    private var quickSelectionSection: some View {
+    private func quickSelectionSection(theme: TimerAmbientTheme) -> some View {
         if !viewModel.subjects.isEmpty || !viewModel.recentMaterialPairs.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 if !viewModel.subjects.isEmpty {
@@ -464,7 +463,7 @@ struct TimerScreen: View {
                                 let pair = pairs[index]
                                 quickChip(
                                     title: pair.0.name,
-                                    systemImage: "book",
+                                    systemImage: "book.closed",
                                     isSelected: viewModel.selectedMaterialId == pair.0.id
                                 ) {
                                     viewModel.selectedSubjectId = pair.1.id
@@ -491,17 +490,17 @@ struct TimerScreen: View {
             }
             .foregroundStyle(isSelected ? Color.white : theme.accent)
             .padding(.horizontal, 11)
-            .frame(height: 34)
-            .background(isSelected ? theme.accent : theme.accent.opacity(0.12), in: Capsule())
+            .frame(height: 32)
+            .background(isSelected ? theme.accent : theme.panelOverlay, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
-                Capsule()
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(theme.accent.opacity(isSelected ? 0 : 0.30), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
     }
 
-    private var timerProblemProgressSection: some View {
+    private func timerProblemProgressSection(theme: TimerAmbientTheme) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Text("問題進捗（仮）")
@@ -532,10 +531,10 @@ struct TimerScreen: View {
                     .font(.subheadline)
                     .foregroundStyle(AppColors.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, AppSpacing.xs)
+                    .padding(.vertical, AppSpacing.sm)
             }
         }
-        .strictCard(padding: 12)
+        .timerGlassPanel(theme: theme, padding: 12)
     }
 
     private var problemLegend: some View {
@@ -560,19 +559,27 @@ struct TimerScreen: View {
         }
     }
 
-    private func selectionRow<Content: View>(icon: String, title: String, @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 14) {
+    private func selectionRow<Content: View>(icon: String, title: String, tint: Color, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundStyle(title == "科目" ? AppColors.blue : AppColors.success)
-                .font(.system(size: title == "科目" ? 28 : 26, weight: .regular))
-                .frame(width: 36)
-            Text(title)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(AppColors.textPrimary)
+                .foregroundStyle(tint)
+                .font(.system(size: title == "科目" ? 18 : 20, weight: .semibold))
+                .frame(width: 36, height: 36)
+                .background(tint.opacity(0.13), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                Text(title == "科目" ? selectedSubjectText : selectedMaterialText)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
             content()
         }
-        .padding(.horizontal, 14)
-        .frame(height: 66)
+        .padding(.horizontal, 12)
+        .frame(height: 62)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
     }
@@ -645,17 +652,14 @@ struct TimerScreen: View {
     }
 
     private func selectionMenuLabel(text: String, isPlaceholder: Bool) -> some View {
-        HStack(spacing: AppSpacing.xs) {
-            Spacer(minLength: 8)
-            Text(text)
-                .foregroundStyle(isPlaceholder ? AppColors.textSecondary : AppColors.textPrimary)
-                .lineLimit(1)
-                .font(.system(size: 18, weight: .regular))
+        HStack(spacing: 6) {
+            Spacer(minLength: 4)
             Image(systemName: "chevron.right")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(AppColors.textSecondary)
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .trailing)
+        .contentShape(Rectangle())
     }
 
     private func timerRingSize(for size: CGSize) -> CGFloat {
@@ -673,20 +677,43 @@ struct TimerScreen: View {
         return min(max(ringSize * 0.22, 38), 46)
     }
 
-    private func timerControlButton(systemImage: String, color: Color, action: @escaping () -> Void) -> some View {
+    private func stopTimerButton(systemImage: String, title: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 58, height: 58)
-                .background(Circle().fill(color))
-                .overlay {
-                    Circle()
-                        .stroke(Color(.systemGray4), lineWidth: 1)
-                        .frame(width: 78, height: 78)
-                }
+            VStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 17, weight: .bold))
+                Text(title)
+                    .font(.system(size: 12, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .frame(width: 66, height: 56)
+            .background(color, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct TimerGlassPanelModifier: ViewModifier {
+    let theme: TimerAmbientTheme
+    let padding: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.panelOverlay, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(theme.panelStroke, lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(theme.colorScheme == .dark ? 0.18 : 0.08), radius: 14, x: 0, y: 8)
+    }
+}
+
+private extension View {
+    func timerGlassPanel(theme: TimerAmbientTheme, padding: CGFloat) -> some View {
+        modifier(TimerGlassPanelModifier(theme: theme, padding: padding))
     }
 }
 
