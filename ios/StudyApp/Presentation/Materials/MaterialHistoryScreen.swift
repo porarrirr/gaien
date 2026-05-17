@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MaterialHistoryScreen: View {
     @StateObject private var viewModel: MaterialHistoryViewModel
+    @State private var selectedTab: MaterialDetailTab = .history
 
     init(app: StudyAppContainer, materialId: Int64) {
         _viewModel = StateObject(wrappedValue: MaterialHistoryViewModel(app: app, materialId: materialId))
@@ -20,14 +21,18 @@ struct MaterialHistoryScreen: View {
                             sessionCount: viewModel.sessions.count,
                             sessions: viewModel.sessions
                         )
-                        MaterialProblemRecordSummaryCard(
-                            material: material,
-                            sessions: viewModel.sessions,
-                            reviewRecords: viewModel.problemReviewRecords,
-                            latestStudyDate: viewModel.latestStudyDate,
-                            totalMinutes: viewModel.totalMinutes
-                        )
-                        historyList
+                        detailTabPicker
+                        switch selectedTab {
+                        case .history:
+                            historyList
+                        case .problems:
+                            MaterialProblemProgressCard(
+                                totalProblems: material.effectiveTotalProblems,
+                                chapters: material.problemChapters,
+                                sessions: viewModel.sessions,
+                                reviewRecords: viewModel.problemReviewRecords
+                            )
+                        }
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
@@ -57,6 +62,16 @@ struct MaterialHistoryScreen: View {
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
         }
+    }
+
+    private var detailTabPicker: some View {
+        Picker("表示", selection: $selectedTab) {
+            ForEach(MaterialDetailTab.allCases) { tab in
+                Text(tab.title).tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("教材詳細の表示切り替え")
     }
 
     private var historyList: some View {
