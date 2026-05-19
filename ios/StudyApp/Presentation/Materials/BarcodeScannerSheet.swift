@@ -189,7 +189,7 @@ private struct BarcodeScannerHeader: View {
             TopRoundedRectangle(radius: 20)
                 .fill(
                     LinearGradient(
-                        colors: [Color(hex: 0xF8F9FB), Color(hex: 0xEEF1F5)],
+                        colors: [AppColors.cardBackground, AppColors.subtleBackground],
                         startPoint: .top,
                         endPoint: .bottom
                     )

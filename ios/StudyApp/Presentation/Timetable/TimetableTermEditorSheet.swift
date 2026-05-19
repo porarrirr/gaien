@@ -48,10 +48,10 @@ struct TimetableTermEditorSheet: View {
                     TimetableTermDateRow(title: "終了日", date: $endDate)
                 }
                 .padding(.horizontal, 18)
-                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                        .stroke(AppColors.cardBorder, lineWidth: 1)
                 }
 
                 Text("※ 終了日は学期の最終日を設定してください。")
@@ -98,10 +98,10 @@ struct TimetableTermEditorSheet: View {
                 .foregroundStyle(Color(.label))
                 .padding(.horizontal, 16)
                 .frame(height: 48)
-                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                        .stroke(AppColors.cardBorder, lineWidth: 1)
                 }
         }
         .frame(height: 73)
@@ -160,10 +160,10 @@ struct TimetableTermDateRow: View {
                 }
                 .padding(.horizontal, 16)
                 .frame(height: 48)
-                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                        .stroke(AppColors.cardBorder, lineWidth: 1)
                 }
 
                 DatePicker("", selection: $date, displayedComponents: .date)
@@ -179,9 +179,8 @@ struct TimetableTermDateRow: View {
 struct TimetableTermEditorDivider: View {
     var body: some View {
         Rectangle()
-            .fill(Color(hex: 0xDADDE3))
+            .fill(AppColors.cardBorder)
             .frame(height: 1)
             .padding(.leading, 74)
     }
 }
-

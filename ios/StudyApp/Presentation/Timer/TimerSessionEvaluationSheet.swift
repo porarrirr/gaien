@@ -25,7 +25,7 @@ struct SessionEvaluationSheet: View {
             .padding(.top, 16)
             .padding(.bottom, 22)
         }
-        .background(Color(hex: 0xF7F8FA))
+        .background(AppColors.subtleBackground)
         .navigationTitle("セッション評価")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -160,7 +160,7 @@ struct SessionEvaluationSheet: View {
                         .scrollContentBackground(.hidden)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(Color.white)
+                        .background(AppColors.cardBackground)
                     if note.isEmpty {
                         Text("メモを入力してください（任意）")
                             .font(.subheadline)
@@ -181,7 +181,7 @@ struct SessionEvaluationSheet: View {
                 .frame(height: 132)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color(hex: 0xCDD0D6), lineWidth: 1)
+                        .stroke(AppColors.cardBorder, lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
@@ -205,7 +205,7 @@ struct SessionEvaluationSheet: View {
                 }
             }
         }
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(AppColors.cardBorder, lineWidth: 1)
@@ -302,7 +302,7 @@ private struct NumericEvaluationRow: View {
                         .font(.title3.weight(.semibold))
                         .monospacedDigit()
                         .frame(width: 118, height: 44)
-                        .background(Color.white)
+                        .background(AppColors.cardBackground)
                 } else {
                     TextField("", text: $text)
                         .font(.title3.weight(.semibold))
@@ -310,7 +310,7 @@ private struct NumericEvaluationRow: View {
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.center)
                         .frame(width: 118, height: 44)
-                        .background(Color.white)
+                        .background(AppColors.cardBackground)
                 }
             }
             .overlay(
@@ -439,7 +439,7 @@ private struct EvaluationProblemTile: View {
     }
 
     private var background: Color {
-        guard let record else { return Color(hex: 0xF8F9FB) }
+        guard let record else { return AppColors.cardBackground }
         switch record.result {
         case .correct: return AppColors.greenSoft
         case .wrong: return AppColors.redSoft
@@ -466,7 +466,7 @@ private extension View {
         padding(.horizontal, 16)
             .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AppColors.cardBorder, lineWidth: 1)

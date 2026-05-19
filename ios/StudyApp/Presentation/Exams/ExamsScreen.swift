@@ -98,7 +98,7 @@ private struct ExamCard: View {
             VStack(alignment: .leading, spacing: 7) {
                 Text(exam.name)
                     .font(.system(size: 21, weight: .bold))
-                    .foregroundStyle(Color.black)
+                    .foregroundStyle(AppColors.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
 
@@ -110,12 +110,12 @@ private struct ExamCard: View {
                         .font(.system(size: 18, weight: .regular))
                         .lineLimit(1)
                 }
-                .foregroundStyle(Color(hex: 0x5F636D))
+                .foregroundStyle(AppColors.textSecondary)
 
                 if let note = exam.note, !note.isEmpty {
                     Text(note)
                         .font(.system(size: 17, weight: .regular))
-                        .foregroundStyle(Color(hex: 0x5F636D))
+                        .foregroundStyle(AppColors.textSecondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
                 }
@@ -143,10 +143,10 @@ private struct ExamCard: View {
         .padding(.trailing, 13)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(hex: 0xE4E5EA), lineWidth: 1)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
         }
         .shadow(color: Color.black.opacity(0.08), radius: 7, x: 0, y: 2)
         .contextMenu {

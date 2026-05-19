@@ -48,7 +48,7 @@ struct CreatePlanSheet: View {
             .padding(.bottom, 28)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color(hex: 0xF8F9FA).ignoresSafeArea())
+        .background(AppColors.subtleBackground.ignoresSafeArea())
         .navigationTitle("計画を作成")
         .navigationBarTitleDisplayMode(.inline)
         .presentationDragIndicator(.visible)

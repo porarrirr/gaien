@@ -25,7 +25,7 @@ struct GoalsScreen: View {
             .padding(.top, 18)
             .padding(.bottom, 28)
         }
-        .background(Color(hex: 0xF8F9FB).ignoresSafeArea())
+        .background(AppColors.subtleBackground.ignoresSafeArea())
         .navigationTitle("目標")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingDay) { day in
@@ -89,7 +89,7 @@ struct GoalsScreen: View {
                             .monospacedDigit()
                         Text("分 / \(todayTarget)分")
                             .font(.system(size: 27, weight: .regular))
-                            .foregroundStyle(Color(hex: 0x2F3138))
+                            .foregroundStyle(AppColors.textSecondary)
                     }
                     Text("今日の進捗")
                         .font(.system(size: 19, weight: .regular))
@@ -111,14 +111,14 @@ struct GoalsScreen: View {
 
                 if index < orderedWeekdays.count - 1 {
                     Divider()
-                        .background(Color(hex: 0xE4E6EA))
+                        .background(AppColors.cardBorder)
                 }
             }
         }
         .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
         }
     }
 
@@ -196,7 +196,7 @@ struct GoalsScreen: View {
                             .minimumScaleFactor(0.75)
                         Text("/ \(target > 0 ? Goal.format(minutes: target) : "未設定")")
                             .font(.system(size: 23, weight: .regular))
-                            .foregroundStyle(Color(hex: 0x2F3138))
+                            .foregroundStyle(AppColors.textSecondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                     }
@@ -204,7 +204,7 @@ struct GoalsScreen: View {
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
                             Capsule()
-                                .fill(Color(hex: 0xE0E0E0))
+                                .fill(AppColors.cardBorder.opacity(0.8))
                             Capsule()
                                 .fill(AppColors.success)
                                 .frame(width: geometry.size.width * min(max(progress, 0), 1))
@@ -244,7 +244,7 @@ struct GoalsScreen: View {
             size: size,
             lineWidth: lineWidth,
             ringColor: AppColors.success,
-            trackColor: Color(hex: 0xE9E9E9),
+            trackColor: AppColors.cardBorder.opacity(0.75),
             showPercentage: false
         )
         .overlay {
@@ -297,7 +297,7 @@ private struct GoalSurfaceModifier: ViewModifier {
             .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
             }
     }
 }

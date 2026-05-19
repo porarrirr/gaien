@@ -52,10 +52,10 @@ struct PlanItemEditorSheet: View {
                             .foregroundStyle(Color(hex: 0xFF3B30))
                             .frame(maxWidth: .infinity)
                             .frame(height: 60)
-                            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                                    .stroke(AppColors.cardBorder, lineWidth: 1)
                             }
                         }
                         .buttonStyle(.plain)
@@ -66,7 +66,7 @@ struct PlanItemEditorSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .background(AppColors.subtleBackground.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .presentationDragIndicator(.hidden)
         .tint(AppColors.green)
@@ -162,10 +162,10 @@ struct PlanItemEditorSheet: View {
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 15)
                     .frame(width: 142, height: 47)
-                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                            .stroke(AppColors.cardBorder, lineWidth: 1)
                     }
 
                 Text("分")
@@ -190,10 +190,10 @@ struct PlanItemEditorSheet: View {
                         .textFieldStyle(.plain)
                         .padding(.horizontal, 15)
                         .frame(width: 210, height: 47)
-                        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                                .stroke(AppColors.cardBorder, lineWidth: 1)
                         }
                 }
 
@@ -205,10 +205,10 @@ struct PlanItemEditorSheet: View {
             .frame(height: 103)
         }
         .padding(.horizontal, 18)
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
         }
     }
 
@@ -295,8 +295,7 @@ private struct PlanItemEditorMenuRow: View {
 private struct PlanItemEditorDivider: View {
     var body: some View {
         Rectangle()
-            .fill(Color(hex: 0xE4E5E8))
+            .fill(AppColors.cardBorder)
             .frame(height: 1)
     }
 }
-

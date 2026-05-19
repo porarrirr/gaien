@@ -55,7 +55,7 @@ struct PlanScreen: View {
                 )
             }
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .background(AppColors.subtleBackground.ignoresSafeArea())
         .navigationTitle("計画")
         .navigationBarTitleDisplayMode(.inline)
         .tint(AppColors.success)
@@ -182,7 +182,7 @@ private struct PlanHeaderCardNew: View {
                     size: 112,
                     lineWidth: 14,
                     ringColor: AppColors.success,
-                    trackColor: Color(hex: 0xE5E5E8),
+                    trackColor: AppColors.cardBorder.opacity(0.75),
                     showPercentage: false
                 )
                 .overlay {
@@ -325,10 +325,10 @@ private struct DayScheduleSectionNew: View {
         .padding(.top, 24)
         .padding(.bottom, 34)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(hex: 0xF8F9FA), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color(hex: 0xEAECF0), lineWidth: 1)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
         }
     }
 }
@@ -389,10 +389,10 @@ private struct PlanScheduleRow: View {
             .buttonStyle(.plain)
         }
         .frame(minHeight: 118)
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(hex: 0xE3E5EA), lineWidth: 1)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
         }
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
     }
@@ -409,10 +409,10 @@ private struct PlanSurfaceModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
             }
     }
 }
@@ -422,4 +422,3 @@ private extension View {
         modifier(PlanSurfaceModifier(cornerRadius: cornerRadius))
     }
 }
-

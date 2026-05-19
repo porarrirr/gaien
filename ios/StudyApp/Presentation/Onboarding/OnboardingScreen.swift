@@ -88,14 +88,14 @@ struct OnboardingScreen: View {
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
                 .font(.system(size: 25, weight: .semibold))
-                .foregroundStyle(Color(hex: 0x979AA0))
+                .foregroundStyle(Color(.tertiaryLabel))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 15)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color(hex: 0xE5E7EB), lineWidth: 1)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
         }
     }
 
@@ -133,7 +133,7 @@ struct OnboardingScreen: View {
 
             Text("学習を記録して、積み重ねを見える化")
                 .font(.system(size: 15.5, weight: .regular))
-                .foregroundStyle(Color(hex: 0x686B72))
+                .foregroundStyle(AppColors.textSecondary)
         }
     }
 
@@ -141,11 +141,11 @@ struct OnboardingScreen: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("はじめに設定しましょう")
                 .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(.black)
+                .foregroundStyle(AppColors.textPrimary)
 
             Text("最初にいくつか設定するだけで、すぐに学習記録を\n始められます。")
                 .font(.system(size: 14.5))
-                .foregroundStyle(Color(hex: 0x686B72))
+                .foregroundStyle(AppColors.textSecondary)
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -159,10 +159,10 @@ struct OnboardingScreen: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 21)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(Color(hex: 0xDDE1E6), lineWidth: 1)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
         }
     }
 
@@ -175,12 +175,12 @@ struct OnboardingScreen: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("データは端末内に保存されます")
                     .font(.system(size: 16.5, weight: .bold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(AppColors.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
                 Text("クラウド同期は後から設定できます（設定から）。")
                     .font(.system(size: 13.5))
-                    .foregroundStyle(Color(hex: 0x686B72))
+                    .foregroundStyle(AppColors.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
             }
@@ -189,10 +189,10 @@ struct OnboardingScreen: View {
 
             Image(systemName: "lock.fill")
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Color(hex: 0x9B9EA4))
+                .foregroundStyle(Color(.tertiaryLabel))
             Image(systemName: "chevron.right")
                 .font(.system(size: 21, weight: .semibold))
-                .foregroundStyle(Color(hex: 0x9B9EA4))
+                .foregroundStyle(Color(.tertiaryLabel))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
@@ -200,7 +200,7 @@ struct OnboardingScreen: View {
         .background(AppColors.greenSoft.opacity(0.66), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color(hex: 0xCFEBD5), lineWidth: 1)
+                .stroke(AppColors.success.opacity(0.18), lineWidth: 1)
         }
     }
 
@@ -243,7 +243,7 @@ struct OnboardingScreen: View {
 
             Text("すべての設定は後から変更できます")
                 .font(.system(size: 13))
-                .foregroundStyle(Color(hex: 0x686B72))
+                .foregroundStyle(AppColors.textSecondary)
                 .padding(.top, 7)
         }
         .padding(.horizontal, 8)
@@ -251,7 +251,7 @@ struct OnboardingScreen: View {
 
     private var onboardingBackground: some View {
         LinearGradient(
-            colors: [Color(hex: 0xF8F9FB), Color(hex: 0xFFFFFF), Color(hex: 0xF6F8FA)],
+            colors: [AppColors.subtleBackground, AppColors.cardBackground, AppColors.subtleBackground],
             startPoint: .top,
             endPoint: .bottom
         )

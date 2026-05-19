@@ -286,7 +286,7 @@ struct MaterialProblemInfoBox: View {
             Text("問題数は、章・節ごとの問題数の合計が適用されます。\n（現在の合計：\(total) 問）")
                 .font(.system(size: 15))
                 .lineSpacing(5)
-                .foregroundStyle(Color(hex: 0x576071))
+                .foregroundStyle(AppColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 14)
@@ -329,10 +329,10 @@ struct MaterialEditorTextField: View {
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 50)
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(Color(hex: 0xDADDE3), lineWidth: 1)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
         }
     }
 }
@@ -379,7 +379,7 @@ struct MaterialEditorCardModifier: ViewModifier {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(AppColors.cardBorder, lineWidth: 1)

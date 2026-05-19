@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Color utility
 
@@ -8,6 +11,25 @@ extension Color {
         let green = Double((hex >> 8) & 0xFF) / 255.0
         let blue = Double(hex & 0xFF) / 255.0
         self.init(.sRGB, red: red, green: green, blue: blue, opacity: opacity)
+    }
+
+    static func adaptive(light: Int, dark: Int, lightOpacity: Double = 1.0, darkOpacity: Double = 1.0) -> Color {
+        #if canImport(UIKit)
+        Color(
+            UIColor { traits in
+                let hex = traits.userInterfaceStyle == .dark ? dark : light
+                let opacity = traits.userInterfaceStyle == .dark ? darkOpacity : lightOpacity
+                return UIColor(
+                    red: CGFloat((hex >> 16) & 0xFF) / 255.0,
+                    green: CGFloat((hex >> 8) & 0xFF) / 255.0,
+                    blue: CGFloat(hex & 0xFF) / 255.0,
+                    alpha: opacity
+                )
+            }
+        )
+        #else
+        Color(hex: light, opacity: lightOpacity)
+        #endif
     }
 }
 
@@ -52,24 +74,38 @@ enum AppCornerRadius {
 
 enum AppColors {
     static var cardBackground: Color {
-        Color(.systemBackground)
+        Color(.secondarySystemGroupedBackground)
     }
     static var subtleBackground: Color {
-        Color(hex: 0xF4F5F7)
+        Color(.systemGroupedBackground)
     }
-    static let groupedBackground = Color(hex: 0xF4F5F7)
-    static let cardBorder = Color(hex: 0xE3E5EA)
+    static var groupedBackground: Color {
+        Color(.systemGroupedBackground)
+    }
+    static var cardBorder: Color {
+        Color.adaptive(light: 0xE3E5EA, dark: 0x383C43)
+    }
     static var green: Color {
         Color.accentColor
     }
     static var greenSoft: Color {
-        Color.accentColor.opacity(0.12)
+        Color.accentColor.opacity(0.16)
     }
-    static let blue = Color(hex: 0x1D7FEA)
-    static let blueSoft = Color(hex: 0xEAF3FF)
-    static let orange = Color(hex: 0xF59E0B)
-    static let orangeSoft = Color(hex: 0xFFF4D8)
-    static let redSoft = Color(hex: 0xFDECEC)
+    static var blue: Color {
+        Color.adaptive(light: 0x1D7FEA, dark: 0x5EADF2)
+    }
+    static var blueSoft: Color {
+        Color.adaptive(light: 0xEAF3FF, dark: 0x15324E)
+    }
+    static var orange: Color {
+        Color.adaptive(light: 0xF59E0B, dark: 0xFFB340)
+    }
+    static var orangeSoft: Color {
+        Color.adaptive(light: 0xFFF4D8, dark: 0x3E2B12)
+    }
+    static var redSoft: Color {
+        Color.adaptive(light: 0xFDECEC, dark: 0x3D1F20)
+    }
     static var textPrimary: Color {
         Color(.label)
     }
@@ -79,8 +115,12 @@ enum AppColors {
     static var success: Color {
         Color.accentColor
     }
-    static let warning = Color(hex: 0xF59E0B)
-    static let danger = Color(hex: 0xE53935)
+    static var warning: Color {
+        Color.adaptive(light: 0xF59E0B, dark: 0xFFB340)
+    }
+    static var danger: Color {
+        Color.adaptive(light: 0xE53935, dark: 0xFF6B64)
+    }
 }
 
 // MARK: - Strict (dense settings) layout tokens

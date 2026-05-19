@@ -42,7 +42,7 @@ struct CalendarSummaryDayCell: View {
 
     static func fillColor(level: Int) -> Color {
         let palette = [
-            Color(hex: 0xF8F9FA),
+            AppColors.cardBackground,
             Color(hex: 0xEAF6ED),
             Color(hex: 0xD5EEDB),
             Color(hex: 0xBFE6C8),
