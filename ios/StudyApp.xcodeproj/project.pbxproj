@@ -70,8 +70,8 @@
 		A10000000000000000000079 /* SyncPayloadCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000079 /* SyncPayloadCodec.swift */; };
 		A10000000000000000000080 /* SyncDeltaSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000080 /* SyncDeltaSerializer.swift */; };
 		A10000000000000000000081 /* FirestoreDeltaSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */; };
-		A10000000000000000000082 /* OpenMeteoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000082 /* OpenMeteoService.swift */; };
 		A10000000000000000000083 /* LocationWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000083 /* LocationWeatherService.swift */; };
+		A10000000000000000000084 /* WeatherKitWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000084 /* WeatherKitWeatherService.swift */; };
 		A10000000000000000000099 /* TimerAmbientResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000099 /* TimerAmbientResolver.swift */; };
 		A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StudyAppWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A20000000000000000000002 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
@@ -252,8 +252,8 @@
 		B10000000000000000000079 /* SyncPayloadCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncPayloadCodec.swift; path = Sync/SyncPayloadCodec.swift; sourceTree = "<group>"; };
 		B10000000000000000000080 /* SyncDeltaSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaSerializer.swift; path = Sync/SyncDeltaSerializer.swift; sourceTree = "<group>"; };
 		B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FirestoreDeltaSyncStore.swift; path = Sync/FirestoreDeltaSyncStore.swift; sourceTree = "<group>"; };
-		B10000000000000000000082 /* OpenMeteoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoService.swift; sourceTree = "<group>"; };
 		B10000000000000000000083 /* LocationWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationWeatherService.swift; sourceTree = "<group>"; };
+		B10000000000000000000084 /* WeatherKitWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitWeatherService.swift; sourceTree = "<group>"; };
 		B10000000000000000000099 /* TimerAmbientResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolver.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* StudyAppWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000002 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
@@ -483,7 +483,7 @@
 				B1000000000000000000004B /* ReminderCoordinator.swift */,
 				B1000000000000000000004C /* RepositoryFactory.swift */,
 				B10000000000000000000099 /* TimerAmbientResolver.swift */,
-				B10000000000000000000082 /* OpenMeteoService.swift */,
+				B10000000000000000000084 /* WeatherKitWeatherService.swift */,
 				B10000000000000000000083 /* LocationWeatherService.swift */,
 			);
 			path = Services;
@@ -972,7 +972,7 @@
 				A30000000000000000000080 /* TimerProblemValidation.swift in Sources */,
 				A30000000000000000000081 /* TimerAmbientModels.swift in Sources */,
 				A10000000000000000000099 /* TimerAmbientResolver.swift in Sources */,
-				A10000000000000000000082 /* OpenMeteoService.swift in Sources */,
+				A10000000000000000000084 /* WeatherKitWeatherService.swift in Sources */,
 				A10000000000000000000083 /* LocationWeatherService.swift in Sources */,
 				A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */,
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,

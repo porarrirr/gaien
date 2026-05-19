@@ -4,15 +4,15 @@ import Foundation
 @MainActor
 final class LocationWeatherService: NSObject {
     private let manager = CLLocationManager()
-    private let openMeteoService: OpenMeteoService
+    private let weatherService: WeatherKitWeatherService
     private let userDefaults: UserDefaults
     private var locationContinuation: CheckedContinuation<CLLocation, Error>?
 
     private let cacheKey = "timerAmbientWeatherSnapshot"
     private let cacheLifetime: TimeInterval = 6 * 60 * 60
 
-    init(openMeteoService: OpenMeteoService = OpenMeteoService(), userDefaults: UserDefaults = .standard) {
-        self.openMeteoService = openMeteoService
+    init(weatherService: WeatherKitWeatherService = WeatherKitWeatherService(), userDefaults: UserDefaults = .standard) {
+        self.weatherService = weatherService
         self.userDefaults = userDefaults
         super.init()
         manager.delegate = self
@@ -30,10 +30,7 @@ final class LocationWeatherService: NSObject {
 
         do {
             let location = try await requestCurrentLocation()
-            let snapshot = try await openMeteoService.fetch(
-                latitude: location.coordinate.latitude,
-                longitude: location.coordinate.longitude
-            )
+            let snapshot = try await weatherService.fetch(for: location)
             save(snapshot)
             return TimerAmbientResolver.resolve(mode: .auto, snapshot: snapshot, now: now, source: .weather)
         } catch {
