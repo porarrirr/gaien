@@ -142,7 +142,7 @@ final class TimerAmbientResolverTests: XCTestCase {
 
     private func date(hour: Int, minute: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = .current
         return calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: hour, minute: minute))!
     }
 }

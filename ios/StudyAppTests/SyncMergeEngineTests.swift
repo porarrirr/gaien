@@ -277,6 +277,7 @@ final class SyncMergeEngineTests: XCTestCase {
             id: 0,
             syncId: syncId,
             materialId: nil,
+            subjectId: 1,
             startTime: startTime,
             endTime: endTime,
             intervals: [StudySessionInterval(startTime: startTime, endTime: endTime)],
