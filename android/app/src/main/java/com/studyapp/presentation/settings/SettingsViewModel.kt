@@ -203,7 +203,10 @@ class SettingsViewModel @Inject constructor(
     fun signInToSync() {
         viewModelScope.launch {
             runCatching {
-                authRepository.signIn(_uiState.value.syncEmail.trim(), _uiState.value.syncPassword)
+                authRepository.signIn(
+                    normalizeAuthEmail(_uiState.value.syncEmail),
+                    normalizeAuthPassword(_uiState.value.syncPassword)
+                )
             }.onFailure {
                 _uiState.update { state -> state.copy(syncError = it.message) }
             }
@@ -213,7 +216,10 @@ class SettingsViewModel @Inject constructor(
     fun createSyncAccount() {
         viewModelScope.launch {
             runCatching {
-                authRepository.signUp(_uiState.value.syncEmail.trim(), _uiState.value.syncPassword)
+                authRepository.signUp(
+                    normalizeAuthEmail(_uiState.value.syncEmail),
+                    normalizeAuthPassword(_uiState.value.syncPassword)
+                )
             }.onFailure {
                 _uiState.update { state -> state.copy(syncError = it.message) }
             }
@@ -407,6 +413,27 @@ class SettingsViewModel @Inject constructor(
         return hour to minute
     }
 
+    private fun normalizeAuthEmail(value: String): String {
+        return normalizeAuthInput(value).lowercase(Locale.ROOT)
+    }
+
+    private fun normalizeAuthPassword(value: String): String {
+        return normalizeAuthInput(value)
+    }
+
+    private fun normalizeAuthInput(value: String): String {
+        return value
+            .map { char ->
+                when (char) {
+                    in '！'..'～' -> char - 0xFEE0
+                    '　' -> ' '
+                    else -> char
+                }
+            }
+            .filterNot { it.isWhitespace() || it in invisibleAuthInputChars }
+            .joinToString("")
+    }
+
     private fun escapeCsv(value: String): String {
         if (value.none { it == ',' || it == '"' || it == '\n' || it == '\r' }) {
             return value
@@ -427,5 +454,6 @@ class SettingsViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "SettingsViewModel"
+        private val invisibleAuthInputChars = setOf('\u200B', '\u200C', '\u200D', '\uFEFF')
     }
 }

@@ -65,7 +65,7 @@ struct TimerScreen: View {
                     }
                 } else {
                     ZStack {
-                        TimerAmbientBackgroundView(theme: ambientTheme)
+                        TimerAmbientBackgroundView(theme: ambientTheme, isRunning: viewModel.isRunning)
 
                         ScrollView(showsIndicators: false) {
                             VStack(spacing: 12) {
@@ -716,4 +716,3 @@ private extension View {
         modifier(TimerGlassPanelModifier(theme: theme, padding: padding))
     }
 }
-

@@ -18,6 +18,24 @@ enum FirebaseConfigurationStatus: Equatable {
             return "configured=false reason=\(reason)"
         }
     }
+
+    var unavailableMessage: String? {
+        switch self {
+        case .configured:
+            return nil
+        case .unavailable(let reason):
+            switch reason {
+            case "missing-google-service-info":
+                return "Firebase 設定ファイルが見つからないため、クラウド同期は利用できません"
+            case "unreadable-google-service-info":
+                return "Firebase 設定ファイルを読み込めないため、クラウド同期は利用できません"
+            case "invalid-google-service-info":
+                return "Firebase 設定ファイルが未設定または無効なため、クラウド同期は利用できません"
+            default:
+                return "Firebase 設定が完了していないため、クラウド同期は利用できません"
+            }
+        }
+    }
 }
 
 enum FirebaseBootstrap {
@@ -65,4 +83,3 @@ enum FirebaseBootstrap {
         return appId.range(of: pattern, options: .regularExpression) != nil
     }
 }
-

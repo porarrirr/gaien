@@ -63,10 +63,14 @@ final class SettingsViewModel: ScreenViewModel {
 
     func signInToSync() {
         perform {
-            let password = self.syncPassword
-            let email = self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+            let password = self.normalizedAuthPassword()
+            let email = self.normalizedAuthEmail()
             defer { self.syncPassword = "" }
-            self.app.logger.log(category: .auth, message: "Sign in requested", details: "emailProvided=\(!email.isEmpty) passwordLength=\(password.count)")
+            self.app.logger.log(
+                category: .auth,
+                message: "Sign in requested",
+                details: "emailProvided=\(!email.isEmpty) emailNormalized=\(email != self.syncEmail) passwordLength=\(password.count)"
+            )
             try await self.app.authRepository.signIn(email: email, password: password)
             self.app.refreshSyncStatus()
             self.app.scheduleAutoSync(reason: "sign-in")
@@ -76,10 +80,14 @@ final class SettingsViewModel: ScreenViewModel {
 
     func createSyncAccount() {
         perform {
-            let password = self.syncPassword
-            let email = self.syncEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+            let password = self.normalizedAuthPassword()
+            let email = self.normalizedAuthEmail()
             defer { self.syncPassword = "" }
-            self.app.logger.log(category: .auth, message: "Sign up requested", details: "emailProvided=\(!email.isEmpty) passwordLength=\(password.count)")
+            self.app.logger.log(
+                category: .auth,
+                message: "Sign up requested",
+                details: "emailProvided=\(!email.isEmpty) emailNormalized=\(email != self.syncEmail) passwordLength=\(password.count)"
+            )
             try await self.app.authRepository.signUp(email: email, password: password)
             self.app.refreshSyncStatus()
             self.app.scheduleAutoSync(reason: "sign-up")
@@ -151,5 +159,25 @@ final class SettingsViewModel: ScreenViewModel {
         app.logger.clear()
         app.logger.log(category: .app, level: .warning, message: "Debug logs cleared")
         debugLogEntries = app.logger.recentEntries()
+    }
+
+    private func normalizedAuthEmail() -> String {
+        let halfWidthEmail = syncEmail.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? syncEmail
+        return removingAuthInputNoise(from: halfWidthEmail).lowercased()
+    }
+
+    private func normalizedAuthPassword() -> String {
+        let halfWidthPassword = syncPassword.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? syncPassword
+        return removingAuthInputNoise(from: halfWidthPassword)
+    }
+
+    private func removingAuthInputNoise(from value: String) -> String {
+        let invisibleScalars = CharacterSet(charactersIn: "\u{200B}\u{200C}\u{200D}\u{FEFF}")
+        let disallowedScalars = CharacterSet.whitespacesAndNewlines.union(invisibleScalars)
+        var normalizedScalars = String.UnicodeScalarView()
+        for scalar in value.unicodeScalars where !disallowedScalars.contains(scalar) {
+            normalizedScalars.append(scalar)
+        }
+        return String(normalizedScalars)
     }
 }

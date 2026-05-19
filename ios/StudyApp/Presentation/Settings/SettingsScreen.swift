@@ -289,6 +289,15 @@ struct SettingsScreen: View {
                 actionLine(icon: "rectangle.portrait.and.arrow.right", title: "サインアウト", color: AppColors.danger) {
                     viewModel.signOutOfSync()
                 }
+            } else if let unavailableMessage = FirebaseBootstrap.status.unavailableMessage {
+                compactInfoRow(icon: "exclamationmark.triangle", title: "利用できません", value: "設定未完了", color: AppColors.warning)
+                Divider()
+                Text(unavailableMessage)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 6)
             } else {
                 Button {
                     isShowingAuthSheet = true
@@ -561,4 +570,3 @@ private struct SettingsIcon: View {
             .frame(width: 28, height: 28)
     }
 }
-

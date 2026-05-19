@@ -36,6 +36,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private static let accountSwitchMessage = "この端末のローカルデータは別の同期アカウントに紐づいています。全データを削除してから再度同期してください。"
     private static let destructiveSyncMessage = "同期により問題集の進捗履歴が大きく減少するため停止しました。自動バックアップを確認してください。"
     private static let firestorePermissionMessage = "クラウド同期に失敗しました。Firestoreルールが未反映か、このアカウントに十分な権限がありません。"
+    private static let authenticationExpiredMessage = "認証情報の有効期限が切れています。もう一度サインインしてください。"
 
     private lazy var deltaStore = FirestoreDeltaSyncStore(firestore: firestore, logger: logger)
 
@@ -413,6 +414,11 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         if isPermissionDenied(error) {
             return ValidationError(message: Self.firestorePermissionMessage)
         }
+        if isAuthenticationExpired(error) {
+            status.isAuthenticated = false
+            status.email = nil
+            return ValidationError(message: Self.authenticationExpiredMessage)
+        }
         return error
     }
 
@@ -421,6 +427,19 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         return (nsError.code == 7 && nsError.domain.localizedCaseInsensitiveContains("firestore")) ||
             error.localizedDescription.localizedCaseInsensitiveContains("permission_denied") ||
             error.localizedDescription.localizedCaseInsensitiveContains("Missing or insufficient permissions")
+    }
+
+    private func isAuthenticationExpired(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        let description = nsError.localizedDescription
+        let isFirestoreUnauthenticated = nsError.code == 16 && nsError.domain.localizedCaseInsensitiveContains("firestore")
+        let isFirebaseAuthCredentialFailure = nsError.domain.localizedCaseInsensitiveContains("auth") &&
+            description.localizedCaseInsensitiveContains("auth credential")
+        return isFirestoreUnauthenticated ||
+            isFirebaseAuthCredentialFailure ||
+            description.localizedCaseInsensitiveContains("supplied auth credential") ||
+            description.localizedCaseInsensitiveContains("malformed or has expired") ||
+            description.localizedCaseInsensitiveContains("unauthenticated")
     }
 
     private func ensureLocalSyncOwnership(session: AuthSession, local: AppData) throws {
@@ -699,4 +718,3 @@ private struct SyncDataSummary {
         "subjects=\(subjects) materials=\(materials) sessions=\(sessions) sessionProblemRecords=\(sessionProblemRecords) materialProblemRecords=\(materialProblemRecords) problemReviewRecords=\(problemReviewRecords) activeProblemReviewRecords=\(activeProblemReviewRecords) materialsWithProblemTotals=\(materialsWithProblemTotals)"
     }
 }
-

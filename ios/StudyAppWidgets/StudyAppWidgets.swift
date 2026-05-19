@@ -93,6 +93,58 @@ struct WeeklyActivityWidget: Widget {
     }
 }
 
+struct DailyGoalWidget: Widget {
+    private let kind = "DailyGoalWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: StudyWidgetProvider()) { entry in
+            DailyGoalWidgetView(entry: entry)
+        }
+        .configurationDisplayName("今日の目標")
+        .description("今日の学習目標までの残り時間を表示します。")
+        .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
+struct StudySummaryWidget: Widget {
+    private let kind = "StudySummaryWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: StudyWidgetProvider()) { entry in
+            StudySummaryWidgetView(entry: entry)
+        }
+        .configurationDisplayName("学習サマリー")
+        .description("今日・今週・連続学習・試験をまとめて表示します。")
+        .supportedFamilies([.systemMedium, .systemLarge])
+    }
+}
+
+struct UpcomingExamListWidget: Widget {
+    private let kind = "UpcomingExamListWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: StudyWidgetProvider()) { entry in
+            UpcomingExamListWidgetView(entry: entry)
+        }
+        .configurationDisplayName("試験一覧")
+        .description("近い試験を一覧で確認できます。")
+        .supportedFamilies([.systemMedium, .systemLarge])
+    }
+}
+
+struct WeeklyPaceWidget: Widget {
+    private let kind = "WeeklyPaceWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: StudyWidgetProvider()) { entry in
+            WeeklyPaceWidgetView(entry: entry)
+        }
+        .configurationDisplayName("週間ペース")
+        .description("今週の合計、平均、よく学習した日を表示します。")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
 private struct TodayStudyWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: StudyWidgetEntry
@@ -130,7 +182,7 @@ private struct WeeklyGoalWidgetView: View {
 
     var body: some View {
         WidgetCard {
-                VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 10) {
                 WidgetHeader(title: "週間目標", systemImage: "flag.fill")
                 if let weeklyGoalMinutes = entry.snapshot.weeklyGoalMinutes, weeklyGoalMinutes > 0 {
                     Text("\(Int((entry.snapshot.weeklyProgress * 100).rounded()))%")
@@ -150,6 +202,69 @@ private struct WeeklyGoalWidgetView: View {
                 }
             }
         }
+    }
+}
+
+private struct DailyGoalWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: StudyWidgetEntry
+
+    var body: some View {
+        switch family {
+        case .accessoryCircular:
+            Gauge(value: entry.snapshot.todayProgress) {
+                Image(systemName: "target")
+            } currentValueLabel: {
+                Text("\(Int((entry.snapshot.todayProgress * 100).rounded()))%")
+                    .font(.caption2.bold())
+            }
+            .gaugeStyle(.accessoryCircularCapacity)
+            .tint(WidgetPalette.primary)
+        case .accessoryRectangular:
+            VStack(alignment: .leading, spacing: 3) {
+                Label("今日の目標", systemImage: "target")
+                    .font(.caption.bold())
+                Text(goalStatusText)
+                    .font(.headline.bold())
+                Text(goalDetailText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        default:
+            WidgetCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    WidgetHeader(title: "今日の目標", systemImage: "target")
+                    Text(goalStatusText)
+                        .font(.system(size: 27, weight: .bold, design: .rounded))
+                        .foregroundStyle(WidgetPalette.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    WidgetProgressBar(progress: entry.snapshot.todayProgress, tint: goalTint)
+                    Text(goalDetailText)
+                        .font(.caption2)
+                        .foregroundStyle(WidgetPalette.textSecondary)
+                }
+            }
+        }
+    }
+
+    private var goalStatusText: String {
+        guard let goal = entry.snapshot.dailyGoalMinutes, goal > 0 else {
+            return "目標未設定"
+        }
+        let remaining = max(goal - entry.snapshot.todayStudyMinutes, 0)
+        return remaining == 0 ? "達成済み" : "残り\(remaining.widgetDurationText)"
+    }
+
+    private var goalDetailText: String {
+        guard let goal = entry.snapshot.dailyGoalMinutes, goal > 0 else {
+            return "アプリで今日の目標を設定"
+        }
+        return "\(entry.snapshot.todayStudyMinutes.widgetDurationText) / \(goal.widgetDurationText)"
+    }
+
+    private var goalTint: Color {
+        entry.snapshot.todayProgress >= 1 ? WidgetPalette.secondary : WidgetPalette.primary
     }
 }
 
@@ -254,6 +369,152 @@ private struct WeeklyActivityWidgetView: View {
     }
 }
 
+private struct StudySummaryWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: StudyWidgetEntry
+
+    var body: some View {
+        WidgetCard {
+            VStack(alignment: .leading, spacing: family == .systemLarge ? 16 : 12) {
+                HStack {
+                    WidgetHeader(title: "学習サマリー", systemImage: "sparkles")
+                    Spacer()
+                    Text(entry.snapshot.generatedDateText)
+                        .font(.caption2)
+                        .foregroundStyle(WidgetPalette.textSecondary)
+                }
+
+                LazyVGrid(columns: summaryColumns, alignment: .leading, spacing: 10) {
+                    WidgetMetricTile(title: "今日", value: entry.snapshot.todayStudyMinutes.widgetDurationText, systemImage: "clock.fill", tint: WidgetPalette.primary)
+                    WidgetMetricTile(title: "今週", value: entry.snapshot.weeklyStudyMinutes.widgetDurationText, systemImage: "calendar", tint: WidgetPalette.secondary)
+                    WidgetMetricTile(title: "連続", value: "\(entry.snapshot.streakDays)日", systemImage: "flame.fill", tint: WidgetPalette.warning)
+                    WidgetMetricTile(title: "次の試験", value: nextExamText, systemImage: "book.fill", tint: nextExamTint)
+                }
+
+                if family == .systemLarge {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("直近7日")
+                                .font(.caption.bold())
+                                .foregroundStyle(WidgetPalette.textSecondary)
+                            Spacer()
+                            Text("合計 \(entry.snapshot.weekTotalMinutes.widgetDurationText)")
+                                .font(.caption2)
+                                .foregroundStyle(WidgetPalette.textSecondary)
+                        }
+                        WidgetBarChart(activity: entry.snapshot.weekActivity)
+                    }
+                }
+            }
+        }
+    }
+
+    private var summaryColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 10), count: 2)
+    }
+
+    private var nextExamText: String {
+        guard let exam = entry.snapshot.upcomingExams.first else { return "予定なし" }
+        return daysRemainingText(nextExam: exam)
+    }
+
+    private var nextExamTint: Color {
+        guard let exam = entry.snapshot.upcomingExams.first else { return WidgetPalette.textSecondary }
+        return examColor(for: exam)
+    }
+}
+
+private struct UpcomingExamListWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: StudyWidgetEntry
+
+    var body: some View {
+        WidgetCard {
+            VStack(alignment: .leading, spacing: 12) {
+                WidgetHeader(title: "試験一覧", systemImage: "list.bullet.clipboard.fill")
+                if entry.snapshot.upcomingExams.isEmpty {
+                    Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("予定なし")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundStyle(WidgetPalette.textPrimary)
+                        Text("登録した試験がここに表示されます")
+                            .font(.caption)
+                            .foregroundStyle(WidgetPalette.textSecondary)
+                    }
+                    Spacer(minLength: 0)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(entry.snapshot.upcomingExams.prefix(family == .systemLarge ? 3 : 2)) { exam in
+                            ExamListRow(exam: exam)
+                        }
+                    }
+                    if family == .systemLarge {
+                        Spacer(minLength: 0)
+                        Text("近い順に最大3件")
+                            .font(.caption2)
+                            .foregroundStyle(WidgetPalette.textSecondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct WeeklyPaceWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: StudyWidgetEntry
+
+    var body: some View {
+        WidgetCard {
+            switch family {
+            case .systemMedium:
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        WidgetHeader(title: "週間ペース", systemImage: "speedometer")
+                        Spacer()
+                        Text("平均 \(entry.snapshot.weekAverageMinutes.widgetCompactDurationText)")
+                            .font(.caption2)
+                            .foregroundStyle(WidgetPalette.textSecondary)
+                    }
+                    HStack(alignment: .center, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(entry.snapshot.weekTotalMinutes.widgetDurationText)
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundStyle(WidgetPalette.textPrimary)
+                            Text(bestDayText)
+                                .font(.caption)
+                                .foregroundStyle(WidgetPalette.textSecondary)
+                        }
+                        WidgetBarChart(activity: entry.snapshot.weekActivity)
+                    }
+                }
+            default:
+                VStack(alignment: .leading, spacing: 10) {
+                    WidgetHeader(title: "週間ペース", systemImage: "speedometer")
+                    Text(entry.snapshot.weekAverageMinutes.widgetDurationText)
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(WidgetPalette.textPrimary)
+                    Text("1日平均")
+                        .font(.caption)
+                        .foregroundStyle(WidgetPalette.textSecondary)
+                    Text(bestDayText)
+                        .font(.caption2)
+                        .foregroundStyle(WidgetPalette.textSecondary)
+                }
+            }
+        }
+    }
+
+    private var bestDayText: String {
+        guard let best = entry.snapshot.bestActivityDay, best.minutes > 0 else {
+            return "今週の学習はこれから"
+        }
+        return "最多 \(best.dayLabel)曜 \(best.minutes.widgetDurationText)"
+    }
+}
+
 private struct WidgetHeader: View {
     let title: String
     let systemImage: String
@@ -262,6 +523,64 @@ private struct WidgetHeader: View {
         Label(title, systemImage: systemImage)
             .font(.caption.bold())
             .foregroundStyle(WidgetPalette.textSecondary)
+    }
+}
+
+private struct WidgetMetricTile: View {
+    let title: String
+    let value: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: systemImage)
+                .font(.caption2.bold())
+                .foregroundStyle(WidgetPalette.textSecondary)
+                .lineLimit(1)
+            Text(value)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct ExamListRow: View {
+    let exam: StudyWidgetExamSummary
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(spacing: 2) {
+                Text(exam.daysRemaining <= 0 ? "今日" : "\(exam.daysRemaining)")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(examColor(for: exam))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if exam.daysRemaining > 0 {
+                    Text("日")
+                        .font(.caption2.bold())
+                        .foregroundStyle(WidgetPalette.textSecondary)
+                }
+            }
+            .frame(width: 46, height: 46)
+            .background(examColor(for: exam).opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(exam.name)
+                    .font(.headline)
+                    .foregroundStyle(WidgetPalette.textPrimary)
+                    .lineLimit(1)
+                Text(dateText(for: exam.examDate))
+                    .font(.caption2)
+                    .foregroundStyle(WidgetPalette.textSecondary)
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 
@@ -347,6 +666,24 @@ enum WidgetPalette {
     static let track = Color.black.opacity(0.12)
     static let textPrimary = Color.black.opacity(0.87)
     static let textSecondary = Color.black.opacity(0.65)
+}
+
+private extension StudyWidgetSnapshot {
+    var generatedDateText: String {
+        Date(timeIntervalSince1970: TimeInterval(generatedAt) / 1_000)
+            .formatted(date: .omitted, time: .shortened)
+    }
+
+    var weekAverageMinutes: Int {
+        guard !weekActivity.isEmpty else { return 0 }
+        return Int((Double(weekTotalMinutes) / Double(weekActivity.count)).rounded())
+    }
+
+    var bestActivityDay: StudyWidgetActivitySummary? {
+        weekActivity.max { lhs, rhs in
+            lhs.minutes < rhs.minutes
+        }
+    }
 }
 
 extension Color {

@@ -8,35 +8,55 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* StudyAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* StudyAppApp.swift */; };
-		A40000000000000000000001 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
-		A40000000000000000000002 /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* Subject.swift */; };
-		A4000000000000000000000B /* Material.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000B /* Material.swift */; };
-		A4000000000000000000000C /* ProblemChapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000C /* ProblemChapter.swift */; };
-		A4000000000000000000000D /* ProblemSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000D /* ProblemSessionRecord.swift */; };
-		A4000000000000000000000E /* ProblemReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000E /* ProblemReview.swift */; };
-		A4000000000000000000000F /* StudySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000F /* StudySession.swift */; };
-		A40000000000000000000010 /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000010 /* Goal.swift */; };
-		A40000000000000000000011 /* Exam.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000011 /* Exam.swift */; };
-		A40000000000000000000012 /* StudyPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000012 /* StudyPlan.swift */; };
-		A40000000000000000000013 /* ProblemReviewScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000013 /* ProblemReviewScheduler.swift */; };
-		A40000000000000000000003 /* SupportingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000003 /* SupportingModels.swift */; };
-		A40000000000000000000004 /* GoalCollectionExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000004 /* GoalCollectionExtensions.swift */; };
-		A40000000000000000000005 /* AppDataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000005 /* AppDataModels.swift */; };
-		A40000000000000000000006 /* RepositoryProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000006 /* RepositoryProtocols.swift */; };
-		A40000000000000000000007 /* Clock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000007 /* Clock.swift */; };
-		A40000000000000000000014 /* GetHomeDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000014 /* GetHomeDataUseCase.swift */; };
-		A40000000000000000000015 /* GetRecentMaterialsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000015 /* GetRecentMaterialsUseCase.swift */; };
-		A40000000000000000000016 /* GetUpcomingExamsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000016 /* GetUpcomingExamsUseCase.swift */; };
-		A40000000000000000000017 /* ManageGoalsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000017 /* ManageGoalsUseCase.swift */; };
-		A40000000000000000000018 /* SaveStudySessionUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000018 /* SaveStudySessionUseCase.swift */; };
-		A40000000000000000000019 /* ManageMaterialsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000019 /* ManageMaterialsUseCase.swift */; };
-		A4000000000000000000001A /* ManagePlansUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001A /* ManagePlansUseCase.swift */; };
-		A4000000000000000000001B /* GetReportsDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001B /* GetReportsDataUseCase.swift */; };
-		A4000000000000000000001C /* ExportImportDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001C /* ExportImportDataUseCase.swift */; };
-		A40000000000000000000008 /* FoundationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000008 /* FoundationExtensions.swift */; };
-		A40000000000000000000009 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
-		A4000000000000000000000A /* TimetableModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000009 /* TimetableModels.swift */; };
 		A10000000000000000000003 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* PersistenceController.swift */; };
+		A10000000000000000000004 /* GoogleBooksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* GoogleBooksService.swift */; };
+		A10000000000000000000005 /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* ReminderScheduler.swift */; };
+		A10000000000000000000006 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Tokens.swift */; };
+		A10000000000000000000007 /* StudyAppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* StudyAppContainer.swift */; };
+		A10000000000000000000008 /* StudyAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StudyAppViews.swift */; };
+		A10000000000000000000009 /* SubjectsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* SubjectsScreen.swift */; };
+		A10000000000000000000010 /* MaterialsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MaterialsScreen.swift */; };
+		A10000000000000000000011 /* HistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HistoryScreen.swift */; };
+		A10000000000000000000012 /* PlanScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* PlanScreen.swift */; };
+		A10000000000000000000013 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SettingsScreen.swift */; };
+		A10000000000000000000014 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* GoogleService-Info.plist */; };
+		A10000000000000000000015 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000002 /* FirebaseCore */; };
+		A10000000000000000000016 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000003 /* FirebaseAuth */; };
+		A10000000000000000000017 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000004 /* FirebaseFirestore */; };
+		A10000000000000000000018 /* FirebaseBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseBootstrap.swift */; };
+		A10000000000000000000019 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* AppLogger.swift */; };
+		A10000000000000000000020 /* StudyLiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* StudyLiveActivityController.swift */; };
+		A10000000000000000000021 /* StudyTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* StudyTimerActivityAttributes.swift */; };
+		A10000000000000000000022 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000019 /* Assets.xcassets */; };
+		A10000000000000000000023 /* AutoSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* AutoSyncCoordinator.swift */; };
+		A10000000000000000000025 /* BarcodeScannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* BarcodeScannerSheet.swift */; };
+		A10000000000000000000026 /* BookResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* BookResultSheet.swift */; };
+		A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* LegacySnapshotModels.swift */; };
+		A10000000000000000000030 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* Typography.swift */; };
+		A10000000000000000000031 /* CardStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000031 /* CardStyles.swift */; };
+		A10000000000000000000032 /* StrictLayoutComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000032 /* StrictLayoutComponents.swift */; };
+		A10000000000000000000033 /* ProgressRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000033 /* ProgressRing.swift */; };
+		A10000000000000000000034 /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000034 /* StatCard.swift */; };
+		A10000000000000000000035 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000035 /* EmptyStateView.swift */; };
+		A10000000000000000000036 /* Charts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000036 /* Charts.swift */; };
+		A10000000000000000000037 /* SectionHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000037 /* SectionHeaderView.swift */; };
+		A10000000000000000000038 /* RatingBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000038 /* RatingBadge.swift */; };
+		A10000000000000000000039 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000039 /* Buttons.swift */; };
+		A1000000000000000000003A /* Badges.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003A /* Badges.swift */; };
+		A1000000000000000000003B /* CalendarDayCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003B /* CalendarDayCell.swift */; };
+		A1000000000000000000003C /* CameraPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* CameraPermissionService.swift */; };
+		A1000000000000000000003D /* FirebaseAuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003D /* FirebaseAuthRepository.swift */; };
+		A1000000000000000000003E /* FirebaseSyncRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003E /* FirebaseSyncRepository.swift */; };
+		A1000000000000000000003F /* DisabledRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003F /* DisabledRepositories.swift */; };
+		A10000000000000000000042 /* DebugLogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000040 /* DebugLogSheet.swift */; };
+		A10000000000000000000043 /* AuthSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000041 /* AuthSheet.swift */; };
+		A10000000000000000000046 /* CreatePlanSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000044 /* CreatePlanSheet.swift */; };
+		A10000000000000000000047 /* PlanItemEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000045 /* PlanItemEditorSheet.swift */; };
+		A1000000000000000000004B /* MaterialListComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000048 /* MaterialListComponents.swift */; };
+		A1000000000000000000004C /* MaterialHistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000049 /* MaterialHistoryScreen.swift */; };
+		A1000000000000000000004D /* MaterialEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004A /* MaterialEditorSheet.swift */; };
+		A1000000000000000000004E /* ReminderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004B /* ReminderCoordinator.swift */; };
+		A1000000000000000000004F /* RepositoryFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004C /* RepositoryFactory.swift */; };
 		A10000000000000000000050 /* CoreDataSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000050 /* CoreDataSchema.swift */; };
 		A10000000000000000000051 /* PersistenceMappers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000051 /* PersistenceMappers.swift */; };
 		A10000000000000000000070 /* CoreDataQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000070 /* CoreDataQuery.swift */; };
@@ -50,59 +70,9 @@
 		A10000000000000000000079 /* SyncPayloadCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000079 /* SyncPayloadCodec.swift */; };
 		A10000000000000000000080 /* SyncDeltaSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000080 /* SyncDeltaSerializer.swift */; };
 		A10000000000000000000081 /* FirestoreDeltaSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */; };
-		A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */; };
-		A30000000000000000000080 /* TimerProblemValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000080 /* TimerProblemValidation.swift */; };
-		A30000000000000000000081 /* TimerAmbientModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000081 /* TimerAmbientModels.swift */; };
-		A10000000000000000000099 /* TimerAmbientResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000099 /* TimerAmbientResolver.swift */; };
 		A10000000000000000000082 /* OpenMeteoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000082 /* OpenMeteoService.swift */; };
 		A10000000000000000000083 /* LocationWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000083 /* LocationWeatherService.swift */; };
-		A30000000000000000000082 /* TimerAmbientResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000082 /* TimerAmbientResolverTests.swift */; };
-		A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* LegacySnapshotModels.swift */; };
-		A10000000000000000000004 /* GoogleBooksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* GoogleBooksService.swift */; };
-		A10000000000000000000018 /* FirebaseBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseBootstrap.swift */; };
-		A1000000000000000000003D /* FirebaseAuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003D /* FirebaseAuthRepository.swift */; };
-		A1000000000000000000003E /* FirebaseSyncRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003E /* FirebaseSyncRepository.swift */; };
-		A1000000000000000000003F /* DisabledRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003F /* DisabledRepositories.swift */; };
-		A10000000000000000000005 /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* ReminderScheduler.swift */; };
-		A10000000000000000000006 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Tokens.swift */; };
-		A10000000000000000000030 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* Typography.swift */; };
-		A10000000000000000000031 /* CardStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000031 /* CardStyles.swift */; };
-		A10000000000000000000032 /* StrictLayoutComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000032 /* StrictLayoutComponents.swift */; };
-		A10000000000000000000033 /* ProgressRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000033 /* ProgressRing.swift */; };
-		A10000000000000000000034 /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000034 /* StatCard.swift */; };
-		A10000000000000000000035 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000035 /* EmptyStateView.swift */; };
-		A10000000000000000000036 /* Charts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000036 /* Charts.swift */; };
-		A10000000000000000000037 /* SectionHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000037 /* SectionHeaderView.swift */; };
-		A10000000000000000000038 /* RatingBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000038 /* RatingBadge.swift */; };
-		A10000000000000000000039 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000039 /* Buttons.swift */; };
-		A1000000000000000000003A /* Badges.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003A /* Badges.swift */; };
-		A1000000000000000000003B /* CalendarDayCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003B /* CalendarDayCell.swift */; };
-		A10000000000000000000007 /* StudyAppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* StudyAppContainer.swift */; };
-		A10000000000000000000023 /* AutoSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* AutoSyncCoordinator.swift */; };
-		A10000000000000000000008 /* StudyAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StudyAppViews.swift */; };
-		A10000000000000000000009 /* SubjectsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* SubjectsScreen.swift */; };
-		A10000000000000000000010 /* MaterialsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MaterialsScreen.swift */; };
-		A1000000000000000000004B /* MaterialListComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000048 /* MaterialListComponents.swift */; };
-		A1000000000000000000004C /* MaterialHistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000049 /* MaterialHistoryScreen.swift */; };
-		A1000000000000000000004D /* MaterialEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004A /* MaterialEditorSheet.swift */; };
-		A10000000000000000000025 /* BarcodeScannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* BarcodeScannerSheet.swift */; };
-		A10000000000000000000026 /* BookResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* BookResultSheet.swift */; };
-		A10000000000000000000011 /* HistoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HistoryScreen.swift */; };
-		A10000000000000000000012 /* PlanScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* PlanScreen.swift */; };
-		A10000000000000000000046 /* CreatePlanSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000044 /* CreatePlanSheet.swift */; };
-		A10000000000000000000047 /* PlanItemEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000045 /* PlanItemEditorSheet.swift */; };
-		A10000000000000000000013 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SettingsScreen.swift */; };
-		A10000000000000000000042 /* DebugLogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000040 /* DebugLogSheet.swift */; };
-		A10000000000000000000043 /* AuthSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000041 /* AuthSheet.swift */; };
-		A10000000000000000000014 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* GoogleService-Info.plist */; };
-		A10000000000000000000015 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000002 /* FirebaseCore */; };
-		A10000000000000000000016 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000003 /* FirebaseAuth */; };
-		A10000000000000000000017 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000004 /* FirebaseFirestore */; };
-		A10000000000000000000024 /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000005 /* FirebaseAppCheck */; };
-		A10000000000000000000019 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* AppLogger.swift */; };
-		A10000000000000000000020 /* StudyLiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* StudyLiveActivityController.swift */; };
-		A10000000000000000000021 /* StudyTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* StudyTimerActivityAttributes.swift */; };
-		A10000000000000000000022 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000019 /* Assets.xcassets */; };
+		A10000000000000000000099 /* TimerAmbientResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000099 /* TimerAmbientResolver.swift */; };
 		A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StudyAppWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A20000000000000000000002 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
 		A20000000000000000000003 /* WidgetSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* WidgetSnapshotSync.swift */; };
@@ -111,20 +81,15 @@
 		A20000000000000000000006 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
 		A20000000000000000000007 /* StudyTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* StudyTimerActivityAttributes.swift */; };
 		A20000000000000000000008 /* StudyTimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* StudyTimerLiveActivity.swift */; };
+		A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */; };
 		A30000000000000000000001 /* ScreenViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* ScreenViewModel.swift */; };
 		A30000000000000000000002 /* OnboardingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000002 /* OnboardingScreen.swift */; };
 		A30000000000000000000003 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000003 /* OnboardingViewModel.swift */; };
 		A30000000000000000000004 /* HomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000004 /* HomeScreen.swift */; };
 		A30000000000000000000005 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000005 /* HomeViewModel.swift */; };
 		A30000000000000000000006 /* TimerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000006 /* TimerScreen.swift */; };
-		A30000000000000000000030 /* LandscapeTimerFocusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000030 /* LandscapeTimerFocusView.swift */; };
-		A30000000000000000000031 /* LandscapeClockOnlyTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000031 /* LandscapeClockOnlyTimerView.swift */; };
-		A30000000000000000000032 /* TimerProblemProgressEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000032 /* TimerProblemProgressEditor.swift */; };
 		A30000000000000000000007 /* TimerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000007 /* TimerViewModel.swift */; };
-		A30000000000000000000028 /* TimerManualEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000028 /* TimerManualEntrySheet.swift */; };
-		A30000000000000000000029 /* TimerSessionEvaluationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */; };
 		A30000000000000000000008 /* CalendarScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000008 /* CalendarScreen.swift */; };
-		A30000000000000000000033 /* CalendarScreenComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000033 /* CalendarScreenComponents.swift */; };
 		A30000000000000000000009 /* CalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000009 /* CalendarViewModel.swift */; };
 		A30000000000000000000010 /* ReportsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000010 /* ReportsScreen.swift */; };
 		A30000000000000000000011 /* ReportsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000011 /* ReportsViewModel.swift */; };
@@ -141,17 +106,20 @@
 		A30000000000000000000022 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000022 /* MainTabView.swift */; };
 		A30000000000000000000023 /* StudyFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000023 /* StudyFormatters.swift */; };
 		A30000000000000000000024 /* ProblemTileSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000024 /* ProblemTileSelector.swift */; };
-		A30000000000000000000027 /* HistorySessionEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000027 /* HistorySessionEditorSheet.swift */; };
-		A3000000000000000000002A /* IdleTimerLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3000000000000000000002A /* IdleTimerLock.swift */; };
-		A1000000000000000000003C /* CameraPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* CameraPermissionService.swift */; };
-		A1000000000000000000004E /* ReminderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004B /* ReminderCoordinator.swift */; };
-		A1000000000000000000004F /* RepositoryFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004C /* RepositoryFactory.swift */; };
 		A30000000000000000000025 /* TimetableScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000025 /* TimetableScreen.swift */; };
+		A30000000000000000000026 /* TimetableViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000026 /* TimetableViewModel.swift */; };
+		A30000000000000000000027 /* HistorySessionEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000027 /* HistorySessionEditorSheet.swift */; };
+		A30000000000000000000028 /* TimerManualEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000028 /* TimerManualEntrySheet.swift */; };
+		A30000000000000000000029 /* TimerSessionEvaluationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */; };
+		A3000000000000000000002A /* IdleTimerLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3000000000000000000002A /* IdleTimerLock.swift */; };
+		A30000000000000000000030 /* LandscapeTimerFocusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000030 /* LandscapeTimerFocusView.swift */; };
+		A30000000000000000000031 /* LandscapeClockOnlyTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000031 /* LandscapeClockOnlyTimerView.swift */; };
+		A30000000000000000000032 /* TimerProblemProgressEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000032 /* TimerProblemProgressEditor.swift */; };
+		A30000000000000000000033 /* CalendarScreenComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000033 /* CalendarScreenComponents.swift */; };
 		A30000000000000000000034 /* TimetableEntryEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000034 /* TimetableEntryEditorSheet.swift */; };
 		A30000000000000000000035 /* TimetableTermEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000035 /* TimetableTermEditorSheet.swift */; };
 		A30000000000000000000036 /* TimetableReviewEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000036 /* TimetableReviewEditorSheet.swift */; };
 		A30000000000000000000037 /* TimetablePeriodSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000037 /* TimetablePeriodSettingsSheet.swift */; };
-		A30000000000000000000026 /* TimetableViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000026 /* TimetableViewModel.swift */; };
 		A30000000000000000000050 /* ProblemReviewSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000051 /* ProblemReviewSchedulerTests.swift */; };
 		A30000000000000000000051 /* AutoSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000052 /* AutoSyncCoordinatorTests.swift */; };
 		A30000000000000000000053 /* SyncMergeEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000053 /* SyncMergeEngineTests.swift */; };
@@ -159,174 +127,38 @@
 		A30000000000000000000055 /* TimerProblemValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000055 /* TimerProblemValidationTests.swift */; };
 		A30000000000000000000056 /* GoalCollectionExtensionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */; };
 		A30000000000000000000057 /* SyncDeltaSerializerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000057 /* SyncDeltaSerializerTests.swift */; };
+		A30000000000000000000080 /* TimerProblemValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000080 /* TimerProblemValidation.swift */; };
+		A30000000000000000000081 /* TimerAmbientModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000081 /* TimerAmbientModels.swift */; };
+		A30000000000000000000082 /* TimerAmbientResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000082 /* TimerAmbientResolverTests.swift */; };
+		A40000000000000000000001 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
+		A40000000000000000000002 /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* Subject.swift */; };
+		A40000000000000000000003 /* SupportingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000003 /* SupportingModels.swift */; };
+		A40000000000000000000004 /* GoalCollectionExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000004 /* GoalCollectionExtensions.swift */; };
+		A40000000000000000000005 /* AppDataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000005 /* AppDataModels.swift */; };
+		A40000000000000000000006 /* RepositoryProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000006 /* RepositoryProtocols.swift */; };
+		A40000000000000000000007 /* Clock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000007 /* Clock.swift */; };
+		A40000000000000000000008 /* FoundationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000008 /* FoundationExtensions.swift */; };
+		A40000000000000000000009 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
+		A4000000000000000000000A /* TimetableModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000009 /* TimetableModels.swift */; };
+		A4000000000000000000000B /* Material.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000B /* Material.swift */; };
+		A4000000000000000000000C /* ProblemChapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000C /* ProblemChapter.swift */; };
+		A4000000000000000000000D /* ProblemSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000D /* ProblemSessionRecord.swift */; };
+		A4000000000000000000000E /* ProblemReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000E /* ProblemReview.swift */; };
+		A4000000000000000000000F /* StudySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000000F /* StudySession.swift */; };
+		A40000000000000000000010 /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000010 /* Goal.swift */; };
+		A40000000000000000000011 /* Exam.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000011 /* Exam.swift */; };
+		A40000000000000000000012 /* StudyPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000012 /* StudyPlan.swift */; };
+		A40000000000000000000013 /* ProblemReviewScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000013 /* ProblemReviewScheduler.swift */; };
+		A40000000000000000000014 /* GetHomeDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000014 /* GetHomeDataUseCase.swift */; };
+		A40000000000000000000015 /* GetRecentMaterialsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000015 /* GetRecentMaterialsUseCase.swift */; };
+		A40000000000000000000016 /* GetUpcomingExamsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000016 /* GetUpcomingExamsUseCase.swift */; };
+		A40000000000000000000017 /* ManageGoalsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000017 /* ManageGoalsUseCase.swift */; };
+		A40000000000000000000018 /* SaveStudySessionUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000018 /* SaveStudySessionUseCase.swift */; };
+		A40000000000000000000019 /* ManageMaterialsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000019 /* ManageMaterialsUseCase.swift */; };
+		A4000000000000000000001A /* ManagePlansUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001A /* ManagePlansUseCase.swift */; };
+		A4000000000000000000001B /* GetReportsDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001B /* GetReportsDataUseCase.swift */; };
+		A4000000000000000000001C /* ExportImportDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001C /* ExportImportDataUseCase.swift */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXFileReference section */
-		B10000000000000000000001 /* StudyApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StudyApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B10000000000000000000002 /* StudyAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppApp.swift; sourceTree = "<group>"; };
-		B40000000000000000000001 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
-		B40000000000000000000002 /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
-		B4000000000000000000000B /* Material.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Material.swift; sourceTree = "<group>"; };
-		B4000000000000000000000C /* ProblemChapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemChapter.swift; sourceTree = "<group>"; };
-		B4000000000000000000000D /* ProblemSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemSessionRecord.swift; sourceTree = "<group>"; };
-		B4000000000000000000000E /* ProblemReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReview.swift; sourceTree = "<group>"; };
-		B4000000000000000000000F /* StudySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudySession.swift; sourceTree = "<group>"; };
-		B40000000000000000000010 /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
-		B40000000000000000000011 /* Exam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Exam.swift; sourceTree = "<group>"; };
-		B40000000000000000000012 /* StudyPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyPlan.swift; sourceTree = "<group>"; };
-		B40000000000000000000013 /* ProblemReviewScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReviewScheduler.swift; sourceTree = "<group>"; };
-		B40000000000000000000003 /* SupportingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportingModels.swift; sourceTree = "<group>"; };
-		B40000000000000000000004 /* GoalCollectionExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCollectionExtensions.swift; sourceTree = "<group>"; };
-		B40000000000000000000005 /* AppDataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataModels.swift; sourceTree = "<group>"; };
-		B40000000000000000000006 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
-		B40000000000000000000007 /* Clock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clock.swift; sourceTree = "<group>"; };
-		B40000000000000000000014 /* GetHomeDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetHomeDataUseCase.swift; sourceTree = "<group>"; };
-		B40000000000000000000015 /* GetRecentMaterialsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetRecentMaterialsUseCase.swift; sourceTree = "<group>"; };
-		B40000000000000000000016 /* GetUpcomingExamsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetUpcomingExamsUseCase.swift; sourceTree = "<group>"; };
-		B40000000000000000000017 /* ManageGoalsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageGoalsUseCase.swift; sourceTree = "<group>"; };
-		B40000000000000000000018 /* SaveStudySessionUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveStudySessionUseCase.swift; sourceTree = "<group>"; };
-		B40000000000000000000019 /* ManageMaterialsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageMaterialsUseCase.swift; sourceTree = "<group>"; };
-		B4000000000000000000001A /* ManagePlansUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePlansUseCase.swift; sourceTree = "<group>"; };
-		B4000000000000000000001B /* GetReportsDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetReportsDataUseCase.swift; sourceTree = "<group>"; };
-		B4000000000000000000001C /* ExportImportDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImportDataUseCase.swift; sourceTree = "<group>"; };
-		B40000000000000000000008 /* FoundationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationExtensions.swift; sourceTree = "<group>"; };
-		B40000000000000000000009 /* TimetableModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableModels.swift; sourceTree = "<group>"; };
-		B10000000000000000000004 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		B10000000000000000000050 /* CoreDataSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataSchema.swift; sourceTree = "<group>"; };
-		B10000000000000000000051 /* PersistenceMappers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceMappers.swift; sourceTree = "<group>"; };
-		B10000000000000000000070 /* CoreDataQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataQuery.swift; sourceTree = "<group>"; };
-		B10000000000000000000071 /* PlanActualMinutesRecalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanActualMinutesRecalculator.swift; sourceTree = "<group>"; };
-		B10000000000000000000072 /* ProblemReviewRebuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReviewRebuilder.swift; sourceTree = "<group>"; };
-		B10000000000000000000073 /* TimetableOverdueCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableOverdueCalculator.swift; sourceTree = "<group>"; };
-		B10000000000000000000074 /* SyncMetadataBackfiller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncMetadataBackfiller.swift; sourceTree = "<group>"; };
-		B10000000000000000000075 /* LegacyDailyGoalNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyDailyGoalNormalizer.swift; sourceTree = "<group>"; };
-		B10000000000000000000076 /* AppDataArchiver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataArchiver.swift; sourceTree = "<group>"; };
-		B10000000000000000000078 /* SyncMergeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncMergeEngine.swift; path = Sync/SyncMergeEngine.swift; sourceTree = "<group>"; };
-		B10000000000000000000079 /* SyncPayloadCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncPayloadCodec.swift; path = Sync/SyncPayloadCodec.swift; sourceTree = "<group>"; };
-		B10000000000000000000080 /* SyncDeltaSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaSerializer.swift; path = Sync/SyncDeltaSerializer.swift; sourceTree = "<group>"; };
-		B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FirestoreDeltaSyncStore.swift; path = Sync/FirestoreDeltaSyncStore.swift; sourceTree = "<group>"; };
-		B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyWidgetSnapshotComputer.swift; sourceTree = "<group>"; };
-		B30000000000000000000080 /* TimerProblemValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidation.swift; sourceTree = "<group>"; };
-		B30000000000000000000081 /* TimerAmbientModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientModels.swift; sourceTree = "<group>"; };
-		B10000000000000000000099 /* TimerAmbientResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolver.swift; sourceTree = "<group>"; };
-		B10000000000000000000082 /* OpenMeteoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoService.swift; sourceTree = "<group>"; };
-		B10000000000000000000083 /* LocationWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationWeatherService.swift; sourceTree = "<group>"; };
-		B30000000000000000000082 /* TimerAmbientResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolverTests.swift; sourceTree = "<group>"; };
-		B10000000000000000000023 /* LegacySnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacySnapshotModels.swift; sourceTree = "<group>"; };
-		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
-		B10000000000000000000016 /* FirebaseBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseBootstrap.swift; sourceTree = "<group>"; };
-		B1000000000000000000003D /* FirebaseAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAuthRepository.swift; sourceTree = "<group>"; };
-		B1000000000000000000003E /* FirebaseSyncRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseSyncRepository.swift; sourceTree = "<group>"; };
-		B1000000000000000000003F /* DisabledRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisabledRepositories.swift; sourceTree = "<group>"; };
-		B10000000000000000000017 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
-		B10000000000000000000018 /* StudyLiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyLiveActivityController.swift; sourceTree = "<group>"; };
-		B10000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		B10000000000000000000006 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
-		B10000000000000000000007 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
-		B10000000000000000000030 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
-		B10000000000000000000031 /* CardStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStyles.swift; sourceTree = "<group>"; };
-		B10000000000000000000032 /* StrictLayoutComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrictLayoutComponents.swift; sourceTree = "<group>"; };
-		B10000000000000000000033 /* ProgressRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressRing.swift; sourceTree = "<group>"; };
-		B10000000000000000000034 /* StatCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatCard.swift; sourceTree = "<group>"; };
-		B10000000000000000000035 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
-		B10000000000000000000036 /* Charts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Charts.swift; sourceTree = "<group>"; };
-		B10000000000000000000037 /* SectionHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeaderView.swift; sourceTree = "<group>"; };
-		B10000000000000000000038 /* RatingBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingBadge.swift; sourceTree = "<group>"; };
-		B10000000000000000000039 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
-		B1000000000000000000003A /* Badges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Badges.swift; sourceTree = "<group>"; };
-		B1000000000000000000003B /* CalendarDayCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayCell.swift; sourceTree = "<group>"; };
-		B10000000000000000000008 /* StudyAppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppContainer.swift; sourceTree = "<group>"; };
-		B10000000000000000000020 /* AutoSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSyncCoordinator.swift; sourceTree = "<group>"; };
-		B10000000000000000000009 /* StudyAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppViews.swift; sourceTree = "<group>"; };
-		B10000000000000000000010 /* SubjectsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsScreen.swift; sourceTree = "<group>"; };
-		B10000000000000000000011 /* MaterialsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsScreen.swift; sourceTree = "<group>"; };
-		B10000000000000000000048 /* MaterialListComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialListComponents.swift; sourceTree = "<group>"; };
-		B10000000000000000000049 /* MaterialHistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialHistoryScreen.swift; sourceTree = "<group>"; };
-		B1000000000000000000004A /* MaterialEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialEditorSheet.swift; sourceTree = "<group>"; };
-		B10000000000000000000021 /* BarcodeScannerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerSheet.swift; sourceTree = "<group>"; };
-		B10000000000000000000022 /* BookResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookResultSheet.swift; sourceTree = "<group>"; };
-		B10000000000000000000012 /* HistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryScreen.swift; sourceTree = "<group>"; };
-		B10000000000000000000013 /* PlanScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanScreen.swift; sourceTree = "<group>"; };
-		B10000000000000000000044 /* CreatePlanSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanSheet.swift; sourceTree = "<group>"; };
-		B10000000000000000000045 /* PlanItemEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanItemEditorSheet.swift; sourceTree = "<group>"; };
-		B10000000000000000000014 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
-		B10000000000000000000040 /* DebugLogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogSheet.swift; sourceTree = "<group>"; };
-		B10000000000000000000041 /* AuthSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSheet.swift; sourceTree = "<group>"; };
-		B10000000000000000000015 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = GoogleService-Info.plist; sourceTree = "<group>"; };
-		B20000000000000000000001 /* StudyAppWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		B20000000000000000000002 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
-		B20000000000000000000003 /* WidgetSnapshotSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotSync.swift; sourceTree = "<group>"; };
-		B20000000000000000000004 /* StudyApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyApp.entitlements; sourceTree = "<group>"; };
-		B20000000000000000000005 /* StudyAppWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppWidgetsBundle.swift; sourceTree = "<group>"; };
-		B20000000000000000000006 /* StudyAppWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppWidgets.swift; sourceTree = "<group>"; };
-		B20000000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B20000000000000000000008 /* StudyAppWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyAppWidgets.entitlements; sourceTree = "<group>"; };
-		B20000000000000000000009 /* StudyTimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerActivityAttributes.swift; sourceTree = "<group>"; };
-		B20000000000000000000010 /* StudyTimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerLiveActivity.swift; sourceTree = "<group>"; };
-		B30000000000000000000001 /* ScreenViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000002 /* OnboardingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScreen.swift; sourceTree = "<group>"; };
-		B30000000000000000000003 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000004 /* HomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreen.swift; sourceTree = "<group>"; };
-		B30000000000000000000005 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000006 /* TimerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerScreen.swift; sourceTree = "<group>"; };
-		B30000000000000000000030 /* LandscapeTimerFocusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandscapeTimerFocusView.swift; sourceTree = "<group>"; };
-		B30000000000000000000031 /* LandscapeClockOnlyTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandscapeClockOnlyTimerView.swift; sourceTree = "<group>"; };
-		B30000000000000000000032 /* TimerProblemProgressEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemProgressEditor.swift; sourceTree = "<group>"; };
-		B30000000000000000000007 /* TimerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000028 /* TimerManualEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerManualEntrySheet.swift; sourceTree = "<group>"; };
-		B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerSessionEvaluationSheet.swift; sourceTree = "<group>"; };
-		B30000000000000000000008 /* CalendarScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScreen.swift; sourceTree = "<group>"; };
-		B30000000000000000000033 /* CalendarScreenComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScreenComponents.swift; sourceTree = "<group>"; };
-		B30000000000000000000009 /* CalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000010 /* ReportsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsScreen.swift; sourceTree = "<group>"; };
-		B30000000000000000000011 /* ReportsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000012 /* ExamsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExamsScreen.swift; sourceTree = "<group>"; };
-		B30000000000000000000013 /* ExamsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExamsViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000014 /* GoalsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsScreen.swift; sourceTree = "<group>"; };
-		B30000000000000000000015 /* GoalsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000016 /* MaterialsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000017 /* MaterialHistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialHistoryViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000018 /* HistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000019 /* PlanViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000020 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000021 /* SubjectsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000022 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
-		B30000000000000000000023 /* StudyFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyFormatters.swift; sourceTree = "<group>"; };
-		B30000000000000000000024 /* ProblemTileSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemTileSelector.swift; sourceTree = "<group>"; };
-		B30000000000000000000027 /* HistorySessionEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionEditorSheet.swift; sourceTree = "<group>"; };
-		B3000000000000000000002A /* IdleTimerLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleTimerLock.swift; sourceTree = "<group>"; };
-		B1000000000000000000003C /* CameraPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionService.swift; sourceTree = "<group>"; };
-		B1000000000000000000004B /* ReminderCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCoordinator.swift; sourceTree = "<group>"; };
-		B1000000000000000000004C /* RepositoryFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryFactory.swift; sourceTree = "<group>"; };
-		B30000000000000000000025 /* TimetableScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableScreen.swift; sourceTree = "<group>"; };
-		B30000000000000000000034 /* TimetableEntryEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableEntryEditorSheet.swift; sourceTree = "<group>"; };
-		B30000000000000000000035 /* TimetableTermEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableTermEditorSheet.swift; sourceTree = "<group>"; };
-		B30000000000000000000036 /* TimetableReviewEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableReviewEditorSheet.swift; sourceTree = "<group>"; };
-		B30000000000000000000037 /* TimetablePeriodSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePeriodSettingsSheet.swift; sourceTree = "<group>"; };
-		B30000000000000000000026 /* TimetableViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableViewModel.swift; sourceTree = "<group>"; };
-		B30000000000000000000050 /* StudyAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StudyAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		B30000000000000000000051 /* ProblemReviewSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReviewSchedulerTests.swift; sourceTree = "<group>"; };
-		B30000000000000000000052 /* AutoSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSyncCoordinatorTests.swift; sourceTree = "<group>"; };
-		B30000000000000000000053 /* SyncMergeEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncMergeEngineTests.swift; sourceTree = "<group>"; };
-		B30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyWidgetSnapshotComputerTests.swift; sourceTree = "<group>"; };
-		B30000000000000000000055 /* TimerProblemValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidationTests.swift; sourceTree = "<group>"; };
-		B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCollectionExtensionsTests.swift; sourceTree = "<group>"; };
-		B30000000000000000000057 /* SyncDeltaSerializerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeltaSerializerTests.swift; sourceTree = "<group>"; };
-/* End PBXFileReference section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		C20000000000000000000001 /* Embed App Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */,
-			);
-			name = "Embed App Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXContainerItemProxy section */
 		H20000000000000000000001 /* PBXContainerItemProxy */ = {
@@ -345,6 +177,173 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		C20000000000000000000001 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		B10000000000000000000001 /* StudyApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StudyApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000002 /* StudyAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppApp.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* GoogleBooksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleBooksService.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
+		B10000000000000000000008 /* StudyAppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppContainer.swift; sourceTree = "<group>"; };
+		B10000000000000000000009 /* StudyAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* SubjectsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* MaterialsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000012 /* HistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* PlanScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000014 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000015 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		B10000000000000000000016 /* FirebaseBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseBootstrap.swift; sourceTree = "<group>"; };
+		B10000000000000000000017 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		B10000000000000000000018 /* StudyLiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyLiveActivityController.swift; sourceTree = "<group>"; };
+		B10000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B10000000000000000000020 /* AutoSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSyncCoordinator.swift; sourceTree = "<group>"; };
+		B10000000000000000000021 /* BarcodeScannerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerSheet.swift; sourceTree = "<group>"; };
+		B10000000000000000000022 /* BookResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookResultSheet.swift; sourceTree = "<group>"; };
+		B10000000000000000000023 /* LegacySnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacySnapshotModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000030 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
+		B10000000000000000000031 /* CardStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStyles.swift; sourceTree = "<group>"; };
+		B10000000000000000000032 /* StrictLayoutComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrictLayoutComponents.swift; sourceTree = "<group>"; };
+		B10000000000000000000033 /* ProgressRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressRing.swift; sourceTree = "<group>"; };
+		B10000000000000000000034 /* StatCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatCard.swift; sourceTree = "<group>"; };
+		B10000000000000000000035 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		B10000000000000000000036 /* Charts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Charts.swift; sourceTree = "<group>"; };
+		B10000000000000000000037 /* SectionHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeaderView.swift; sourceTree = "<group>"; };
+		B10000000000000000000038 /* RatingBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingBadge.swift; sourceTree = "<group>"; };
+		B10000000000000000000039 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
+		B1000000000000000000003A /* Badges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Badges.swift; sourceTree = "<group>"; };
+		B1000000000000000000003B /* CalendarDayCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayCell.swift; sourceTree = "<group>"; };
+		B1000000000000000000003C /* CameraPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionService.swift; sourceTree = "<group>"; };
+		B1000000000000000000003D /* FirebaseAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAuthRepository.swift; sourceTree = "<group>"; };
+		B1000000000000000000003E /* FirebaseSyncRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseSyncRepository.swift; sourceTree = "<group>"; };
+		B1000000000000000000003F /* DisabledRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisabledRepositories.swift; sourceTree = "<group>"; };
+		B10000000000000000000040 /* DebugLogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogSheet.swift; sourceTree = "<group>"; };
+		B10000000000000000000041 /* AuthSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSheet.swift; sourceTree = "<group>"; };
+		B10000000000000000000044 /* CreatePlanSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanSheet.swift; sourceTree = "<group>"; };
+		B10000000000000000000045 /* PlanItemEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanItemEditorSheet.swift; sourceTree = "<group>"; };
+		B10000000000000000000048 /* MaterialListComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialListComponents.swift; sourceTree = "<group>"; };
+		B10000000000000000000049 /* MaterialHistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialHistoryScreen.swift; sourceTree = "<group>"; };
+		B1000000000000000000004A /* MaterialEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialEditorSheet.swift; sourceTree = "<group>"; };
+		B1000000000000000000004B /* ReminderCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCoordinator.swift; sourceTree = "<group>"; };
+		B1000000000000000000004C /* RepositoryFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryFactory.swift; sourceTree = "<group>"; };
+		B10000000000000000000050 /* CoreDataSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataSchema.swift; sourceTree = "<group>"; };
+		B10000000000000000000051 /* PersistenceMappers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceMappers.swift; sourceTree = "<group>"; };
+		B10000000000000000000070 /* CoreDataQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataQuery.swift; sourceTree = "<group>"; };
+		B10000000000000000000071 /* PlanActualMinutesRecalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanActualMinutesRecalculator.swift; sourceTree = "<group>"; };
+		B10000000000000000000072 /* ProblemReviewRebuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReviewRebuilder.swift; sourceTree = "<group>"; };
+		B10000000000000000000073 /* TimetableOverdueCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableOverdueCalculator.swift; sourceTree = "<group>"; };
+		B10000000000000000000074 /* SyncMetadataBackfiller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncMetadataBackfiller.swift; sourceTree = "<group>"; };
+		B10000000000000000000075 /* LegacyDailyGoalNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyDailyGoalNormalizer.swift; sourceTree = "<group>"; };
+		B10000000000000000000076 /* AppDataArchiver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataArchiver.swift; sourceTree = "<group>"; };
+		B10000000000000000000078 /* SyncMergeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncMergeEngine.swift; path = Sync/SyncMergeEngine.swift; sourceTree = "<group>"; };
+		B10000000000000000000079 /* SyncPayloadCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncPayloadCodec.swift; path = Sync/SyncPayloadCodec.swift; sourceTree = "<group>"; };
+		B10000000000000000000080 /* SyncDeltaSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaSerializer.swift; path = Sync/SyncDeltaSerializer.swift; sourceTree = "<group>"; };
+		B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FirestoreDeltaSyncStore.swift; path = Sync/FirestoreDeltaSyncStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000082 /* OpenMeteoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoService.swift; sourceTree = "<group>"; };
+		B10000000000000000000083 /* LocationWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationWeatherService.swift; sourceTree = "<group>"; };
+		B10000000000000000000099 /* TimerAmbientResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolver.swift; sourceTree = "<group>"; };
+		B20000000000000000000001 /* StudyAppWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000000000000000000002 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
+		B20000000000000000000003 /* WidgetSnapshotSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotSync.swift; sourceTree = "<group>"; };
+		B20000000000000000000004 /* StudyApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyApp.entitlements; sourceTree = "<group>"; };
+		B20000000000000000000005 /* StudyAppWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppWidgetsBundle.swift; sourceTree = "<group>"; };
+		B20000000000000000000006 /* StudyAppWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAppWidgets.swift; sourceTree = "<group>"; };
+		B20000000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B20000000000000000000008 /* StudyAppWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyAppWidgets.entitlements; sourceTree = "<group>"; };
+		B20000000000000000000009 /* StudyTimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerActivityAttributes.swift; sourceTree = "<group>"; };
+		B20000000000000000000010 /* StudyTimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerLiveActivity.swift; sourceTree = "<group>"; };
+		B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyWidgetSnapshotComputer.swift; sourceTree = "<group>"; };
+		B30000000000000000000001 /* ScreenViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000002 /* OnboardingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000003 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000004 /* HomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000005 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000006 /* TimerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000007 /* TimerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000008 /* CalendarScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000009 /* CalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000010 /* ReportsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000011 /* ReportsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000012 /* ExamsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExamsScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000013 /* ExamsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExamsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000014 /* GoalsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000015 /* GoalsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000016 /* MaterialsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000017 /* MaterialHistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialHistoryViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000018 /* HistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000019 /* PlanViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000020 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000021 /* SubjectsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectsViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000022 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		B30000000000000000000023 /* StudyFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyFormatters.swift; sourceTree = "<group>"; };
+		B30000000000000000000024 /* ProblemTileSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemTileSelector.swift; sourceTree = "<group>"; };
+		B30000000000000000000025 /* TimetableScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000026 /* TimetableViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000027 /* HistorySessionEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionEditorSheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000028 /* TimerManualEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerManualEntrySheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000029 /* TimerSessionEvaluationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerSessionEvaluationSheet.swift; sourceTree = "<group>"; };
+		B3000000000000000000002A /* IdleTimerLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleTimerLock.swift; sourceTree = "<group>"; };
+		B30000000000000000000030 /* LandscapeTimerFocusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandscapeTimerFocusView.swift; sourceTree = "<group>"; };
+		B30000000000000000000031 /* LandscapeClockOnlyTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandscapeClockOnlyTimerView.swift; sourceTree = "<group>"; };
+		B30000000000000000000032 /* TimerProblemProgressEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemProgressEditor.swift; sourceTree = "<group>"; };
+		B30000000000000000000033 /* CalendarScreenComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScreenComponents.swift; sourceTree = "<group>"; };
+		B30000000000000000000034 /* TimetableEntryEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableEntryEditorSheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000035 /* TimetableTermEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableTermEditorSheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000036 /* TimetableReviewEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableReviewEditorSheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000037 /* TimetablePeriodSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePeriodSettingsSheet.swift; sourceTree = "<group>"; };
+		B30000000000000000000050 /* StudyAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StudyAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B30000000000000000000051 /* ProblemReviewSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReviewSchedulerTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000052 /* AutoSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSyncCoordinatorTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000053 /* SyncMergeEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncMergeEngineTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyWidgetSnapshotComputerTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000055 /* TimerProblemValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidationTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCollectionExtensionsTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000057 /* SyncDeltaSerializerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeltaSerializerTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000080 /* TimerProblemValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidation.swift; sourceTree = "<group>"; };
+		B30000000000000000000081 /* TimerAmbientModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientModels.swift; sourceTree = "<group>"; };
+		B30000000000000000000082 /* TimerAmbientResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolverTests.swift; sourceTree = "<group>"; };
+		B40000000000000000000001 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
+		B40000000000000000000002 /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
+		B40000000000000000000003 /* SupportingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportingModels.swift; sourceTree = "<group>"; };
+		B40000000000000000000004 /* GoalCollectionExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCollectionExtensions.swift; sourceTree = "<group>"; };
+		B40000000000000000000005 /* AppDataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataModels.swift; sourceTree = "<group>"; };
+		B40000000000000000000006 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
+		B40000000000000000000007 /* Clock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clock.swift; sourceTree = "<group>"; };
+		B40000000000000000000008 /* FoundationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationExtensions.swift; sourceTree = "<group>"; };
+		B40000000000000000000009 /* TimetableModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableModels.swift; sourceTree = "<group>"; };
+		B4000000000000000000000B /* Material.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Material.swift; sourceTree = "<group>"; };
+		B4000000000000000000000C /* ProblemChapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemChapter.swift; sourceTree = "<group>"; };
+		B4000000000000000000000D /* ProblemSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemSessionRecord.swift; sourceTree = "<group>"; };
+		B4000000000000000000000E /* ProblemReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReview.swift; sourceTree = "<group>"; };
+		B4000000000000000000000F /* StudySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudySession.swift; sourceTree = "<group>"; };
+		B40000000000000000000010 /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
+		B40000000000000000000011 /* Exam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Exam.swift; sourceTree = "<group>"; };
+		B40000000000000000000012 /* StudyPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyPlan.swift; sourceTree = "<group>"; };
+		B40000000000000000000013 /* ProblemReviewScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReviewScheduler.swift; sourceTree = "<group>"; };
+		B40000000000000000000014 /* GetHomeDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetHomeDataUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000015 /* GetRecentMaterialsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetRecentMaterialsUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000016 /* GetUpcomingExamsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetUpcomingExamsUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000017 /* ManageGoalsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageGoalsUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000018 /* SaveStudySessionUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveStudySessionUseCase.swift; sourceTree = "<group>"; };
+		B40000000000000000000019 /* ManageMaterialsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageMaterialsUseCase.swift; sourceTree = "<group>"; };
+		B4000000000000000000001A /* ManagePlansUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePlansUseCase.swift; sourceTree = "<group>"; };
+		B4000000000000000000001B /* GetReportsDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetReportsDataUseCase.swift; sourceTree = "<group>"; };
+		B4000000000000000000001C /* ExportImportDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImportDataUseCase.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		C10000000000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
@@ -352,7 +351,6 @@
 			files = (
 				A10000000000000000000015 /* FirebaseCore in Frameworks */,
 				A10000000000000000000016 /* FirebaseAuth in Frameworks */,
-				A10000000000000000000024 /* FirebaseAppCheck in Frameworks */,
 				A10000000000000000000017 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -421,68 +419,6 @@
 			path = Domain;
 			sourceTree = "<group>";
 		};
-		D40000000000000000000001 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				B40000000000000000000001 /* DomainEnums.swift */,
-				B40000000000000000000002 /* Subject.swift */,
-				B4000000000000000000000B /* Material.swift */,
-				B4000000000000000000000C /* ProblemChapter.swift */,
-				B4000000000000000000000D /* ProblemSessionRecord.swift */,
-				B4000000000000000000000E /* ProblemReview.swift */,
-				B4000000000000000000000F /* StudySession.swift */,
-				B40000000000000000000010 /* Goal.swift */,
-				B40000000000000000000011 /* Exam.swift */,
-				B40000000000000000000012 /* StudyPlan.swift */,
-				B40000000000000000000003 /* SupportingModels.swift */,
-				B40000000000000000000004 /* GoalCollectionExtensions.swift */,
-				B40000000000000000000005 /* AppDataModels.swift */,
-				B40000000000000000000009 /* TimetableModels.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
-		D40000000000000000000002 /* Repositories */ = {
-			isa = PBXGroup;
-			children = (
-				B40000000000000000000006 /* RepositoryProtocols.swift */,
-			);
-			path = Repositories;
-			sourceTree = "<group>";
-		};
-		D40000000000000000000003 /* UseCases */ = {
-			isa = PBXGroup;
-			children = (
-				B40000000000000000000007 /* Clock.swift */,
-				B40000000000000000000014 /* GetHomeDataUseCase.swift */,
-				B40000000000000000000015 /* GetRecentMaterialsUseCase.swift */,
-				B40000000000000000000016 /* GetUpcomingExamsUseCase.swift */,
-				B40000000000000000000017 /* ManageGoalsUseCase.swift */,
-				B40000000000000000000018 /* SaveStudySessionUseCase.swift */,
-				B40000000000000000000019 /* ManageMaterialsUseCase.swift */,
-				B4000000000000000000001A /* ManagePlansUseCase.swift */,
-				B4000000000000000000001B /* GetReportsDataUseCase.swift */,
-				B4000000000000000000001C /* ExportImportDataUseCase.swift */,
-			);
-			path = UseCases;
-			sourceTree = "<group>";
-		};
-		D40000000000000000000004 /* Support */ = {
-			isa = PBXGroup;
-			children = (
-				B40000000000000000000008 /* FoundationExtensions.swift */,
-			);
-			path = Support;
-			sourceTree = "<group>";
-		};
-		D40000000000000000000005 /* Scheduling */ = {
-			isa = PBXGroup;
-			children = (
-				B40000000000000000000013 /* ProblemReviewScheduler.swift */,
-			);
-			path = Scheduling;
-			sourceTree = "<group>";
-		};
 		D10000000000000000000005 /* Data */ = {
 			isa = PBXGroup;
 			children = (
@@ -535,6 +471,31 @@
 				D10000000000000000000009 /* Subjects */,
 			);
 			path = Presentation;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000007 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000017 /* AppLogger.swift */,
+				B10000000000000000000006 /* ReminderScheduler.swift */,
+				B10000000000000000000018 /* StudyLiveActivityController.swift */,
+				B1000000000000000000003C /* CameraPermissionService.swift */,
+				B1000000000000000000004B /* ReminderCoordinator.swift */,
+				B1000000000000000000004C /* RepositoryFactory.swift */,
+				B10000000000000000000099 /* TimerAmbientResolver.swift */,
+				B10000000000000000000082 /* OpenMeteoService.swift */,
+				B10000000000000000000083 /* LocationWeatherService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000008 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000019 /* Assets.xcassets */,
+				B10000000000000000000015 /* GoogleService-Info.plist */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		D10000000000000000000009 /* Subjects */ = {
@@ -592,42 +553,31 @@
 			path = Settings;
 			sourceTree = "<group>";
 		};
-		D3000000000000000000000A /* Timetable */ = {
+		D10000000000000000000014 /* Theme */ = {
 			isa = PBXGroup;
 			children = (
-				B30000000000000000000025 /* TimetableScreen.swift */,
-				B30000000000000000000034 /* TimetableEntryEditorSheet.swift */,
-				B30000000000000000000035 /* TimetableTermEditorSheet.swift */,
-				B30000000000000000000036 /* TimetableReviewEditorSheet.swift */,
-				B30000000000000000000037 /* TimetablePeriodSettingsSheet.swift */,
-				B30000000000000000000026 /* TimetableViewModel.swift */,
+				B10000000000000000000007 /* Tokens.swift */,
+				B10000000000000000000030 /* Typography.swift */,
+				B10000000000000000000031 /* CardStyles.swift */,
 			);
-			path = Timetable;
+			path = Theme;
 			sourceTree = "<group>";
 		};
-		D10000000000000000000007 /* Services */ = {
+		D10000000000000000000015 /* Components */ = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000017 /* AppLogger.swift */,
-				B10000000000000000000006 /* ReminderScheduler.swift */,
-				B10000000000000000000018 /* StudyLiveActivityController.swift */,
-				B1000000000000000000003C /* CameraPermissionService.swift */,
-				B1000000000000000000004B /* ReminderCoordinator.swift */,
-				B1000000000000000000004C /* RepositoryFactory.swift */,
-				B10000000000000000000099 /* TimerAmbientResolver.swift */,
-				B10000000000000000000082 /* OpenMeteoService.swift */,
-				B10000000000000000000083 /* LocationWeatherService.swift */,
+				B10000000000000000000032 /* StrictLayoutComponents.swift */,
+				B10000000000000000000033 /* ProgressRing.swift */,
+				B10000000000000000000034 /* StatCard.swift */,
+				B10000000000000000000035 /* EmptyStateView.swift */,
+				B10000000000000000000036 /* Charts.swift */,
+				B10000000000000000000037 /* SectionHeaderView.swift */,
+				B10000000000000000000038 /* RatingBadge.swift */,
+				B10000000000000000000039 /* Buttons.swift */,
+				B1000000000000000000003A /* Badges.swift */,
+				B1000000000000000000003B /* CalendarDayCell.swift */,
 			);
-			path = Services;
-			sourceTree = "<group>";
-		};
-		D10000000000000000000008 /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-				B10000000000000000000019 /* Assets.xcassets */,
-				B10000000000000000000015 /* GoogleService-Info.plist */,
-			);
-			path = Resources;
+			path = Components;
 			sourceTree = "<group>";
 		};
 		D20000000000000000000001 /* Widgets */ = {
@@ -744,31 +694,79 @@
 			path = Shared;
 			sourceTree = "<group>";
 		};
-		D10000000000000000000014 /* Theme */ = {
+		D3000000000000000000000A /* Timetable */ = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000007 /* Tokens.swift */,
-				B10000000000000000000030 /* Typography.swift */,
-				B10000000000000000000031 /* CardStyles.swift */,
+				B30000000000000000000025 /* TimetableScreen.swift */,
+				B30000000000000000000034 /* TimetableEntryEditorSheet.swift */,
+				B30000000000000000000035 /* TimetableTermEditorSheet.swift */,
+				B30000000000000000000036 /* TimetableReviewEditorSheet.swift */,
+				B30000000000000000000037 /* TimetablePeriodSettingsSheet.swift */,
+				B30000000000000000000026 /* TimetableViewModel.swift */,
 			);
-			path = Theme;
+			path = Timetable;
 			sourceTree = "<group>";
 		};
-		D10000000000000000000015 /* Components */ = {
+		D40000000000000000000001 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000032 /* StrictLayoutComponents.swift */,
-				B10000000000000000000033 /* ProgressRing.swift */,
-				B10000000000000000000034 /* StatCard.swift */,
-				B10000000000000000000035 /* EmptyStateView.swift */,
-				B10000000000000000000036 /* Charts.swift */,
-				B10000000000000000000037 /* SectionHeaderView.swift */,
-				B10000000000000000000038 /* RatingBadge.swift */,
-				B10000000000000000000039 /* Buttons.swift */,
-				B1000000000000000000003A /* Badges.swift */,
-				B1000000000000000000003B /* CalendarDayCell.swift */,
+				B40000000000000000000001 /* DomainEnums.swift */,
+				B40000000000000000000002 /* Subject.swift */,
+				B4000000000000000000000B /* Material.swift */,
+				B4000000000000000000000C /* ProblemChapter.swift */,
+				B4000000000000000000000D /* ProblemSessionRecord.swift */,
+				B4000000000000000000000E /* ProblemReview.swift */,
+				B4000000000000000000000F /* StudySession.swift */,
+				B40000000000000000000010 /* Goal.swift */,
+				B40000000000000000000011 /* Exam.swift */,
+				B40000000000000000000012 /* StudyPlan.swift */,
+				B40000000000000000000003 /* SupportingModels.swift */,
+				B40000000000000000000004 /* GoalCollectionExtensions.swift */,
+				B40000000000000000000005 /* AppDataModels.swift */,
+				B40000000000000000000009 /* TimetableModels.swift */,
 			);
-			path = Components;
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D40000000000000000000002 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000006 /* RepositoryProtocols.swift */,
+			);
+			path = Repositories;
+			sourceTree = "<group>";
+		};
+		D40000000000000000000003 /* UseCases */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000007 /* Clock.swift */,
+				B40000000000000000000014 /* GetHomeDataUseCase.swift */,
+				B40000000000000000000015 /* GetRecentMaterialsUseCase.swift */,
+				B40000000000000000000016 /* GetUpcomingExamsUseCase.swift */,
+				B40000000000000000000017 /* ManageGoalsUseCase.swift */,
+				B40000000000000000000018 /* SaveStudySessionUseCase.swift */,
+				B40000000000000000000019 /* ManageMaterialsUseCase.swift */,
+				B4000000000000000000001A /* ManagePlansUseCase.swift */,
+				B4000000000000000000001B /* GetReportsDataUseCase.swift */,
+				B4000000000000000000001C /* ExportImportDataUseCase.swift */,
+			);
+			path = UseCases;
+			sourceTree = "<group>";
+		};
+		D40000000000000000000004 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000008 /* FoundationExtensions.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+		D40000000000000000000005 /* Scheduling */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000013 /* ProblemReviewScheduler.swift */,
+			);
+			path = Scheduling;
 			sourceTree = "<group>";
 		};
 		D50000000000000000000001 /* StudyAppTests */ = {
@@ -807,7 +805,6 @@
 			packageProductDependencies = (
 				Q10000000000000000000002 /* FirebaseCore */,
 				Q10000000000000000000003 /* FirebaseAuth */,
-				Q10000000000000000000005 /* FirebaseAppCheck */,
 				Q10000000000000000000004 /* FirebaseFirestore */,
 			);
 			productName = StudyApp;
@@ -884,12 +881,12 @@
 				Base,
 			);
 			mainGroup = D10000000000000000000001;
-			productRefGroup = D10000000000000000000003 /* Products */;
-			projectDirPath = "";
-			projectRoot = "";
 			packageReferences = (
 				P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
+			productRefGroup = D10000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
 			targets = (
 				E10000000000000000000001 /* StudyApp */,
 				E20000000000000000000001 /* StudyAppWidgets */,
@@ -923,40 +920,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 11.0.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		Q10000000000000000000002 /* FirebaseCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
-		Q10000000000000000000003 /* FirebaseAuth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAuth;
-		};
-		Q10000000000000000000004 /* FirebaseFirestore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseFirestore;
-		};
-		Q10000000000000000000005 /* FirebaseAppCheck */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAppCheck;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXSourcesBuildPhase section */
 		C10000000000000000000003 /* Sources */ = {
@@ -1148,6 +1111,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -1170,6 +1134,7 @@
 				CODE_SIGN_ENTITLEMENTS = StudyApp/StudyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 77V64TWCFD;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
@@ -1189,6 +1154,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1202,6 +1168,7 @@
 				CODE_SIGN_ENTITLEMENTS = StudyApp/StudyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 77V64TWCFD;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "現在地の天気と日の出・日の入りに合わせてタイマー画面を切り替えるために使用します。";
@@ -1234,6 +1201,7 @@
 				CODE_SIGN_ENTITLEMENTS = StudyAppWidgets/StudyAppWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 77V64TWCFD;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StudyAppWidgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -1247,6 +1215,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1260,6 +1229,7 @@
 				CODE_SIGN_ENTITLEMENTS = StudyAppWidgets/StudyAppWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 77V64TWCFD;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StudyAppWidgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -1292,6 +1262,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1359,6 +1330,35 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		Q10000000000000000000002 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		Q10000000000000000000003 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		Q10000000000000000000004 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E10000000000000000000002 /* Project object */;
 }

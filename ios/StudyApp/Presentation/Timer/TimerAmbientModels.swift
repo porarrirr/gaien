@@ -375,28 +375,26 @@ struct TimerWeatherVisualProfile: Equatable {
 
 struct TimerAmbientBackgroundView: View {
     let theme: TimerAmbientTheme
+    let isRunning: Bool
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            GeometryReader { proxy in
-                let progress = timeline.date.timeIntervalSinceReferenceDate
-                let size = proxy.size
-                ZStack {
-                    Image(theme.visualProfile.assetName)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size.width, height: size.height)
-                        .clipped()
+        background(progress: 0)
+    }
 
-                    phaseTint
-                    cloudLayer(size: size, progress: progress)
-                    fogLayer(size: size, progress: progress)
-                    precipitationLayer(size: size, progress: progress)
-                    lightningLayer(progress: progress)
-                    readabilityScrim
-                }
-                .frame(width: size.width, height: size.height)
+    private func background(progress: TimeInterval) -> some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            ZStack {
+                Image(theme.visualProfile.assetName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+
+                phaseTint
+                readabilityScrim
             }
+            .frame(width: size.width, height: size.height)
         }
         .ignoresSafeArea()
     }
@@ -406,13 +404,13 @@ struct TimerAmbientBackgroundView: View {
         switch theme.phase {
         case .morning:
             LinearGradient(
-                colors: [Color(hex: 0xFFF1D8).opacity(0.25), Color.clear, Color(hex: 0xA8E7FF).opacity(0.16)],
+                colors: [Color(hex: 0xFFF1D8).opacity(0.10), Color.clear, Color(hex: 0xA8E7FF).opacity(0.08)],
                 startPoint: .bottomLeading,
                 endPoint: .topTrailing
             )
         case .day:
             LinearGradient(
-                colors: [Color.white.opacity(0.10), Color.clear, Color(hex: 0x68C7FF).opacity(0.10)],
+                colors: [Color.white.opacity(0.03), Color.clear, Color(hex: 0x68C7FF).opacity(0.05)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -515,15 +513,13 @@ struct TimerAmbientBackgroundView: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color.black.opacity(theme.phase == .night ? 0.26 : 0.08),
+                    Color.black.opacity(theme.phase == .night ? 0.26 : 0.18),
                     Color.clear,
-                    Color.black.opacity(theme.phase == .night ? 0.38 : 0.12)
+                    Color.black.opacity(theme.phase == .night ? 0.38 : 0.26)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            Color.white.opacity(theme.phase == .night ? 0 : 0.08)
-                .blendMode(.screen)
         }
     }
 
