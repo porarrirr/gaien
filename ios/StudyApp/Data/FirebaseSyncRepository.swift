@@ -298,6 +298,27 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         status.errorMessage = nil
     }
 
+    func deleteCloudDataForCurrentUser() async throws {
+        let session = try requireActiveSession(operation: "deleteCloudDataForCurrentUser")
+        try beginSyncOperation(named: "deleteCloudDataForCurrentUser", session: session)
+        logger.log(category: .sync, level: .warning, message: "Cloud account data deletion started")
+        defer {
+            endSyncOperation()
+        }
+
+        do {
+            try await deltaStore.deleteAllUserData(userId: session.localId)
+            await clearLocalSyncState()
+            status = SyncStatus(isAuthenticated: true, email: session.email)
+            logger.log(category: .sync, level: .warning, message: "Cloud account data deletion succeeded")
+        } catch {
+            let mapped = mapSyncFailure(error)
+            status.errorMessage = mapped.localizedDescription
+            logger.log(category: .sync, level: .error, message: "Cloud account data deletion failed", details: "uid=\(session.localId)", error: error)
+            throw mapped
+        }
+    }
+
     // MARK: - Delta helpers
 
     private func deltaCursorKey(for userId: String) -> String {

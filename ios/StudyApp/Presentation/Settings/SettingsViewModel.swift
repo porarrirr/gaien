@@ -11,6 +11,7 @@ final class SettingsViewModel: ScreenViewModel {
     @Published private(set) var debugLogEntries: [DebugLogEntry] = []
     @Published var syncEmail = ""
     @Published var syncPassword = ""
+    @Published var accountDeletionPassword = ""
 
     func load() async {
         do {
@@ -92,6 +93,40 @@ final class SettingsViewModel: ScreenViewModel {
             self.app.refreshSyncStatus()
             self.app.scheduleAutoSync(reason: "sign-up")
             self.debugLogEntries = self.app.logger.recentEntries()
+        }
+    }
+
+    func sendPasswordReset() {
+        perform {
+            let email = self.normalizedAuthEmail()
+            guard !email.isEmpty else {
+                throw ValidationError(message: "メールアドレスを入力してください")
+            }
+            try await self.app.authRepository.sendPasswordReset(email: email)
+            self.app.present("パスワード再設定メールを送信しました")
+            self.app.logger.log(category: .auth, message: "Password reset requested")
+        }
+    }
+
+    func deleteSyncAccount() {
+        perform {
+            let password = self.removingAuthInputNoise(from: self.accountDeletionPassword)
+            defer { self.accountDeletionPassword = "" }
+            guard !password.isEmpty else {
+                throw ValidationError(message: "アカウント削除には現在のパスワードが必要です")
+            }
+
+            try await self.app.authRepository.reauthenticate(password: password)
+            try await self.app.syncRepository.deleteCloudDataForCurrentUser()
+            try await self.app.appDataRepo.deleteAllData()
+            await self.app.syncRepository.clearLocalSyncState()
+            try await self.app.authRepository.deleteAccount(password: password)
+            self.app.refreshSyncStatus()
+            self.summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
+            self.app.updateActiveTimer(nil)
+            self.app.bumpDataVersion(shouldScheduleAutoSync: false)
+            self.app.recordManualSyncApplied()
+            self.app.logger.log(category: .auth, level: .warning, message: "Sync account and associated data deleted")
         }
     }
 

@@ -55,9 +55,15 @@ struct AuthSheet: View {
                         text: $viewModel.syncPassword,
                         isVisible: $isSignInPasswordVisible
                     )
-                    Text("パスワードをお忘れですか？")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(AppColors.success)
+                    Button {
+                        viewModel.sendPasswordReset()
+                    } label: {
+                        Text("パスワードをお忘れですか？")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(AppColors.success)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.syncEmail.isEmpty)
 
                     Button {
                         viewModel.signInToSync()

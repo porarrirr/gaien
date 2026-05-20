@@ -56,6 +56,53 @@ final class FirebaseAuthRepository: ObservableObject, AuthRepository {
         }
     }
 
+    func sendPasswordReset(email: String) async throws {
+        logger?.log(category: .auth, message: "Firebase password reset requested", details: "emailProvided=\(!email.isEmpty)")
+        do {
+            try await auth.sendPasswordReset(withEmail: email)
+        } catch {
+            logger?.log(category: .auth, level: .warning, message: "Firebase password reset failed", details: Self.authErrorLogDetails(error))
+            throw Self.mapAuthError(error, fallback: "パスワード再設定メールの送信に失敗しました")
+        }
+    }
+
+    func reauthenticate(password: String) async throws {
+        guard let user = auth.currentUser else {
+            throw ValidationError(message: "サインインしているアカウントがありません")
+        }
+        let email = user.email ?? session?.email ?? ""
+        guard !email.isEmpty, !password.isEmpty else {
+            throw ValidationError(message: "現在のメールアドレスとパスワードが必要です")
+        }
+
+        do {
+            let credential = EmailAuthProvider.credential(withEmail: email, password: password)
+            try await user.reauthenticate(with: credential)
+        } catch {
+            logger?.log(category: .auth, level: .warning, message: "Firebase reauthentication failed", details: Self.authErrorLogDetails(error))
+            throw Self.mapAuthError(error, fallback: "パスワードを確認できませんでした")
+        }
+    }
+
+    func deleteAccount(password: String) async throws {
+        guard let user = auth.currentUser else {
+            throw ValidationError(message: "サインインしているアカウントがありません")
+        }
+
+        logger?.log(category: .auth, level: .warning, message: "Firebase account deletion started", details: "passwordProvided=\(!password.isEmpty)")
+        do {
+            if !password.isEmpty {
+                try await reauthenticate(password: password)
+            }
+            try await user.delete()
+            session = nil
+            logger?.log(category: .auth, level: .warning, message: "Firebase account deletion succeeded")
+        } catch {
+            logger?.log(category: .auth, level: .warning, message: "Firebase account deletion failed", details: Self.authErrorLogDetails(error))
+            throw Self.mapAuthError(error, fallback: "アカウント削除に失敗しました")
+        }
+    }
+
     func signOut() async throws {
         logger?.log(category: .auth, message: "Firebase sign-out started")
         try auth.signOut()

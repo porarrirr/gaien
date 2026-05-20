@@ -20,6 +20,7 @@
 		A10000000000000000000012 /* PlanScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* PlanScreen.swift */; };
 		A10000000000000000000013 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SettingsScreen.swift */; };
 		A10000000000000000000014 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* GoogleService-Info.plist */; };
+		A10000000000000000000085 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000085 /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000015 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000002 /* FirebaseCore */; };
 		A10000000000000000000016 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000003 /* FirebaseAuth */; };
 		A10000000000000000000017 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000004 /* FirebaseFirestore */; };
@@ -82,6 +83,7 @@
 		A20000000000000000000007 /* StudyTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* StudyTimerActivityAttributes.swift */; };
 		A20000000000000000000008 /* StudyTimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* StudyTimerLiveActivity.swift */; };
 		A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */; };
+		A20000000000000000000012 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* PrivacyInfo.xcprivacy */; };
 		A30000000000000000000001 /* ScreenViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* ScreenViewModel.swift */; };
 		A30000000000000000000002 /* OnboardingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000002 /* OnboardingScreen.swift */; };
 		A30000000000000000000003 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000003 /* OnboardingViewModel.swift */; };
@@ -254,6 +256,7 @@
 		B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FirestoreDeltaSyncStore.swift; path = Sync/FirestoreDeltaSyncStore.swift; sourceTree = "<group>"; };
 		B10000000000000000000083 /* LocationWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationWeatherService.swift; sourceTree = "<group>"; };
 		B10000000000000000000084 /* WeatherKitWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitWeatherService.swift; sourceTree = "<group>"; };
+		B10000000000000000000085 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B10000000000000000000099 /* TimerAmbientResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolver.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* StudyAppWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000002 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
@@ -266,6 +269,7 @@
 		B20000000000000000000009 /* StudyTimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerActivityAttributes.swift; sourceTree = "<group>"; };
 		B20000000000000000000010 /* StudyTimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerLiveActivity.swift; sourceTree = "<group>"; };
 		B20000000000000000000011 /* StudyWidgetSnapshotComputer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyWidgetSnapshotComputer.swift; sourceTree = "<group>"; };
+		B20000000000000000000012 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B30000000000000000000001 /* ScreenViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenViewModel.swift; sourceTree = "<group>"; };
 		B30000000000000000000002 /* OnboardingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000003 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
@@ -494,6 +498,7 @@
 			children = (
 				B10000000000000000000019 /* Assets.xcassets */,
 				B10000000000000000000015 /* GoogleService-Info.plist */,
+				B10000000000000000000085 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -599,6 +604,7 @@
 				B20000000000000000000010 /* StudyTimerLiveActivity.swift */,
 				B20000000000000000000007 /* Info.plist */,
 				B20000000000000000000008 /* StudyAppWidgets.entitlements */,
+				B20000000000000000000012 /* PrivacyInfo.xcprivacy */,
 			);
 			path = StudyAppWidgets;
 			sourceTree = "<group>";
@@ -902,6 +908,7 @@
 			files = (
 				A10000000000000000000022 /* Assets.xcassets in Resources */,
 				A10000000000000000000014 /* GoogleService-Info.plist in Resources */,
+				A10000000000000000000085 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -909,6 +916,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000000000000000000012 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

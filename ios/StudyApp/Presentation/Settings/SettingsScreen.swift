@@ -9,6 +9,7 @@ struct SettingsScreen: View {
     @State private var isImporting = false
     @State private var isShowingExportOptions = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var isShowingAccountDeletionConfirmation = false
     @State private var isShowingAuthSheet = false
     @State private var isShowingDebugLogs = false
     @State private var versionTapCount = 0
@@ -56,6 +57,17 @@ struct SettingsScreen: View {
                 Button("キャンセル", role: .cancel) {}
             } message: {
                 Text("学習記録、教材、科目、試験、計画データが削除されます。設定は保持します。")
+            }
+            .alert("アカウントを削除しますか？", isPresented: $isShowingAccountDeletionConfirmation) {
+                SecureField("現在のパスワード", text: $viewModel.accountDeletionPassword)
+                Button("削除する", role: .destructive) {
+                    viewModel.deleteSyncAccount()
+                }
+                Button("キャンセル", role: .cancel) {
+                    viewModel.accountDeletionPassword = ""
+                }
+            } message: {
+                Text("クラウド同期アカウント、クラウド上の同期データ、この端末の学習データを削除します。この操作は元に戻せません。")
             }
             .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
                 if case .success(let url) = result {
@@ -288,6 +300,10 @@ struct SettingsScreen: View {
                 Divider()
                 actionLine(icon: "rectangle.portrait.and.arrow.right", title: "サインアウト", color: AppColors.danger) {
                     viewModel.signOutOfSync()
+                }
+                Divider()
+                actionLine(icon: "person.crop.circle.badge.xmark", title: "アカウントを削除", color: AppColors.danger) {
+                    isShowingAccountDeletionConfirmation = true
                 }
             } else if let unavailableMessage = FirebaseBootstrap.status.unavailableMessage {
                 compactInfoRow(icon: "exclamationmark.triangle", title: "利用できません", value: "設定未完了", color: AppColors.warning)

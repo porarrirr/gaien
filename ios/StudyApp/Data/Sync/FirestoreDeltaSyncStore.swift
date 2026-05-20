@@ -243,12 +243,73 @@ struct FirestoreDeltaSyncStore {
         try await batch.commit()
     }
 
+    /// Permanently deletes all cloud sync data owned by the user.
+    func deleteAllUserData(userId: String) async throws {
+        try await deleteDocuments(in: entitiesCollection(userId: userId), userId: userId, operation: "deleteDeltaUserData")
+
+        let manifest = firestore
+            .collection("users").document(userId)
+            .collection("sync").document("default")
+        try await deleteDocuments(in: manifest.collection("chunks"), userId: userId, operation: "deleteLegacyChunks")
+
+        let batch = firestore.batch()
+        batch.deleteDocument(manifest)
+        batch.deleteDocument(firestore.collection("users").document(userId))
+        do {
+            try await batch.commit()
+        } catch {
+            logFirestoreFailure(
+                operation: "deleteUserSyncRoot",
+                userId: userId,
+                details: "path=users/<uid>",
+                error: error
+            )
+            throw error
+        }
+
+        logger.log(category: .sync, level: .warning, message: "Deleted cloud sync data", details: "path=users/<uid>")
+    }
+
     // MARK: - Private
 
     private func entitiesCollection(userId: String) -> CollectionReference {
         firestore
             .collection("users").document(userId)
             .collection("sync_entities")
+    }
+
+    private func deleteDocuments(in collection: CollectionReference, userId: String, operation: String) async throws {
+        while true {
+            let snapshot: QuerySnapshot
+            do {
+                snapshot = try await collection.limit(to: maxBatchOperations).getDocuments()
+            } catch {
+                logFirestoreFailure(
+                    operation: operation,
+                    userId: userId,
+                    details: "path=\(collection.path)",
+                    error: error
+                )
+                throw error
+            }
+            guard !snapshot.documents.isEmpty else { return }
+
+            let batch = firestore.batch()
+            for document in snapshot.documents {
+                batch.deleteDocument(document.reference)
+            }
+            do {
+                try await batch.commit()
+            } catch {
+                logFirestoreFailure(
+                    operation: operation,
+                    userId: userId,
+                    details: "path=\(collection.path) count=\(snapshot.documents.count)",
+                    error: error
+                )
+                throw error
+            }
+        }
     }
 
     /// Parses a Firestore document into an envelope. Returns nil when the

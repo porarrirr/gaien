@@ -228,5 +228,6 @@ private final class MockSyncRepository: SyncRepository {
     }
 
     func importLocalDataToCloud() async throws {}
+    func deleteCloudDataForCurrentUser() async throws {}
     func clearLocalSyncState() async {}
 }

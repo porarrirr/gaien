@@ -101,6 +101,9 @@ protocol AuthRepository {
     var session: AuthSession? { get }
     func signIn(email: String, password: String) async throws
     func signUp(email: String, password: String) async throws
+    func sendPasswordReset(email: String) async throws
+    func reauthenticate(password: String) async throws
+    func deleteAccount(password: String) async throws
     func signOut() async throws
 }
 
@@ -110,5 +113,6 @@ protocol SyncRepository {
     var statusPublisher: AnyPublisher<SyncStatus, Never> { get }
     func syncNow() async throws
     func importLocalDataToCloud() async throws
+    func deleteCloudDataForCurrentUser() async throws
     func clearLocalSyncState() async
 }

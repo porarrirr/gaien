@@ -13,6 +13,18 @@ final class DisabledAuthRepository: AuthRepository {
         throw ValidationError(message: FirebaseBootstrap.status.unavailableMessage ?? "Firebase設定が無効なため、クラウド同期は利用できません")
     }
 
+    func sendPasswordReset(email: String) async throws {
+        throw ValidationError(message: FirebaseBootstrap.status.unavailableMessage ?? "Firebase設定が無効なため、クラウド同期は利用できません")
+    }
+
+    func reauthenticate(password: String) async throws {
+        throw ValidationError(message: FirebaseBootstrap.status.unavailableMessage ?? "Firebase設定が無効なため、クラウド同期は利用できません")
+    }
+
+    func deleteAccount(password: String) async throws {
+        throw ValidationError(message: FirebaseBootstrap.status.unavailableMessage ?? "Firebase設定が無効なため、クラウド同期は利用できません")
+    }
+
     func signOut() async throws {}
 }
 
@@ -37,6 +49,11 @@ final class DisabledSyncRepository: SyncRepository {
 
     func importLocalDataToCloud() async throws {
         logger.log(category: .sync, level: .warning, message: "Cloud upload unavailable", details: FirebaseBootstrap.status.logDescription)
+        throw ValidationError(message: FirebaseBootstrap.status.unavailableMessage ?? "Firebase設定が無効なため、クラウド同期は利用できません")
+    }
+
+    func deleteCloudDataForCurrentUser() async throws {
+        logger.log(category: .sync, level: .warning, message: "Cloud delete unavailable", details: FirebaseBootstrap.status.logDescription)
         throw ValidationError(message: FirebaseBootstrap.status.unavailableMessage ?? "Firebase設定が無効なため、クラウド同期は利用できません")
     }
 

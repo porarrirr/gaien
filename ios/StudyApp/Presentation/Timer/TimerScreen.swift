@@ -416,6 +416,14 @@ struct TimerScreen: View {
                     .foregroundStyle(AppColors.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                if showsWeatherAttribution {
+                    Link(destination: Self.weatherAttributionURL) {
+                        Text("Weather | Apple Weather")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(theme.accent)
+                            .lineLimit(1)
+                    }
+                }
             }
             Spacer(minLength: 8)
             Text(app.preferences.timerVisualMode.title)
@@ -639,6 +647,13 @@ struct TimerScreen: View {
         }
         return "\(context.source.title)で判定 ・ \(weather)"
     }
+
+    private var showsWeatherAttribution: Bool {
+        let context = app.timerAmbientContext
+        return context.source == .weather || context.source == .cache
+    }
+
+    private static let weatherAttributionURL = URL(string: "https://weatherkit.apple.com/legal-attribution.html")!
 
     private static let hourMinuteFormatter: DateFormatter = {
         let formatter = DateFormatter()
