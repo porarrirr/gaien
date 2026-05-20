@@ -942,7 +942,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     func getTodayReviewProblems(reference: Date = Date()) async throws -> [TodayReviewProblem] {
         try await ensureLoaded()
         let calendar = Calendar.current
-        let dueEnd = (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: reference)) ?? reference).epochMilliseconds - 1
+        let reviewAgeThreshold = (calendar.date(byAdding: .day, value: -1, to: reference) ?? reference).epochMilliseconds
         let reviews = try CoreDataQuery.fetch(
             "ProblemReviewRecord",
             in: viewContext,
@@ -958,7 +958,11 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let subjectMap = Dictionary(uniqueKeysWithValues: subjects.map { ($0.id, $0) })
 
         return latestByProblem.values
-            .filter { $0.nextReviewDate <= dueEnd && $0.deletedAt == nil }
+            .filter {
+                $0.reviewedAt <= reviewAgeThreshold &&
+                $0.rating != .good &&
+                $0.deletedAt == nil
+            }
             .compactMap { review -> TodayReviewProblem? in
                 guard let material = materialMap[review.materialId], material.deletedAt == nil else { return nil }
                 let subject = subjectMap[material.subjectId]
@@ -974,9 +978,6 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 )
             }
             .sorted {
-                if $0.nextReviewDate != $1.nextReviewDate {
-                    return $0.nextReviewDate < $1.nextReviewDate
-                }
                 if $0.materialName != $1.materialName {
                     return $0.materialName < $1.materialName
                 }

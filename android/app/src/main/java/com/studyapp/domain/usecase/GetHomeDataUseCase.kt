@@ -3,6 +3,7 @@ package com.studyapp.domain.usecase
 import com.studyapp.domain.model.Exam
 import com.studyapp.domain.model.Goal
 import com.studyapp.domain.model.GoalType
+import com.studyapp.domain.model.ProblemReviewRating
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.model.StudyWeekday
 import com.studyapp.domain.model.TimetableEntry
@@ -58,7 +59,7 @@ class GetHomeDataUseCase @Inject constructor(
 ) {
     operator fun invoke(): Flow<HomeData> {
         val todayStart = clock.startOfToday()
-        val todayEnd = todayStart + DAY_MS - 1
+        val reviewAgeThreshold = clock.currentTimeMillis() - DAY_MS
         val weekStart = clock.startOfWeek()
         val todayStudyWeekday = StudyWeekday.fromDayOfWeek(clock.currentLocalDate().dayOfWeek)
 
@@ -119,7 +120,11 @@ class GetHomeDataUseCase @Inject constructor(
                 .mapNotNull { (_, problemReviews) ->
                     problemReviews.maxByOrNull { it.reviewedAt }
                 }
-                .filter { it.nextReviewDate <= todayEnd && it.deletedAt == null }
+                .filter {
+                    it.reviewedAt <= reviewAgeThreshold &&
+                        it.rating != ProblemReviewRating.GOOD &&
+                        it.deletedAt == null
+                }
                 .mapNotNull { review ->
                     val material = materialMap[review.materialId] ?: return@mapNotNull null
                     val subject = subjectMap[material.subjectId]
@@ -134,8 +139,7 @@ class GetHomeDataUseCase @Inject constructor(
                     )
                 }
                 .sortedWith(
-                    compareBy<TodayReviewProblem> { it.nextReviewDate }
-                        .thenBy { it.materialName }
+                    compareBy<TodayReviewProblem> { it.materialName }
                         .thenBy { it.problemNumber }
                 )
         }

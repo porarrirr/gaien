@@ -25,24 +25,45 @@ import org.junit.Test
 
 class GetHomeDataUseCaseTest {
     @Test
-    fun `today review problems include latest due active records`() = runTest {
+    fun `today review problems include old latest records that are not correct`() = runTest {
         val todayStart = 1_700_000_000_000L
-        val dueRecord = ProblemReviewRecord(
+        val oldWrongRecord = ProblemReviewRecord(
             problemId = ProblemReviewRecord.problemId(1, 12),
             materialId = 1,
             materialSyncId = "material-sync",
             problemNumber = 12,
-            reviewedAt = todayStart - DAY_MS,
+            reviewedAt = todayStart - DAY_MS - 1,
             rating = ProblemReviewRating.AGAIN,
-            nextReviewDate = todayStart,
+            nextReviewDate = todayStart + DAY_MS,
             consecutiveCorrectCount = 0,
             wrongCount = 2
         )
-        val futureRecord = dueRecord.copy(
-            syncId = "future",
+        val recentWrongRecord = oldWrongRecord.copy(
+            syncId = "recent",
             problemId = ProblemReviewRecord.problemId(1, 13),
             problemNumber = 13,
-            nextReviewDate = todayStart + DAY_MS
+            reviewedAt = todayStart - DAY_MS + 1,
+            nextReviewDate = todayStart - DAY_MS
+        )
+        val oldGoodRecord = oldWrongRecord.copy(
+            syncId = "good",
+            problemId = ProblemReviewRecord.problemId(1, 14),
+            problemNumber = 14,
+            reviewedAt = todayStart - DAY_MS - 1,
+            rating = ProblemReviewRating.GOOD,
+            nextReviewDate = todayStart - DAY_MS
+        )
+        val olderWrongRecordSupersededByGood = oldWrongRecord.copy(
+            syncId = "older-wrong",
+            problemId = ProblemReviewRecord.problemId(1, 15),
+            problemNumber = 15,
+            reviewedAt = todayStart - DAY_MS * 3,
+            nextReviewDate = todayStart - DAY_MS
+        )
+        val latestGoodRecord = olderWrongRecordSupersededByGood.copy(
+            syncId = "latest-good",
+            reviewedAt = todayStart - DAY_MS - 1,
+            rating = ProblemReviewRating.GOOD
         )
 
         val studySessionRepository = mockk<StudySessionRepository>()
@@ -61,7 +82,15 @@ class GetHomeDataUseCaseTest {
             Result.Success(listOf(Subject(id = 2, name = "数学", color = 0x4CAF50)))
         )
         every { problemReviewRepository.getActiveReviewRecords() } returns flowOf(
-            Result.Success(listOf(futureRecord, dueRecord))
+            Result.Success(
+                listOf(
+                    recentWrongRecord,
+                    oldGoodRecord,
+                    olderWrongRecordSupersededByGood,
+                    latestGoodRecord,
+                    oldWrongRecord
+                )
+            )
         )
         every { goalRepository.getAllGoals() } returns flowOf(Result.Success(emptyList()))
         every { examRepository.getUpcomingExams() } returns flowOf(Result.Success(emptyList()))
