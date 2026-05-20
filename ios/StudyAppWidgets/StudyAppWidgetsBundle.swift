@@ -14,7 +14,7 @@ struct StudyAppWidgetsBundle: WidgetBundle {
         UpcomingExamListWidget()
         WeeklyPaceWidget()
         #if !LIVE_ACTIVITY_DISABLED
-        if #available(iOSApplicationExtension 18.0, *) {
+        if #available(iOSApplicationExtension 16.1, *) {
             StudyTimerLiveActivityWidget()
         }
         #endif

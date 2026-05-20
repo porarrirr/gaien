@@ -247,7 +247,7 @@ struct SettingsScreen: View {
                 Toggle(isOn: Binding(get: { viewModel.app.preferences.liveActivityEnabled }, set: { viewModel.app.setLiveActivityEnabled($0) })) {
                     HStack(spacing: 12) {
                         SettingsIcon(systemName: "waveform")
-                        Text("タイプアクティビティを使用")
+                        Text("Live Activityを使用")
                             .font(.body.weight(.semibold))
                     }
                 }
@@ -264,7 +264,7 @@ struct SettingsScreen: View {
                 }
                 .disabled(!viewModel.app.preferences.liveActivityEnabled)
             } else {
-                Text(liveActivityFeatureIncludedInBuild ? "iOS 18以降で利用できます" : "このビルドでは Live Activity を含めていません")
+                Text(liveActivityFeatureIncludedInBuild ? "iOS 16.2以降で利用できます" : "このビルドでは Live Activity を含めていません")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppColors.textSecondary)
             }
@@ -557,7 +557,7 @@ struct SettingsScreen: View {
     }
 
     private var liveActivitySettingsAvailable: Bool {
-        if #available(iOS 18.0, *) {
+        if #available(iOS 16.2, *) {
             return true
         }
         return false

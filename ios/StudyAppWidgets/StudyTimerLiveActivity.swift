@@ -3,7 +3,7 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-@available(iOSApplicationExtension 18.0, *)
+@available(iOSApplicationExtension 16.1, *)
 struct StudyTimerLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: StudyTimerActivityAttributes.self) { context in
@@ -16,12 +16,12 @@ struct StudyTimerLiveActivityWidget: Widget {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(context.attributes.subjectName)
                             .font(.headline.bold())
-                            .foregroundStyle(WidgetPalette.textPrimary)
+                            .foregroundStyle(DynamicIslandPalette.textPrimary)
                             .lineLimit(1)
                         if let detail = expandedDetailText(for: context), !detail.isEmpty {
                             Text(detail)
                                 .font(.caption)
-                                .foregroundStyle(WidgetPalette.textSecondary)
+                                .foregroundStyle(DynamicIslandPalette.textSecondary)
                                 .lineLimit(2)
                         }
                     }
@@ -30,8 +30,8 @@ struct StudyTimerLiveActivityWidget: Widget {
                     VStack(alignment: .trailing, spacing: 6) {
                         LiveActivityTimerText(state: context.state)
                             .font(.headline.monospacedDigit())
-                            .foregroundStyle(WidgetPalette.textPrimary)
-                        LiveActivityStatusBadge(isRunning: context.state.isRunning)
+                            .foregroundStyle(DynamicIslandPalette.textPrimary)
+                        LiveActivityStatusBadge(isRunning: context.state.isRunning, palette: .dynamicIsland)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -43,19 +43,19 @@ struct StudyTimerLiveActivityWidget: Widget {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(WidgetPalette.primary, in: Capsule())
+                            .background(DynamicIslandPalette.primary, in: Capsule())
                     }
                 }
             } compactLeading: {
                 Image(systemName: context.state.isRunning ? "timer" : "pause.fill")
-                    .foregroundStyle(WidgetPalette.primary)
+                    .foregroundStyle(DynamicIslandPalette.primary)
             } compactTrailing: {
                 LiveActivityTimerText(state: context.state)
                     .font(.caption2.monospacedDigit())
-                    .foregroundStyle(WidgetPalette.textPrimary)
+                    .foregroundStyle(DynamicIslandPalette.textPrimary)
             } minimal: {
                 Image(systemName: context.state.isRunning ? "timer" : "pause.fill")
-                    .foregroundStyle(WidgetPalette.primary)
+                    .foregroundStyle(DynamicIslandPalette.primary)
             }
         }
     }
@@ -68,24 +68,24 @@ struct StudyTimerLiveActivityWidget: Widget {
         case .focus:
             Text(context.state.isRunning ? "集中中" : "一時停止中")
                 .font(.caption)
-                .foregroundStyle(WidgetPalette.textSecondary)
+                .foregroundStyle(DynamicIslandPalette.textSecondary)
         case .progress:
             Text(progressSummaryText(state: context.state))
                 .font(.caption)
-                .foregroundStyle(WidgetPalette.textSecondary)
+                .foregroundStyle(DynamicIslandPalette.textSecondary)
         case .subjectDetail:
             Text(startedAtText(state: context.state))
                 .font(.caption)
-                .foregroundStyle(WidgetPalette.textSecondary)
+                .foregroundStyle(DynamicIslandPalette.textSecondary)
         case .standard:
             Text(materialSummaryText(materialName: context.attributes.materialName))
                 .font(.caption)
-                .foregroundStyle(WidgetPalette.textSecondary)
+                .foregroundStyle(DynamicIslandPalette.textSecondary)
         }
     }
 }
 
-@available(iOSApplicationExtension 18.0, *)
+@available(iOSApplicationExtension 16.1, *)
 private struct StudyTimerLiveActivityView: View {
     let context: ActivityViewContext<StudyTimerActivityAttributes>
 
@@ -224,21 +224,22 @@ private struct StudyTimerLiveActivityView: View {
     }
 }
 
-@available(iOSApplicationExtension 18.0, *)
+@available(iOSApplicationExtension 16.1, *)
 private struct LiveActivityStatusBadge: View {
     let isRunning: Bool
+    var palette: LiveActivityStatusPalette = .lockScreen
 
     var body: some View {
         Text(isRunning ? "記録中" : "一時停止")
             .font(.caption2.bold())
-            .foregroundStyle(isRunning ? WidgetPalette.primary : WidgetPalette.warning)
+            .foregroundStyle(isRunning ? palette.runningForeground : palette.pausedForeground)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background((isRunning ? WidgetPalette.primary : WidgetPalette.warning).opacity(0.14), in: Capsule())
+            .background(isRunning ? palette.runningBackground : palette.pausedBackground, in: Capsule())
     }
 }
 
-@available(iOSApplicationExtension 18.0, *)
+@available(iOSApplicationExtension 16.1, *)
 private struct LiveActivityTimerText: View {
     let state: StudyTimerActivityAttributes.ContentState
 
@@ -253,7 +254,7 @@ private struct LiveActivityTimerText: View {
     }
 }
 
-@available(iOSApplicationExtension 18.0, *)
+@available(iOSApplicationExtension 16.1, *)
 private func expandedDetailText(
     for context: ActivityViewContext<StudyTimerActivityAttributes>
 ) -> String? {
@@ -267,6 +268,46 @@ private func expandedDetailText(
     case .standard:
         return materialSummaryText(materialName: context.attributes.materialName)
     }
+}
+
+private enum LiveActivityStatusPalette {
+    case lockScreen
+    case dynamicIsland
+
+    var runningForeground: Color {
+        switch self {
+        case .lockScreen: return WidgetPalette.primary
+        case .dynamicIsland: return DynamicIslandPalette.primary
+        }
+    }
+
+    var pausedForeground: Color {
+        switch self {
+        case .lockScreen: return WidgetPalette.warning
+        case .dynamicIsland: return DynamicIslandPalette.warning
+        }
+    }
+
+    var runningBackground: Color {
+        switch self {
+        case .lockScreen: return WidgetPalette.primary.opacity(0.14)
+        case .dynamicIsland: return DynamicIslandPalette.primary.opacity(0.22)
+        }
+    }
+
+    var pausedBackground: Color {
+        switch self {
+        case .lockScreen: return WidgetPalette.warning.opacity(0.14)
+        case .dynamicIsland: return DynamicIslandPalette.warning.opacity(0.24)
+        }
+    }
+}
+
+private enum DynamicIslandPalette {
+    static let primary = Color(hex: 0x5EE37D)
+    static let warning = Color(hex: 0xFFB74D)
+    static let textPrimary = Color.white
+    static let textSecondary = Color.white.opacity(0.72)
 }
 
 private func materialSummaryText(materialName: String) -> String {
