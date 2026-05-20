@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>サポート — StudyApp</title>
+  <meta name="description" content="StudyApp のサポートページです。よくある質問、使い方ガイド、お問い合わせ先をご案内します。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Inter:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #6C63FF;
+      --accent2: #FF6584;
+      --accent3: #43CFAB;
+      --bg: #0B0E1A;
+      --bg2: #12162A;
+      --bg3: #1A2040;
+      --text: #E8EAFF;
+      --text2: #9AA0C0;
+      --card: rgba(255,255,255,0.04);
+      --card-border: rgba(108,99,255,0.25);
+      --radius: 16px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Noto Sans JP', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 40px;
+      background: rgba(11,14,26,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(108,99,255,0.15);
+    }
+    .nav-logo { font-size: 1.3rem; font-weight: 700; color: var(--text); letter-spacing: -0.5px; text-decoration: none; }
+    .nav-logo span { color: var(--accent); }
+    .nav-back {
+      color: var(--text2); text-decoration: none; font-size: 0.9rem;
+      display: flex; align-items: center; gap: 6px; transition: color 0.2s;
+    }
+    .nav-back:hover { color: var(--text); }
+
+    /* ── HERO ── */
+    .support-hero {
+      padding: 140px 24px 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .support-hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(108,99,255,0.2) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(108,99,255,0.15); border: 1px solid rgba(108,99,255,0.35);
+      border-radius: 50px; padding: 6px 16px; font-size: 0.8rem;
+      color: #a99fff; margin-bottom: 24px;
+    }
+    .support-hero h1 {
+      font-size: clamp(2.2rem, 5vw, 3.5rem); font-weight: 900; letter-spacing: -1.5px;
+      margin-bottom: 16px;
+    }
+    .support-hero h1 span {
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .support-hero p { color: var(--text2); max-width: 500px; margin: 0 auto; font-size: 1rem; }
+
+    /* ── SEARCH (decorative) ── */
+    .search-bar {
+      display: flex; align-items: center; gap: 12px;
+      max-width: 560px; margin: 40px auto 0;
+      background: var(--bg2); border: 1px solid var(--card-border);
+      border-radius: 50px; padding: 14px 20px;
+      transition: border-color 0.2s;
+    }
+    .search-bar:focus-within { border-color: rgba(108,99,255,0.6); }
+    .search-bar input {
+      flex: 1; background: none; border: none; outline: none;
+      color: var(--text); font-size: 0.95rem; font-family: inherit;
+    }
+    .search-bar input::placeholder { color: var(--text2); }
+    .search-bar svg { color: var(--text2); flex-shrink: 0; }
+
+    /* ── CONTENT ── */
+    .content { max-width: 800px; margin: 0 auto; padding: 60px 24px 100px; }
+
+    /* ── FAQ ── */
+    .faq-section { margin-bottom: 72px; }
+    .faq-section h2 {
+      font-size: 1.4rem; font-weight: 700; margin-bottom: 24px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .faq-section h2::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, rgba(108,99,255,0.4), transparent);
+    }
+
+    details {
+      background: var(--card); border: 1px solid var(--card-border);
+      border-radius: var(--radius); margin-bottom: 12px; overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    details[open] { border-color: rgba(108,99,255,0.5); }
+    details[open] summary { color: var(--accent); }
+
+    summary {
+      padding: 20px 24px; font-weight: 500; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      list-style: none; transition: color 0.2s;
+      font-size: 0.95rem;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::after {
+      content: '+'; font-size: 1.2rem; color: var(--accent);
+      transition: transform 0.25s; flex-shrink: 0; margin-left: 12px;
+    }
+    details[open] summary::after { transform: rotate(45deg); }
+
+    .answer {
+      padding: 0 24px 20px; color: var(--text2); font-size: 0.9rem;
+      line-height: 1.8; border-top: 1px solid rgba(108,99,255,0.1);
+      padding-top: 16px; margin-top: -1px;
+    }
+    .answer a { color: var(--accent); }
+
+    /* ── GUIDE CARDS ── */
+    .guide-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px; margin-bottom: 72px;
+    }
+    .guide-card {
+      background: var(--card); border: 1px solid var(--card-border);
+      border-radius: var(--radius); padding: 24px;
+      text-decoration: none; color: var(--text);
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+      display: block;
+    }
+    .guide-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); border-color: rgba(108,99,255,0.5); }
+    .guide-icon { font-size: 1.8rem; margin-bottom: 12px; display: block; }
+    .guide-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; }
+    .guide-desc { color: var(--text2); font-size: 0.82rem; line-height: 1.5; }
+
+    /* ── CONTACT ── */
+    .contact-card {
+      background: linear-gradient(135deg, rgba(108,99,255,0.1), rgba(67,207,171,0.08));
+      border: 1px solid rgba(108,99,255,0.3);
+      border-radius: 24px; padding: 48px 40px; text-align: center;
+      margin-bottom: 72px;
+    }
+    .contact-card h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: 12px; }
+    .contact-card p { color: var(--text2); max-width: 440px; margin: 0 auto 32px; }
+    .contact-methods { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .contact-btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 28px; border-radius: 50px; font-size: 0.9rem; font-weight: 500;
+      text-decoration: none; transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .contact-btn-primary {
+      background: linear-gradient(135deg, var(--accent), #8B5CF6);
+      color: #fff; box-shadow: 0 4px 20px rgba(108,99,255,0.4);
+    }
+    .contact-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(108,99,255,0.6); }
+    .contact-btn-secondary {
+      background: var(--card); border: 1px solid var(--card-border);
+      color: var(--text);
+    }
+    .contact-btn-secondary:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }
+
+    /* ── PRIVACY NOTICE ── */
+    .privacy-section {
+      background: var(--bg2); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius); padding: 32px; margin-bottom: 40px;
+    }
+    .privacy-section h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 16px; }
+    .privacy-section p { color: var(--text2); font-size: 0.9rem; line-height: 1.8; margin-bottom: 12px; }
+    .privacy-section p:last-child { margin-bottom: 0; }
+    .privacy-section ul { color: var(--text2); font-size: 0.9rem; line-height: 1.8; padding-left: 20px; }
+    .privacy-section ul li { margin-bottom: 6px; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--bg); border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 32px 24px; text-align: center; color: var(--text2); font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 768px) {
+      nav { padding: 16px 20px; }
+      .contact-card { padding: 32px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-logo">Study<span>App</span></a>
+  <a href="index.html" class="nav-back">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    ホームへ戻る
+  </a>
+</nav>
+
+<!-- HERO -->
+<div class="support-hero">
+  <div class="hero-badge">📬 サポートセンター</div>
+  <h1>お困りですか？<br /><span>お気軽にどうぞ。</span></h1>
+  <p>よくある質問・使い方ガイド・お問い合わせ先をまとめました。</p>
+  <div class="search-bar">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="search" placeholder="質問を検索する..." aria-label="サポート検索" id="support-search" />
+  </div>
+</div>
+
+<main class="content">
+
+  <!-- GUIDE CARDS -->
+  <div style="margin-bottom: 16px;">
+    <h2 style="font-size:1.4rem; font-weight:700; margin-bottom:20px; display:flex; align-items:center; gap:10px;">
+      🚀 クイックガイド
+      <span style="flex:1; height:1px; background: linear-gradient(90deg, rgba(108,99,255,0.4), transparent);"></span>
+    </h2>
+  </div>
+  <div class="guide-grid">
+    <a href="#faq-timer" class="guide-card" id="guide-timer">
+      <span class="guide-icon">⏱️</span>
+      <div class="guide-title">タイマーの使い方</div>
+      <div class="guide-desc">ストップウォッチ・カウントダウンの切り替え方法</div>
+    </a>
+    <a href="#faq-sync" class="guide-card" id="guide-sync">
+      <span class="guide-icon">☁️</span>
+      <div class="guide-title">クラウド同期の設定</div>
+      <div class="guide-desc">Firebase アカウント登録とデータ同期の方法</div>
+    </a>
+    <a href="#faq-widget" class="guide-card" id="guide-widget">
+      <span class="guide-icon">🔲</span>
+      <div class="guide-title">ウィジェットの追加</div>
+      <div class="guide-desc">iOS・Android でのウィジェット設定手順</div>
+    </a>
+    <a href="#faq-export" class="guide-card" id="guide-export">
+      <span class="guide-icon">📤</span>
+      <div class="guide-title">データのエクスポート</div>
+      <div class="guide-desc">JSON / CSV 形式でのデータ書き出し方法</div>
+    </a>
+  </div>
+
+  <!-- FAQ: はじめかた -->
+  <div class="faq-section" id="faq-start">
+    <h2>🌱 はじめかた</h2>
+
+    <details id="faq-account">
+      <summary>アカウントは必要ですか？</summary>
+      <div class="answer">
+        アカウントなしでもアプリの基本機能はすべて使えます。Firebaseアカウント（メール/パスワード）を作成すると、クラウド同期が有効になり、複数デバイス間でデータを共有できます。
+      </div>
+    </details>
+
+    <details>
+      <summary>初回起動時に何をすればいいですか？</summary>
+      <div class="answer">
+        起動するとオンボーディング画面が表示されます。アプリの主要機能を紹介するガイドをご確認ください。その後、まず「科目」を追加してからタイマーで学習を開始することをお勧めします。
+      </div>
+    </details>
+
+    <details>
+      <summary>ダークモードは使えますか？</summary>
+      <div class="answer">
+        はい。設定画面からライト / ダーク / システム設定に追従の3種類を選択できます。また、複数のテーマカラーも用意されています。
+      </div>
+    </details>
+  </div>
+
+  <!-- FAQ: タイマー -->
+  <div class="faq-section" id="faq-timer">
+    <h2>⏱️ タイマー・記録</h2>
+
+    <details>
+      <summary>タイマーをバックグラウンドで動かしたい</summary>
+      <div class="answer">
+        <strong>Android：</strong>フォアグラウンドサービスにより、アプリをバックグラウンドにしてもタイマーが継続します。通知バーにタイマー表示が出ます。<br /><br />
+        <strong>iOS：</strong>Live Activity（iOS 18以降）を使うと、ロック画面 / Dynamic Island にタイマーをリアルタイム表示できます。
+      </div>
+    </details>
+
+    <details>
+      <summary>記録を削除してしまいました。復元できますか？</summary>
+      <div class="answer">
+        クラウド同期が有効な場合は、同期先の Firestore にデータが残っていることがあります。サインアウトしてから再サインインすることで復元できる場合があります。ローカルのみで使用している場合、削除されたデータは復元できません。定期的なデータエクスポートをお勧めします。
+      </div>
+    </details>
+
+    <details>
+      <summary>複数の科目を同時に記録できますか？</summary>
+      <div class="answer">
+        現在は1セッションにつき1科目の記録に対応しています。記録が完了した後に別の科目を開始することができます。
+      </div>
+    </details>
+  </div>
+
+  <!-- FAQ: 教材・科目 -->
+  <div class="faq-section">
+    <h2>📚 教材・科目管理</h2>
+
+    <details>
+      <summary>ISBNバーコードスキャンが使えません（Android）</summary>
+      <div class="answer">
+        カメラへのアクセス許可が必要です。端末の設定 &gt; アプリ &gt; StudyApp &gt; 権限 からカメラを許可してください。また、十分な明るさのある場所でバーコードをスキャンしてください。
+      </div>
+    </details>
+
+    <details>
+      <summary>科目のアイコン・カラーを変更したい</summary>
+      <div class="answer">
+        科目の編集画面から変更できます。13種類のアイコンと複数のカラーから選択できます。
+      </div>
+    </details>
+  </div>
+
+  <!-- FAQ: 同期・アカウント -->
+  <div class="faq-section" id="faq-sync">
+    <h2>☁️ クラウド同期・アカウント</h2>
+
+    <details>
+      <summary>クラウド同期の設定方法は？</summary>
+      <div class="answer">
+        設定画面からアカウント登録（メール/パスワード）を行ってください。登録後、自動的にデータの同期が始まります。複数のデバイスで同じアカウントにサインインすることでデータを共有できます。
+      </div>
+    </details>
+
+    <details>
+      <summary>端末を変えたらデータが消えました</summary>
+      <div class="answer">
+        以前の端末でクラウド同期（Firebase）が有効だった場合、新しい端末で同じアカウントにサインインするとデータが復元されます。クラウド同期を使用していなかった場合、端末のバックアップ（iCloud・Google バックアップ）からの復元をお試しください。
+      </div>
+    </details>
+
+    <details>
+      <summary>アカウントを削除したい</summary>
+      <div class="answer">
+        設定画面 &gt; アカウント &gt; アカウントを削除 から手続きできます。削除するとクラウド上のデータもすべて削除されます。事前にデータをエクスポートすることをお勧めします。
+      </div>
+    </details>
+  </div>
+
+  <!-- FAQ: ウィジェット -->
+  <div class="faq-section" id="faq-widget">
+    <h2>🔲 ウィジェット</h2>
+
+    <details>
+      <summary>iOS でウィジェットを追加するには？</summary>
+      <div class="answer">
+        ホーム画面を長押し &gt; 左上の「+」をタップ &gt; StudyApp を検索して追加してください。サイズや種類は複数から選択できます。
+      </div>
+    </details>
+
+    <details>
+      <summary>Android でウィジェットを追加するには？</summary>
+      <div class="answer">
+        ホーム画面を長押し &gt; ウィジェット &gt; StudyApp から6種類のウィジェットを選択できます。タップして目的のウィジェットをホーム画面に配置してください。
+      </div>
+    </details>
+
+    <details>
+      <summary>ウィジェットが更新されません</summary>
+      <div class="answer">
+        バッテリー最適化の設定によって更新頻度が制限される場合があります。端末の設定でStudyAppのバッテリー最適化を「制限なし」に変更することをお試しください。
+      </div>
+    </details>
+  </div>
+
+  <!-- FAQ: エクスポート -->
+  <div class="faq-section" id="faq-export">
+    <h2>📤 データエクスポート</h2>
+
+    <details>
+      <summary>データをエクスポートするには？</summary>
+      <div class="answer">
+        設定画面 &gt; データ管理 &gt; エクスポート からJSON / CSV形式でデータを書き出せます。ファイルは端末のダウンロードフォルダに保存されます。
+      </div>
+    </details>
+
+    <details>
+      <summary>AnkiDroid のデータを取り込むには？（Android）</summary>
+      <div class="answer">
+        設定画面 &gt; AnkiDroid 連携 から設定できます。AnkiDroid がインストールされている必要があります。連携を有効にすると、AnkiDroidの学習データ（カード数、学習時間）がStudyAppに反映されます。
+      </div>
+    </details>
+  </div>
+
+  <!-- CONTACT -->
+  <div class="contact-card" id="contact">
+    <h2>解決しませんでしたか？</h2>
+    <p>お気軽にお問い合わせください。できる限り早くご返信します。</p>
+    <div class="contact-methods">
+      <a href="https://github.com/porarrirr/gaien/issues/new?template=support.md&labels=support" class="contact-btn contact-btn-primary" id="contact-github-btn" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        GitHub で報告する
+      </a>
+      <a href="mailto:support@studyapp.example.com" class="contact-btn contact-btn-secondary" id="contact-email-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        メールで問い合わせ
+      </a>
+    </div>
+  </div>
+
+  <!-- PRIVACY -->
+  <div class="privacy-section" id="privacy">
+    <h2>🔒 プライバシー・データについて</h2>
+    <p>StudyApp は以下のデータを収集・利用する場合があります：</p>
+    <ul>
+      <li>学習記録データ（タイマー、教材、科目、目標など）</li>
+      <li>アカウント情報（メールアドレス）※クラウド同期利用時のみ</li>
+      <li>クラッシュレポート・アプリ改善のための匿名統計情報</li>
+    </ul>
+    <p style="margin-top:16px">
+      収集したデータは Firebase (Google LLC) のサーバーに保存されます。第三者への販売・提供は行いません。アカウント削除時にはクラウドデータを完全に削除します。
+    </p>
+    <p>
+      お問い合わせ：<a href="https://github.com/porarrirr/gaien/issues" style="color: var(--accent);">GitHub Issues</a>
+    </p>
+  </div>
+
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <p>© 2025 StudyApp. All rights reserved.</p>
+  <p style="margin-top:8px">
+    <a href="index.html">ホーム</a> &nbsp;·&nbsp;
+    <a href="https://github.com/porarrirr/gaien" target="_blank" rel="noopener">GitHub</a>
+  </p>
+</footer>
+
+<script>
+  // Smooth scroll for anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const id = a.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+  });
+</script>
+</body>
+</html>
