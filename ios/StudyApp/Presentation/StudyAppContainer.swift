@@ -16,6 +16,7 @@ final class StudyAppContainer: ObservableObject {
     let locationWeatherService: LocationWeatherService
     let reminderScheduler: ReminderScheduler
     let logger: AppLogger
+    let screenTimeFocusController: ScreenTimeFocusController
     let clock = Clock()
     let authRepository: any AuthRepository
     let syncRepository: any SyncRepository
@@ -72,6 +73,7 @@ final class StudyAppContainer: ObservableObject {
             locationWeatherService: LocationWeatherService(),
             reminderScheduler: reminderScheduler,
             logger: logger,
+            screenTimeFocusController: ScreenTimeFocusController(),
             authRepository: repositories.authRepository,
             syncRepository: repositories.syncRepository
         )
@@ -84,6 +86,7 @@ final class StudyAppContainer: ObservableObject {
         locationWeatherService: LocationWeatherService,
         reminderScheduler: ReminderScheduler,
         logger: AppLogger,
+        screenTimeFocusController: ScreenTimeFocusController,
         authRepository: any AuthRepository,
         syncRepository: (any SyncRepository)?
     ) {
@@ -93,6 +96,7 @@ final class StudyAppContainer: ObservableObject {
         self.locationWeatherService = locationWeatherService
         self.reminderScheduler = reminderScheduler
         self.logger = logger
+        self.screenTimeFocusController = screenTimeFocusController
         self.authRepository = authRepository
         self.syncRepository = syncRepository ?? DisabledSyncRepository(logger: logger)
         self.preferences = preferencesRepository.loadPreferences()
@@ -123,6 +127,7 @@ final class StudyAppContainer: ObservableObject {
             scheduleAutoSync(reason: "app-load")
             syncLiveActivity(reason: "app-load")
             refreshTimerAmbient(reason: "app-load")
+            restoreScreenTimeFocus(reason: "app-load")
         } catch {
             isLoaded = true
             present(error)
@@ -199,6 +204,7 @@ final class StudyAppContainer: ObservableObject {
 
     func updateActiveTimer(_ timer: TimerSnapshot?) {
         savePreferences { $0.activeTimer = timer }
+        syncScreenTimeFocusForTimer(timer, reason: "active-timer")
     }
 
     func bumpDataVersion(shouldScheduleAutoSync: Bool = true) {
@@ -226,6 +232,7 @@ final class StudyAppContainer: ObservableObject {
     func handleSceneDidBecomeActive() {
         scheduleAutoSync(reason: "scene-active")
         refreshTimerAmbient(reason: "scene-active")
+        restoreScreenTimeFocus(reason: "scene-active")
     }
 
     func refreshTimerAmbient(reason: String, force: Bool = false) {
@@ -287,6 +294,32 @@ final class StudyAppContainer: ObservableObject {
         liveActivitySyncTask = Task { [weak self] in
             guard let self else { return }
             await self.liveActivityController.sync(activeTimer: activeTimer, preferences: preferences, reason: reason)
+        }
+    }
+
+    private func restoreScreenTimeFocus(reason: String) {
+        screenTimeFocusController.refresh()
+        do {
+            try screenTimeFocusController.syncScheduleMonitoringIfNeeded()
+            try screenTimeFocusController.applyTimerRestrictionIfNeeded(isRunning: preferences.activeTimer?.isRunning == true)
+            logger.log(category: .app, message: "Screen Time focus restored", details: reason)
+        } catch ScreenTimeFocusError.authorizationRequired {
+            screenTimeFocusController.clearTimerRestriction()
+        } catch ScreenTimeFocusError.missingAllowedApplications {
+            screenTimeFocusController.clearTimerRestriction()
+        } catch {
+            screenTimeFocusController.clearTimerRestriction()
+            present(error)
+        }
+    }
+
+    private func syncScreenTimeFocusForTimer(_ timer: TimerSnapshot?, reason: String) {
+        do {
+            try screenTimeFocusController.applyTimerRestrictionIfNeeded(isRunning: timer?.isRunning == true)
+            logger.log(category: .app, message: "Screen Time focus timer synced", details: reason)
+        } catch {
+            screenTimeFocusController.clearTimerRestriction()
+            present(error)
         }
     }
 }

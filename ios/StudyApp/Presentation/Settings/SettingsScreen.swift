@@ -1,3 +1,4 @@
+import FamilyControls
 import SwiftUI
 import UniformTypeIdentifiers
 #if canImport(UIKit)
@@ -6,18 +7,22 @@ import UIKit
 
 struct SettingsScreen: View {
     @StateObject private var viewModel: SettingsViewModel
+    @ObservedObject private var focusController: ScreenTimeFocusController
     @State private var isImporting = false
     @State private var isShowingExportOptions = false
     @State private var isShowingDeleteConfirmation = false
     @State private var isShowingAccountDeletionConfirmation = false
     @State private var isShowingAuthSheet = false
     @State private var isShowingDebugLogs = false
+    @State private var isShowingAllowedAppsPicker = false
+    @State private var focusPickerSelection = FamilyActivitySelection()
     @State private var versionTapCount = 0
     @State private var isDebugLogUnlocked = false
     @State private var copyConfirmationMessage: String?
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: SettingsViewModel(app: app))
+        _focusController = ObservedObject(wrappedValue: app.screenTimeFocusController)
     }
 
     var body: some View {
@@ -74,8 +79,23 @@ struct SettingsScreen: View {
                     viewModel.importBackup(from: url)
                 }
             }
+            .familyActivityPicker(
+                headerText: "集中制限中も使えるアプリを選択してください",
+                footerText: "選択されていないアプリは集中制限中に開けなくなります。",
+                isPresented: $isShowingAllowedAppsPicker,
+                selection: $focusPickerSelection
+            )
+            .onChange(of: focusPickerSelection) { selection in
+                applyFocusSettings { settings in
+                    settings.activitySelection = selection
+                }
+            }
             .task(id: viewModel.app.dataVersion) {
                 await viewModel.load()
+            }
+            .onAppear {
+                focusController.refresh()
+                focusPickerSelection = focusController.settings.activitySelection
             }
     }
 
@@ -84,6 +104,7 @@ struct SettingsScreen: View {
             VStack(alignment: .leading, spacing: 18) {
                 appearanceGroup
                 timerVisualGroup
+                screenTimeFocusGroup
                 reminderGroup
                 landscapeTimerGroup
                 liveActivityGroup
@@ -94,6 +115,186 @@ struct SettingsScreen: View {
             .padding(.top, 14)
             .padding(.bottom, 28)
         }
+    }
+
+    private var screenTimeFocusGroup: some View {
+        settingsGroup(title: "集中制限") {
+            if focusController.isAvailable {
+                compactInfoRow(
+                    icon: "hourglass.badge.shield.half.filled",
+                    title: "Screen Time",
+                    value: focusController.authorizationStatusText,
+                    color: focusController.isAuthorized ? AppColors.success : AppColors.warning,
+                    showsStatusDot: true
+                )
+
+                Divider()
+
+                actionLine(
+                    icon: focusController.isAuthorized ? "checkmark.shield" : "shield",
+                    title: focusController.isAuthorized ? "許可を更新" : "Screen Timeを許可",
+                    color: AppColors.success
+                ) {
+                    Task {
+                        do {
+                            try await focusController.requestAuthorization()
+                        } catch {
+                            viewModel.app.present(error)
+                        }
+                    }
+                }
+
+                Divider()
+
+                focusToggleRow(
+                    icon: "lock.shield",
+                    title: "集中制限を使用",
+                    isOn: Binding(
+                        get: { focusController.settings.isEnabled },
+                        set: { enabled in
+                            applyFocusSettings { $0.isEnabled = enabled }
+                        }
+                    )
+                )
+
+                Divider()
+
+                focusToggleRow(
+                    icon: "timer",
+                    title: "タイマー実行中に制限",
+                    isOn: Binding(
+                        get: { focusController.settings.timerRestrictionEnabled },
+                        set: { enabled in
+                            applyFocusSettings { $0.timerRestrictionEnabled = enabled }
+                        }
+                    )
+                )
+                .disabled(!focusController.settings.isEnabled)
+
+                Divider()
+
+                focusToggleRow(
+                    icon: "calendar.badge.clock",
+                    title: "時間指定で制限",
+                    isOn: Binding(
+                        get: { focusController.settings.scheduledRestrictionEnabled },
+                        set: { enabled in
+                            applyFocusSettings { $0.scheduledRestrictionEnabled = enabled }
+                        }
+                    )
+                )
+                .disabled(!focusController.settings.isEnabled)
+
+                Divider()
+
+                actionLine(
+                    icon: "apps.iphone",
+                    title: "許可するアプリ（\(focusController.allowedApplicationCount)件）",
+                    color: AppColors.success
+                ) {
+                    focusPickerSelection = focusController.settings.activitySelection
+                    isShowingAllowedAppsPicker = true
+                }
+                .disabled(!focusController.settings.isEnabled)
+
+                if focusController.settings.scheduledRestrictionEnabled {
+                    Divider()
+                    scheduleSlotList
+                }
+            } else {
+                Text("iOS 16以降で利用できます")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+        } footer: {
+            Text("許可したアプリ以外は、タイマー実行中または指定時間帯にScreen Timeで制限されます。")
+        }
+    }
+
+    private var scheduleSlotList: some View {
+        VStack(spacing: 0) {
+            ForEach(focusController.settings.scheduleSlots) { slot in
+                scheduleSlotRow(slot)
+                if slot.id != focusController.settings.scheduleSlots.last?.id {
+                    Divider()
+                }
+            }
+
+            if !focusController.settings.scheduleSlots.isEmpty {
+                Divider()
+            }
+
+            actionLine(icon: "plus.circle", title: "時間帯を追加", color: AppColors.success) {
+                do {
+                    try focusController.addScheduleSlot()
+                } catch {
+                    viewModel.app.present(error)
+                }
+            }
+        }
+    }
+
+    private func scheduleSlotRow(_ slot: FocusScheduleSlot) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                SettingsIcon(systemName: "clock.badge")
+                Text(slot.title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { slot.isEnabled },
+                    set: { enabled in
+                        updateScheduleSlot(id: slot.id) { $0.isEnabled = enabled }
+                    }
+                ))
+                .labelsHidden()
+                .tint(AppColors.success)
+                Button(role: .destructive) {
+                    do {
+                        try focusController.removeScheduleSlot(id: slot.id)
+                    } catch {
+                        viewModel.app.present(error)
+                    }
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AppColors.danger)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 12) {
+                scheduleDatePicker(
+                    title: "開始",
+                    date: Binding(
+                        get: { scheduleDate(hour: slot.startHour, minute: slot.startMinute) },
+                        set: { date in
+                            let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                            updateScheduleSlot(id: slot.id) {
+                                $0.startHour = components.hour ?? slot.startHour
+                                $0.startMinute = components.minute ?? slot.startMinute
+                            }
+                        }
+                    )
+                )
+                scheduleDatePicker(
+                    title: "終了",
+                    date: Binding(
+                        get: { scheduleDate(hour: slot.endHour, minute: slot.endMinute) },
+                        set: { date in
+                            let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                            updateScheduleSlot(id: slot.id) {
+                                $0.endHour = components.hour ?? slot.endHour
+                                $0.endMinute = components.minute ?? slot.endMinute
+                            }
+                        }
+                    )
+                )
+            }
+        }
+        .padding(.vertical, 8)
     }
 
     private var appearanceGroup: some View {
@@ -379,6 +580,55 @@ struct SettingsScreen: View {
         }
     }
 
+    private func focusToggleRow(icon: String, title: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            SettingsIcon(systemName: icon)
+            Text(title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AppColors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(AppColors.success)
+        }
+        .frame(minHeight: 44)
+    }
+
+    private func scheduleDatePicker(title: String, date: Binding<Date>) -> some View {
+        DatePicker(selection: date, displayedComponents: .hourAndMinute) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppColors.textSecondary)
+        }
+        .datePickerStyle(.compact)
+        .labelsHidden()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .topLeading) {
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(AppColors.textSecondary)
+                .offset(y: -10)
+        }
+        .padding(.top, 8)
+    }
+
+    private func applyFocusSettings(_ update: (inout ScreenTimeFocusSettings) -> Void) {
+        do {
+            try focusController.updateSettings(update)
+        } catch {
+            viewModel.app.present(error)
+        }
+    }
+
+    private func updateScheduleSlot(id: String, update: (inout FocusScheduleSlot) -> Void) {
+        applyFocusSettings { settings in
+            guard let index = settings.scheduleSlots.firstIndex(where: { $0.id == id }) else { return }
+            update(&settings.scheduleSlots[index])
+        }
+    }
+
     private func settingsGroup<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
@@ -545,6 +795,11 @@ struct SettingsScreen: View {
     }()
 
     private func reminderDate(hour: Int, minute: Int) -> Date {
+        let now = Date()
+        return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: now) ?? now
+    }
+
+    private func scheduleDate(hour: Int, minute: Int) -> Date {
         let now = Date()
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: now) ?? now
     }

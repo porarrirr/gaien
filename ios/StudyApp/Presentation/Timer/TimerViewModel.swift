@@ -375,6 +375,7 @@ final class TimerViewModel: ScreenViewModel {
         elapsedMilliseconds = timer.accumulatedMilliseconds
         remainingMilliseconds = timer.remainingTime()
         configureTicker()
+        app.screenTimeFocusController.clearTimerRestriction()
         return timer
     }
 
