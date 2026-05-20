@@ -120,6 +120,20 @@
       transition: background 0.2s, transform 0.2s;
     }
     .btn-secondary:hover { background: rgba(255,255,255,0.08); transform: translateY(-3px); }
+    .btn-review {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text2); padding: 16px 36px;
+      border-radius: 50px; font-size: 1rem; font-weight: 500;
+      cursor: default; pointer-events: none;
+    }
+    .review-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,200,50,0.15); border: 1px solid rgba(255,200,50,0.35);
+      border-radius: 50px; padding: 4px 12px; font-size: 0.72rem;
+      color: #ffc832; font-weight: 600; letter-spacing: 0.5px;
+    }
+    .review-badge::before { content: '⏳'; font-size: 0.7rem; }
 
     /* phone mockup */
     .hero-mockup {
@@ -295,14 +309,16 @@
     StudyApp は学習時間の記録・分析・管理を一括してサポートするアプリです。タイマー、教材管理、カレンダー、目標設定、クラウド同期まで完備。
   </p>
   <div class="hero-buttons">
-    <a href="#download" class="btn-primary" id="hero-appstore-btn">
+    <div class="btn-review" id="hero-appstore-btn">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
       App Store
-    </a>
-    <a href="#download" class="btn-secondary" id="hero-playstore-btn">
+      <span class="review-badge">審査中</span>
+    </div>
+    <div class="btn-review" id="hero-playstore-btn">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.75c.35.19.75.2 1.12.04l12.2-6.93-2.76-2.78-10.56 9.67zm14.46-8.4 2.76-1.57c.55-.31.87-.88.87-1.48 0-.6-.32-1.17-.87-1.48l-2.76-1.57-3.1 3.05 3.1 3.05zm-16.1-12.1c-.25.29-.41.68-.41 1.14v18.42c0 .46.16.85.41 1.14l10.54-10.35L1.54 3.25zm12.32.93-12.2-6.93c-.37-.17-.77-.15-1.12.04l10.56 9.67 2.76-2.78z"/></svg>
       Google Play
-    </a>
+      <span class="review-badge">審査中</span>
+    </div>
   </div>
 
   <div class="hero-mockup">
@@ -454,14 +470,16 @@
   <h2 class="cta-title reveal">今すぐ始めよう</h2>
   <p class="cta-sub reveal">StudyApp で、あなたの学習習慣をアップグレード。</p>
   <div class="hero-buttons reveal">
-    <a href="#" class="btn-primary" id="cta-appstore-btn">
+    <div class="btn-review" id="cta-appstore-btn">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-      App Store でダウンロード
-    </a>
-    <a href="#" class="btn-secondary" id="cta-playstore-btn">
+      App Store
+      <span class="review-badge">審査中</span>
+    </div>
+    <div class="btn-review" id="cta-playstore-btn">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.75c.35.19.75.2 1.12.04l12.2-6.93-2.76-2.78-10.56 9.67zm14.46-8.4 2.76-1.57c.55-.31.87-.88.87-1.48 0-.6-.32-1.17-.87-1.48l-2.76-1.57-3.1 3.05 3.1 3.05zm-16.1-12.1c-.25.29-.41.68-.41 1.14v18.42c0 .46.16.85.41 1.14l10.54-10.35L1.54 3.25zm12.32.93-12.2-6.93c-.37-.17-.77-.15-1.12.04l10.56 9.67 2.76-2.78z"/></svg>
-      Google Play でダウンロード
-    </a>
+      Google Play
+      <span class="review-badge">審査中</span>
+    </div>
   </div>
 </section>
 
