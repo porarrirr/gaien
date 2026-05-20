@@ -110,7 +110,7 @@ struct MainTabView: View {
                         .tag(tab)
                 }
             }
-            .navigationTitle("StudyApp")
+            .navigationTitle("StudyTrail")
         } detail: {
             NavigationStack {
                 selectedAppTab.rootView(app: app)

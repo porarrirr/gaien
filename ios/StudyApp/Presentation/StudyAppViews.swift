@@ -51,7 +51,7 @@ private struct LoadingSplash: View {
                 .foregroundStyle(.tint)
                 .scaleEffect(pulse ? 1.08 : 1.0)
                 .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulse)
-            Text("StudyApp")
+            Text("StudyTrail")
                 .font(.title2.bold())
                 .foregroundStyle(AppColors.textPrimary)
             ProgressView()

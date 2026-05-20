@@ -1232,6 +1232,7 @@
 				DEVELOPMENT_TEAM = 77V64TWCFD;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = StudyTrail;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "現在地の天気と日の出・日の入りに合わせてタイマー画面を切り替えるために使用します。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -1265,6 +1266,7 @@
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 77V64TWCFD;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = StudyTrail;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "現在地の天気と日の出・日の入りに合わせてタイマー画面を切り替えるために使用します。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;

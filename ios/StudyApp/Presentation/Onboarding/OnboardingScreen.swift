@@ -125,7 +125,7 @@ struct OnboardingScreen: View {
             }
             .padding(.bottom, 2)
 
-            Text("StudyApp")
+            Text("StudyTrail")
                 .font(.system(size: 43, weight: .bold, design: .rounded))
                 .foregroundStyle(AppColors.success)
                 .lineLimit(1)
