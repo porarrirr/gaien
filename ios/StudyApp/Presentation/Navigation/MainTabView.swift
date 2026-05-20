@@ -65,9 +65,29 @@ enum AppTab: String, CaseIterable, Identifiable {
 
 struct MainTabView: View {
     let app: StudyAppContainer
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @SceneStorage("main.selectedTab") private var selectedTab = AppTab.home.rawValue
 
+    private var selectedAppTab: AppTab {
+        AppTab(rawValue: selectedTab) ?? .home
+    }
+
+    private var selectedAppTabBinding: Binding<AppTab?> {
+        Binding(
+            get: { selectedAppTab },
+            set: { if let tab = $0 { selectedTab = tab.rawValue } }
+        )
+    }
+
     var body: some View {
+        if horizontalSizeClass == .regular {
+            iPadNavigation
+        } else {
+            iPhoneTabNavigation
+        }
+    }
+
+    private var iPhoneTabNavigation: some View {
         TabView(selection: $selectedTab) {
             ForEach(AppTab.allCases) { tab in
                 NavigationStack {
@@ -80,5 +100,23 @@ struct MainTabView: View {
                 .accessibilityLabel(tab.title)
             }
         }
+    }
+
+    private var iPadNavigation: some View {
+        NavigationSplitView {
+            List(selection: selectedAppTabBinding) {
+                ForEach(AppTab.allCases) { tab in
+                    Label(tab.title, systemImage: tab.systemImage)
+                        .tag(tab)
+                }
+            }
+            .navigationTitle("StudyApp")
+        } detail: {
+            NavigationStack {
+                selectedAppTab.rootView(app: app)
+            }
+            .id(selectedAppTab)
+        }
+        .navigationSplitViewStyle(.balanced)
     }
 }
