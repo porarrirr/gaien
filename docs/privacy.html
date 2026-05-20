@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>プライバシーポリシー ＆ 免責事項 — StudyApp</title>
+  <meta name="description" content="StudyApp のプライバシーポリシーおよび免責事項についてご案内します。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Inter:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #6C63FF;
+      --accent2: #FF6584;
+      --accent3: #43CFAB;
+      --bg: #0B0E1A;
+      --bg2: #12162A;
+      --bg3: #1A2040;
+      --text: #E8EAFF;
+      --text2: #9AA0C0;
+      --card: rgba(255,255,255,0.04);
+      --card-border: rgba(108,99,255,0.25);
+      --radius: 16px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Noto Sans JP', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.8;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 40px;
+      background: rgba(11,14,26,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(108,99,255,0.15);
+    }
+    .nav-logo { font-size: 1.3rem; font-weight: 700; color: var(--text); letter-spacing: -0.5px; text-decoration: none; }
+    .nav-logo span { color: var(--accent); }
+    .nav-back {
+      color: var(--text2); text-decoration: none; font-size: 0.9rem;
+      display: flex; align-items: center; gap: 6px; transition: color 0.2s;
+    }
+    .nav-back:hover { color: var(--text); }
+
+    /* ── HERO ── */
+    .privacy-hero {
+      padding: 140px 24px 60px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .privacy-hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(108,99,255,0.2) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(108,99,255,0.15); border: 1px solid rgba(108,99,255,0.35);
+      border-radius: 50px; padding: 6px 16px; font-size: 0.8rem;
+      color: #a99fff; margin-bottom: 24px;
+    }
+    .privacy-hero h1 {
+      font-size: clamp(2rem, 4vw, 3rem); font-weight: 900; letter-spacing: -1.5px;
+      margin-bottom: 16px;
+    }
+    .privacy-hero h1 span {
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* ── CONTENT ── */
+    .content { max-width: 800px; margin: 0 auto; padding: 0 24px 100px; }
+
+    .section {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 40px;
+      margin-bottom: 32px;
+    }
+    .section h2 {
+      font-size: 1.3rem; font-weight: 700; margin-bottom: 20px;
+      color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section h2::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, rgba(108,99,255,0.4), transparent);
+    }
+    .section p { color: var(--text2); font-size: 0.95rem; margin-bottom: 16px; }
+    .section p:last-child { margin-bottom: 0; }
+    .section ul, .section ol { color: var(--text2); font-size: 0.95rem; padding-left: 20px; margin-bottom: 16px; }
+    .section ul li, .section ol li { margin-bottom: 8px; }
+    .section ul li:last-child, .section ol li:last-child { margin-bottom: 0; }
+
+    /* 強調用アラート風 */
+    .alert-box {
+      background: rgba(255, 101, 132, 0.1);
+      border: 1px solid rgba(255, 101, 132, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      color: #ff8fa3;
+      font-size: 0.9rem;
+    }
+    .alert-box strong { color: #ff6584; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--bg); border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 32px 24px; text-align: center; color: var(--text2); font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 768px) {
+      nav { padding: 16px 20px; }
+      .section { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-logo">Study<span>App</span></a>
+  <a href="index.html" class="nav-back">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    ホームへ戻る
+  </a>
+</nav>
+
+<!-- HERO -->
+<div class="privacy-hero">
+  <div class="hero-badge">⚖️ 法的文書</div>
+  <h1>プライバシーポリシー<br /><span>＆ 免責事項</span></h1>
+</div>
+
+<main class="content">
+
+  <!-- 免責事項 -->
+  <div class="section" id="disclaimer">
+    <h2>⚠️ 免責事項（利用規約）</h2>
+    <div class="alert-box">
+      <strong>【重要：本アプリの利用に伴う責任の制限】</strong><br />
+      本アプリ（以下「当アプリ」）をご利用いただくことで、お客様は本免責事項に同意したものとみなされます。同意されない場合は、直ちにアプリの利用を中止し、アンインストールしてください。
+    </div>
+    <ol>
+      <li><strong>保証の否認:</strong> 当アプリは「現状有姿（As-Is）」かつ「提供可能な限度」で提供されます。開発者は、当アプリが中断されないこと、バグやエラーがないこと、セキュリティが完全であること、または特定の目的に適合していることについて、明示的にも黙示的にも一切の保証を行いません。</li>
+      <li><strong>責任の制限:</strong> 当アプリの使用、使用不能、または当アプリから提供される情報に起因して発生した、直接的、間接的、付随的、特別、結果的、または懲罰的な損害（データ消失、デバイスの故障、学習効果の不達成、逸失利益、業務の中断などを含みますがこれらに限定されません）について、開発者は一切の責任（不法行為責任、契約責任、その他法律上のいかなる責任も含む）を負いません。</li>
+      <li><strong>データの自己管理:</strong> クラウド同期機能の有無に関わらず、当アプリに入力されたデータのバックアップは、ユーザーご自身の責任で適切に行ってください。予期せぬエラー、サーバーの不具合、アプリのアップデート等によるデータ消失について、開発者は一切の復旧・補償義務を負いません。</li>
+      <li><strong>外部サービス:</strong> 当アプリが連携または利用する外部サービス（Firebase、Google Services、AnkiDroid等）の利用について、開発者はそれらの動作および安全性について一切関与せず、責任を負いません。</li>
+    </ol>
+  </div>
+
+  <!-- プライバシーポリシー -->
+  <div class="section" id="privacy">
+    <h2>🔒 プライバシーポリシー</h2>
+    <p>当アプリは、ユーザーのプライバシーの保護に努めています。収集する情報とその取り扱いについては以下の通りです。</p>
+
+    <h3 style="font-size:1.05rem; font-weight:700; margin: 24px 0 12px; color: var(--text);">1. 取得する情報およびその利用目的</h3>
+    <ul>
+      <li><strong>アカウント情報:</strong> クラウド同期機能（Firebase Auth）をご利用の際、認証のためメールアドレスおよびパスワードを収集します。これらの情報は認証およびクラウド同期の目的のみに利用されます。</li>
+      <li><strong>学習記録データ:</strong> 科目、教材、タイマー時間、目標、テスト日程などのデータは、アプリ内での記録および表示（クラウド同期時は同期先サーバーへの保管）の目的のみに利用されます。</li>
+      <li><strong>利用統計およびエラー情報:</strong> アプリの品質向上および不具合調査のため、個人を特定しない形での匿名統計情報（Google Analytics等）やクラッシュログを収集することがあります。</li>
+    </ul>
+
+    <h3 style="font-size:1.05rem; font-weight:700; margin: 24px 0 12px; color: var(--text);">2. 第三者提供について</h3>
+    <p>開発者は、法令に基づく場合を除き、取得した個人情報をユーザーの同意なしに第三者に提供・開示することはありません。</p>
+
+    <h3 style="font-size:1.05rem; font-weight:700; margin: 24px 0 12px; color: var(--text);">3. データの保管・削除</h3>
+    <p>クラウド同期機能をご利用の場合、データは Firebase（Google LLC）の安全なサーバーに保管されます。ユーザーはアプリ内の設定画面からいつでもご自身のアカウントおよび登録されたデータを完全に削除することができます。</p>
+  </div>
+
+  <!-- 連絡先 -->
+  <div class="section" id="contact">
+    <h2>✉️ お問い合わせ</h2>
+    <p>当ポリシーまたは免責事項に関するお問い合わせは、以下のメールアドレスまでご連絡ください。</p>
+    <p style="margin-top: 16px; font-weight: 700; font-size: 1.1rem; color: var(--accent3);">
+      toiawasestudyapp@rarari.org
+    </p>
+  </div>
+
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <p>© 2025 StudyApp. All rights reserved.</p>
+  <p style="margin-top:8px">
+    <a href="index.html">ホーム</a> &nbsp;·&nbsp;
+    <a href="support.html">サポート</a>
+  </p>
+</footer>
+
+</body>
+</html>
