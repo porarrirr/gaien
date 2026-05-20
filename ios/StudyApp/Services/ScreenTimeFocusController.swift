@@ -76,6 +76,10 @@ final class ScreenTimeFocusController: ObservableObject {
         settings.allowedApplicationTokens.count
     }
 
+    var allowedWebDomainCount: Int {
+        settings.allowedWebDomainTokens.count
+    }
+
     func refresh() {
         settings = ScreenTimeFocusShared.loadSettings()
         authorizationStatus = AuthorizationCenter.shared.authorizationStatus

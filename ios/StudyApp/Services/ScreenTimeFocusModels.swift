@@ -68,13 +68,17 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         activitySelection.applicationTokens
     }
 
+    var allowedWebDomainTokens: Set<WebDomainToken> {
+        activitySelection.webDomainTokens
+    }
+
     var enabledScheduleSlots: [FocusScheduleSlot] {
         guard isEnabled, scheduledRestrictionEnabled else { return [] }
         return scheduleSlots.filter(\.isEnabled)
     }
 
     var canApplyRestrictions: Bool {
-        isEnabled && !allowedApplicationTokens.isEmpty
+        isEnabled && (!allowedApplicationTokens.isEmpty || !allowedWebDomainTokens.isEmpty)
     }
 }
 
@@ -114,6 +118,7 @@ enum ScreenTimeFocusShared {
             return false
         }
         store.shield.applicationCategories = .all(except: settings.allowedApplicationTokens)
+        store.shield.webDomainCategories = .all(except: settings.allowedWebDomainTokens)
         return true
     }
 

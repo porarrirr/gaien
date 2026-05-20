@@ -80,8 +80,8 @@ struct SettingsScreen: View {
                 }
             }
             .familyActivityPicker(
-                headerText: "集中制限中も使えるアプリを選択してください",
-                footerText: "選択されていないアプリは集中制限中に開けなくなります。",
+                headerText: "集中制限中も使えるアプリとWebサイトを選択してください",
+                footerText: "選択されていないアプリとWebサイトは集中制限中に開けなくなります。",
                 isPresented: $isShowingAllowedAppsPicker,
                 selection: $focusPickerSelection
             )
@@ -121,7 +121,7 @@ struct SettingsScreen: View {
         settingsGroup(title: "集中制限") {
             if focusController.isAvailable {
                 compactInfoRow(
-                    icon: "hourglass.badge.shield.half.filled",
+                    icon: "hourglass.badge.shield",
                     title: "Screen Time",
                     value: focusController.authorizationStatusText,
                     color: focusController.isAuthorized ? AppColors.success : AppColors.warning,
@@ -189,7 +189,7 @@ struct SettingsScreen: View {
 
                 actionLine(
                     icon: "apps.iphone",
-                    title: "許可するアプリ（\(focusController.allowedApplicationCount)件）",
+                    title: focusAllowedSelectionTitle,
                     color: AppColors.success
                 ) {
                     focusPickerSelection = focusController.settings.activitySelection
@@ -207,8 +207,17 @@ struct SettingsScreen: View {
                     .foregroundStyle(AppColors.textSecondary)
             }
         } footer: {
-            Text("許可したアプリ以外は、タイマー実行中または指定時間帯にScreen Timeで制限されます。")
+            Text("許可したアプリとWebサイト以外は、タイマー実行中または指定時間帯にScreen Timeで制限されます。Safari内のWebサイトも対象です。")
         }
+    }
+
+    private var focusAllowedSelectionTitle: String {
+        let appCount = focusController.allowedApplicationCount
+        let webCount = focusController.allowedWebDomainCount
+        if webCount > 0 {
+            return "許可するアプリ・Webサイト（アプリ\(appCount)件 / Web\(webCount)件）"
+        }
+        return "許可するアプリ・Webサイト（アプリ\(appCount)件）"
     }
 
     private var scheduleSlotList: some View {

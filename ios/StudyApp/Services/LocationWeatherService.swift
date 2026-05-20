@@ -9,7 +9,9 @@ final class LocationWeatherService: NSObject {
     private var locationContinuation: CheckedContinuation<CLLocation, Error>?
 
     private let cacheKey = "timerAmbientWeatherSnapshot"
+    private let weatherFailureCooldownKey = "timerAmbientWeatherFailureCooldownUntil"
     private let cacheLifetime: TimeInterval = 6 * 60 * 60
+    private let weatherFailureCooldown: TimeInterval = 30 * 60
 
     init(weatherService: WeatherKitWeatherService = WeatherKitWeatherService(), userDefaults: UserDefaults = .standard) {
         self.weatherService = weatherService
@@ -28,12 +30,35 @@ final class LocationWeatherService: NSObject {
             return TimerAmbientResolver.resolve(mode: .auto, snapshot: cached, now: now, source: .cache)
         }
 
+        if let cooldownUntil = weatherFailureCooldownUntil(), now < cooldownUntil {
+            if let cached = cachedSnapshot() {
+                return TimerAmbientResolver.resolve(
+                    mode: .auto,
+                    snapshot: cached,
+                    now: now,
+                    source: .cache,
+                    errorMessage: LocationWeatherError.weatherTemporarilyUnavailable.localizedDescription
+                )
+            }
+            return TimerAmbientResolver.resolve(
+                mode: .auto,
+                snapshot: nil,
+                now: now,
+                source: .clock,
+                errorMessage: LocationWeatherError.weatherTemporarilyUnavailable.localizedDescription
+            )
+        }
+
         do {
             let location = try await requestCurrentLocation()
             let snapshot = try await weatherService.fetch(for: location)
             save(snapshot)
+            clearWeatherFailureCooldown()
             return TimerAmbientResolver.resolve(mode: .auto, snapshot: snapshot, now: now, source: .weather)
         } catch {
+            if Self.isWeatherAuthorizationError(error) {
+                saveWeatherFailureCooldown(until: now.addingTimeInterval(weatherFailureCooldown))
+            }
             if let cached = cachedSnapshot() {
                 return TimerAmbientResolver.resolve(
                     mode: .auto,
@@ -82,6 +107,23 @@ final class LocationWeatherService: NSObject {
     private func save(_ snapshot: TimerAmbientWeatherSnapshot) {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         userDefaults.set(data, forKey: cacheKey)
+    }
+
+    private func weatherFailureCooldownUntil() -> Date? {
+        userDefaults.object(forKey: weatherFailureCooldownKey) as? Date
+    }
+
+    private func saveWeatherFailureCooldown(until date: Date) {
+        userDefaults.set(date, forKey: weatherFailureCooldownKey)
+    }
+
+    private func clearWeatherFailureCooldown() {
+        userDefaults.removeObject(forKey: weatherFailureCooldownKey)
+    }
+
+    private static func isWeatherAuthorizationError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain.contains("WeatherDaemon.WDSJWTAuthenticatorServiceListener.Errors") && nsError.code == 2
     }
 
     private func finishLocationRequest(with result: Result<CLLocation, Error>) {
@@ -144,6 +186,7 @@ enum LocationWeatherError: LocalizedError {
     case permissionDenied
     case locationUnavailable
     case locationRequestAlreadyRunning
+    case weatherTemporarilyUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -153,6 +196,8 @@ enum LocationWeatherError: LocalizedError {
             return "現在地を取得できませんでした"
         case .locationRequestAlreadyRunning:
             return "現在地を取得中です"
+        case .weatherTemporarilyUnavailable:
+            return "天気情報を一時的に取得できません"
         }
     }
 }
