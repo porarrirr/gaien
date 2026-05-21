@@ -75,8 +75,8 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 self.status.email = session?.email
                 if session == nil {
                     self.status.isSyncing = false
-                    self.status.errorMessage = nil
                 }
+                self.status.errorMessage = nil
                 self.logger.log(
                     category: .sync,
                     message: "Sync auth session updated",

@@ -166,6 +166,10 @@ struct AuthSheet: View {
         .navigationTitle("クラウド同期")
         .navigationBarTitleDisplayMode(.inline)
         .presentationDragIndicator(.visible)
+        .onChange(of: viewModel.app.syncStatus.isAuthenticated) { isAuthenticated in
+            guard isAuthenticated else { return }
+            isPresented = false
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル") { isPresented = false }

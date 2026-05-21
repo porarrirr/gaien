@@ -18,8 +18,6 @@ struct RootView: View {
         Group {
             if !app.isLoaded {
                 LoadingSplash(logger: app.logger)
-            } else if !app.preferences.onboardingCompleted {
-                OnboardingScreen(app: app)
             } else {
                 MainTabView(app: app)
             }
