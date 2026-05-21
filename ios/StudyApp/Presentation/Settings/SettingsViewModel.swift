@@ -63,14 +63,24 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func signInToSync() {
+        signInToSync(email: syncEmail, password: syncPassword) {
+            self.syncPassword = ""
+        }
+    }
+
+    func signInToSync(email rawEmail: String, password rawPassword: String) {
+        signInToSync(email: rawEmail, password: rawPassword, clearPassword: {})
+    }
+
+    private func signInToSync(email rawEmail: String, password rawPassword: String, clearPassword: @escaping () -> Void) {
         perform {
-            let password = self.normalizedAuthPassword()
-            let email = self.normalizedAuthEmail()
-            defer { self.syncPassword = "" }
+            let password = self.normalizedAuthPassword(rawPassword)
+            let email = self.normalizedAuthEmail(rawEmail)
+            defer { clearPassword() }
             self.app.logger.log(
                 category: .auth,
                 message: "Sign in requested",
-                details: "emailProvided=\(!email.isEmpty) emailNormalized=\(email != self.syncEmail) passwordLength=\(password.count)"
+                details: "emailProvided=\(!email.isEmpty) emailNormalized=\(email != rawEmail) passwordLength=\(password.count)"
             )
             try await self.app.authRepository.signIn(email: email, password: password)
             self.app.refreshSyncStatus()
@@ -80,14 +90,24 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func createSyncAccount() {
+        createSyncAccount(email: syncEmail, password: syncPassword) {
+            self.syncPassword = ""
+        }
+    }
+
+    func createSyncAccount(email rawEmail: String, password rawPassword: String) {
+        createSyncAccount(email: rawEmail, password: rawPassword, clearPassword: {})
+    }
+
+    private func createSyncAccount(email rawEmail: String, password rawPassword: String, clearPassword: @escaping () -> Void) {
         perform {
-            let password = self.normalizedAuthPassword()
-            let email = self.normalizedAuthEmail()
-            defer { self.syncPassword = "" }
+            let password = self.normalizedAuthPassword(rawPassword)
+            let email = self.normalizedAuthEmail(rawEmail)
+            defer { clearPassword() }
             self.app.logger.log(
                 category: .auth,
                 message: "Sign up requested",
-                details: "emailProvided=\(!email.isEmpty) emailNormalized=\(email != self.syncEmail) passwordLength=\(password.count)"
+                details: "emailProvided=\(!email.isEmpty) emailNormalized=\(email != rawEmail) passwordLength=\(password.count)"
             )
             try await self.app.authRepository.signUp(email: email, password: password)
             self.app.refreshSyncStatus()
@@ -97,8 +117,12 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     func sendPasswordReset() {
+        sendPasswordReset(email: syncEmail)
+    }
+
+    func sendPasswordReset(email rawEmail: String) {
         perform {
-            let email = self.normalizedAuthEmail()
+            let email = self.normalizedAuthEmail(rawEmail)
             guard !email.isEmpty else {
                 throw ValidationError(message: "メールアドレスを入力してください")
             }
@@ -196,13 +220,13 @@ final class SettingsViewModel: ScreenViewModel {
         debugLogEntries = app.logger.recentEntries()
     }
 
-    private func normalizedAuthEmail() -> String {
-        let halfWidthEmail = syncEmail.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? syncEmail
+    private func normalizedAuthEmail(_ value: String) -> String {
+        let halfWidthEmail = value.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? value
         return removingAuthInputNoise(from: halfWidthEmail).lowercased()
     }
 
-    private func normalizedAuthPassword() -> String {
-        let halfWidthPassword = syncPassword.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? syncPassword
+    private func normalizedAuthPassword(_ value: String) -> String {
+        let halfWidthPassword = value.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? value
         return removingAuthInputNoise(from: halfWidthPassword)
     }
 

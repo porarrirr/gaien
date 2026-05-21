@@ -6,6 +6,10 @@ import UIKit
 struct AuthSheet: View {
     @ObservedObject var viewModel: SettingsViewModel
     @Binding var isPresented: Bool
+    @State private var signInEmail = ""
+    @State private var signInPassword = ""
+    @State private var createEmail = ""
+    @State private var createPassword = ""
     @State private var isSignInPasswordVisible = false
     @State private var isCreatePasswordVisible = false
 
@@ -46,27 +50,28 @@ struct AuthSheet: View {
                     AuthInputField(
                         title: "メールアドレス",
                         placeholder: "メールアドレスを入力",
-                        text: $viewModel.syncEmail,
+                        text: $signInEmail,
                         keyboardType: .emailAddress
                     )
                     AuthPasswordField(
                         title: "パスワード",
                         placeholder: "パスワードを入力",
-                        text: $viewModel.syncPassword,
+                        text: $signInPassword,
                         isVisible: $isSignInPasswordVisible
                     )
                     Button {
-                        viewModel.sendPasswordReset()
+                        viewModel.sendPasswordReset(email: signInEmail)
                     } label: {
                         Text("パスワードをお忘れですか？")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(AppColors.success)
                     }
                     .buttonStyle(.plain)
-                    .disabled(viewModel.syncEmail.isEmpty)
+                    .disabled(signInEmail.isEmpty)
 
                     Button {
-                        viewModel.signInToSync()
+                        viewModel.signInToSync(email: signInEmail, password: signInPassword)
+                        signInPassword = ""
                     } label: {
                         Text("サインイン")
                             .font(.system(size: 22, weight: .bold))
@@ -75,7 +80,7 @@ struct AuthSheet: View {
                             .frame(height: 58)
                             .background(AppColors.success, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
-                    .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
+                    .disabled(signInEmail.isEmpty || signInPassword.isEmpty)
                 }
                 .authCard()
 
@@ -93,13 +98,13 @@ struct AuthSheet: View {
                     AuthInputField(
                         title: "メールアドレス",
                         placeholder: "メールアドレスを入力",
-                        text: $viewModel.syncEmail,
+                        text: $createEmail,
                         keyboardType: .emailAddress
                     )
                     AuthPasswordField(
                         title: "パスワード",
                         placeholder: "パスワードを入力",
-                        text: $viewModel.syncPassword,
+                        text: $createPassword,
                         isVisible: $isCreatePasswordVisible
                     )
                     Text("※ 8文字以上のパスワードを設定してください。")
@@ -107,7 +112,8 @@ struct AuthSheet: View {
                         .foregroundStyle(AppColors.textSecondary)
 
                     Button {
-                        viewModel.createSyncAccount()
+                        viewModel.createSyncAccount(email: createEmail, password: createPassword)
+                        createPassword = ""
                     } label: {
                         Text("アカウント作成")
                             .font(.system(size: 22, weight: .bold))
@@ -119,7 +125,7 @@ struct AuthSheet: View {
                                     .stroke(AppColors.success, lineWidth: 1.5)
                             }
                     }
-                    .disabled(viewModel.syncEmail.isEmpty || viewModel.syncPassword.isEmpty)
+                    .disabled(createEmail.isEmpty || createPassword.isEmpty)
                 }
                 .authCard()
 
