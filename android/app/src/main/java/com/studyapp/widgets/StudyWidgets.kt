@@ -17,7 +17,7 @@ import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.appwidget.action.actionStartActivity
-import androidx.glance.color.ColorProvider
+import androidx.glance.unit.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -56,43 +56,19 @@ object StudyWidgets {
 }
 
 private object WidgetPalette {
-    val Background = ColorProvider(
-        day = Color(0xFFFFFFFF),
-        night = Color(0xFF1C1B1F)
-    )
-    val Primary = ColorProvider(
-        day = Color(0xFF4CAF50),
-        night = Color(0xFF81C784)
-    )
-    val Secondary = ColorProvider(
-        day = Color(0xFF2196F3),
-        night = Color(0xFF64B5F6)
-    )
-    val Warning = ColorProvider(
-        day = Color(0xFFFF9800),
-        night = Color(0xFFFFB74D)
-    )
-    val Danger = ColorProvider(
-        day = Color(0xFFF44336),
-        night = Color(0xFFEF9A9A)
-    )
-    val TextPrimary = ColorProvider(
-        day = Color(0xDE000000),
-        night = Color(0xFFFFFFFF)
-    )
-    val TextSecondary = ColorProvider(
-        day = Color(0x99000000),
-        night = Color(0xB3FFFFFF)
-    )
-    val TextTertiary = ColorProvider(
-        day = Color(0x61000000),
-        night = Color(0x80FFFFFF)
-    )
-    val Track = ColorProvider(
-        day = Color(0x1F000000),
-        night = Color(0x33FFFFFF)
-    )
+    val Background = dayNightColor(0xFFFFFFFF, 0xFF1C1B1F)
+    val Primary = dayNightColor(0xFF4CAF50, 0xFF81C784)
+    val Secondary = dayNightColor(0xFF2196F3, 0xFF64B5F6)
+    val Warning = dayNightColor(0xFFFF9800, 0xFFFFB74D)
+    val Danger = dayNightColor(0xFFF44336, 0xFFEF9A9A)
+    val TextPrimary = dayNightColor(0xDE000000, 0xFFFFFFFF)
+    val TextSecondary = dayNightColor(0x99000000, 0xB3FFFFFF)
+    val TextTertiary = dayNightColor(0x61000000, 0x80FFFFFF)
+    val Track = dayNightColor(0x1F000000, 0x33FFFFFF)
 }
+
+private fun dayNightColor(day: Long, night: Long): ColorProvider =
+    androidx.glance.color.ColorProvider(Color(day), Color(night))
 
 private val TitleTextStyle = TextStyle(
     color = WidgetPalette.TextSecondary,

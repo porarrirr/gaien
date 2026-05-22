@@ -16,6 +16,7 @@ import com.studyapp.domain.model.ColorTheme
 import com.studyapp.domain.model.ThemeMode
 import com.studyapp.presentation.settings.ThemePreferences
 import com.studyapp.presentation.theme.StudyAppTheme
+import com.studyapp.sync.AutoSyncManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -24,6 +25,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var themePreferences: ThemePreferences
+
+    @Inject
+    lateinit var autoSyncManager: AutoSyncManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +50,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        autoSyncManager.scheduleLifecycleSync("scene-active")
     }
 }
 

@@ -54,10 +54,14 @@ class AutoSyncManager @Inject constructor(
                 localChangeDebounceJob?.cancel()
                 localChangeDebounceJob = scope.launch {
                     delay(AUTO_SYNC_DEBOUNCE_MS)
-                    requestSync(reason = "local-change")
+                    requestSync(reason = "data-version-change")
                 }
             }
         }
+    }
+
+    fun scheduleLifecycleSync(reason: String) {
+        requestSync(reason = reason)
     }
 
     private fun requestSync(reason: String) {
@@ -67,7 +71,7 @@ class AutoSyncManager @Inject constructor(
             do {
                 val syncReason = if (localChangePending) {
                     localChangePending = false
-                    "local-change"
+                    "data-version-change"
                 } else {
                     reason
                 }
@@ -79,10 +83,21 @@ class AutoSyncManager @Inject constructor(
     private suspend fun syncIfPossible(reason: String) {
         if (authRepository.session.value == null) return
         if (syncChangeNotifier.isAutoSyncBlockedUntilLocalChange()) {
-            Log.i(TAG, "Auto sync skipped because it is blocked until the next local change: reason=$reason")
-            return
+            if (!reason.startsWith("data-version-")) {
+                Log.i(TAG, "Auto sync skipped because it is blocked until the next local change: reason=$reason")
+                return
+            }
         }
         if (syncRepository.status.value.isSyncing) return
+
+        val now = System.currentTimeMillis()
+        if (syncChangeNotifier.shouldThrottleLifecycleSync(now, syncRepository.status.value.lastSyncAt)) {
+            Log.i(TAG, "Auto sync skipped because lifecycle sync ran recently: reason=$reason")
+            return
+        }
+        if (syncChangeNotifier.shouldSkipAutoSyncForUnchangedData(reason)) {
+            return
+        }
 
         runCatching {
             syncRepository.syncNow()

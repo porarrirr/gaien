@@ -78,8 +78,8 @@ class ReminderWorker @AssistedInject constructor(
     ): Result {
         val overdueCount = inputData.getInt(KEY_OVERDUE_COUNT, -1).takeIf { it >= 0 }
             ?: when (val result = timetableRepository.getOverdueReviewCount()) {
-                is Result.Success -> result.data
-                is Result.Error -> return Result.failure()
+                is com.studyapp.domain.util.Result.Success -> result.data
+                is com.studyapp.domain.util.Result.Error -> return Result.failure()
             }
         if (overdueCount <= 0) {
             notificationManager.cancel(TIMETABLE_REVIEW_NOTIFICATION_ID)
@@ -108,8 +108,8 @@ class ReminderWorker @AssistedInject constructor(
         notificationManager: NotificationManagerCompat
     ) {
         val overdueCount = when (val result = timetableRepository.getOverdueReviewCount()) {
-            is Result.Success -> result.data
-            is Result.Error -> return
+            is com.studyapp.domain.util.Result.Success -> result.data
+            is com.studyapp.domain.util.Result.Error -> return
         }
         if (overdueCount <= 0) {
             notificationManager.cancel(TIMETABLE_REVIEW_NOTIFICATION_ID)

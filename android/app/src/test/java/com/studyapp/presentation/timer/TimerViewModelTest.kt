@@ -16,9 +16,11 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import com.studyapp.domain.model.AppPreferences
 import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.StudySessionType
 import com.studyapp.domain.model.Subject
+import com.studyapp.domain.repository.AppPreferencesRepository
 import com.studyapp.domain.repository.MaterialRepository
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.usecase.GetRecentMaterialsUseCase
@@ -42,7 +44,17 @@ class TimerViewModelTest {
     private lateinit var saveStudySessionUseCase: SaveStudySessionUseCase
     private lateinit var getRecentMaterialsUseCase: GetRecentMaterialsUseCase
     private lateinit var timerServiceManager: TimerServiceManager
+    private lateinit var appPreferencesRepository: AppPreferencesRepository
     private lateinit var viewModel: TimerViewModel
+
+    private fun createViewModel(): TimerViewModel = TimerViewModel(
+        subjectRepository = subjectRepository,
+        materialRepository = materialRepository,
+        saveStudySessionUseCase = saveStudySessionUseCase,
+        getRecentMaterialsUseCase = getRecentMaterialsUseCase,
+        timerServiceManager = timerServiceManager,
+        appPreferencesRepository = appPreferencesRepository
+    )
     
     private val elapsedTimeFlow = MutableStateFlow(0L)
     private val remainingTimeFlow = MutableStateFlow(0L)
@@ -64,7 +76,10 @@ class TimerViewModelTest {
         saveStudySessionUseCase = mockk()
         getRecentMaterialsUseCase = mockk()
         timerServiceManager = mockk(relaxed = true)
-        
+        appPreferencesRepository = mockk(relaxed = true)
+
+        every { appPreferencesRepository.observePreferences() } returns flowOf(AppPreferences())
+        coEvery { appPreferencesRepository.loadPreferences() } returns AppPreferences()
         every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(emptyList()))
         every { materialRepository.getAllMaterials() } returns flowOf(Result.Success(emptyList()))
         every { getRecentMaterialsUseCase() } returns flowOf(emptyList())
@@ -82,13 +97,7 @@ class TimerViewModelTest {
         every { timerServiceManager.bind() } just runs
         every { timerServiceManager.unbind() } just runs
         
-        viewModel = TimerViewModel(
-            subjectRepository = subjectRepository,
-            materialRepository = materialRepository,
-            saveStudySessionUseCase = saveStudySessionUseCase,
-            getRecentMaterialsUseCase = getRecentMaterialsUseCase,
-            timerServiceManager = timerServiceManager
-        )
+        viewModel = createViewModel()
     }
     
     @After
@@ -139,13 +148,7 @@ class TimerViewModelTest {
         every { materialRepository.getAllMaterials() } returns flowOf(Result.Success(materials))
         every { getRecentMaterialsUseCase() } returns flowOf(emptyList())
         
-        viewModel = TimerViewModel(
-            subjectRepository = subjectRepository,
-            materialRepository = materialRepository,
-            saveStudySessionUseCase = saveStudySessionUseCase,
-            getRecentMaterialsUseCase = getRecentMaterialsUseCase,
-            timerServiceManager = timerServiceManager
-        )
+        viewModel = createViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         
         val state = viewModel.uiState.value
@@ -164,13 +167,7 @@ class TimerViewModelTest {
         val exception = RuntimeException("Database error")
         every { subjectRepository.getAllSubjects() } returns flow { throw exception }
         
-        viewModel = TimerViewModel(
-            subjectRepository = subjectRepository,
-            materialRepository = materialRepository,
-            saveStudySessionUseCase = saveStudySessionUseCase,
-            getRecentMaterialsUseCase = getRecentMaterialsUseCase,
-            timerServiceManager = timerServiceManager
-        )
+        viewModel = createViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         
         val state = viewModel.uiState.value
@@ -188,13 +185,7 @@ class TimerViewModelTest {
         
         every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(subjects))
         
-        viewModel = TimerViewModel(
-            subjectRepository = subjectRepository,
-            materialRepository = materialRepository,
-            saveStudySessionUseCase = saveStudySessionUseCase,
-            getRecentMaterialsUseCase = getRecentMaterialsUseCase,
-            timerServiceManager = timerServiceManager
-        )
+        viewModel = createViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         
         assertEquals(2, viewModel.uiState.value.subjects.size)
@@ -251,13 +242,7 @@ class TimerViewModelTest {
         
         every { materialRepository.getAllMaterials() } returns flowOf(Result.Success(materials))
         
-        viewModel = TimerViewModel(
-            subjectRepository = subjectRepository,
-            materialRepository = materialRepository,
-            saveStudySessionUseCase = saveStudySessionUseCase,
-            getRecentMaterialsUseCase = getRecentMaterialsUseCase,
-            timerServiceManager = timerServiceManager
-        )
+        viewModel = createViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         
         assertEquals(2, viewModel.uiState.value.materialsBySubject[1L]?.size)
@@ -367,23 +352,34 @@ class TimerViewModelTest {
             sessionType = StudySessionType.STOPWATCH
         )
         coEvery {
-            saveStudySessionUseCase(1L, 1L, 60000L, emptyList(), StudySessionType.STOPWATCH)
+            saveStudySessionUseCase(any<com.studyapp.domain.model.StudySession>())
         } returns Result.Success(1L)
-        
+
         viewModel.stopTimer()
         testDispatcher.scheduler.advanceUntilIdle()
-        
+
+        assertNotNull(viewModel.uiState.value.pendingSessionEvaluation)
+        viewModel.savePendingSessionEvaluation(
+            rating = 4,
+            note = null,
+            problemRecords = emptyList(),
+            problemStart = null,
+            problemEnd = null,
+            wrongProblemCount = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
         coVerify {
-            saveStudySessionUseCase(
-                subjectId = 1L,
-                materialId = 1L,
-                duration = 60000L,
-                intervals = emptyList(),
-                sessionType = StudySessionType.STOPWATCH
-            )
+            saveStudySessionUseCase(match { session ->
+                session.subjectId == 1L &&
+                    session.materialId == 1L &&
+                    session.duration == 60000L &&
+                    session.sessionType == StudySessionType.STOPWATCH
+            })
         }
         assertFalse(viewModel.uiState.value.isRunning)
         assertEquals(0L, viewModel.uiState.value.elapsedTime)
+        assertNull(viewModel.uiState.value.pendingSessionEvaluation)
     }
     
     @Test
@@ -457,12 +453,21 @@ class TimerViewModelTest {
             sessionType = StudySessionType.STOPWATCH
         )
         coEvery {
-            saveStudySessionUseCase(1L, 1L, 60000L, emptyList(), StudySessionType.STOPWATCH)
+            saveStudySessionUseCase(any<com.studyapp.domain.model.StudySession>())
         } returns Result.Error(RuntimeException("Save failed"), "保存に失敗しました")
-        
+
         viewModel.stopTimer()
         testDispatcher.scheduler.advanceUntilIdle()
-        
+        viewModel.savePendingSessionEvaluation(
+            rating = 0,
+            note = null,
+            problemRecords = emptyList(),
+            problemStart = null,
+            problemEnd = null,
+            wrongProblemCount = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
         assertNotNull(viewModel.uiState.value.error)
         assertEquals("保存に失敗しました", viewModel.uiState.value.error)
     }
@@ -548,13 +553,7 @@ class TimerViewModelTest {
         val exception = RuntimeException("Test error")
         every { subjectRepository.getAllSubjects() } returns flow { throw exception }
         
-        viewModel = TimerViewModel(
-            subjectRepository = subjectRepository,
-            materialRepository = materialRepository,
-            saveStudySessionUseCase = saveStudySessionUseCase,
-            getRecentMaterialsUseCase = getRecentMaterialsUseCase,
-            timerServiceManager = timerServiceManager
-        )
+        viewModel = createViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         
         assertNotNull(viewModel.uiState.value.error)
@@ -572,13 +571,7 @@ class TimerViewModelTest {
         
         every { getRecentMaterialsUseCase() } returns flowOf(recentMaterials)
         
-        viewModel = TimerViewModel(
-            subjectRepository = subjectRepository,
-            materialRepository = materialRepository,
-            saveStudySessionUseCase = saveStudySessionUseCase,
-            getRecentMaterialsUseCase = getRecentMaterialsUseCase,
-            timerServiceManager = timerServiceManager
-        )
+        viewModel = createViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         
         val state = viewModel.uiState.value
@@ -597,13 +590,7 @@ class TimerViewModelTest {
         currentSubjectIdFlow.value = subject.id
         currentMaterialIdFlow.value = material.id
 
-        viewModel = TimerViewModel(
-            subjectRepository = subjectRepository,
-            materialRepository = materialRepository,
-            saveStudySessionUseCase = saveStudySessionUseCase,
-            getRecentMaterialsUseCase = getRecentMaterialsUseCase,
-            timerServiceManager = timerServiceManager
-        )
+        viewModel = createViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(subject, viewModel.uiState.value.selectedSubject)

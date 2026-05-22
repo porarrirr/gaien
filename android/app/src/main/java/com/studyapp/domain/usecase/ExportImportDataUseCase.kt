@@ -153,14 +153,14 @@ data class PlanData(
     }
 }
 
-// JSON serialization helpers
-private fun Subject.toJson() = JSONObject().apply {
+// JSON serialization helpers (internal for delta sync)
+internal fun Subject.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("name", name); put("color", color)
     put("icon", icon?.name); put("createdAt", createdAt); put("updatedAt", updatedAt)
     put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toSubject() = Subject(
+internal fun JSONObject.toSubject() = Subject(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "subject-${optLong("id")}" },
     name = optString("name"), color = optInt("color"),
     icon = optString("icon").let { if (it.isNullOrEmpty()) null else com.studyapp.domain.model.SubjectIcon.fromName(it) },
@@ -169,7 +169,7 @@ private fun JSONObject.toSubject() = Subject(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
-private fun Material.toJson() = JSONObject().apply {
+internal fun Material.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("name", name); put("subjectId", subjectId)
     put("subjectSyncId", subjectSyncId); put("totalPages", totalPages); put("currentPage", currentPage)
     put("totalProblems", totalProblems)
@@ -179,7 +179,7 @@ private fun Material.toJson() = JSONObject().apply {
     put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toMaterial() = Material(
+internal fun JSONObject.toMaterial() = Material(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "material-${optLong("id")}" },
     name = optString("name"), subjectId = optLong("subjectId"),
     subjectSyncId = optString("subjectSyncId").takeIf { it.isNotEmpty() },
@@ -230,7 +230,7 @@ private fun JSONObject.toProblemSessionRecord(): ProblemSessionRecord? {
     )
 }
 
-private fun StudySession.toJson() = JSONObject().apply {
+internal fun StudySession.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("materialId", materialId); put("materialSyncId", materialSyncId)
     put("materialName", materialName); put("subjectId", subjectId); put("subjectSyncId", subjectSyncId)
     put("subjectName", subjectName); put("sessionType", sessionType.name); put("startTime", startTime); put("endTime", endTime)
@@ -244,7 +244,7 @@ private fun StudySession.toJson() = JSONObject().apply {
     put("createdAt", createdAt); put("updatedAt", updatedAt); put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toStudySession() = StudySession(
+internal fun JSONObject.toStudySession() = StudySession(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "session-${optLong("id")}" },
     materialId = if (has("materialId") && !isNull("materialId")) getLong("materialId") else null,
     materialSyncId = optString("materialSyncId").takeIf { it.isNotEmpty() },
@@ -277,14 +277,14 @@ private fun JSONObject.toStudySessionInterval() = StudySessionInterval(
     startTime = optLong("startTime"), endTime = optLong("endTime")
 )
 
-private fun Goal.toJson() = JSONObject().apply {
+internal fun Goal.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("type", type.name); put("targetMinutes", targetMinutes)
     put("dayOfWeek", dayOfWeek?.name); put("weekStartDay", weekStartDay.name)
     put("isActive", isActive); put("createdAt", createdAt); put("updatedAt", updatedAt)
     put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toGoal() = Goal(
+internal fun JSONObject.toGoal() = Goal(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "goal-${optLong("id")}" },
     type = com.studyapp.domain.model.GoalType.valueOf(optString("type", "DAILY")),
     targetMinutes = optInt("targetMinutes"),
@@ -296,13 +296,13 @@ private fun JSONObject.toGoal() = Goal(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
-private fun Exam.toJson() = JSONObject().apply {
+internal fun Exam.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("name", name); put("date", date)
     put("note", note); put("createdAt", createdAt); put("updatedAt", updatedAt)
     put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toExam() = Exam(
+internal fun JSONObject.toExam() = Exam(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "exam-${optLong("id")}" },
     name = optString("name"), date = optLong("date"),
     note = optString("note").takeIf { it.isNotEmpty() },
@@ -311,13 +311,13 @@ private fun JSONObject.toExam() = Exam(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
-private fun StudyPlan.toJson() = JSONObject().apply {
+internal fun StudyPlan.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("name", name); put("startDate", startDate); put("endDate", endDate)
     put("isActive", isActive); put("createdAt", createdAt); put("updatedAt", updatedAt)
     put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toStudyPlan() = StudyPlan(
+internal fun JSONObject.toStudyPlan() = StudyPlan(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "plan-${optLong("id")}" },
     name = optString("name"), startDate = optLong("startDate"), endDate = optLong("endDate"),
     isActive = optBoolean("isActive", true),
@@ -326,14 +326,14 @@ private fun JSONObject.toStudyPlan() = StudyPlan(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
-private fun PlanItem.toJson() = JSONObject().apply {
+internal fun PlanItem.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("planId", planId); put("planSyncId", planSyncId)
     put("subjectId", subjectId); put("subjectSyncId", subjectSyncId); put("dayOfWeek", dayOfWeek.name)
     put("targetMinutes", targetMinutes); put("actualMinutes", actualMinutes); put("timeSlot", timeSlot)
     put("createdAt", createdAt); put("updatedAt", updatedAt); put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toPlanItem() = PlanItem(
+internal fun JSONObject.toPlanItem() = PlanItem(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "plan-item-${optLong("id")}" },
     planId = optLong("planId"), planSyncId = optString("planSyncId").takeIf { it.isNotEmpty() },
     subjectId = optLong("subjectId"), subjectSyncId = optString("subjectSyncId").takeIf { it.isNotEmpty() },
@@ -345,13 +345,13 @@ private fun JSONObject.toPlanItem() = PlanItem(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
-private fun TimetablePeriod.toJson() = JSONObject().apply {
+internal fun TimetablePeriod.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("name", name); put("startMinute", startMinute); put("endMinute", endMinute)
     put("sortOrder", sortOrder); put("isActive", isActive); put("createdAt", createdAt); put("updatedAt", updatedAt)
     put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toTimetablePeriod() = TimetablePeriod(
+internal fun JSONObject.toTimetablePeriod() = TimetablePeriod(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "period-${optLong("id")}" },
     name = optString("name"), startMinute = optInt("startMinute"), endMinute = optInt("endMinute"),
     sortOrder = optInt("sortOrder"), isActive = optBoolean("isActive", true),
@@ -360,7 +360,7 @@ private fun JSONObject.toTimetablePeriod() = TimetablePeriod(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
-private fun TimetableEntry.toJson() = JSONObject().apply {
+internal fun TimetableEntry.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("termId", termId); put("termSyncId", termSyncId)
     put("dayOfWeek", dayOfWeek.name); put("periodId", periodId); put("periodSyncId", periodSyncId)
     put("subjectName", subjectName); put("courseName", courseName); put("roomName", roomName)
@@ -368,7 +368,7 @@ private fun TimetableEntry.toJson() = JSONObject().apply {
     put("createdAt", createdAt); put("updatedAt", updatedAt); put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toTimetableEntry() = TimetableEntry(
+internal fun JSONObject.toTimetableEntry() = TimetableEntry(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "entry-${optLong("id")}" },
     termId = optNullableLong("termId"), termSyncId = optString("termSyncId").takeIf { it.isNotEmpty() },
     dayOfWeek = try { StudyWeekday.valueOf(optString("dayOfWeek", "MONDAY")) } catch (_: Exception) { StudyWeekday.MONDAY },
@@ -381,13 +381,13 @@ private fun JSONObject.toTimetableEntry() = TimetableEntry(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
-private fun TimetableTerm.toJson() = JSONObject().apply {
+internal fun TimetableTerm.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("name", name); put("startDate", startDate); put("endDate", endDate)
     put("isActive", isActive); put("createdAt", createdAt); put("updatedAt", updatedAt)
     put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toTimetableTerm() = TimetableTerm(
+internal fun JSONObject.toTimetableTerm() = TimetableTerm(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "term-${optLong("id")}" },
     name = optString("name"), startDate = optLong("startDate"), endDate = optLong("endDate"),
     isActive = optBoolean("isActive", true),
@@ -396,7 +396,7 @@ private fun JSONObject.toTimetableTerm() = TimetableTerm(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
-private fun TimetableReviewRecord.toJson() = JSONObject().apply {
+internal fun TimetableReviewRecord.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("termId", termId); put("termSyncId", termSyncId)
     put("entryId", entryId); put("entrySyncId", entrySyncId); put("periodId", periodId); put("periodSyncId", periodSyncId)
     put("occurrenceDate", occurrenceDate); put("dayOfWeek", dayOfWeek.name); put("periodName", periodName)
@@ -406,7 +406,7 @@ private fun TimetableReviewRecord.toJson() = JSONObject().apply {
     put("createdAt", createdAt); put("updatedAt", updatedAt); put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toTimetableReviewRecord() = TimetableReviewRecord(
+internal fun JSONObject.toTimetableReviewRecord() = TimetableReviewRecord(
     id = optLong("id"), syncId = optString("syncId").ifEmpty { "review-${optLong("id")}" },
     termId = optLong("termId"), termSyncId = optString("termSyncId").takeIf { it.isNotEmpty() },
     entryId = optLong("entryId"), entrySyncId = optString("entrySyncId").takeIf { it.isNotEmpty() },
@@ -423,7 +423,7 @@ private fun JSONObject.toTimetableReviewRecord() = TimetableReviewRecord(
     deletedAt = optNullableLong("deletedAt"), lastSyncedAt = optNullableLong("lastSyncedAt")
 )
 
-private fun ProblemReviewRecord.toJson() = JSONObject().apply {
+internal fun ProblemReviewRecord.toJson() = JSONObject().apply {
     put("id", id); put("syncId", syncId); put("problemId", problemId)
     put("materialId", materialId); put("materialSyncId", materialSyncId)
     put("problemNumber", problemNumber); put("reviewedAt", reviewedAt)
@@ -433,7 +433,7 @@ private fun ProblemReviewRecord.toJson() = JSONObject().apply {
     put("deletedAt", deletedAt); put("lastSyncedAt", lastSyncedAt)
 }
 
-private fun JSONObject.toProblemReviewRecord(): ProblemReviewRecord? {
+internal fun JSONObject.toProblemReviewRecord(): ProblemReviewRecord? {
     val materialId = optLong("materialId")
     val problemNumber = optInt("problemNumber")
     if (materialId == 0L || problemNumber == 0) return null

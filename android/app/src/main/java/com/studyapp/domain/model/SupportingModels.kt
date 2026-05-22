@@ -65,15 +65,3 @@ data class BookInfo(
     val pageCount: Int? = null,
     val thumbnailUrl: String? = null
 )
-
-data class MaterialListProgressSummary(
-    val totalProblems: Int = 0,
-    val correctCount: Int = 0,
-    val mixedCount: Int = 0,
-    val untouchedCount: Int = 0,
-    val latestStudyDate: Long? = null
-) {
-    val progressedCount: Int get() = correctCount + mixedCount
-    val progressedRatio: Double get() = if (totalProblems > 0) progressedCount.toDouble() / totalProblems.toDouble() else 0.0
-    val progressedPercent: Int get() = (progressedRatio * 100).toInt()
-}

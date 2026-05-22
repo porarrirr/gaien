@@ -5,8 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.studyapp.data.service.BookInfo
 import com.studyapp.data.service.GoogleBooksService
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.MaterialListProgressSummary
+import com.studyapp.domain.model.ProblemChapter
 import com.studyapp.domain.model.Subject
+import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.repository.SubjectRepository
+import com.studyapp.domain.util.Result
 import com.studyapp.domain.usecase.ManageMaterialsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +29,7 @@ data class MaterialsUiState(
     val error: String? = null,
     val materials: List<Material> = emptyList(),
     val subjects: List<Subject> = emptyList(),
+    val progressSummaries: Map<Long, MaterialListProgressSummary> = emptyMap(),
     val hasSubjects: Boolean = false,
     val searchResult: BookInfo? = null
 )
@@ -33,6 +38,7 @@ data class MaterialsUiState(
 class MaterialsViewModel @Inject constructor(
     private val manageMaterialsUseCase: ManageMaterialsUseCase,
     private val subjectRepository: SubjectRepository,
+    private val studySessionRepository: StudySessionRepository,
     private val googleBooksService: GoogleBooksService
 ) : ViewModel() {
     
@@ -46,14 +52,28 @@ class MaterialsViewModel @Inject constructor(
     private fun loadData() {
         combine(
             manageMaterialsUseCase.getAllMaterials(),
-            subjectRepository.getAllSubjects()
-        ) { materials, subjectsResult ->
+            subjectRepository.getAllSubjects(),
+            studySessionRepository.getAllSessions()
+        ) { materials, subjectsResult, sessionsResult ->
             val subjects = subjectsResult.getOrNull() ?: emptyList()
+            val sessions = sessionsResult.getOrNull().orEmpty()
+            val sessionsByMaterialId = sessions
+                .filter { it.materialId != null }
+                .groupBy { it.materialId!! }
+            val progressSummaries = materials
+                .filter { it.effectiveTotalProblems > 0 }
+                .associate { material ->
+                    material.id to MaterialListProgressSummary.from(
+                        material = material,
+                        sessions = sessionsByMaterialId[material.id].orEmpty()
+                    )
+                }
             MaterialsUiState(
                 isLoading = false,
                 error = null,
                 materials = materials,
                 subjects = subjects,
+                progressSummaries = progressSummaries,
                 hasSubjects = subjects.isNotEmpty()
             )
         }
@@ -73,7 +93,15 @@ class MaterialsViewModel @Inject constructor(
         .launchIn(viewModelScope)
     }
     
-    fun addMaterial(name: String, subjectId: Long, totalPages: Int, totalProblems: Int = 0, note: String = "") {
+    fun addMaterial(
+        name: String,
+        subjectId: Long,
+        totalPages: Int,
+        currentPage: Int = 0,
+        totalProblems: Int = 0,
+        problemChapters: List<ProblemChapter> = emptyList(),
+        note: String = ""
+    ) {
         viewModelScope.launch {
             val subjectSyncId = _uiState.value.subjects.firstOrNull { it.id == subjectId }?.syncId
             manageMaterialsUseCase.addMaterial(
@@ -83,7 +111,9 @@ class MaterialsViewModel @Inject constructor(
                     subjectSyncId = subjectSyncId,
                     sortOrder = (_uiState.value.materials.maxOfOrNull { it.sortOrder } ?: -1L) + 1L,
                     totalPages = totalPages,
+                    currentPage = currentPage,
                     totalProblems = totalProblems,
+                    problemChapters = problemChapters,
                     note = note.takeIf { it.isNotBlank() }
                 )
             ).onError { error ->

@@ -40,11 +40,41 @@ class SyncPreferences @Inject constructor(
         }.apply()
     }
 
+    fun getDeltaCursor(userId: String): Long {
+        return preferences.getLong(deltaCursorKey(userId), 0L)
+    }
+
+    fun setDeltaCursor(userId: String, cursor: Long) {
+        preferences.edit().putLong(deltaCursorKey(userId), cursor).apply()
+    }
+
+    fun isDeltaMigrationDone(userId: String): Boolean {
+        return preferences.getBoolean(deltaMigrationDoneKey(userId), false)
+    }
+
+    fun setDeltaMigrationDone(userId: String, done: Boolean) {
+        preferences.edit().putBoolean(deltaMigrationDoneKey(userId), done).apply()
+    }
+
+    fun getLastLifecycleAutoSyncAt(): Long {
+        return preferences.getLong(KEY_LAST_LIFECYCLE_AUTO_SYNC_AT, 0L)
+    }
+
+    fun setLastLifecycleAutoSyncAt(timestamp: Long) {
+        preferences.edit().putLong(KEY_LAST_LIFECYCLE_AUTO_SYNC_AT, timestamp).apply()
+    }
+
     fun clearLocalSyncState() {
-        preferences.edit().apply {
-            remove(KEY_LAST_SYNC_AT)
-            remove(KEY_LOCAL_SYNC_OWNER_USER_ID)
-        }.apply()
+        val editor = preferences.edit()
+        editor.remove(KEY_LAST_SYNC_AT)
+        editor.remove(KEY_LOCAL_SYNC_OWNER_USER_ID)
+        editor.remove(KEY_LAST_LIFECYCLE_AUTO_SYNC_AT)
+        preferences.all.keys.forEach { key ->
+            if (key.startsWith(DELTA_CURSOR_KEY_PREFIX) || key.startsWith(DELTA_MIGRATION_DONE_KEY_PREFIX)) {
+                editor.remove(key)
+            }
+        }
+        editor.apply()
     }
 
     fun isAutoSyncBlockedUntilLocalChange(): Boolean {
@@ -71,10 +101,17 @@ class SyncPreferences @Inject constructor(
             ?.forEach { it.delete() }
     }
 
+    private fun deltaCursorKey(userId: String) = DELTA_CURSOR_KEY_PREFIX + userId
+
+    private fun deltaMigrationDoneKey(userId: String) = DELTA_MIGRATION_DONE_KEY_PREFIX + userId
+
     companion object {
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
         private const val KEY_LOCAL_SYNC_OWNER_USER_ID = "local_sync_owner_user_id"
         private const val KEY_AUTO_SYNC_BLOCKED_UNTIL_LOCAL_CHANGE = "auto_sync_blocked_until_local_change"
+        private const val KEY_LAST_LIFECYCLE_AUTO_SYNC_AT = "last_lifecycle_auto_sync_at"
+        private const val DELTA_CURSOR_KEY_PREFIX = "delta_cursor_"
+        private const val DELTA_MIGRATION_DONE_KEY_PREFIX = "delta_migration_done_"
         private const val BACKUP_RETENTION_MILLIS = 30L * 24L * 60L * 60L * 1000L
     }
 }

@@ -26,9 +26,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.MaterialListProgressSummary
 import com.studyapp.presentation.scanner.BarcodeScannerScreen
 import com.studyapp.R
 import com.studyapp.presentation.components.AnimatedProgressBar
@@ -189,6 +190,7 @@ fun MaterialsScreen(
                             material = material,
                             subjectName = subject?.name ?: "",
                             subjectColor = subject?.color ?: 0xFF4CAF50.toInt(),
+                            progressSummary = uiState.progressSummaries[material.id],
                             canMoveUp = uiState.materials.firstOrNull()?.id != material.id,
                             canMoveDown = uiState.materials.lastOrNull()?.id != material.id,
                             onOpenHistory = { onOpenMaterialHistory(material.id) },
@@ -210,8 +212,16 @@ fun MaterialsScreen(
         AddEditMaterialDialog(
             subjects = uiState.subjects,
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, subjectId, totalPages, totalProblems, note ->
-                viewModel.addMaterial(name, subjectId, totalPages, totalProblems, note)
+            onConfirm = { name, subjectId, totalPages, currentPage, totalProblems, problemChapters, note ->
+                viewModel.addMaterial(
+                    name = name,
+                    subjectId = subjectId,
+                    totalPages = totalPages,
+                    currentPage = currentPage,
+                    totalProblems = totalProblems,
+                    problemChapters = problemChapters,
+                    note = note
+                )
                 showAddDialog = false
             },
             onNavigateToSubjects = {
@@ -226,14 +236,18 @@ fun MaterialsScreen(
             material = material,
             subjects = uiState.subjects,
             onDismiss = { editingMaterial = null },
-            onConfirm = { name, subjectId, totalPages, totalProblems, note ->
-                viewModel.updateMaterial(material.copy(
-                    name = name,
-                    subjectId = subjectId,
-                    totalPages = totalPages,
-                    totalProblems = totalProblems,
-                    note = note.takeIf { it.isNotBlank() }
-                ))
+            onConfirm = { name, subjectId, totalPages, currentPage, totalProblems, problemChapters, note ->
+                viewModel.updateMaterial(
+                    material.copy(
+                        name = name,
+                        subjectId = subjectId,
+                        totalPages = totalPages,
+                        currentPage = currentPage,
+                        totalProblems = totalProblems,
+                        problemChapters = problemChapters,
+                        note = note.takeIf { it.isNotBlank() }
+                    )
+                )
                 editingMaterial = null
             },
             onNavigateToSubjects = {
@@ -285,6 +299,7 @@ private fun MaterialCard(
     material: Material,
     subjectName: String,
     subjectColor: Int = 0xFF4CAF50.toInt(),
+    progressSummary: MaterialListProgressSummary?,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onOpenHistory: () -> Unit,
@@ -296,51 +311,38 @@ private fun MaterialCard(
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showProgressEdit by remember { mutableStateOf(false) }
-    
-    ElevatedCard(
+    val accentColor = Color(material.color ?: subjectColor)
+    val hasProblemTracking = material.effectiveTotalProblems > 0
+
+    OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         onClick = onOpenHistory
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .defaultMinSize(minHeight = 100.dp)
-                    .background(Color(subjectColor))
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(16.dp)
-            ) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = material.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = subjectName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (material.note?.isNotBlank() == true) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SubjectColorDot(color = subjectColor)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = material.note!!,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            text = subjectName.ifEmpty { "科目なし" },
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = material.name,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                
                 Row {
                     IconButton(onClick = onMoveUp, enabled = canMoveUp) {
                         Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上へ")
@@ -348,18 +350,22 @@ private fun MaterialCard(
                     IconButton(onClick = onMoveDown, enabled = canMoveDown) {
                         Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下へ")
                     }
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.common_edit))
-                    }
                     IconButton(onClick = { showDeleteConfirm = true }) {
                         Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_delete))
                     }
                 }
             }
-            
-            if (material.totalPages > 0) {
+
+            if (hasProblemTracking && progressSummary != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                MaterialProblemProgressSection(
+                    totalProblems = material.effectiveTotalProblems,
+                    chapterCount = material.problemChapters.size,
+                    summary = progressSummary,
+                    accentColor = accentColor
+                )
+            } else if (material.totalPages > 0) {
                 Spacer(modifier = Modifier.height(12.dp))
-                
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -376,53 +382,33 @@ private fun MaterialCard(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                
                 Spacer(modifier = Modifier.height(8.dp))
-                
-                val progressColor = when {
-                    material.progress < 0.3 -> MaterialTheme.colorScheme.error
-                    material.progress < 0.7 -> MaterialTheme.colorScheme.tertiary
-                    else -> MaterialTheme.colorScheme.primary
-                }
                 AnimatedProgressBar(
                     progress = material.progress.toFloat(),
                     modifier = Modifier.fillMaxWidth(),
                     height = 10.dp,
-                    progressColor = progressColor
+                    progressColor = accentColor
                 )
-                
-                if (material.totalProblems > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val solvedCount = material.problemRecords.count { it.result == com.studyapp.domain.model.ProblemResult.CORRECT || it.result == com.studyapp.domain.model.ProblemResult.REVIEW_CORRECT }
-                    Text(
-                        text = "問題: ${solvedCount}/${material.totalProblems}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onOpenHistory) {
+                    Text("履歴")
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "タップで学習履歴",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                TextButton(onClick = onEdit) {
+                    Text(stringResource(R.string.common_edit))
+                }
+                if (material.totalPages > 0) {
                     TextButton(onClick = { showProgressEdit = true }) {
                         Text("進捗更新")
                     }
                 }
-            } else {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "タップで学習履歴",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
             }
         }
     }

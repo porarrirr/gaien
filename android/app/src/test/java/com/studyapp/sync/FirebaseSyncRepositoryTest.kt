@@ -78,9 +78,14 @@ class FirebaseSyncRepositoryTest {
                 every { getLocalSyncOwnerUserId() } returns null
                 every { setLocalSyncOwnerUserId(any()) } just runs
                 every { clearLocalSyncState() } just runs
+                every { getDeltaCursor(any()) } returns 0L
+                every { isDeltaMigrationDone(any()) } returns false
+            every { saveLocalBackup(any(), any(), any()) } just runs
             },
             exportImportDataUseCase = mockk(relaxed = true),
-            writeLock = AppDataWriteLock()
+            writeLock = AppDataWriteLock(),
+            deltaStore = mockk(relaxed = true),
+            syncChangeNotifier = SyncChangeNotifier(mockk(relaxed = true))
         )
 
         val error = runCatching { repository.syncNow() }.exceptionOrNull()
@@ -138,7 +143,20 @@ class FirebaseSyncRepositoryTest {
             every { setLastSyncAt(any()) } just runs
             every { setLocalSyncOwnerUserId(any()) } just runs
             every { clearLocalSyncState() } just runs
+            every { getDeltaCursor(any()) } returns 0L
+            every { setDeltaCursor(any(), any()) } just runs
+            every { isDeltaMigrationDone(any()) } returns false
+            every { saveLocalBackup(any(), any(), any()) } just runs
+            every { setDeltaMigrationDone(any(), any()) } just runs
+            every { getLastLifecycleAutoSyncAt() } returns 0L
+            every { setLastLifecycleAutoSyncAt(any()) } just runs
         }
+        val deltaStore = mockk<FirestoreDeltaSyncStore> {
+            coEvery { fetchEnvelopes(any(), any()) } returns emptyList()
+            coEvery { writeEnvelopes(any(), any()) } returns Unit
+            coEvery { purgeTombstonesOlderThan(any(), any(), any()) } returns Unit
+        }
+        val syncChangeNotifier = SyncChangeNotifier(syncPreferences)
 
         return FirebaseSyncRepository(
             authRepository = authRepository,
@@ -146,7 +164,9 @@ class FirebaseSyncRepositoryTest {
             firebaseFirestore = firestore,
             syncPreferences = syncPreferences,
             exportImportDataUseCase = exportImportDataUseCase,
-            writeLock = AppDataWriteLock()
+            writeLock = AppDataWriteLock(),
+            deltaStore = deltaStore,
+            syncChangeNotifier = syncChangeNotifier
         )
     }
 
