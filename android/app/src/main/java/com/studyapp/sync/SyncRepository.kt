@@ -9,5 +9,7 @@ interface SyncRepository {
 
     suspend fun importLocalDataToCloud()
 
+    suspend fun deleteCloudDataForCurrentUser()
+
     suspend fun clearLocalSyncState()
 }

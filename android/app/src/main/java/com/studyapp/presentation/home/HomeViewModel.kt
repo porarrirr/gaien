@@ -31,6 +31,7 @@ data class HomeUiState(
     val weeklyStudyMinutes: Long = 0,
     val upcomingExams: List<Exam> = emptyList(),
     val timetableLesson: TimetableLesson? = null,
+    val upcomingTimetableLesson: TimetableLesson? = null,
     val todayReviewProblems: List<TodayReviewProblem> = emptyList(),
     val recentMaterials: List<Pair<Material, com.studyapp.domain.model.Subject>> = emptyList()
 )
@@ -62,6 +63,7 @@ class HomeViewModel @Inject constructor(
                         weeklyStudyMinutes = data.weeklyStudyMinutes,
                         upcomingExams = data.upcomingExams,
                         timetableLesson = data.timetableLesson,
+                        upcomingTimetableLesson = data.upcomingTimetableLesson,
                         todayReviewProblems = data.todayReviewProblems
                     )
                 }

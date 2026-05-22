@@ -36,6 +36,7 @@ data class HomeData(
     val weeklyStudyMinutes: Long,
     val upcomingExams: List<Exam>,
     val timetableLesson: TimetableLesson? = null,
+    val upcomingTimetableLesson: TimetableLesson? = null,
     val todayReviewProblems: List<TodayReviewProblem> = emptyList()
 )
 
@@ -133,6 +134,7 @@ class GetHomeDataUseCase @Inject constructor(
                         materialName = material.name,
                         subjectName = subject?.name.orEmpty(),
                         problemNumber = review.problemNumber,
+                        problemLabel = material.problemLabel(review.problemNumber),
                         nextReviewDate = review.nextReviewDate,
                         consecutiveCorrectCount = review.consecutiveCorrectCount,
                         wrongCount = review.wrongCount
@@ -144,12 +146,21 @@ class GetHomeDataUseCase @Inject constructor(
                 )
         }
 
-        val timetableLessonFlow: Flow<TimetableLesson?> = combine(
+        data class TimetableLessons(
+            val current: TimetableLesson?,
+            val upcoming: TimetableLesson?
+        )
+
+        val timetableLessonsFlow: Flow<TimetableLessons> = combine(
             timetableRepository.getAllPeriods().map { it.getOrNull() ?: emptyList() },
             timetableRepository.getAllEntries().map { it.getOrNull() ?: emptyList() },
             timetableRepository.getAllTerms().map { it.getOrNull() ?: emptyList() }
         ) { periods, entries, terms ->
-            nextTimetableLesson(periods, entries, terms, LocalDate.now())
+            val lessons = nextTimetableLessons(periods, entries, terms, clock.currentLocalDate())
+            TimetableLessons(
+                current = lessons.firstOrNull { it.isCurrent },
+                upcoming = lessons.firstOrNull { !it.isCurrent }
+            )
         }
 
         val todayDataFlow: Flow<Triple<Long, List<TodaySession>, Goal?>> = combine(
@@ -164,7 +175,7 @@ class GetHomeDataUseCase @Inject constructor(
             val weeklyGoal: Goal?,
             val weeklyMinutes: Long,
             val exams: List<Exam>,
-            val timetableLesson: TimetableLesson?,
+            val timetableLessons: TimetableLessons,
             val todayReviewProblems: List<TodayReviewProblem>
         )
 
@@ -172,14 +183,14 @@ class GetHomeDataUseCase @Inject constructor(
             weeklyGoalFlow,
             weeklyStudyMinutesFlow,
             upcomingExamsFlow,
-            timetableLessonFlow,
+            timetableLessonsFlow,
             todayReviewProblemsFlow
-        ) { weeklyGoal, weeklyMinutes, exams, timetableLesson, todayReviewProblems ->
+        ) { weeklyGoal, weeklyMinutes, exams, timetableLessons, todayReviewProblems ->
             SecondaryHomeData(
                 weeklyGoal = weeklyGoal,
                 weeklyMinutes = weeklyMinutes,
                 exams = exams,
-                timetableLesson = timetableLesson,
+                timetableLessons = timetableLessons,
                 todayReviewProblems = todayReviewProblems
             )
         }
@@ -196,22 +207,23 @@ class GetHomeDataUseCase @Inject constructor(
                 weeklyGoal = secondaryData.weeklyGoal,
                 weeklyStudyMinutes = secondaryData.weeklyMinutes,
                 upcomingExams = secondaryData.exams.sortedBy { it.date },
-                timetableLesson = secondaryData.timetableLesson,
+                timetableLesson = secondaryData.timetableLessons.current,
+                upcomingTimetableLesson = secondaryData.timetableLessons.upcoming,
                 todayReviewProblems = secondaryData.todayReviewProblems
             )
         }
     }
 
-    private fun nextTimetableLesson(
+    private fun nextTimetableLessons(
         periods: List<TimetablePeriod>,
         entries: List<TimetableEntry>,
         terms: List<TimetableTerm>,
         reference: LocalDate
-    ): TimetableLesson? {
+    ): List<TimetableLesson> {
         val activePeriods = periods
             .filter { it.isActive && it.deletedAt == null && it.startMinute < it.endMinute }
             .sortedWith(compareBy<TimetablePeriod> { it.sortOrder }.thenBy { it.startMinute })
-        if (activePeriods.isEmpty()) return null
+        if (activePeriods.isEmpty()) return emptyList()
 
         val periodMap = activePeriods.associateBy { it.id }
         val activeTerm = terms.firstOrNull { it.deletedAt == null && it.isActive && it.contains(reference) }
@@ -225,11 +237,12 @@ class GetHomeDataUseCase @Inject constructor(
             StudyWeekday.timetableDays.contains(it.dayOfWeek) &&
             periodMap[it.periodId] != null
         }
-        if (activeEntries.isEmpty()) return null
+        if (activeEntries.isEmpty()) return emptyList()
 
-        val now = LocalTime.now()
+        val now = clock.currentLocalDateTime().toLocalTime()
         val currentMinutes = now.hour * 60 + now.minute
         val referenceWeekday = StudyWeekday.fromDayOfWeek(reference.dayOfWeek)
+        val lessons = mutableListOf<TimetableLesson>()
 
         for (offset in 0 until 7) {
             val date = reference.plusDays(offset.toLong())
@@ -249,15 +262,36 @@ class GetHomeDataUseCase @Inject constructor(
                 val period = pair.second
                 if (offset == 0 && day == referenceWeekday) {
                     if (currentMinutes >= period.startMinute && currentMinutes < period.endMinute) {
-                        return TimetableLesson(entry = entry, period = period, dayOfWeek = day, date = date, isCurrent = true)
+                        lessons.add(
+                            TimetableLesson(
+                                entry = entry,
+                                period = period,
+                                dayOfWeek = day,
+                                date = date,
+                                isCurrent = true
+                            )
+                        )
+                        continue
                     }
                     if (currentMinutes >= period.endMinute) continue
                 }
-                return TimetableLesson(entry = entry, period = period, dayOfWeek = day, date = date, isCurrent = false)
+                lessons.add(
+                    TimetableLesson(
+                        entry = entry,
+                        period = period,
+                        dayOfWeek = day,
+                        date = date,
+                        isCurrent = false
+                    )
+                )
+                val hasCurrent = lessons.any { it.isCurrent }
+                val hasUpcoming = lessons.any { !it.isCurrent }
+                if (hasCurrent && hasUpcoming) return lessons
+                if (!hasCurrent && lessons.isNotEmpty()) return lessons
             }
         }
 
-        return null
+        return lessons
     }
 
     companion object {

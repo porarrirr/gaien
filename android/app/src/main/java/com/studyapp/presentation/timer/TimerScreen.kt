@@ -1,7 +1,11 @@
 package com.studyapp.presentation.timer
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import android.content.Intent
+import android.content.res.Configuration
+import android.provider.Settings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +66,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -80,27 +88,92 @@ import com.studyapp.presentation.components.PulsingEffect
 import com.studyapp.presentation.components.SectionHeader
 import com.studyapp.R
 
+private fun formatTimeMillis(time: Long): String {
+    val hours = time / 3600000
+    val minutes = (time % 3600000) / 60000
+    val seconds = (time % 60000) / 1000
+    return if (hours > 0) {
+        String.format("%02d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format("%02d:%02d", minutes, seconds)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimerScreen(
     viewModel: TimerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val configuration = LocalConfiguration.current
+    val context = LocalContext.current
+    val theme = TimerAmbientTheme.current()
     var showManualInputDialog by remember { mutableStateOf(false) }
     var showMaterialPicker by remember { mutableStateOf(false) }
 
+    LaunchedEffect(viewModel) {
+        viewModel.openDndSettings.collect {
+            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+        }
+    }
+
+    val displayTime = if (uiState.timerMode == TimerMode.TIMER) uiState.remainingTime else uiState.elapsedTime
+    val progress = when {
+        uiState.timerMode == TimerMode.TIMER -> {
+            val target = (uiState.countdownMinutes * 60_000L).coerceAtLeast(1L)
+            1f - (uiState.remainingTime.toFloat() / target.toFloat())
+        }
+        else -> {
+            val elapsedMinutes = uiState.elapsedTime / 60000f
+            (elapsedMinutes % 60f) / 60f
+        }
+    }
+    val showLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+        uiState.isRunning &&
+        configuration.screenHeightDp < 520
+
+    if (showLandscape && !uiState.isLoading && uiState.error == null) {
+        LandscapeTimerContent(
+            preset = uiState.landscapeTimerDisplayPreset,
+            timeText = formatTimeMillis(displayTime),
+            modeLabel = if (uiState.timerMode == TimerMode.TIMER) "タイマー" else "ストップウォッチ",
+            progress = progress.coerceIn(0f, 1f),
+            isRunning = uiState.isRunning,
+            timerMode = uiState.timerMode,
+            problemStates = uiState.problemStates,
+            problemCount = uiState.problemCount,
+            onPauseToggle = {
+                if (uiState.isRunning) viewModel.pauseTimer() else viewModel.startTimer()
+            },
+            onStop = viewModel::stopTimer,
+            onProblemToggle = viewModel::toggleProblemState
+        )
+        return
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(theme.backgroundTop, theme.backgroundBottom)
+                )
+            )
+    ) {
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = {
                     Text(
                         text = stringResource(R.string.timer_screen_title),
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = theme.foreground
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                    containerColor = Color.Transparent,
+                    titleContentColor = theme.foreground
                 ),
                 actions = {
                     IconButton(onClick = { showManualInputDialog = true }) {
@@ -240,6 +313,7 @@ fun TimerScreen(
                 }
             }
         }
+    }
     }
 
     if (showManualInputDialog) {

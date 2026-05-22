@@ -15,12 +15,14 @@ import com.studyapp.domain.model.TimetablePeriod
 import com.studyapp.domain.model.TimetableReviewRecord
 import com.studyapp.domain.model.TimetableTerm
 import com.studyapp.domain.repository.TimetableRepository
+import com.studyapp.domain.usecase.TimetableOverdueCalculator
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AppDataWriteLock
 import com.studyapp.sync.SyncChangeNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
+import java.time.LocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -192,8 +194,17 @@ class TimetableRepositoryImpl @Inject constructor(
 
     override suspend fun getOverdueReviewCount(): Result<Int> {
         return try {
-            val today = LocalDate.now().toEpochDay()
-            val count = reviewRecordDao.getOverdueCount(today)
+            val periods = periodDao.getAllActiveForSync().map { it.toDomain() }
+            val terms = termDao.getAllForSync().map { it.toDomain() }
+            val entries = entryDao.getAllForSync().map { it.toDomain() }
+            val reviews = reviewRecordDao.getAllForSync().map { it.toDomain() }
+            val count = TimetableOverdueCalculator.overdueCount(
+                reference = LocalDateTime.now(),
+                terms = terms,
+                periods = periods,
+                entries = entries,
+                reviews = reviews
+            )
             Result.Success(count)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get overdue review count", e)

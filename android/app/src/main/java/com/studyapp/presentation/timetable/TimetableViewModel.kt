@@ -10,6 +10,7 @@ import com.studyapp.domain.model.TimetableTerm
 import com.studyapp.domain.model.StudyWeekday
 import com.studyapp.domain.repository.TimetableRepository
 import com.studyapp.domain.util.Clock
+import com.studyapp.services.ReminderRefreshCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,7 +68,8 @@ data class TimetableReviewSummary(
 @HiltViewModel
 class TimetableViewModel @Inject constructor(
     private val timetableRepository: TimetableRepository,
-    private val clock: Clock
+    private val clock: Clock,
+    private val reminderRefreshCoordinator: ReminderRefreshCoordinator
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TimetableUiState())
@@ -326,6 +328,7 @@ class TimetableViewModel @Inject constructor(
             )
             timetableRepository.saveReviewRecord(record)
             loadData()
+            refreshReminders()
         }
     }
 
@@ -366,6 +369,13 @@ class TimetableViewModel @Inject constructor(
             )
             timetableRepository.saveReviewRecord(updatedRecord)
             loadData()
+            refreshReminders()
+        }
+    }
+
+    private fun refreshReminders() {
+        viewModelScope.launch {
+            reminderRefreshCoordinator.refreshTimetableReviewReminder()
         }
     }
 

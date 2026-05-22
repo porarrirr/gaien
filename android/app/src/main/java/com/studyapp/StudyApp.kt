@@ -68,8 +68,18 @@ class StudyApp : Application(), Configuration.Provider {
             ).apply {
                 description = "学習時間のリマインダー通知"
             }
+
+            val timetableReviewChannel = NotificationChannel(
+                ReminderWorker.TIMETABLE_REVIEW_CHANNEL_ID,
+                "時間割復習リマインダー",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "時間割の未復習が48時間を超えた場合の通知"
+            }
             
-            notificationManager.createNotificationChannels(listOf(timerChannel, reminderChannel))
+            notificationManager.createNotificationChannels(
+                listOf(timerChannel, reminderChannel, timetableReviewChannel)
+            )
         }
     }
     

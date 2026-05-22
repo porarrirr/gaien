@@ -2,7 +2,9 @@ package com.studyapp.presentation.timer
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.studyapp.domain.model.LandscapeTimerDisplayPreset
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.repository.AppPreferencesRepository
 import com.studyapp.domain.model.PendingSessionEvaluation
 import com.studyapp.domain.model.ProblemSessionRecord
 import com.studyapp.domain.model.StudySession
@@ -16,8 +18,11 @@ import com.studyapp.domain.usecase.SaveStudySessionUseCase
 import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.domain.usecase.TimerServiceManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
@@ -45,7 +50,8 @@ data class TimerUiState(
     val isServiceBound: Boolean = false,
     val pendingSessionEvaluation: PendingSessionEvaluation? = null,
     val problemCount: Int = 0,
-    val problemStates: Map<Int, ProblemTileState> = emptyMap()
+    val problemStates: Map<Int, ProblemTileState> = emptyMap(),
+    val landscapeTimerDisplayPreset: LandscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.PROBLEM_PROGRESS
 )
 
 @HiltViewModel
@@ -54,15 +60,25 @@ class TimerViewModel @Inject constructor(
     private val materialRepository: MaterialRepository,
     private val saveStudySessionUseCase: SaveStudySessionUseCase,
     private val getRecentMaterialsUseCase: GetRecentMaterialsUseCase,
-    private val timerServiceManager: TimerServiceManager
+    private val timerServiceManager: TimerServiceManager,
+    private val appPreferencesRepository: AppPreferencesRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
+    private val _openDndSettings = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val openDndSettings: SharedFlow<Unit> = _openDndSettings.asSharedFlow()
     
     init {
         loadData()
         bindToService()
+        appPreferencesRepository.observePreferences()
+            .onEach { preferences ->
+                _uiState.update {
+                    it.copy(landscapeTimerDisplayPreset = preferences.landscapeTimerDisplayPreset)
+                }
+            }
+            .launchIn(viewModelScope)
     }
     
     private fun loadData() {
@@ -236,6 +252,9 @@ class TimerViewModel @Inject constructor(
                 null
             }
         )
+        if (appPreferencesRepository.loadPreferences().focusModePromptOnTimerStart) {
+            viewModelScope.launch { _openDndSettings.emit(Unit) }
+        }
     }
     
     fun pauseTimer() {

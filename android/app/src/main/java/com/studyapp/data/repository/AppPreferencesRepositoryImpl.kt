@@ -10,7 +10,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.studyapp.domain.model.AppPreferences
 import com.studyapp.domain.model.ColorTheme
+import com.studyapp.domain.model.LandscapeTimerDisplayPreset
 import com.studyapp.domain.model.ThemeMode
+import com.studyapp.domain.model.TimerNotificationDisplayPreset
 import com.studyapp.domain.model.TimerSnapshot
 import com.studyapp.domain.repository.AppPreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -37,6 +39,10 @@ class AppPreferencesRepositoryImpl @Inject constructor(
         val COLOR_THEME = intPreferencesKey("color_theme")
         val THEME_MODE = intPreferencesKey("theme_mode")
         val ACTIVE_TIMER = stringPreferencesKey("active_timer")
+        val TIMER_NOTIFICATION_RICH_ENABLED = booleanPreferencesKey("timer_notification_rich_enabled")
+        val TIMER_NOTIFICATION_DISPLAY_PRESET = intPreferencesKey("timer_notification_display_preset")
+        val LANDSCAPE_TIMER_DISPLAY_PRESET = intPreferencesKey("landscape_timer_display_preset")
+        val FOCUS_MODE_PROMPT_ON_TIMER_START = booleanPreferencesKey("focus_mode_prompt_on_timer_start")
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -62,6 +68,10 @@ class AppPreferencesRepositoryImpl @Inject constructor(
             prefs[Keys.REMINDER_MINUTE] = preferences.reminderMinute
             prefs[Keys.COLOR_THEME] = preferences.selectedColorTheme.ordinal
             prefs[Keys.THEME_MODE] = preferences.selectedThemeMode.ordinal
+            prefs[Keys.TIMER_NOTIFICATION_RICH_ENABLED] = preferences.timerNotificationRichEnabled
+            prefs[Keys.TIMER_NOTIFICATION_DISPLAY_PRESET] = preferences.timerNotificationDisplayPreset.ordinal
+            prefs[Keys.LANDSCAPE_TIMER_DISPLAY_PRESET] = preferences.landscapeTimerDisplayPreset.ordinal
+            prefs[Keys.FOCUS_MODE_PROMPT_ON_TIMER_START] = preferences.focusModePromptOnTimerStart
             if (preferences.activeTimer != null) {
                 prefs[Keys.ACTIVE_TIMER] = json.encodeToString(preferences.activeTimer)
             } else {
@@ -75,13 +85,24 @@ class AppPreferencesRepositoryImpl @Inject constructor(
         val themeModeOrdinal = this[Keys.THEME_MODE] ?: ThemeMode.SYSTEM.ordinal
         val activeTimerJson = this[Keys.ACTIVE_TIMER]
 
+        val notificationPresetOrdinal = this[Keys.TIMER_NOTIFICATION_DISPLAY_PRESET]
+            ?: TimerNotificationDisplayPreset.STANDARD.ordinal
+        val landscapePresetOrdinal = this[Keys.LANDSCAPE_TIMER_DISPLAY_PRESET]
+            ?: LandscapeTimerDisplayPreset.PROBLEM_PROGRESS.ordinal
+
         return AppPreferences(
-            onboardingCompleted = this[Keys.ONBOARDING_COMPLETED] ?: false,
+            onboardingCompleted = this[Keys.ONBOARDING_COMPLETED] ?: true,
             reminderEnabled = this[Keys.REMINDER_ENABLED] ?: false,
             reminderHour = this[Keys.REMINDER_HOUR] ?: 19,
             reminderMinute = this[Keys.REMINDER_MINUTE] ?: 0,
             selectedColorTheme = ColorTheme.entries.getOrNull(colorThemeOrdinal) ?: ColorTheme.GREEN,
             selectedThemeMode = ThemeMode.entries.getOrNull(themeModeOrdinal) ?: ThemeMode.SYSTEM,
+            timerNotificationRichEnabled = this[Keys.TIMER_NOTIFICATION_RICH_ENABLED] ?: true,
+            timerNotificationDisplayPreset = TimerNotificationDisplayPreset.entries
+                .getOrNull(notificationPresetOrdinal) ?: TimerNotificationDisplayPreset.STANDARD,
+            landscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.entries
+                .getOrNull(landscapePresetOrdinal) ?: LandscapeTimerDisplayPreset.PROBLEM_PROGRESS,
+            focusModePromptOnTimerStart = this[Keys.FOCUS_MODE_PROMPT_ON_TIMER_START] ?: false,
             activeTimer = activeTimerJson?.let {
                 try { json.decodeFromString<TimerSnapshot>(it) } catch (_: Exception) { null }
             }

@@ -58,6 +58,12 @@ class FirebaseSyncRepositoryTest {
 
             override suspend fun signUp(email: String, password: String) = Unit
 
+            override suspend fun sendPasswordReset(email: String) = Unit
+
+            override suspend fun reauthenticate(password: String) = Unit
+
+            override suspend fun deleteAccount(password: String) = Unit
+
             override suspend fun signOut() = Unit
         }
         val firebaseAuth = mockk<FirebaseAuth> {
@@ -97,6 +103,12 @@ class FirebaseSyncRepositoryTest {
             override suspend fun signIn(email: String, password: String) = Unit
 
             override suspend fun signUp(email: String, password: String) = Unit
+
+            override suspend fun sendPasswordReset(email: String) = Unit
+
+            override suspend fun reauthenticate(password: String) = Unit
+
+            override suspend fun deleteAccount(password: String) = Unit
 
             override suspend fun signOut() = Unit
         }

@@ -6,11 +6,16 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.studyapp.domain.model.AppPreferences
 import com.studyapp.domain.model.ColorTheme
+import com.studyapp.domain.model.LandscapeTimerDisplayPreset
 import com.studyapp.domain.model.ThemeMode
+import com.studyapp.domain.model.TimerNotificationDisplayPreset
+import com.studyapp.domain.repository.AppPreferencesRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.usecase.ExportImportDataUseCase
 import com.studyapp.domain.util.Result
+import com.studyapp.services.ReminderRefreshCoordinator
 import com.studyapp.services.ReminderWorker
 import com.studyapp.sync.AuthRepository
 import com.studyapp.sync.SyncRepository
@@ -47,8 +52,15 @@ data class SettingsUiState(
     val totalStudyTime: Long = 0L,
     val selectedColorTheme: ColorTheme = ColorTheme.GREEN,
     val selectedThemeMode: ThemeMode = ThemeMode.SYSTEM,
-    val syncEmail: String = "",
-    val syncPassword: String = "",
+    val timerNotificationRichEnabled: Boolean = true,
+    val timerNotificationDisplayPreset: TimerNotificationDisplayPreset = TimerNotificationDisplayPreset.STANDARD,
+    val landscapeTimerDisplayPreset: LandscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.PROBLEM_PROGRESS,
+    val focusModePromptOnTimerStart: Boolean = false,
+    val signInEmail: String = "",
+    val signInPassword: String = "",
+    val createEmail: String = "",
+    val createPassword: String = "",
+    val accountDeletionPassword: String = "",
     val syncAuthenticated: Boolean = false,
     val syncAccountEmail: String? = null,
     val syncInProgress: Boolean = false,
@@ -62,10 +74,12 @@ class SettingsViewModel @Inject constructor(
     private val studySessionRepository: StudySessionRepository,
     private val themePreferences: ThemePreferences,
     private val reminderPreferences: ReminderPreferences,
+    private val appPreferencesRepository: AppPreferencesRepository,
     private val exportImportDataUseCase: ExportImportDataUseCase,
     private val authRepository: AuthRepository,
     private val syncRepository: SyncRepository,
     private val syncChangeNotifier: SyncChangeNotifier,
+    private val reminderRefreshCoordinator: ReminderRefreshCoordinator,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
     
@@ -76,7 +90,56 @@ class SettingsViewModel @Inject constructor(
         loadStatistics()
         loadThemePreferences()
         loadReminderPreferences()
+        loadAppPreferences()
         observeSyncState()
+    }
+
+    private fun loadAppPreferences() {
+        appPreferencesRepository.observePreferences()
+            .onEach { preferences ->
+                _uiState.update {
+                    it.copy(
+                        timerNotificationRichEnabled = preferences.timerNotificationRichEnabled,
+                        timerNotificationDisplayPreset = preferences.timerNotificationDisplayPreset,
+                        landscapeTimerDisplayPreset = preferences.landscapeTimerDisplayPreset,
+                        focusModePromptOnTimerStart = preferences.focusModePromptOnTimerStart
+                    )
+                }
+            }
+            .launchIn(viewModelScope)
+    }
+
+    private suspend fun updateAppPreferences(transform: (AppPreferences) -> AppPreferences) {
+        val current = appPreferencesRepository.loadPreferences()
+        appPreferencesRepository.savePreferences(transform(current))
+    }
+
+    fun setTimerNotificationRichEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            updateAppPreferences { it.copy(timerNotificationRichEnabled = enabled) }
+            _uiState.update { it.copy(timerNotificationRichEnabled = enabled) }
+        }
+    }
+
+    fun setTimerNotificationDisplayPreset(preset: TimerNotificationDisplayPreset) {
+        viewModelScope.launch {
+            updateAppPreferences { it.copy(timerNotificationDisplayPreset = preset) }
+            _uiState.update { it.copy(timerNotificationDisplayPreset = preset) }
+        }
+    }
+
+    fun setLandscapeTimerDisplayPreset(preset: LandscapeTimerDisplayPreset) {
+        viewModelScope.launch {
+            updateAppPreferences { it.copy(landscapeTimerDisplayPreset = preset) }
+            _uiState.update { it.copy(landscapeTimerDisplayPreset = preset) }
+        }
+    }
+
+    fun setFocusModePromptOnTimerStart(enabled: Boolean) {
+        viewModelScope.launch {
+            updateAppPreferences { it.copy(focusModePromptOnTimerStart = enabled) }
+            _uiState.update { it.copy(focusModePromptOnTimerStart = enabled) }
+        }
     }
     
     private fun loadThemePreferences() {
@@ -159,6 +222,7 @@ class SettingsViewModel @Inject constructor(
             } else {
                 ReminderWorker.cancelReminder(appContext)
             }
+            reminderRefreshCoordinator.refreshTimetableReviewReminder()
             _uiState.update { it.copy(reminderEnabled = enabled) }
         }
     }
@@ -192,21 +256,34 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setSyncEmail(value: String) {
-        _uiState.update { it.copy(syncEmail = value) }
+    fun setSignInEmail(value: String) {
+        _uiState.update { it.copy(signInEmail = value) }
     }
 
-    fun setSyncPassword(value: String) {
-        _uiState.update { it.copy(syncPassword = value) }
+    fun setSignInPassword(value: String) {
+        _uiState.update { it.copy(signInPassword = value) }
+    }
+
+    fun setCreateEmail(value: String) {
+        _uiState.update { it.copy(createEmail = value) }
+    }
+
+    fun setCreatePassword(value: String) {
+        _uiState.update { it.copy(createPassword = value) }
+    }
+
+    fun setAccountDeletionPassword(value: String) {
+        _uiState.update { it.copy(accountDeletionPassword = value) }
     }
 
     fun signInToSync() {
         viewModelScope.launch {
             runCatching {
                 authRepository.signIn(
-                    normalizeAuthEmail(_uiState.value.syncEmail),
-                    normalizeAuthPassword(_uiState.value.syncPassword)
+                    normalizeAuthEmail(_uiState.value.signInEmail),
+                    normalizeAuthPassword(_uiState.value.signInPassword)
                 )
+                _uiState.update { it.copy(signInPassword = "", syncError = null) }
             }.onFailure {
                 _uiState.update { state -> state.copy(syncError = it.message) }
             }
@@ -217,9 +294,52 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 authRepository.signUp(
-                    normalizeAuthEmail(_uiState.value.syncEmail),
-                    normalizeAuthPassword(_uiState.value.syncPassword)
+                    normalizeAuthEmail(_uiState.value.createEmail),
+                    normalizeAuthPassword(_uiState.value.createPassword)
                 )
+                _uiState.update { it.copy(createPassword = "", syncError = null) }
+            }.onFailure {
+                _uiState.update { state -> state.copy(syncError = it.message) }
+            }
+        }
+    }
+
+    fun sendPasswordReset() {
+        viewModelScope.launch {
+            runCatching {
+                authRepository.sendPasswordReset(normalizeAuthEmail(_uiState.value.signInEmail))
+                _uiState.update { it.copy(syncError = null) }
+            }.onFailure {
+                _uiState.update { state -> state.copy(syncError = it.message) }
+            }
+        }
+    }
+
+    fun deleteSyncAccount() {
+        viewModelScope.launch {
+            val password = normalizeAuthPassword(_uiState.value.accountDeletionPassword)
+            _uiState.update { it.copy(accountDeletionPassword = "") }
+            runCatching {
+                if (password.isEmpty()) {
+                    throw IllegalArgumentException("アカウント削除には現在のパスワードが必要です")
+                }
+                authRepository.reauthenticate(password)
+                syncRepository.deleteCloudDataForCurrentUser()
+                when (val deleteResult = exportImportDataUseCase.deleteAllData()) {
+                    is Result.Error -> throw deleteResult.exception
+                    is Result.Success -> Unit
+                }
+                syncRepository.clearLocalSyncState()
+                authRepository.deleteAccount(password)
+                syncChangeNotifier.pauseAutoSyncUntilLocalChange()
+                _uiState.update {
+                    it.copy(
+                        totalSessions = 0,
+                        totalStudyTime = 0L,
+                        lastSyncAt = null,
+                        syncError = null
+                    )
+                }
             }.onFailure {
                 _uiState.update { state -> state.copy(syncError = it.message) }
             }

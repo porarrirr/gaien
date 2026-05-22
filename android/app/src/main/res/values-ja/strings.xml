@@ -302,6 +302,14 @@
     <string name="widget_exam_description">次の試験までの日数を表示します</string>
     <string name="widget_weekly_activity_name">週間アクティビティウィジェット</string>
     <string name="widget_weekly_activity_description">直近7日間の学習推移を表示します</string>
+    <string name="widget_daily_goal_name">今日の目標ウィジェット</string>
+    <string name="widget_daily_goal_description">今日の学習目標の達成状況を表示します</string>
+    <string name="widget_study_summary_name">学習サマリーウィジェット</string>
+    <string name="widget_study_summary_description">今日・今週・連続日数・次の試験をまとめて表示します</string>
+    <string name="widget_upcoming_exam_list_name">試験一覧ウィジェット</string>
+    <string name="widget_upcoming_exam_list_description">近い順に予定の試験を表示します</string>
+    <string name="widget_weekly_pace_name">週間ペースウィジェット</string>
+    <string name="widget_weekly_pace_description">週間の学習合計・平均・最多日と推移を表示します</string>
     <string name="widget_stack_name">スタック学習ウィジェット</string>
     <string name="widget_stack_description">学習カードをスワイプで切り替えて表示します</string>
     <string name="stack_widget_config_title">スタックウィジェットの設定</string>

@@ -1,5 +1,6 @@
 package com.studyapp.sync
 
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,6 +34,32 @@ class FirebaseAuthRepository @Inject constructor(
         val user = firebaseAuth.currentUser
         val token = user?.getIdToken(true)?.await()?.token.orEmpty()
         _session.value = user?.toSession(token)
+    }
+
+    override suspend fun sendPasswordReset(email: String) {
+        val normalized = email.trim()
+        require(normalized.isNotEmpty()) { "メールアドレスを入力してください" }
+        firebaseAuth.sendPasswordResetEmail(normalized).await()
+    }
+
+    override suspend fun reauthenticate(password: String) {
+        val user = firebaseAuth.currentUser
+            ?: throw IllegalStateException("サインインしているアカウントがありません")
+        val email = user.email?.trim().orEmpty()
+        require(email.isNotEmpty()) { "メールアドレスが見つかりません" }
+        require(password.isNotEmpty()) { "パスワードを入力してください" }
+        val credential = EmailAuthProvider.getCredential(email, password)
+        user.reauthenticate(credential).await()
+    }
+
+    override suspend fun deleteAccount(password: String) {
+        val user = firebaseAuth.currentUser
+            ?: throw IllegalStateException("サインインしているアカウントがありません")
+        if (password.isNotEmpty()) {
+            reauthenticate(password)
+        }
+        user.delete().await()
+        _session.value = null
     }
 
     override suspend fun signOut() {

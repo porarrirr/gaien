@@ -102,6 +102,54 @@
         </receiver>
 
         <receiver
+            android:name=".widgets.DailyGoalWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_daily_goal_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/daily_goal_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.StudySummaryWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_study_summary_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/study_summary_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.UpcomingExamListWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_upcoming_exam_list_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/upcoming_exam_list_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.WeeklyPaceWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_weekly_pace_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/weekly_pace_widget_info" />
+        </receiver>
+
+        <receiver
             android:name=".widgets.StackStudyWidgetReceiver"
             android:exported="false"
             android:label="@string/widget_stack_name">

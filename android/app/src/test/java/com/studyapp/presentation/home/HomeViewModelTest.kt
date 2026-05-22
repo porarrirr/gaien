@@ -51,6 +51,7 @@ class HomeViewModelTest {
                         materialName = "数学問題集",
                         subjectName = "数学",
                         problemNumber = 12,
+                        problemLabel = "12",
                         nextReviewDate = 1_700_000_000_000,
                         consecutiveCorrectCount = 0,
                         wrongCount = 2

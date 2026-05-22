@@ -215,21 +215,24 @@ fun HomeScreen(
                     }
                 }
 
-                // Timetable lesson section
-                uiState.timetableLesson?.let { lesson ->
-                    item {
-                        SlideInCard(visible = true, delayMillis = 250) {
-                            Column {
-                                SectionHeader(
-                                    title = lesson.statusTitle,
-                                    icon = Icons.Default.GridView
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                TimetableLessonCard(
-                                    lesson = lesson,
-                                    onClick = onNavigateToTimetable
-                                )
-                            }
+                // Timetable lesson sections (current + upcoming)
+                item {
+                    SlideInCard(visible = true, delayMillis = 250) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TimetableLessonHomeCard(
+                                eyebrow = "現在の授業",
+                                lesson = uiState.timetableLesson,
+                                emptyMessage = "現在の授業はありません",
+                                accentColor = MaterialTheme.colorScheme.primary,
+                                onClick = onNavigateToTimetable
+                            )
+                            TimetableLessonHomeCard(
+                                eyebrow = "次の授業",
+                                lesson = uiState.upcomingTimetableLesson,
+                                emptyMessage = "登録された次の授業はありません",
+                                accentColor = MaterialTheme.colorScheme.tertiary,
+                                onClick = onNavigateToTimetable
+                            )
                         }
                     }
                 }
@@ -350,10 +353,11 @@ private fun TodayReviewProblemRow(problem: TodayReviewProblem) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = problem.problemNumber.toString(),
+                text = problem.problemLabel,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                maxLines = 1
             )
         }
         Column(
@@ -751,8 +755,48 @@ private fun QuickActionsSection(
 }
 
 @Composable
+private fun TimetableLessonHomeCard(
+    eyebrow: String,
+    lesson: TimetableLesson?,
+    emptyMessage: String,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader(
+            title = eyebrow,
+            icon = Icons.Default.GridView
+        )
+        if (lesson == null) {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+            ) {
+                Text(
+                    text = emptyMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        } else {
+            TimetableLessonCard(
+                lesson = lesson,
+                accentColor = accentColor,
+                onClick = onClick
+            )
+        }
+    }
+}
+
+@Composable
 private fun TimetableLessonCard(
     lesson: TimetableLesson,
+    accentColor: Color = if (lesson.isCurrent) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.secondary
+    },
     onClick: () -> Unit
 ) {
     ElevatedCard(
@@ -771,10 +815,7 @@ private fun TimetableLessonCard(
                     .width(4.dp)
                     .height(48.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(
-                        if (lesson.isCurrent) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.secondary
-                    )
+                    .background(accentColor)
             )
 
             Spacer(modifier = Modifier.width(12.dp))

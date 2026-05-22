@@ -135,9 +135,64 @@ class FirebaseSyncRepository @Inject constructor(
         }
     }
 
+    override suspend fun deleteCloudDataForCurrentUser() {
+        val session = requireSession()
+        setSyncing(true)
+        try {
+            val userRef = firebaseFirestore.collection("users").document(session.localId)
+            deleteAllDocumentsInCollection(userRef.collection("sync_entities"))
+            val manifestRef = userRef.collection("sync").document("default")
+            deleteAllDocumentsInCollection(manifestRef.collection("chunks"))
+            manifestRef.delete().await()
+            deleteAllSyncSnapshots(session.localId)
+            clearLocalSyncState()
+            _status.value = SyncStatus(isAuthenticated = true, email = session.email, isSyncing = false, lastSyncAt = null, errorMessage = null)
+        } catch (t: Throwable) {
+            val mapped = mapSyncFailure(t)
+            _status.value = _status.value.copy(isSyncing = false, errorMessage = mapped.message)
+            throw mapped
+        }
+    }
+
     override suspend fun clearLocalSyncState() {
         syncPreferences.clearLocalSyncState()
         _status.value = _status.value.copy(lastSyncAt = null, errorMessage = null)
+    }
+
+    private suspend fun deleteAllSyncSnapshots(userId: String) {
+        val snapshots = firebaseFirestore
+            .collection("users")
+            .document(userId)
+            .collection("sync_snapshots")
+            .get()
+            .await()
+        snapshots.documents.forEach { snapshot ->
+            deleteAllDocumentsInCollection(snapshot.reference.collection("chunks"))
+            snapshot.reference.delete().await()
+        }
+    }
+
+    private suspend fun deleteAllDocumentsInCollection(
+        collection: com.google.firebase.firestore.CollectionReference
+    ) {
+        while (true) {
+            val page = collection.limit(DELETE_BATCH_SIZE).get().await()
+            if (page.isEmpty) return
+            var batch = firebaseFirestore.batch()
+            var writeCount = 0
+            page.documents.forEach { document ->
+                batch.delete(document.reference)
+                writeCount += 1
+                if (writeCount >= DELETE_BATCH_SIZE) {
+                    batch.commit().await()
+                    batch = firebaseFirestore.batch()
+                    writeCount = 0
+                }
+            }
+            if (writeCount > 0) {
+                batch.commit().await()
+            }
+        }
     }
 
     private suspend fun exportLocalData(): AppData {
@@ -604,6 +659,7 @@ class FirebaseSyncRepository @Inject constructor(
     private class ConcurrentSnapshotUpdateException : IllegalStateException("Remote snapshot changed during sync.")
 
     private companion object {
+        const val DELETE_BATCH_SIZE = 450L
         const val MAX_SYNC_ATTEMPTS = 3
         const val SNAPSHOT_FORMAT = "chunked-v2"
         const val SNAPSHOT_CHUNK_BYTES = 200_000

@@ -89,6 +89,10 @@ class CalendarViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(CalendarUiState())
     val uiState: StateFlow<CalendarUiState> = _uiState.asStateFlow()
+    private var cachedPeriods: List<TimetablePeriod> = emptyList()
+    private var cachedEntries: List<TimetableEntry> = emptyList()
+    private var cachedTerms: List<TimetableTerm> = emptyList()
+    private val timelineCache = mutableMapOf<Long, List<TimelineItem>>()
 
     private val currentMonthState = MutableStateFlow(
         Pair(
@@ -102,6 +106,33 @@ class CalendarViewModel @Inject constructor(
     init {
         observeMonthData()
         observeSelectedDateData()
+        observeTimetableCache()
+    }
+
+    private fun observeTimetableCache() {
+        viewModelScope.launch {
+            combine(
+                timetableRepository.getAllPeriods(),
+                timetableRepository.getAllEntries(),
+                timetableRepository.getAllTerms()
+            ) { periodsResult, entriesResult, termsResult ->
+                Triple(periodsResult, entriesResult, termsResult)
+            }.collect { (periodsResult, entriesResult, termsResult) ->
+                cachedPeriods = when (val result = periodsResult) {
+                    is Result.Success -> result.data.filter { it.deletedAt == null && it.isActive }
+                    is Result.Error -> emptyList()
+                }
+                cachedEntries = when (val result = entriesResult) {
+                    is Result.Success -> result.data.filter { it.deletedAt == null }
+                    is Result.Error -> emptyList()
+                }
+                cachedTerms = when (val result = termsResult) {
+                    is Result.Success -> result.data.filter { it.deletedAt == null }
+                    is Result.Error -> emptyList()
+                }
+                timelineCache.clear()
+            }
+        }
     }
 
     private fun observeMonthData() {
@@ -210,28 +241,20 @@ class CalendarViewModel @Inject constructor(
 
     private suspend fun buildTimeline(date: Date?, sessions: List<StudySession>): List<TimelineItem> {
         if (date == null) return emptyList()
+        val dayKey = date.startOfDayMillis()
+        timelineCache[dayKey]?.let { return it }
+
         val localDate = LocalDate.ofEpochDay(date.startOfDayMillis() / (24 * 60 * 60 * 1000L))
         val weekday = StudyWeekday.fromDayOfWeek(localDate.dayOfWeek)
         if (!StudyWeekday.timetableDays.contains(weekday)) {
-            return sessions.map { TimelineItem.Session(it) }
+            val sessionOnly = sessions.map { TimelineItem.Session(it) }
+            timelineCache[dayKey] = sessionOnly
+            return sessionOnly
         }
 
-        val periodsResult = timetableRepository.getAllPeriods()
-        val entriesResult = timetableRepository.getAllEntries()
-        val termsResult = timetableRepository.getAllTerms()
-
-        val periods = when (val r = periodsResult.first()) {
-            is Result.Success -> r.data.filter { it.deletedAt == null && it.isActive }
-            else -> emptyList()
-        }
-        val entries = when (val r = entriesResult.first()) {
-            is Result.Success -> r.data.filter { it.deletedAt == null }
-            else -> emptyList()
-        }
-        val terms = when (val r = termsResult.first()) {
-            is Result.Success -> r.data.filter { it.deletedAt == null }
-            else -> emptyList()
-        }
+        val periods = cachedPeriods
+        val entries = cachedEntries
+        val terms = cachedTerms
 
         val epochDay = localDate.toEpochDay()
         val activeTerm = terms.firstOrNull { it.isActive && it.contains(localDate) }
@@ -276,10 +299,12 @@ class CalendarViewModel @Inject constructor(
                 is TimelineItem.Gap -> item.endMinute
             }
         }
+        timelineCache[dayKey] = result
         return result
     }
 
     fun previousMonth() {
+        timelineCache.clear()
         currentMonthState.update { (year, month) ->
             val newMonth = if (month == 1) 12 else month - 1
             val newYear = if (month == 1) year - 1 else year
@@ -292,6 +317,7 @@ class CalendarViewModel @Inject constructor(
     }
 
     fun nextMonth() {
+        timelineCache.clear()
         currentMonthState.update { (year, month) ->
             val newMonth = if (month == 12) 1 else month + 1
             val newYear = if (month == 12) year + 1 else year

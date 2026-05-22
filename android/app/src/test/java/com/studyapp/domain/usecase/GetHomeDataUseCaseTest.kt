@@ -115,6 +115,7 @@ class GetHomeDataUseCaseTest {
         assertEquals("数学問題集", result.todayReviewProblems.first().materialName)
         assertEquals("数学", result.todayReviewProblems.first().subjectName)
         assertEquals(12, result.todayReviewProblems.first().problemNumber)
+        assertEquals("12", result.todayReviewProblems.first().problemLabel)
     }
 
     private class FixedClock(private val todayStart: Long) : Clock {

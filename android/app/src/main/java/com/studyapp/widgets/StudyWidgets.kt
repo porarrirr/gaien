@@ -40,7 +40,11 @@ object StudyWidgets {
         WeeklyGoalAppWidget,
         StudyStreakAppWidget,
         ExamCountdownAppWidget,
-        WeeklyActivityAppWidget
+        WeeklyActivityAppWidget,
+        DailyGoalAppWidget,
+        StudySummaryAppWidget,
+        UpcomingExamListAppWidget,
+        WeeklyPaceAppWidget
     )
 
     suspend fun updateAll(context: Context) {
@@ -233,16 +237,96 @@ object ExamCountdownAppWidget : BaseStudyWidget() {
 object WeeklyActivityAppWidget : BaseStudyWidget() {
     @Composable
     override fun Content(snapshot: StudyWidgetSnapshot) {
+        WeeklyActivityChart(snapshot = snapshot, title = "今週の推移")
+    }
+}
+
+object DailyGoalAppWidget : BaseStudyWidget() {
+    @Composable
+    override fun Content(snapshot: StudyWidgetSnapshot) {
+        Column(modifier = GlanceModifier.fillMaxSize()) {
+            Text(text = "今日の目標", style = TitleTextStyle)
+            Spacer(modifier = GlanceModifier.height(8.dp))
+            Text(text = dailyGoalStatusText(snapshot), style = HeroTextStyle)
+            Spacer(modifier = GlanceModifier.height(10.dp))
+            SegmentedProgress(
+                progress = snapshot.todayProgress,
+                tint = if (snapshot.todayProgress >= 1f) WidgetPalette.Secondary else WidgetPalette.Primary
+            )
+            Spacer(modifier = GlanceModifier.height(10.dp))
+            Text(text = dailyGoalDetailText(snapshot), style = CaptionTextStyle)
+        }
+    }
+}
+
+object StudySummaryAppWidget : BaseStudyWidget() {
+    @Composable
+    override fun Content(snapshot: StudyWidgetSnapshot) {
+        Column(modifier = GlanceModifier.fillMaxSize()) {
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Vertical.CenterVertically
+            ) {
+                Text(text = "学習サマリー", style = TitleTextStyle)
+                Spacer(modifier = GlanceModifier.width(8.dp))
+                Text(text = snapshot.generatedDateText, style = CaptionTextStyle)
+            }
+            Spacer(modifier = GlanceModifier.height(12.dp))
+            MetricTileRow(
+                left = MetricTileData("今日", snapshot.todayStudyMinutes.toDurationText(), WidgetPalette.Primary),
+                right = MetricTileData("今週", snapshot.weeklyStudyMinutes.toDurationText(), WidgetPalette.Secondary)
+            )
+            Spacer(modifier = GlanceModifier.height(8.dp))
+            MetricTileRow(
+                left = MetricTileData("連続", "${snapshot.streakDays}日", WidgetPalette.Warning),
+                right = MetricTileData("次の試験", nextExamSummaryText(snapshot), nextExamTint(snapshot))
+            )
+        }
+    }
+}
+
+object UpcomingExamListAppWidget : BaseStudyWidget() {
+    @Composable
+    override fun Content(snapshot: StudyWidgetSnapshot) {
+        Column(modifier = GlanceModifier.fillMaxSize()) {
+            Text(text = "試験一覧", style = TitleTextStyle)
+            Spacer(modifier = GlanceModifier.height(12.dp))
+            if (snapshot.upcomingExams.isEmpty()) {
+                Text(text = "予定なし", style = HeroTextStyle)
+                Spacer(modifier = GlanceModifier.height(8.dp))
+                Text(text = "登録した試験がここに表示されます", style = CaptionTextStyle)
+            } else {
+                snapshot.upcomingExams.take(2).forEachIndexed { index, exam ->
+                    if (index > 0) {
+                        Spacer(modifier = GlanceModifier.height(8.dp))
+                    }
+                    ExamListRow(exam = exam)
+                }
+            }
+        }
+    }
+}
+
+object WeeklyPaceAppWidget : BaseStudyWidget() {
+    @Composable
+    override fun Content(snapshot: StudyWidgetSnapshot) {
         val maxMinutes = snapshot.weekActivity.maxOfOrNull { it.minutes }?.coerceAtLeast(1L) ?: 1L
         Column(modifier = GlanceModifier.fillMaxSize()) {
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Vertical.CenterVertically
             ) {
-                Text(text = "今週の推移", style = TitleTextStyle)
-                Spacer(modifier = GlanceModifier.width(10.dp))
-                Text(text = snapshot.weekTotalMinutes.toDurationText(), style = CaptionTextStyle)
+                Text(text = "週間ペース", style = TitleTextStyle)
+                Spacer(modifier = GlanceModifier.width(8.dp))
+                Text(
+                    text = "平均 ${snapshot.weekAverageMinutes.toCompactDurationText()}",
+                    style = CaptionTextStyle
+                )
             }
+            Spacer(modifier = GlanceModifier.height(8.dp))
+            Text(text = snapshot.weekTotalMinutes.toDurationText(), style = HeroTextStyle)
+            Spacer(modifier = GlanceModifier.height(6.dp))
+            Text(text = snapshot.weeklyPaceBestDayText, style = CaptionTextStyle)
             Spacer(modifier = GlanceModifier.height(12.dp))
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
@@ -283,6 +367,28 @@ class WeeklyActivityWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = WeeklyActivityAppWidget
 }
 
+class DailyGoalWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = DailyGoalAppWidget
+}
+
+class StudySummaryWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = StudySummaryAppWidget
+}
+
+class UpcomingExamListWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = UpcomingExamListAppWidget
+}
+
+class WeeklyPaceWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = WeeklyPaceAppWidget
+}
+
+private data class MetricTileData(
+    val title: String,
+    val value: String,
+    val tint: ColorProvider
+)
+
 @Composable
 private fun WidgetSurface(
     onClick: Action,
@@ -301,7 +407,10 @@ private fun WidgetSurface(
 }
 
 @Composable
-private fun SegmentedProgress(progress: Float) {
+private fun SegmentedProgress(
+    progress: Float,
+    tint: ColorProvider = WidgetPalette.Primary
+) {
     val filledSegments = (progress.coerceIn(0f, 1f) * 10f).roundToInt().coerceIn(0, 10)
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
@@ -315,10 +424,132 @@ private fun SegmentedProgress(progress: Float) {
                 modifier = GlanceModifier
                     .width(12.dp)
                     .height(6.dp)
-                    .background(if (index < filledSegments) WidgetPalette.Primary else WidgetPalette.Track)
+                    .background(if (index < filledSegments) tint else WidgetPalette.Track)
             ) {}
         }
     }
+}
+
+@Composable
+private fun WeeklyActivityChart(
+    snapshot: StudyWidgetSnapshot,
+    title: String
+) {
+    val maxMinutes = snapshot.weekActivity.maxOfOrNull { it.minutes }?.coerceAtLeast(1L) ?: 1L
+    Column(modifier = GlanceModifier.fillMaxSize()) {
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Vertical.CenterVertically
+        ) {
+            Text(text = title, style = TitleTextStyle)
+            Spacer(modifier = GlanceModifier.width(10.dp))
+            Text(text = snapshot.weekTotalMinutes.toDurationText(), style = CaptionTextStyle)
+        }
+        Spacer(modifier = GlanceModifier.height(12.dp))
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Vertical.Bottom
+        ) {
+            snapshot.weekActivity.forEachIndexed { index, day ->
+                if (index > 0) {
+                    Spacer(modifier = GlanceModifier.width(6.dp))
+                }
+                DayBar(
+                    summary = day,
+                    maxMinutes = maxMinutes,
+                    modifier = GlanceModifier.width(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricTileRow(
+    left: MetricTileData,
+    right: MetricTileData
+) {
+    Row(
+        modifier = GlanceModifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Vertical.Top
+    ) {
+        MetricTile(data = left, modifier = GlanceModifier.defaultWeight())
+        Spacer(modifier = GlanceModifier.width(8.dp))
+        MetricTile(data = right, modifier = GlanceModifier.defaultWeight())
+    }
+}
+
+@Composable
+private fun MetricTile(
+    data: MetricTileData,
+    modifier: GlanceModifier = GlanceModifier
+) {
+    Column(modifier = modifier) {
+        Text(text = data.title, style = CaptionTextStyle)
+        Spacer(modifier = GlanceModifier.height(4.dp))
+        Text(
+            text = data.value,
+            style = TextStyle(
+                color = data.tint,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        )
+    }
+}
+
+@Composable
+private fun ExamListRow(exam: WidgetExamSummary) {
+    Row(
+        modifier = GlanceModifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Vertical.CenterVertically
+    ) {
+        Column(
+            modifier = GlanceModifier.width(46.dp),
+            horizontalAlignment = Alignment.Horizontal.CenterHorizontally
+        ) {
+            Text(
+                text = if (exam.daysRemaining <= 0L) "今日" else "${exam.daysRemaining}",
+                style = TextStyle(
+                    color = examColor(exam.daysRemaining),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+            if (exam.daysRemaining > 0L) {
+                Text(text = "日", style = CaptionTextStyle)
+            }
+        }
+        Spacer(modifier = GlanceModifier.width(10.dp))
+        Column(modifier = GlanceModifier.defaultWeight()) {
+            Text(text = exam.name, style = BodyTextStyle)
+            Spacer(modifier = GlanceModifier.height(2.dp))
+            Text(text = exam.examDateText(), style = CaptionTextStyle)
+        }
+    }
+}
+
+private fun dailyGoalStatusText(snapshot: StudyWidgetSnapshot): String {
+    val goal = snapshot.dailyGoalMinutes
+    if (goal == null || goal <= 0) return "目標未設定"
+    val remaining = (goal.toLong() - snapshot.todayStudyMinutes).coerceAtLeast(0L)
+    return if (remaining == 0L) "達成済み" else "残り${remaining.toDurationText()}"
+}
+
+private fun dailyGoalDetailText(snapshot: StudyWidgetSnapshot): String {
+    val goal = snapshot.dailyGoalMinutes
+    if (goal == null || goal <= 0) return "アプリで今日の目標を設定"
+    return "${snapshot.todayStudyMinutes.toDurationText()} / ${goal.toLong().toDurationText()}"
+}
+
+private fun nextExamSummaryText(snapshot: StudyWidgetSnapshot): String {
+    val exam = snapshot.upcomingExams.firstOrNull() ?: return "予定なし"
+    return examDaysText(exam.daysRemaining)
+}
+
+private fun nextExamTint(snapshot: StudyWidgetSnapshot): ColorProvider {
+    val exam = snapshot.upcomingExams.firstOrNull() ?: return WidgetPalette.TextSecondary
+    return examColor(exam.daysRemaining)
 }
 
 @Composable

@@ -20,7 +20,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.studyapp.domain.model.ColorTheme
+import com.studyapp.domain.model.LandscapeTimerDisplayPreset
 import com.studyapp.domain.model.ThemeMode
+import com.studyapp.domain.model.TimerNotificationDisplayPreset
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -47,6 +51,7 @@ fun SettingsScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     var showDeleteDataDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showDebugLog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -79,6 +84,24 @@ fun SettingsScreen(
             )
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            TimerDisplaySection(
+                landscapePreset = uiState.landscapeTimerDisplayPreset,
+                notificationRichEnabled = uiState.timerNotificationRichEnabled,
+                notificationPreset = uiState.timerNotificationDisplayPreset,
+                onLandscapePresetChange = viewModel::setLandscapeTimerDisplayPreset,
+                onNotificationRichEnabledChange = viewModel::setTimerNotificationRichEnabled,
+                onNotificationPresetChange = viewModel::setTimerNotificationDisplayPreset
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            FocusModeSection(
+                promptOnTimerStart = uiState.focusModePromptOnTimerStart,
+                onPromptOnTimerStartChange = viewModel::setFocusModePromptOnTimerStart
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             
             NotificationSection(
                 reminderEnabled = uiState.reminderEnabled,
@@ -92,16 +115,22 @@ fun SettingsScreen(
             SyncSection(
                 syncAuthenticated = uiState.syncAuthenticated,
                 syncAccountEmail = uiState.syncAccountEmail,
-                syncEmail = uiState.syncEmail,
-                syncPassword = uiState.syncPassword,
+                signInEmail = uiState.signInEmail,
+                signInPassword = uiState.signInPassword,
+                createEmail = uiState.createEmail,
+                createPassword = uiState.createPassword,
                 syncInProgress = uiState.syncInProgress,
                 lastSyncAt = uiState.lastSyncAt,
                 syncError = uiState.syncError,
-                onSyncEmailChange = viewModel::setSyncEmail,
-                onSyncPasswordChange = viewModel::setSyncPassword,
+                onSignInEmailChange = viewModel::setSignInEmail,
+                onSignInPasswordChange = viewModel::setSignInPassword,
+                onCreateEmailChange = viewModel::setCreateEmail,
+                onCreatePasswordChange = viewModel::setCreatePassword,
                 onSignIn = viewModel::signInToSync,
                 onCreateAccount = viewModel::createSyncAccount,
+                onSendPasswordReset = viewModel::sendPasswordReset,
                 onSignOut = viewModel::signOutOfSync,
+                onDeleteAccount = { showDeleteAccountDialog = true },
                 onSyncNow = viewModel::syncNow,
                 onImportLocal = viewModel::importLocalDataToCloud
             )
@@ -152,6 +181,21 @@ fun SettingsScreen(
         )
     }
 
+    if (showDeleteAccountDialog) {
+        DeleteAccountDialog(
+            password = uiState.accountDeletionPassword,
+            onPasswordChange = viewModel::setAccountDeletionPassword,
+            onDismiss = {
+                viewModel.setAccountDeletionPassword("")
+                showDeleteAccountDialog = false
+            },
+            onConfirm = {
+                viewModel.deleteSyncAccount()
+                showDeleteAccountDialog = false
+            }
+        )
+    }
+
     if (showDebugLog) {
         DebugLogSheet(
             logs = uiState.debugLogs,
@@ -165,16 +209,22 @@ fun SettingsScreen(
 private fun SyncSection(
     syncAuthenticated: Boolean,
     syncAccountEmail: String?,
-    syncEmail: String,
-    syncPassword: String,
+    signInEmail: String,
+    signInPassword: String,
+    createEmail: String,
+    createPassword: String,
     syncInProgress: Boolean,
     lastSyncAt: Long?,
     syncError: String?,
-    onSyncEmailChange: (String) -> Unit,
-    onSyncPasswordChange: (String) -> Unit,
+    onSignInEmailChange: (String) -> Unit,
+    onSignInPasswordChange: (String) -> Unit,
+    onCreateEmailChange: (String) -> Unit,
+    onCreatePasswordChange: (String) -> Unit,
     onSignIn: () -> Unit,
     onCreateAccount: () -> Unit,
+    onSendPasswordReset: () -> Unit,
     onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit,
     onSyncNow: () -> Unit,
     onImportLocal: () -> Unit
 ) {
@@ -228,40 +278,79 @@ private fun SyncSection(
                     ) {
                         Text("サインアウト")
                     }
+                    OutlinedButton(
+                        onClick = onDeleteAccount,
+                        enabled = !syncInProgress,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("アカウントを削除")
+                    }
                 } else {
+                    Text(
+                        text = "サインイン",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
                     OutlinedTextField(
-                        value = syncEmail,
-                        onValueChange = onSyncEmailChange,
+                        value = signInEmail,
+                        onValueChange = onSignInEmailChange,
                         label = { Text("メールアドレス") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
-                        value = syncPassword,
-                        onValueChange = onSyncPasswordChange,
+                        value = signInPassword,
+                        onValueChange = onSignInPasswordChange,
                         label = { Text("パスワード") },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    TextButton(
+                        onClick = onSendPasswordReset,
+                        enabled = !syncInProgress && signInEmail.isNotBlank()
                     ) {
-                        Button(
-                            onClick = onSignIn,
-                            modifier = Modifier.weight(1f),
-                            enabled = !syncInProgress && syncEmail.isNotBlank() && syncPassword.isNotBlank()
-                        ) {
-                            Text("サインイン")
-                        }
-                        OutlinedButton(
-                            onClick = onCreateAccount,
-                            modifier = Modifier.weight(1f),
-                            enabled = !syncInProgress && syncEmail.isNotBlank() && syncPassword.isNotBlank()
-                        ) {
-                            Text("アカウント作成")
-                        }
+                        Text("パスワードをお忘れですか？")
+                    }
+                    Button(
+                        onClick = onSignIn,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !syncInProgress && signInEmail.isNotBlank() && signInPassword.isNotBlank()
+                    ) {
+                        Text("サインイン")
+                    }
+
+                    HorizontalDivider()
+
+                    Text(
+                        text = "アカウント作成",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    OutlinedTextField(
+                        value = createEmail,
+                        onValueChange = onCreateEmailChange,
+                        label = { Text("メールアドレス") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = createPassword,
+                        onValueChange = onCreatePasswordChange,
+                        label = { Text("パスワード") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedButton(
+                        onClick = onCreateAccount,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !syncInProgress && createEmail.isNotBlank() && createPassword.isNotBlank()
+                    ) {
+                        Text("アカウント作成")
                     }
                 }
 
@@ -375,6 +464,155 @@ private fun ThemeSection(
 }
 
 @Composable
+private fun TimerDisplaySection(
+    landscapePreset: LandscapeTimerDisplayPreset,
+    notificationRichEnabled: Boolean,
+    notificationPreset: TimerNotificationDisplayPreset,
+    onLandscapePresetChange: (LandscapeTimerDisplayPreset) -> Unit,
+    onNotificationRichEnabledChange: (Boolean) -> Unit,
+    onNotificationPresetChange: (TimerNotificationDisplayPreset) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "横向きタイマーの表示",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LandscapeTimerDisplayPreset.entries.forEach { preset ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onLandscapePresetChange(preset) },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(preset.title, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                preset.settingsDescription,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        RadioButton(
+                            selected = landscapePreset == preset,
+                            onClick = { onLandscapePresetChange(preset) }
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "タイマー通知の表示",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("リッチ通知を使用")
+                    Switch(
+                        checked = notificationRichEnabled,
+                        onCheckedChange = onNotificationRichEnabledChange
+                    )
+                }
+                if (notificationRichEnabled) {
+                    TimerNotificationDisplayPreset.entries.forEach { preset ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNotificationPresetChange(preset) },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(preset.title, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    preset.settingsDescription,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            RadioButton(
+                                selected = notificationPreset == preset,
+                                onClick = { onNotificationPresetChange(preset) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FocusModeSection(
+    promptOnTimerStart: Boolean,
+    onPromptOnTimerStartChange: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "集中モード",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Android では Screen Time によるアプリ遮断は利用できません。代わりに、おやすみモード（DND）の設定へ誘導できます。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("タイマー開始時に DND 設定を開く")
+                    Switch(
+                        checked = promptOnTimerStart,
+                        onCheckedChange = onPromptOnTimerStartChange
+                    )
+                }
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("おやすみモードの設定")
+                }
+                Text(
+                    text = "許可するアプリはシステム設定で手動で選んでください。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun NotificationSection(
     reminderEnabled: Boolean,
     reminderTime: String,
@@ -443,6 +681,13 @@ private fun NotificationSection(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "※時間割の未復習が48時間を超えた場合に通知します",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -781,6 +1026,49 @@ private fun ImportDialog(
                 enabled = selectedUri != null
             ) {
                 Text("インポート")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("キャンセル")
+            }
+        }
+    )
+}
+
+@Composable
+private fun DeleteAccountDialog(
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("アカウントを削除しますか？") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "クラウド同期アカウント、クラウド上の同期データ、この端末の学習データを削除します。この操作は元に戻せません。"
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("現在のパスワード") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("削除する")
             }
         },
         dismissButton = {

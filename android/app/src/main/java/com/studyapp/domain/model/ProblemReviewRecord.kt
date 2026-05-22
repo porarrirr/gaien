@@ -48,6 +48,7 @@ data class TodayReviewProblem(
     val materialName: String,
     val subjectName: String,
     val problemNumber: Int,
+    val problemLabel: String,
     val nextReviewDate: Long,
     val consecutiveCorrectCount: Int,
     val wrongCount: Int

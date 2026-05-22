@@ -1,6 +1,13 @@
 package com.studyapp.widgets
 
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.time.DayOfWeek
+import java.util.Locale
+import kotlin.math.roundToInt
 
 data class WidgetExamSummary(
     val name: String,
@@ -35,6 +42,45 @@ data class StudyWidgetSnapshot(
     val weekTotalMinutes: Long
         get() = weekActivity.sumOf { it.minutes }
 
+    val generatedDateText: String
+        get() {
+            if (generatedAt <= 0L) return ""
+            val formatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+                .withZone(ZoneId.systemDefault())
+            return formatter.format(Instant.ofEpochMilli(generatedAt))
+        }
+
+    val streakProgress: Float
+        get() {
+            if (bestStreak <= 0) return if (streakDays > 0) 1f else 0f
+            return (streakDays.toFloat() / bestStreak.toFloat()).coerceIn(0f, 1f)
+        }
+
+    val weekAverageMinutes: Long
+        get() {
+            if (weekActivity.isEmpty()) return 0L
+            return (weekTotalMinutes.toDouble() / weekActivity.size.toDouble()).roundToInt().toLong()
+        }
+
+    val bestActivityDay: WidgetActivitySummary?
+        get() = weekActivity.maxByOrNull { it.minutes }
+
+    val bestActivityDayText: String
+        get() {
+            val best = bestActivityDay
+            return if (best == null || best.minutes <= 0L) "なし" else "${best.dayLabel}曜"
+        }
+
+    val weeklyPaceBestDayText: String
+        get() {
+            val best = bestActivityDay
+            return if (best == null || best.minutes <= 0L) {
+                "今週の学習はこれから"
+            } else {
+                "最多 ${best.dayLabel}曜 ${best.minutes.toDurationText()}"
+            }
+        }
+
     companion object {
         val Empty = StudyWidgetSnapshot(
             generatedAt = 0L,
@@ -64,6 +110,22 @@ internal fun Long.toDurationText(): String {
         hours > 0 -> "${hours}時間"
         else -> "${minutes}分"
     }
+}
+
+internal fun Long.toCompactDurationText(): String {
+    val hours = this / 60
+    val minutes = this % 60
+    return when {
+        hours > 0 && minutes > 0 -> "${hours}h${minutes}m"
+        hours > 0 -> "${hours}h"
+        else -> "${minutes}m"
+    }
+}
+
+internal fun WidgetExamSummary.examDateText(): String {
+    val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+        .withLocale(Locale.JAPAN)
+    return LocalDate.ofEpochDay(epochDay).format(formatter)
 }
 
 internal fun DayOfWeek.toJapaneseShortLabel(): String {

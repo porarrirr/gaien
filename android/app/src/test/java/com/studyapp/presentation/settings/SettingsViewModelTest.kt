@@ -3,10 +3,13 @@ package com.studyapp.presentation.settings
 import android.content.Context
 import com.studyapp.domain.model.ColorTheme
 import com.studyapp.domain.model.ThemeMode
+import com.studyapp.domain.model.AppPreferences
+import com.studyapp.domain.repository.AppPreferencesRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.util.Result
 import com.studyapp.sync.AuthRepository
 import com.studyapp.sync.AuthSession
+import com.studyapp.services.ReminderRefreshCoordinator
 import com.studyapp.sync.SyncChangeNotifier
 import com.studyapp.sync.SyncRepository
 import com.studyapp.sync.SyncStatus
@@ -32,10 +35,12 @@ class SettingsViewModelTest {
     private lateinit var studySessionRepository: StudySessionRepository
     private lateinit var themePreferences: ThemePreferences
     private lateinit var reminderPreferences: ReminderPreferences
+    private lateinit var appPreferencesRepository: AppPreferencesRepository
     private lateinit var exportImportDataUseCase: com.studyapp.domain.usecase.ExportImportDataUseCase
     private lateinit var authRepository: AuthRepository
     private lateinit var syncRepository: SyncRepository
     private lateinit var syncChangeNotifier: SyncChangeNotifier
+    private lateinit var reminderRefreshCoordinator: ReminderRefreshCoordinator
     private lateinit var appContext: Context
 
     @Before
@@ -44,10 +49,13 @@ class SettingsViewModelTest {
         studySessionRepository = mockk()
         themePreferences = mockk()
         reminderPreferences = mockk()
+        appPreferencesRepository = mockk()
+        every { appPreferencesRepository.observePreferences() } returns flowOf(AppPreferences())
         exportImportDataUseCase = mockk(relaxed = true)
         authRepository = mockk()
         syncRepository = mockk()
         syncChangeNotifier = mockk(relaxed = true)
+        reminderRefreshCoordinator = mockk(relaxed = true)
         appContext = mockk(relaxed = true)
 
         every { studySessionRepository.getAllSessions() } returns flowOf(Result.Success(emptyList()))
@@ -70,10 +78,12 @@ class SettingsViewModelTest {
             studySessionRepository = studySessionRepository,
             themePreferences = themePreferences,
             reminderPreferences = reminderPreferences,
+            appPreferencesRepository = appPreferencesRepository,
             exportImportDataUseCase = exportImportDataUseCase,
             authRepository = authRepository,
             syncRepository = syncRepository,
             syncChangeNotifier = syncChangeNotifier,
+            reminderRefreshCoordinator = reminderRefreshCoordinator,
             appContext = appContext
         )
 

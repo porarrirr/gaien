@@ -20,6 +20,8 @@ import com.studyapp.data.service.TimerState
 import com.studyapp.data.service.TimerStateStore
 import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.StudySessionType
+import com.studyapp.domain.model.TimerNotificationDisplayPreset
+import com.studyapp.domain.repository.AppPreferencesRepository
 import com.studyapp.domain.usecase.SaveStudySessionUseCase
 import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.domain.usecase.TimerStopResult
@@ -41,6 +43,9 @@ class TimerService : Service() {
 
     @Inject
     lateinit var saveStudySessionUseCase: SaveStudySessionUseCase
+
+    @Inject
+    lateinit var appPreferencesRepository: AppPreferencesRepository
     
     companion object {
         const val CHANNEL_ID = "timer_channel"
@@ -62,6 +67,7 @@ class TimerService : Service() {
     val timerState: StateFlow<TimerState> = _timerState.asStateFlow()
     
     private var notificationIconResId: Int = android.R.drawable.ic_menu_recent_history
+    private var notificationPreferences = com.studyapp.domain.model.AppPreferences()
     
     inner class LocalBinder : Binder() {
         fun getService(): TimerService = this@TimerService
@@ -72,6 +78,9 @@ class TimerService : Service() {
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         resolveNotificationIcon()
         restoreTimerState()
+        serviceScope.launch {
+            appPreferencesRepository.observePreferences().collect { notificationPreferences = it }
+        }
     }
     
     private fun restoreTimerState() {
@@ -185,28 +194,26 @@ class TimerService : Service() {
             android.R.drawable.ic_media_pause
         }
         
+        val runningLabel = getString(
+            if (state.isRunning) R.string.timer_running else R.string.timer_notification_paused
+        )
+        val preset = if (notificationPreferences.timerNotificationRichEnabled) {
+            notificationPreferences.timerNotificationDisplayPreset
+        } else {
+            TimerNotificationDisplayPreset.STANDARD
+        }
+        val (title, text) = when (preset) {
+            TimerNotificationDisplayPreset.FOCUS -> timeText to runningLabel
+            TimerNotificationDisplayPreset.PROGRESS -> runningLabel to "経過 $timeText · 今日の記録を続けましょう"
+            TimerNotificationDisplayPreset.SUBJECT_DETAIL -> runningLabel to timeText
+            TimerNotificationDisplayPreset.STANDARD -> runningLabel to timeText
+        }
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(
-                getString(
-                    if (state.mode == TimerMode.TIMER) {
-                        R.string.timer_screen_title
-                    } else {
-                        R.string.timer_running
-                    }
-                )
-            )
-            .setContentText(timeText)
+            .setContentTitle(title)
+            .setContentText(text)
             .setSmallIcon(notificationIconResId)
             .setContentIntent(pendingIntent)
-            .setContentTitle(
-                getString(
-                    if (state.isRunning) {
-                        R.string.timer_running
-                    } else {
-                        R.string.timer_notification_paused
-                    }
-                )
-            )
             .setOngoing(state.isRunning)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
 
