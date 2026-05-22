@@ -185,33 +185,6 @@ enum LiveActivityDisplayPreset: String, CaseIterable, Codable, Identifiable, Has
     }
 }
 
-enum TimerVisualMode: String, CaseIterable, Codable, Identifiable, Hashable {
-    case auto
-    case morning
-    case day
-    case night
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .auto: return "自動"
-        case .morning: return "朝"
-        case .day: return "昼"
-        case .night: return "夜"
-        }
-    }
-
-    var settingsDescription: String {
-        switch self {
-        case .auto: return "現在地の天気と日の出・日の入りに合わせます。"
-        case .morning: return "朝の明るい青緑の背景で固定します。"
-        case .day: return "昼のクリアな背景で固定します。"
-        case .night: return "夜の集中しやすい暗い背景で固定します。"
-        }
-    }
-}
-
 enum LandscapeTimerDisplayPreset: String, CaseIterable, Codable, Identifiable, Hashable {
     case problemProgress
     case clockOnly

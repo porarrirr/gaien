@@ -8,12 +8,10 @@ final class StudyAppContainer: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var dataVersion = 0
     @Published private(set) var syncStatus = SyncStatus()
-    @Published private(set) var timerAmbientContext = TimerAmbientContext.clockFallback()
 
     let persistence: PersistenceController
     let preferencesRepository: UserDefaultsPreferencesRepository
     let googleBooksService: GoogleBooksService
-    let locationWeatherService: LocationWeatherService
     let reminderScheduler: ReminderScheduler
     let logger: AppLogger
     let screenTimeFocusController: ScreenTimeFocusController
@@ -52,7 +50,6 @@ final class StudyAppContainer: ObservableObject {
     )
     private var cancellables = Set<AnyCancellable>()
     private var liveActivitySyncTask: Task<Void, Never>?
-    private var timerAmbientTask: Task<Void, Never>?
 
     convenience init() {
         let persistence = PersistenceController.shared
@@ -70,7 +67,6 @@ final class StudyAppContainer: ObservableObject {
             persistence: persistence,
             preferencesRepository: preferencesRepository,
             googleBooksService: googleBooksService,
-            locationWeatherService: LocationWeatherService(),
             reminderScheduler: reminderScheduler,
             logger: logger,
             screenTimeFocusController: ScreenTimeFocusController(),
@@ -83,7 +79,6 @@ final class StudyAppContainer: ObservableObject {
         persistence: PersistenceController,
         preferencesRepository: UserDefaultsPreferencesRepository,
         googleBooksService: GoogleBooksService,
-        locationWeatherService: LocationWeatherService,
         reminderScheduler: ReminderScheduler,
         logger: AppLogger,
         screenTimeFocusController: ScreenTimeFocusController,
@@ -93,7 +88,6 @@ final class StudyAppContainer: ObservableObject {
         self.persistence = persistence
         self.preferencesRepository = preferencesRepository
         self.googleBooksService = googleBooksService
-        self.locationWeatherService = locationWeatherService
         self.reminderScheduler = reminderScheduler
         self.logger = logger
         self.screenTimeFocusController = screenTimeFocusController
@@ -126,7 +120,6 @@ final class StudyAppContainer: ObservableObject {
             bumpDataVersion(shouldScheduleAutoSync: false)
             scheduleAutoSync(reason: "app-load")
             syncLiveActivity(reason: "app-load")
-            refreshTimerAmbient(reason: "app-load")
             restoreScreenTimeFocus(reason: "app-load")
         } catch {
             isLoaded = true
@@ -168,11 +161,6 @@ final class StudyAppContainer: ObservableObject {
 
     func setLandscapeTimerDisplayPreset(_ preset: LandscapeTimerDisplayPreset) {
         savePreferences { $0.landscapeTimerDisplayPreset = preset }
-    }
-
-    func setTimerVisualMode(_ mode: TimerVisualMode) {
-        savePreferences { $0.timerVisualMode = mode }
-        refreshTimerAmbient(reason: "timer-visual-mode", force: true)
     }
 
     func setReminderEnabled(_ enabled: Bool) async {
@@ -231,24 +219,7 @@ final class StudyAppContainer: ObservableObject {
 
     func handleSceneDidBecomeActive() {
         scheduleAutoSync(reason: "scene-active")
-        refreshTimerAmbient(reason: "scene-active")
         restoreScreenTimeFocus(reason: "scene-active")
-    }
-
-    func refreshTimerAmbient(reason: String, force: Bool = false) {
-        timerAmbientTask?.cancel()
-        let mode = preferences.timerVisualMode
-        timerAmbientTask = Task { [weak self] in
-            guard let self else { return }
-            let context = await self.locationWeatherService.resolve(mode: mode, force: force)
-            guard !Task.isCancelled else { return }
-            self.logger.log(
-                category: .ui,
-                message: "Timer ambient refreshed",
-                details: "\(reason): \(context.phase.rawValue), source=\(context.source.rawValue), weather=\(context.weatherCondition.rawValue)"
-            )
-            self.timerAmbientContext = context
-        }
     }
 
     func scheduleAutoSync(reason: String) {

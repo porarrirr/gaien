@@ -70,10 +70,7 @@
 		A10000000000000000000079 /* SyncPayloadCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000079 /* SyncPayloadCodec.swift */; };
 		A10000000000000000000080 /* SyncDeltaSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000080 /* SyncDeltaSerializer.swift */; };
 		A10000000000000000000081 /* FirestoreDeltaSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */; };
-		A10000000000000000000083 /* LocationWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000083 /* LocationWeatherService.swift */; };
-		A10000000000000000000084 /* WeatherKitWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000084 /* WeatherKitWeatherService.swift */; };
 		A10000000000000000000085 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000085 /* PrivacyInfo.xcprivacy */; };
-		A10000000000000000000099 /* TimerAmbientResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000099 /* TimerAmbientResolver.swift */; };
 		A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StudyAppWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A20000000000000000000002 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
 		A20000000000000000000003 /* WidgetSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* WidgetSnapshotSync.swift */; };
@@ -131,12 +128,8 @@
 		A30000000000000000000057 /* SyncDeltaSerializerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000057 /* SyncDeltaSerializerTests.swift */; };
 		A30000000000000000000080 /* TimerProblemValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000080 /* TimerProblemValidation.swift */; };
 		A30000000000000000000081 /* TimerAmbientModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000081 /* TimerAmbientModels.swift */; };
-		A30000000000000000000082 /* TimerAmbientResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000082 /* TimerAmbientResolverTests.swift */; };
-		A50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		A50000000000000000000002 /* ScreenTimeFocusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000086 /* ScreenTimeFocusModels.swift */; };
-		A50000000000000000000003 /* ScreenTimeFocusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000086 /* ScreenTimeFocusModels.swift */; };
-		A50000000000000000000004 /* ScreenTimeFocusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000087 /* ScreenTimeFocusController.swift */; };
-		A50000000000000000000005 /* DeviceActivityMonitorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000002 /* DeviceActivityMonitorExtension.swift */; };
+		A30000000000000000000082 /* AppPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000082 /* AppPreferencesTests.swift */; };
+		A30000000000000000000083 /* CalendarDayDetailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000083 /* CalendarDayDetailTests.swift */; };
 		A40000000000000000000001 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
 		A40000000000000000000002 /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* Subject.swift */; };
 		A40000000000000000000003 /* SupportingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000003 /* SupportingModels.swift */; };
@@ -165,6 +158,11 @@
 		A4000000000000000000001A /* ManagePlansUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001A /* ManagePlansUseCase.swift */; };
 		A4000000000000000000001B /* GetReportsDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001B /* GetReportsDataUseCase.swift */; };
 		A4000000000000000000001C /* ExportImportDataUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4000000000000000000001C /* ExportImportDataUseCase.swift */; };
+		A50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		A50000000000000000000002 /* ScreenTimeFocusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000086 /* ScreenTimeFocusModels.swift */; };
+		A50000000000000000000003 /* ScreenTimeFocusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000086 /* ScreenTimeFocusModels.swift */; };
+		A50000000000000000000004 /* ScreenTimeFocusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000087 /* ScreenTimeFocusController.swift */; };
+		A50000000000000000000005 /* DeviceActivityMonitorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000002 /* DeviceActivityMonitorExtension.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -175,19 +173,19 @@
 			remoteGlobalIDString = E20000000000000000000001;
 			remoteInfo = StudyAppWidgets;
 		};
-		H50000000000000000000001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = E10000000000000000000002 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = E50000000000000000000001;
-			remoteInfo = StudyAppDeviceActivityMonitor;
-		};
 		H30000000000000000000001 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = E10000000000000000000002 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = E10000000000000000000001;
 			remoteInfo = StudyApp;
+		};
+		H50000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E10000000000000000000002 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E50000000000000000000001;
+			remoteInfo = StudyAppDeviceActivityMonitor;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -267,12 +265,9 @@
 		B10000000000000000000079 /* SyncPayloadCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncPayloadCodec.swift; path = Sync/SyncPayloadCodec.swift; sourceTree = "<group>"; };
 		B10000000000000000000080 /* SyncDeltaSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaSerializer.swift; path = Sync/SyncDeltaSerializer.swift; sourceTree = "<group>"; };
 		B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FirestoreDeltaSyncStore.swift; path = Sync/FirestoreDeltaSyncStore.swift; sourceTree = "<group>"; };
-		B10000000000000000000083 /* LocationWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationWeatherService.swift; sourceTree = "<group>"; };
-		B10000000000000000000084 /* WeatherKitWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitWeatherService.swift; sourceTree = "<group>"; };
 		B10000000000000000000085 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B10000000000000000000086 /* ScreenTimeFocusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000087 /* ScreenTimeFocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusController.swift; sourceTree = "<group>"; };
-		B10000000000000000000099 /* TimerAmbientResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolver.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* StudyAppWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000002 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* WidgetSnapshotSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotSync.swift; sourceTree = "<group>"; };
@@ -333,11 +328,8 @@
 		B30000000000000000000057 /* SyncDeltaSerializerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeltaSerializerTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000080 /* TimerProblemValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidation.swift; sourceTree = "<group>"; };
 		B30000000000000000000081 /* TimerAmbientModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientModels.swift; sourceTree = "<group>"; };
-		B30000000000000000000082 /* TimerAmbientResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientResolverTests.swift; sourceTree = "<group>"; };
-		B50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppDeviceActivityMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		B50000000000000000000002 /* DeviceActivityMonitorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceActivityMonitorExtension.swift; sourceTree = "<group>"; };
-		B50000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B50000000000000000000004 /* StudyAppDeviceActivityMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyAppDeviceActivityMonitor.entitlements; sourceTree = "<group>"; };
+		B30000000000000000000082 /* AppPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000083 /* CalendarDayDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayDetailTests.swift; sourceTree = "<group>"; };
 		B40000000000000000000001 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
 		B40000000000000000000002 /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		B40000000000000000000003 /* SupportingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportingModels.swift; sourceTree = "<group>"; };
@@ -365,6 +357,10 @@
 		B4000000000000000000001A /* ManagePlansUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePlansUseCase.swift; sourceTree = "<group>"; };
 		B4000000000000000000001B /* GetReportsDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetReportsDataUseCase.swift; sourceTree = "<group>"; };
 		B4000000000000000000001C /* ExportImportDataUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImportDataUseCase.swift; sourceTree = "<group>"; };
+		B50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppDeviceActivityMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B50000000000000000000002 /* DeviceActivityMonitorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceActivityMonitorExtension.swift; sourceTree = "<group>"; };
+		B50000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B50000000000000000000004 /* StudyAppDeviceActivityMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyAppDeviceActivityMonitor.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -516,9 +512,6 @@
 				B1000000000000000000004C /* RepositoryFactory.swift */,
 				B10000000000000000000086 /* ScreenTimeFocusModels.swift */,
 				B10000000000000000000087 /* ScreenTimeFocusController.swift */,
-				B10000000000000000000099 /* TimerAmbientResolver.swift */,
-				B10000000000000000000084 /* WeatherKitWeatherService.swift */,
-				B10000000000000000000083 /* LocationWeatherService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -637,16 +630,6 @@
 				B20000000000000000000012 /* PrivacyInfo.xcprivacy */,
 			);
 			path = StudyAppWidgets;
-			sourceTree = "<group>";
-		};
-		D60000000000000000000001 /* StudyAppDeviceActivityMonitor */ = {
-			isa = PBXGroup;
-			children = (
-				B50000000000000000000002 /* DeviceActivityMonitorExtension.swift */,
-				B50000000000000000000003 /* Info.plist */,
-				B50000000000000000000004 /* StudyAppDeviceActivityMonitor.entitlements */,
-			);
-			path = StudyAppDeviceActivityMonitor;
 			sourceTree = "<group>";
 		};
 		D30000000000000000000001 /* Onboarding */ = {
@@ -823,11 +806,22 @@
 				B30000000000000000000053 /* SyncMergeEngineTests.swift */,
 				B30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift */,
 				B30000000000000000000055 /* TimerProblemValidationTests.swift */,
-				B30000000000000000000082 /* TimerAmbientResolverTests.swift */,
+				B30000000000000000000083 /* CalendarDayDetailTests.swift */,
+				B30000000000000000000082 /* AppPreferencesTests.swift */,
 				B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */,
 				B30000000000000000000057 /* SyncDeltaSerializerTests.swift */,
 			);
 			path = StudyAppTests;
+			sourceTree = "<group>";
+		};
+		D60000000000000000000001 /* StudyAppDeviceActivityMonitor */ = {
+			isa = PBXGroup;
+			children = (
+				B50000000000000000000002 /* DeviceActivityMonitorExtension.swift */,
+				B50000000000000000000003 /* Info.plist */,
+				B50000000000000000000004 /* StudyAppDeviceActivityMonitor.entitlements */,
+			);
+			path = StudyAppDeviceActivityMonitor;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -877,25 +871,6 @@
 			productReference = B20000000000000000000001 /* StudyAppWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		E50000000000000000000001 /* StudyAppDeviceActivityMonitor */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = G50000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppDeviceActivityMonitor" */;
-			buildPhases = (
-				C50000000000000000000003 /* Sources */,
-				C50000000000000000000001 /* Frameworks */,
-				C50000000000000000000004 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = StudyAppDeviceActivityMonitor;
-			packageProductDependencies = (
-			);
-			productName = StudyAppDeviceActivityMonitor;
-			productReference = B50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 		E30000000000000000000001 /* StudyAppTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = G30000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppTests" */;
@@ -916,6 +891,25 @@
 			productReference = B30000000000000000000050 /* StudyAppTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		E50000000000000000000001 /* StudyAppDeviceActivityMonitor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = G50000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppDeviceActivityMonitor" */;
+			buildPhases = (
+				C50000000000000000000003 /* Sources */,
+				C50000000000000000000001 /* Frameworks */,
+				C50000000000000000000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = StudyAppDeviceActivityMonitor;
+			packageProductDependencies = (
+			);
+			productName = StudyAppDeviceActivityMonitor;
+			productReference = B50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -932,12 +926,12 @@
 					E20000000000000000000001 = {
 						CreatedOnToolsVersion = 16.0;
 					};
-					E50000000000000000000001 = {
-						CreatedOnToolsVersion = 16.0;
-					};
 					E30000000000000000000001 = {
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = E10000000000000000000001;
+					};
+					E50000000000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
 					};
 				};
 			};
@@ -1050,9 +1044,6 @@
 				A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */,
 				A30000000000000000000080 /* TimerProblemValidation.swift in Sources */,
 				A30000000000000000000081 /* TimerAmbientModels.swift in Sources */,
-				A10000000000000000000099 /* TimerAmbientResolver.swift in Sources */,
-				A10000000000000000000084 /* WeatherKitWeatherService.swift in Sources */,
-				A10000000000000000000083 /* LocationWeatherService.swift in Sources */,
 				A50000000000000000000002 /* ScreenTimeFocusModels.swift in Sources */,
 				A50000000000000000000004 /* ScreenTimeFocusController.swift in Sources */,
 				A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */,
@@ -1154,15 +1145,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C50000000000000000000003 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A50000000000000000000003 /* ScreenTimeFocusModels.swift in Sources */,
-				A50000000000000000000005 /* DeviceActivityMonitorExtension.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		C30000000000000000000002 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1172,9 +1154,19 @@
 				A30000000000000000000053 /* SyncMergeEngineTests.swift in Sources */,
 				A30000000000000000000054 /* StudyWidgetSnapshotComputerTests.swift in Sources */,
 				A30000000000000000000055 /* TimerProblemValidationTests.swift in Sources */,
-				A30000000000000000000082 /* TimerAmbientResolverTests.swift in Sources */,
+				A30000000000000000000083 /* CalendarDayDetailTests.swift in Sources */,
+				A30000000000000000000082 /* AppPreferencesTests.swift in Sources */,
 				A30000000000000000000056 /* GoalCollectionExtensionsTests.swift in Sources */,
 				A30000000000000000000057 /* SyncDeltaSerializerTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C50000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A50000000000000000000003 /* ScreenTimeFocusModels.swift in Sources */,
+				A50000000000000000000005 /* DeviceActivityMonitorExtension.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1186,15 +1178,15 @@
 			target = E20000000000000000000001 /* StudyAppWidgets */;
 			targetProxy = H20000000000000000000001 /* PBXContainerItemProxy */;
 		};
-		H50000000000000000000002 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = E50000000000000000000001 /* StudyAppDeviceActivityMonitor */;
-			targetProxy = H50000000000000000000001 /* PBXContainerItemProxy */;
-		};
 		H30000000000000000000002 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = E10000000000000000000001 /* StudyApp */;
 			targetProxy = H30000000000000000000001 /* PBXContainerItemProxy */;
+		};
+		H50000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E50000000000000000000001 /* StudyAppDeviceActivityMonitor */;
+			targetProxy = H50000000000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1229,13 +1221,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = StudyApp/StudyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 77V64TWCFD;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = StudyTrail;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "現在地の天気と日の出・日の入りに合わせてタイマー画面を切り替えるために使用します。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -1265,12 +1256,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = StudyApp/StudyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 77V64TWCFD;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = StudyTrail;
 				INFOPLIST_KEY_NSCameraUsageDescription = "教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "現在地の天気と日の出・日の入りに合わせてタイマー画面を切り替えるために使用します。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -1350,6 +1340,47 @@
 			};
 			name = Release;
 		};
+		F30000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/StudyApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/StudyApp";
+			};
+			name = Debug;
+		};
+		F30000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/StudyApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/StudyApp";
+			};
+			name = Release;
+		};
 		F50000000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1407,47 +1438,6 @@
 			};
 			name = Release;
 		};
-		F30000000000000000000001 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.0;
-				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/StudyApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/StudyApp";
-			};
-			name = Debug;
-		};
-		F30000000000000000000002 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/StudyApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/StudyApp";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1478,20 +1468,20 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		G50000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppDeviceActivityMonitor" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F50000000000000000000001 /* Debug */,
-				F50000000000000000000002 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		G30000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F30000000000000000000001 /* Debug */,
 				F30000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		G50000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppDeviceActivityMonitor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F50000000000000000000001 /* Debug */,
+				F50000000000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

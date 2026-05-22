@@ -103,7 +103,6 @@ struct SettingsScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 appearanceGroup
-                timerVisualGroup
                 screenTimeFocusGroup
                 reminderGroup
                 landscapeTimerGroup
@@ -373,43 +372,6 @@ struct SettingsScreen: View {
             .disabled(!viewModel.app.preferences.reminderEnabled)
         } footer: {
             Text("※時間割の未復習が48時間を超えた場合に通知します")
-        }
-    }
-
-    private var timerVisualGroup: some View {
-        settingsGroup(title: "タイマー表示") {
-            ForEach(Array(TimerVisualMode.allCases.enumerated()), id: \.element.id) { index, mode in
-                Button {
-                    viewModel.app.setTimerVisualMode(mode)
-                } label: {
-                    HStack(spacing: 12) {
-                        SettingsIcon(systemName: timerVisualIcon(for: mode))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(mode.title)
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(AppColors.textPrimary)
-                            Text(mode.settingsDescription)
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textSecondary)
-                                .lineLimit(2)
-                        }
-                        Spacer()
-                        if mode == viewModel.app.preferences.timerVisualMode {
-                            Image(systemName: "checkmark")
-                                .font(.title3.weight(.bold))
-                                .foregroundStyle(AppColors.success)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                if index < TimerVisualMode.allCases.count - 1 {
-                    Divider()
-                }
-            }
-        } footer: {
-            Text("自動では現在地の天気と日の出・日の入りを使って、朝・昼・夜を切り替えます。")
         }
     }
 
@@ -757,19 +719,6 @@ struct SettingsScreen: View {
             return "問題集つき（推奨）"
         case .clockOnly:
             return "時計のみ"
-        }
-    }
-
-    private func timerVisualIcon(for mode: TimerVisualMode) -> String {
-        switch mode {
-        case .auto:
-            return "location.fill"
-        case .morning:
-            return "sunrise.fill"
-        case .day:
-            return "sun.max.fill"
-        case .night:
-            return "moon.stars.fill"
         }
     }
 

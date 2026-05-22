@@ -4,6 +4,7 @@ import SwiftUI
 // MARK: - TimerScreen
 
 struct TimerScreen: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var app: StudyAppContainer
     @StateObject private var viewModel: TimerViewModel
     @State private var showManualEntry = false
@@ -26,7 +27,7 @@ struct TimerScreen: View {
     var body: some View {
         GeometryReader { geometry in
             let isLandscapeFocus = shouldShowLandscapeFocus(size: geometry.size)
-            let ambientTheme = TimerAmbientTheme.make(context: app.timerAmbientContext)
+            let ambientTheme = TimerAmbientTheme.make(colorScheme: colorScheme)
             Group {
                 if isLandscapeFocus {
                     switch viewModel.app.preferences.landscapeTimerDisplayPreset {
@@ -69,7 +70,6 @@ struct TimerScreen: View {
 
                         ScrollView(showsIndicators: false) {
                             VStack(spacing: 12) {
-                                ambientStatusHeader(theme: ambientTheme)
                                 selectorSection(theme: ambientTheme)
                                 quickSelectionSection(theme: ambientTheme)
 
@@ -142,7 +142,6 @@ struct TimerScreen: View {
                             .background(ambientTheme.bottomBarBackground)
                         }
                     }
-                    .environment(\.colorScheme, ambientTheme.colorScheme)
                 }
             }
             .toolbar(isLandscapeFocus ? .hidden : .visible, for: .navigationBar)
@@ -203,9 +202,6 @@ struct TimerScreen: View {
         }
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
-        }
-        .task(id: app.preferences.timerVisualMode) {
-            app.refreshTimerAmbient(reason: "timer-screen")
         }
         .onChange(of: viewModel.selectedSubjectId) { _ in
             viewModel.handleSubjectSelectionChange()
@@ -399,49 +395,6 @@ struct TimerScreen: View {
         }
     }
 
-    private func ambientStatusHeader(theme: TimerAmbientTheme) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: app.timerAmbientContext.weatherCondition.systemImage)
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(theme.accent)
-                .frame(width: 34, height: 34)
-                .background(theme.accent.opacity(0.14), in: Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(app.timerAmbientContext.phase.title)の集中モード")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppColors.textPrimary)
-                Text(ambientStatusText)
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                if showsWeatherAttribution {
-                    Link(destination: Self.weatherAttributionURL) {
-                        Text("Weather | Apple Weather")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(theme.accent)
-                            .lineLimit(1)
-                    }
-                }
-            }
-            Spacer(minLength: 8)
-            Text(app.preferences.timerVisualMode.title)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(theme.accent)
-                .padding(.horizontal, 10)
-                .frame(height: 28)
-                .background(theme.accent.opacity(0.12), in: Capsule())
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(theme.panelStroke, lineWidth: 1)
-        }
-    }
-
     @ViewBuilder
     private func quickSelectionSection(theme: TimerAmbientTheme) -> some View {
         if !viewModel.subjects.isEmpty || !viewModel.recentMaterialPairs.isEmpty {
@@ -487,7 +440,7 @@ struct TimerScreen: View {
     }
 
     private func quickChip(title: String, systemImage: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        let theme = TimerAmbientTheme.make(context: app.timerAmbientContext)
+        let theme = TimerAmbientTheme.make(colorScheme: colorScheme)
         return Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
@@ -638,22 +591,6 @@ struct TimerScreen: View {
         }
         return viewModel.mode == .timer ? "カウントダウン" : "経過を記録中"
     }
-
-    private var ambientStatusText: String {
-        let context = app.timerAmbientContext
-        let weather = context.weatherCondition.title
-        if let error = context.errorMessage, context.source == .clock {
-            return "\(context.source.title)で判定 ・ \(error)"
-        }
-        return "\(context.source.title)で判定 ・ \(weather)"
-    }
-
-    private var showsWeatherAttribution: Bool {
-        let context = app.timerAmbientContext
-        return context.source == .weather || context.source == .cache
-    }
-
-    private static let weatherAttributionURL = URL(string: "https://weatherkit.apple.com/legal-attribution.html")!
 
     private static let hourMinuteFormatter: DateFormatter = {
         let formatter = DateFormatter()

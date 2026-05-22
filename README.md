@@ -1,10 +1,12 @@
 # StudyApp（学習記録）
 
-学習時間を記録・管理・分析するクロスプラットフォーム（Android / iOS）アプリです。タイマーで学習時間を計測し、教材・科目ごとに進捗を管理。レポートやカレンダーで学習パターンを可視化し、目標設定やテスト管理も可能です。Firebaseによるクラウド同期にも対応しています。
+学習時間を記録・管理・分析するクロスプラットフォームアプリです（Android / iOS）。タイマーで学習時間を計測し、教材・科目ごとに進捗を管理。レポートやカレンダー、時間割で学習パターンを可視化し、目標設定やテスト管理も行えます。Firebase によるクラウド同期とアカウント削除に対応しています。
+
+同リポジトリには macOS 向けローカルコンパニオン（`macos/StudyAppMac`）と GitHub Pages 用サイト（`docs/`）も含まれます。
 
 ## スクリーンショット
 
-<!-- 画像を screenshots/ ディレクトリに配置してください -->
+`screenshots/` に画像を置くと表示されます（開発用のため `.gitignore` 対象）。
 
 | ホーム | タイマー | レポート |
 |:---:|:---:|:---:|
@@ -12,33 +14,40 @@
 
 ## 主な機能
 
-- **学習タイマー** — ストップウォッチ / カウントダウンの2モード。バックグラウンド動作対応（Android）
-- **教材管理** — 教科書・問題集の登録、ページ進捗、問題ごとの正誤記録、ISBNバーコードスキャンで自動メタデータ取得
-- **科目管理** — カラーコーディング、13種類のアイコン
-- **カレンダー** — 月間カレンダーにヒートマップ表示で学習量を可視化
-- **レポート・分析** — 日別 / 週別 / 月別の学習時間内訳、科目別分析、連続学習日数
-- **目標設定** — 曜日ごとの学習時間目標、進捗リングで達成率を表示
-- **テスト管理** — テスト日の登録、カウントダウン表示、緊急度バッジ
-- **学習計画** — 週間計画の作成、実績時間の自動集計、達成率トラッキング
-- **ホームダッシュボード** — 今日のサマリー、週間目標進捗、直近のテスト・教材を一覧表示
-- **Firebase クラウド同期** — メール / パスワード認証、Firestore によるデータ同期
-- **ウィジェット** — Android 6種 + iOS WidgetKit によるホーム画面ウィジェット
-- **ダークモード** — ライト / ダーク / システム設定に追従
-- **テーマカラー** — 複数のカラーテーマから選択可能
-- **データエクスポート** — JSON / CSV 形式でデータを書き出し
-- **オンボーディング** — 初回起動時の機能紹介フロー
+- **学習タイマー** — ストップウォッチ / カウントダウン。問題進捗・セッション評価・手動記録に対応
+- **教材管理** — 教科書・問題集の登録、ページ進捗、問題ごとの正誤記録、ISBN バーコードスキャン（Google Books）
+- **科目管理** — カラーコーディング、複数アイコン
+- **カレンダー** — 月間カレンダーとヒートマップ、タイムライン表示
+- **時間割** — 学期・コマ・授業の登録、復習期限の管理、期限超過リマインダー
+- **レポート・分析** — 日別 / 週別 / 月別の学習時間、科目別分析、連続学習日数
+- **目標設定** — 曜日ごとの学習時間目標と進捗リング
+- **テスト管理** — テスト日の登録、カウントダウン、緊急度表示
+- **学習計画** — 週間計画、実績時間の自動集計、達成率
+- **ホームダッシュボード** — 今日のサマリー、週間目標、直近のテスト・教材
+- **Firebase クラウド同期** — メール / パスワード認証、Firestore 差分同期、アカウント削除
+- **ウィジェット** — Android 6 種（Glance）+ iOS WidgetKit
+- **ダークモード / テーマカラー** — ライト・ダーク・システム追従、複数テーマ
+- **データエクスポート** — JSON / CSV
 
-### Android 独自機能
+> 初回起動のオンボーディング画面は廃止済みです（設定フラグ `onboardingCompleted` はデータ互換のため残存）。
 
-- **AnkiDroid 連携** — AnkiDroid の学習データ（カード数、学習時間）をアプリに取り込み
-- **6種のウィジェット** — 今日の学習、週間目標、連続日数、テストカウントダウン、週間アクティビティ、スタック学習（Glance ベース）
+### Android 独自
+
+- **6 種のホーム画面ウィジェット** — 今日の学習、週間目標、連続日数、テストカウントダウン、週間アクティビティ、スタック学習
 - **バーコードスキャン** — CameraX + ML Kit による ISBN スキャン
-- **フォアグラウンドサービス** — アプリをバックグラウンドにしてもタイマーが継続
+- **フォアグラウンドサービス** — バックグラウンドでもタイマー継続
 
-### iOS 独自機能
+### iOS 独自
 
-- **Live Activity**（iOS 18+）— ロック画面 / Dynamic Island にタイマーを表示。4種の表示プリセット
-- **WidgetKit ウィジェット** — タイムラインベースのウィジェット
+- **Live Activity** — ロック画面 / Dynamic Island にタイマー表示（ビルド設定で ON/OFF 可能）
+- **WidgetKit** — App Group 経由のスナップショット連携
+- **Screen Time 集中モード** — Family Controls + Device Activity で許可アプリ以外を制限（`StudyAppDeviceActivityMonitor` 拡張）
+- **iPad 向け UI** — `NavigationSplitView` によるサイドバー + 詳細の分割表示
+- **ランドスケープタイマー** — 問題進捗専用 / 時計のみの集中レイアウト
+
+### macOS コンパニオン（実験的）
+
+`macos/StudyAppMac` は Firebase 非連携のデスクトップ用アプリです。ダッシュボード・タイマー・科目 / 教材管理をローカル JSON（`~/Library/Application Support/StudyAppMac/study-data.json`）に保存します。本番アプリとデータは共有しません。
 
 ## 技術スタック
 
@@ -50,7 +59,7 @@
 | UI | Jetpack Compose (Material3) |
 | アーキテクチャ | MVVM + Clean Architecture |
 | DI | Hilt 2.50 |
-| データベース | Room 2.6.1（スキーマ v7） |
+| データベース | Room 2.6.1（スキーマ version **12**） |
 | ナビゲーション | Navigation Compose 2.7.6 |
 | 非同期 | Kotlin Coroutines + Flow |
 | シリアライズ | Kotlinx Serialization |
@@ -68,12 +77,24 @@
 |---|---|
 | 言語 | Swift |
 | UI | SwiftUI |
-| アーキテクチャ | MVVM + Clean Architecture |
+| アーキテクチャ | MVVM + Clean Architecture（`StudyAppContainer` が composition root） |
 | データベース | Core Data（プログラムマチックモデル） |
+| 同期 | Firestore 差分同期（`Data/Sync/`） |
 | クラウド | Firebase Auth + Firestore (SPM) |
-| ウィジェット | WidgetKit |
-| Live Activity | ActivityKit（iOS 18+） |
+| ウィジェット | WidgetKit（App Group: `group.com.studyapp.ios.shared`） |
+| Live Activity | ActivityKit |
+| 集中モード | Family Controls, Device Activity, Managed Settings |
 | 通知 | UserNotifications |
+| 対応バージョン | iOS **16.0** 以降（Bundle ID 例: `com.studyapp.ios`） |
+
+### リポジトリその他
+
+| 項目 | 内容 |
+|---|---|
+| CI | GitHub Actions（iOS ビルドチェック、未署名 IPA リリース） |
+| 公開サイト | `docs/`（GitHub Pages: 製品紹介・プライバシー・サポート） |
+| Firestore ルール | `firestore.rules` |
+| エージェント向けガイド | [AGENTS.md](AGENTS.md) |
 
 ## ディレクトリ構成
 
@@ -81,23 +102,32 @@
 gaien/
 ├── android/                          # Android アプリ
 │   └── app/src/main/java/com/studyapp/
-│       ├── data/                     # データ層（Room DB、リポジトリ実装、サービス）
-│       ├── di/                       # Hilt 依存性注入モジュール
-│       ├── domain/                   # ドメイン層（モデル、リポジトリインターフェース、ユースケース）
-│       ├── presentation/             # プレゼンテーション層（Compose 画面、ViewModel）
-│       ├── services/                 # リマインダーサービス（WorkManager）
+│       ├── data/                     # Room、リポジトリ実装
+│       ├── di/                       # Hilt
+│       ├── domain/                   # モデル、リポジトリ IF、ユースケース
+│       ├── presentation/             # Compose 画面、ViewModel
+│       ├── services/                 # リマインダー（WorkManager）
 │       ├── sync/                     # Firebase 同期
 │       └── widgets/                  # Glance ウィジェット
+│   └── app/schemas/                  # Room スキーマスナップショット
 ├── ios/
-│   └── StudyApp/
-│       ├── Data/                     # データ層（Core Data、Firebase リポジトリ）
-│       ├── Domain/                   # ドメイン層（エンティティ、リポジトリプロトコル、ユースケース）
-│       ├── Presentation/             # プレゼンテーション層（SwiftUI ビュー、ViewModel）
-│       ├── Services/                 # サービス層（通知、Live Activity）
-│       └── Widgets/                  # WidgetKit ウィジェット
-├── StudyAppWidgets/                  # iOS ウィジェットエクステンション
-├── firestore.rules                   # Firestore セキュリティルール
-└── AGENTS.md                         # 開発者ガイド
+│   ├── StudyApp/                     # SwiftUI 本体
+│   │   ├── Data/                     # Core Data、Firebase、Sync/
+│   │   ├── Domain/
+│   │   ├── Presentation/             # StudyAppContainer 含む
+│   │   ├── Services/                 # Live Activity、Screen Time、通知
+│   │   └── Widgets/                  # スナップショット同期
+│   ├── StudyAppWidgets/             # WidgetKit + Live Activity
+│   ├── StudyAppDeviceActivityMonitor/  # Screen Time 拡張
+│   └── StudyAppTests/                # XCTest
+├── macos/StudyAppMac/                # macOS コンパニオン（SwiftPM）
+├── docs/                             # GitHub Pages
+├── tools/                            # 開発用スクリプト
+├── .github/workflows/                # iOS CI / リリース
+├── firestore.rules
+├── firebase.json
+├── AGENTS.md
+└── README.md
 ```
 
 ## ビルド方法
@@ -105,19 +135,14 @@ gaien/
 ### Android
 
 ```bash
-# 前提条件: JDK 17、Android SDK (API 34)
+# 前提: JDK 17、Android SDK (API 34)
 
-# デバッグビルド
-cd android && ./gradlew assembleDebug
-
-# リリースビルド（署名用の環境変数が必要）
-cd android && ./gradlew assembleRelease
-
-# リント
+cd android && ./gradlew assembleDebug    # デバッグ APK
+cd android && ./gradlew assembleRelease  # リリース（署名設定が必要）
 cd android && ./gradlew lint
 ```
 
-リリースビルド時に必要な環境変数:
+リリース署名用の環境変数:
 
 | 変数名 | 説明 |
 |---|---|
@@ -126,45 +151,95 @@ cd android && ./gradlew lint
 | `KEY_ALIAS` | キーエイリアス |
 | `KEY_PASSWORD` | キーのパスワード |
 
+Windows では `gradlew.bat` を使用してください。
+
 ### iOS
 
 ```bash
-# Xcode で開く
 open ios/StudyApp.xcodeproj
 
-# コマンドラインでビルド
-xcodebuild -project ios/StudyApp.xcodeproj -scheme StudyApp -sdk iphoneos -configuration Release
+# コマンドライン（Release / 実機向け）
+xcodebuild -project ios/StudyApp.xcodeproj -scheme StudyApp \
+  -sdk iphoneos -configuration Release build
+
+# 未署名 Debug（CI と同様）
+xcodebuild -project ios/StudyApp.xcodeproj -scheme StudyApp \
+  -configuration Debug -sdk iphoneos \
+  -destination 'generic/platform=iOS' \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+```
+
+Screen Time・ウィジェット・Live Activity を使うビルドでは、Apple Developer の App Group と Family Controls  capability が必要です。
+
+タグ `v*` の push または GitHub Release では、`.github/workflows/ios-ipa-release.yml` が未署名 IPA を生成します（Live Activity 無効ビルド。拡張は IPA から除去）。
+
+### macOS コンパニオン
+
+```bash
+cd macos/StudyAppMac
+swift build
+./scripts/build_and_run.sh          # 起動
+./scripts/build_and_run.sh --verify # ビルド検証のみ
 ```
 
 ### Firebase 設定
 
-Firebase 設定ファイルはリポジトリに含まれていません。ビルド前にそれぞれ配置してください。
+Firebase のアプリ設定ファイルはリポジトリに含めません。ビルド前に配置してください。
 
 | ファイル | プラットフォーム | 配置先 |
 |---|---|---|
 | `google-services.json` | Android | `android/app/` |
 | `GoogleService-Info.plist` | iOS | `ios/StudyApp/Resources/` |
 
-Firebase コンソールからダウンロードするか、CI 環境では GitHub Secrets（`IOS_GOOGLE_SERVICE_INFO_PLIST_B64`）を使用してください。
+- ローカル: Firebase コンソールからダウンロード
+- CI（iOS）: Secret `IOS_GOOGLE_SERVICE_INFO_PLIST_B64`、または workflow 内のプレースホルダ plist（未署名ビルド用）
 
-## テスト実行方法
+Firestore ルールのデプロイ:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+## テスト
 
 ### Android
 
 ```bash
-# 全テスト実行
 cd android && ./gradlew test
 
-# 特定のテストクラスを実行
+# 特定クラスのみ
 cd android && ./gradlew test --tests "com.studyapp.presentation.home.HomeViewModelTest"
 
-# テストカバレッジレポート
+# カバレッジ（Debug 単体テスト）
 cd android && ./gradlew testDebugUnitTestCoverage
 ```
 
 ### iOS
 
-Xcode で `Cmd + U`、または Product > Test を実行してください。
+Xcode で `Cmd + U`、または:
+
+```bash
+xcodebuild -project ios/StudyApp.xcodeproj -scheme StudyApp \
+  -configuration Debug \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  SWIFT_ENABLE_EXPLICIT_MODULES=NO \
+  test
+```
+
+`ios/StudyAppTests/` には同期マージ、復習スケジューラ、タイマー検証、ウィジェット計算などのテストがあります。
+
+## CI
+
+| Workflow | トリガー | 内容 |
+|---|---|---|
+| [ios-build-check.yml](.github/workflows/ios-build-check.yml) | `main` への PR、`refactor/**` push | 未署名 Debug ビルド + シミュレータ単体テスト |
+| [ios-ipa-release.yml](.github/workflows/ios-ipa-release.yml) | タグ `v*`、Release、手動 | 未署名 Release IPA を GitHub Release に添付 |
+
+Android 用の GitHub Actions は現時点ではありません。
+
+## 開発者向け
+
+コーディングエージェントや共同開発者向けの詳細（アーキテクチャの注意点、CI の扱い、変更時のスコープ）は [AGENTS.md](AGENTS.md) を参照してください。
 
 ## ライセンス
 

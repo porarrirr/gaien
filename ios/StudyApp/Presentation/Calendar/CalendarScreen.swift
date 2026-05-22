@@ -97,17 +97,14 @@ struct CalendarScreen: View {
                 calendarSummaryLegend
 
                 if let day = selectedDay {
-                    let sessions = viewModel.sessions(for: day)
-                    let subjectSummaries = viewModel.subjectSummaries(for: day)
-                    let timelineItems = viewModel.timelineItems(for: day)
-                    let totalMins = viewModel.totalMinutes(for: day)
+                    let detail = viewModel.detail(for: day)
 
                     VStack(alignment: .leading, spacing: 0) {
-                        selectedDayHeader(day: day, totalMinutes: totalMins, sessionCount: sessions.count)
+                        selectedDayHeader(day: day, totalMinutes: detail.totalMinutes, sessionCount: detail.sessions.count)
                             .padding(.horizontal, 18)
                             .padding(.top, 18)
                             .padding(.bottom, 14)
-                        if sessions.isEmpty && timelineItems.isEmpty {
+                        if detail.isEmpty {
                             VStack(spacing: AppSpacing.sm) {
                                 Image(systemName: "book.closed")
                                     .font(.system(size: 32))
@@ -122,18 +119,18 @@ struct CalendarScreen: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, AppSpacing.lg)
                         } else {
-                            if !sessions.isEmpty {
+                            if !detail.sessions.isEmpty {
                                 detailModeSwitch
                                     .padding(.horizontal, 26)
                                     .padding(.bottom, 16)
                             }
 
-                            switch sessions.isEmpty ? CalendarDetailDisplayMode.timeline : detailDisplayMode {
+                            switch detail.sessions.isEmpty ? CalendarDetailDisplayMode.timeline : detailDisplayMode {
                             case .summary:
-                                summaryRows(subjectSummaries)
+                                summaryRows(detail.summaryRows)
                             case .timeline:
                                 VStack(spacing: 8) {
-                                    ForEach(timelineItems) { item in
+                                    ForEach(detail.timelineItems) { item in
                                         timelineItemView(item)
                                     }
                                 }
@@ -355,10 +352,9 @@ struct CalendarScreen: View {
     }
 
     @ViewBuilder
-    private func summaryRows(_ subjects: [DayStudySubjectSummary]) -> some View {
-        let rows = calendarSummaryRows(from: subjects)
+    private func summaryRows(_ rows: [CalendarSummaryRow]) -> some View {
         VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 Button {
                     if let session = row.material.sessions.first {
                         prepareEditing(session)
@@ -396,19 +392,15 @@ struct CalendarScreen: View {
                                 .foregroundStyle(AppColors.textSecondary)
                         }
 
-                        if !row.material.problemRecords.isEmpty {
-                            Text(problemNumbersText(
-                                for: row.material.problemRecords,
-                                chapters: problemChapters(for: row.material),
-                                limitPerResult: 8
-                            ))
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(AppColors.textSecondary)
-                            .monospacedDigit()
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.leading, 35)
-                            .padding(.trailing, 26)
+                        if !row.problemPreviewText.isEmpty {
+                            Text(row.problemPreviewText)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(AppColors.textSecondary)
+                                .monospacedDigit()
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.leading, 35)
+                                .padding(.trailing, 26)
                         }
                     }
                     .frame(minHeight: 56)
@@ -469,16 +461,6 @@ struct CalendarScreen: View {
                 .stroke(AppColors.cardBorder, lineWidth: 1)
         }
         .padding(.horizontal, 10)
-    }
-
-    private func calendarSummaryRows(
-        from subjects: [DayStudySubjectSummary]
-    ) -> [(id: String, subject: DayStudySubjectSummary, material: DayStudyMaterialSummary)] {
-        subjects.flatMap { subject in
-            subject.materials.map { material in
-                (id: "\(subject.id)-\(material.id)", subject: subject, material: material)
-            }
-        }
     }
 
     private func selectedDateTitle(day: Int) -> String {
@@ -1042,27 +1024,6 @@ struct CalendarScreen: View {
         return start == end ? chapters.label(for: start) : "\(chapters.label(for: start)) - \(chapters.label(for: end))"
     }
 
-    private func problemNumbersText(
-        for records: [ProblemSessionRecord],
-        chapters: [ProblemChapter] = [],
-        limitPerResult: Int? = nil
-    ) -> String {
-        let correct = records.filter { $0.result == .correct }.map { chapters.label(for: $0.number) }
-        let wrong = records.filter(\.isWrong).map { chapters.label(for: $0.number) }
-        let review = records.filter { $0.result == .reviewCorrect }.map { chapters.label(for: $0.number) }
-        var parts: [String] = []
-        if !wrong.isEmpty {
-            parts.append("不正解 \(compactProblemLabels(wrong, limit: limitPerResult))")
-        }
-        if !correct.isEmpty {
-            parts.append("正解 \(compactProblemLabels(correct, limit: limitPerResult))")
-        }
-        if !review.isEmpty {
-            parts.append("復習 \(compactProblemLabels(review, limit: limitPerResult))")
-        }
-        return parts.joined(separator: " / ")
-    }
-
     @ViewBuilder
     private func problemRecordSummaryRows(
         records: [ProblemSessionRecord],
@@ -1100,76 +1061,33 @@ struct CalendarScreen: View {
                 id: "wrong",
                 title: "不正解",
                 color: AppColors.danger,
-                labelsText: compactProblemLabels(records.filter(\.isWrong).map(\.number), chapters: chapters, limit: limitPerResult)
+                labelsText: CalendarProblemLabelFormatter.compactProblemLabels(
+                    records.filter(\.isWrong).map(\.number),
+                    chapters: chapters,
+                    limit: limitPerResult
+                )
             ),
             ProblemRecordDisplayGroup(
                 id: "correct",
                 title: "正解",
                 color: AppColors.success,
-                labelsText: compactProblemLabels(records.filter { $0.result == .correct }.map(\.number), chapters: chapters, limit: limitPerResult)
+                labelsText: CalendarProblemLabelFormatter.compactProblemLabels(
+                    records.filter { $0.result == .correct }.map(\.number),
+                    chapters: chapters,
+                    limit: limitPerResult
+                )
             ),
             ProblemRecordDisplayGroup(
                 id: "review",
                 title: "復習正解",
                 color: AppColors.warning,
-                labelsText: compactProblemLabels(records.filter { $0.result == .reviewCorrect }.map(\.number), chapters: chapters, limit: limitPerResult)
+                labelsText: CalendarProblemLabelFormatter.compactProblemLabels(
+                    records.filter { $0.result == .reviewCorrect }.map(\.number),
+                    chapters: chapters,
+                    limit: limitPerResult
+                )
             )
         ].filter { !$0.labelsText.isEmpty }
-    }
-
-    private func compactProblemLabels(_ labels: [String], limit: Int?) -> String {
-        guard let limit, labels.count > limit else {
-            return labels.joined(separator: ", ")
-        }
-        let visible = labels.prefix(limit).joined(separator: ", ")
-        return "\(visible) +\(labels.count - limit)"
-    }
-
-    private func compactProblemLabels(_ numbers: [Int], chapters: [ProblemChapter], limit: Int?) -> String {
-        let ranges = compactProblemNumberRanges(numbers.sorted(), chapters: chapters)
-        guard let limit, ranges.count > limit else {
-            return ranges.joined(separator: ", ")
-        }
-        return "\(ranges.prefix(limit).joined(separator: ", ")) +\(ranges.count - limit)"
-    }
-
-    private func compactProblemNumberRanges(_ numbers: [Int], chapters: [ProblemChapter]) -> [String] {
-        guard let firstNumber = numbers.first else { return [] }
-        var result: [String] = []
-        var start = firstNumber
-        var previous = firstNumber
-
-        for number in numbers.dropFirst() {
-            if number == previous + 1, sameProblemChapter(start, number, chapters: chapters) {
-                previous = number
-            } else {
-                result.append(problemRangeLabel(start: start, end: previous, chapters: chapters))
-                start = number
-                previous = number
-            }
-        }
-        result.append(problemRangeLabel(start: start, end: previous, chapters: chapters))
-        return result
-    }
-
-    private func sameProblemChapter(_ left: Int, _ right: Int, chapters: [ProblemChapter]) -> Bool {
-        guard let leftChapter = chapters.location(for: left),
-              let rightChapter = chapters.location(for: right) else {
-            return chapters.isEmpty
-        }
-        return leftChapter.chapterIndex == rightChapter.chapterIndex
-    }
-
-    private func problemRangeLabel(start: Int, end: Int, chapters: [ProblemChapter]) -> String {
-        guard start != end else {
-            return chapters.label(for: start)
-        }
-        guard let startLocation = chapters.location(for: start),
-              let endLocation = chapters.location(for: end),
-              startLocation.chapterIndex == endLocation.chapterIndex else {
-            return "\(chapters.label(for: start))〜\(chapters.label(for: end))"
-        }
-        return "\(startLocation.chapterTitle) \(startLocation.localNumber)〜\(endLocation.localNumber)問"
     }
 
     private func timeString(from millis: Int64) -> String {
@@ -1206,4 +1124,3 @@ struct CalendarScreen: View {
             .joined(separator: "\n")
     }
 }
-

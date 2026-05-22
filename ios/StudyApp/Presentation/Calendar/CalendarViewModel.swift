@@ -9,7 +9,14 @@ final class CalendarViewModel: ScreenViewModel {
     @Published private(set) var timetablePeriods: [TimetablePeriod] = []
     @Published private(set) var timetableEntries: [TimetableEntry] = []
     @Published private(set) var timetableTerms: [TimetableTerm] = []
-    @Published var displayedMonth = Date()
+    @Published var displayedMonth = Date() {
+        didSet {
+            dayDetailCache.removeAll()
+        }
+    }
+
+    private var materialsById: [Int64: Material] = [:]
+    private var dayDetailCache: [Int: CalendarDayDetail] = [:]
 
     func load() async {
         do {
@@ -26,6 +33,7 @@ final class CalendarViewModel: ScreenViewModel {
             async let timetableTermsTask = app.timetableRepo.getAllTimetableTerms()
             let sessions = try await sessionsTask
             materials = try await materialsTask
+            materialsById = Dictionary(materials.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             timetablePeriods = try await timetablePeriodsTask
             timetableEntries = try await timetableEntriesTask
             timetableTerms = try await timetableTermsTask
@@ -38,9 +46,32 @@ final class CalendarViewModel: ScreenViewModel {
             daySessionsMap = Dictionary(grouping: sortedSessions) { session in
                 Calendar.current.component(.day, from: session.startDate)
             }
+            dayDetailCache.removeAll()
         } catch {
             app.present(error)
         }
+    }
+
+    func detail(for day: Int, referenceDate: Date = Date()) -> CalendarDayDetail {
+        if let cached = dayDetailCache[day] {
+            return cached
+        }
+
+        let date = Calendar.current.date(
+            from: DateComponents(year: displayYear, month: displayMonth, day: day)
+        ) ?? displayedMonth.startOfDay
+        let detail = Self.makeDayDetail(
+            day: day,
+            date: date,
+            sessions: sessions(for: day),
+            materialsById: materialsById,
+            timetablePeriods: timetablePeriods,
+            timetableEntries: timetableEntries,
+            timetableTerms: timetableTerms,
+            referenceDate: referenceDate
+        )
+        dayDetailCache[day] = detail
+        return detail
     }
 
     func sessions(for day: Int) -> [StudySession] {
@@ -95,7 +126,55 @@ final class CalendarViewModel: ScreenViewModel {
 
     func material(for session: StudySession) -> Material? {
         guard let materialId = session.materialId else { return nil }
-        return materials.first(where: { $0.id == materialId })
+        return materialsById[materialId]
+    }
+
+    nonisolated static func makeDayDetail(
+        day: Int,
+        date: Date,
+        sessions: [StudySession],
+        materialsById: [Int64: Material],
+        timetablePeriods: [TimetablePeriod],
+        timetableEntries: [TimetableEntry],
+        timetableTerms: [TimetableTerm],
+        referenceDate: Date = Date()
+    ) -> CalendarDayDetail {
+        let subjectSummaries = DayStudySubjectSummary.make(from: sessions)
+        let summaryRows = subjectSummaries.flatMap { subject in
+            subject.materials.map { material in
+                let chapters = material.sessions.first.flatMap { session -> [ProblemChapter]? in
+                    guard let materialId = session.materialId else { return nil }
+                    return materialsById[materialId]?.problemChapters
+                } ?? []
+                let previewText = CalendarProblemLabelFormatter.problemNumbersText(
+                    for: material.problemRecords,
+                    chapters: chapters,
+                    limitPerResult: 8
+                )
+                return CalendarSummaryRow(
+                    id: "\(subject.id)-\(material.id)",
+                    subject: subject,
+                    material: material,
+                    problemPreviewText: previewText
+                )
+            }
+        }
+        let timelineItems = makeTimelineItems(
+            for: date,
+            sessions: sessions,
+            timetablePeriods: timetablePeriods,
+            timetableEntries: timetableEntries,
+            timetableTerms: timetableTerms,
+            referenceDate: referenceDate
+        )
+
+        return CalendarDayDetail(
+            day: day,
+            sessions: sessions,
+            totalMinutes: sessions.reduce(0) { $0 + $1.durationMinutes },
+            summaryRows: summaryRows,
+            timelineItems: timelineItems
+        )
     }
 
     func updateSession(
@@ -150,6 +229,57 @@ final class CalendarViewModel: ScreenViewModel {
     }
 
     private func lessons(on date: Date) -> [CalendarTimelineLesson] {
+        Self.lessons(
+            on: date,
+            timetablePeriods: timetablePeriods,
+            timetableEntries: timetableEntries,
+            timetableTerms: timetableTerms
+        )
+    }
+
+    nonisolated private static func makeTimelineItems(
+        for date: Date,
+        sessions: [StudySession],
+        timetablePeriods: [TimetablePeriod],
+        timetableEntries: [TimetableEntry],
+        timetableTerms: [TimetableTerm],
+        referenceDate: Date
+    ) -> [CalendarTimelineItem] {
+        let studyItems = sessions.map(CalendarTimelineItem.study)
+        let lessonItems = lessons(
+            on: date,
+            timetablePeriods: timetablePeriods,
+            timetableEntries: timetableEntries,
+            timetableTerms: timetableTerms
+        ).map(CalendarTimelineItem.lesson)
+        let occupiedBlocks = (studyItems + lessonItems)
+            .flatMap(\.occupiedIntervals)
+            .sorted { $0.startTime < $1.startTime }
+        let mergedOccupiedBlocks = mergeIntervals(occupiedBlocks)
+        let displayWindow = displayWindow(
+            for: date,
+            occupiedBlocks: mergedOccupiedBlocks,
+            referenceDate: referenceDate
+        )
+        let gapItems = gaps(
+            in: displayWindow,
+            excluding: mergedOccupiedBlocks
+        ).map(CalendarTimelineItem.gap)
+
+        return (studyItems + lessonItems + gapItems).sorted { left, right in
+            if left.startTime == right.startTime {
+                return left.sortPriority < right.sortPriority
+            }
+            return left.startTime < right.startTime
+        }
+    }
+
+    nonisolated private static func lessons(
+        on date: Date,
+        timetablePeriods: [TimetablePeriod],
+        timetableEntries: [TimetableEntry],
+        timetableTerms: [TimetableTerm]
+    ) -> [CalendarTimelineLesson] {
         let dayStart = date.startOfDay
         let weekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: dayStart))
         let activeTerms = timetableTerms.filter { $0.contains(dayStart) }
@@ -172,7 +302,7 @@ final class CalendarViewModel: ScreenViewModel {
             .sorted { $0.startTime < $1.startTime }
     }
 
-    private static func isEntry(_ entry: TimetableEntry, activeOn date: Date) -> Bool {
+    nonisolated private static func isEntry(_ entry: TimetableEntry, activeOn date: Date) -> Bool {
         let day = date.startOfDay.epochDay
         if let validFromDate = entry.validFromDate, day < validFromDate {
             return false
@@ -183,14 +313,14 @@ final class CalendarViewModel: ScreenViewModel {
         return true
     }
 
-    private static func timestamp(on date: Date, minute: Int) -> Int64 {
+    nonisolated private static func timestamp(on date: Date, minute: Int) -> Int64 {
         let calendar = Calendar.current
         let hour = minute / 60
         let minuteOfHour = minute % 60
         return (calendar.date(bySettingHour: hour, minute: minuteOfHour, second: 0, of: date.startOfDay) ?? date.startOfDay).epochMilliseconds
     }
 
-    private static func displayWindow(
+    nonisolated private static func displayWindow(
         for date: Date,
         occupiedBlocks: [StudySessionInterval],
         referenceDate: Date
@@ -207,7 +337,7 @@ final class CalendarViewModel: ScreenViewModel {
         return StudySessionInterval(startTime: start, endTime: end)
     }
 
-    private static func gaps(
+    nonisolated private static func gaps(
         in displayWindow: StudySessionInterval?,
         excluding occupiedBlocks: [StudySessionInterval]
     ) -> [CalendarTimelineGap] {
@@ -230,7 +360,7 @@ final class CalendarViewModel: ScreenViewModel {
         return gaps.filter { $0.durationMilliseconds >= 60_000 }
     }
 
-    private static func mergeIntervals(_ intervals: [StudySessionInterval]) -> [StudySessionInterval] {
+    nonisolated private static func mergeIntervals(_ intervals: [StudySessionInterval]) -> [StudySessionInterval] {
         intervals.reduce(into: [StudySessionInterval]()) { result, interval in
             guard interval.endTime > interval.startTime else { return }
             if let last = result.last, interval.startTime <= last.endTime {
@@ -243,6 +373,25 @@ final class CalendarViewModel: ScreenViewModel {
             }
         }
     }
+}
+
+struct CalendarDayDetail: Hashable {
+    var day: Int
+    var sessions: [StudySession]
+    var totalMinutes: Int
+    var summaryRows: [CalendarSummaryRow]
+    var timelineItems: [CalendarTimelineItem]
+
+    var isEmpty: Bool {
+        sessions.isEmpty && timelineItems.isEmpty
+    }
+}
+
+struct CalendarSummaryRow: Identifiable, Hashable {
+    var id: String
+    var subject: DayStudySubjectSummary
+    var material: DayStudyMaterialSummary
+    var problemPreviewText: String
 }
 
 enum CalendarTimelineItem: Identifiable, Hashable {
@@ -283,6 +432,84 @@ enum CalendarTimelineItem: Identifiable, Hashable {
         case .study(let session):
             return session.effectiveIntervals
         }
+    }
+}
+
+enum CalendarProblemLabelFormatter {
+    static func problemNumbersText(
+        for records: [ProblemSessionRecord],
+        chapters: [ProblemChapter] = [],
+        limitPerResult: Int? = nil
+    ) -> String {
+        let correct = records.filter { $0.result == .correct }.map { chapters.label(for: $0.number) }
+        let wrong = records.filter(\.isWrong).map { chapters.label(for: $0.number) }
+        let review = records.filter { $0.result == .reviewCorrect }.map { chapters.label(for: $0.number) }
+        var parts: [String] = []
+        if !wrong.isEmpty {
+            parts.append("不正解 \(compactProblemLabels(wrong, limit: limitPerResult))")
+        }
+        if !correct.isEmpty {
+            parts.append("正解 \(compactProblemLabels(correct, limit: limitPerResult))")
+        }
+        if !review.isEmpty {
+            parts.append("復習 \(compactProblemLabels(review, limit: limitPerResult))")
+        }
+        return parts.joined(separator: " / ")
+    }
+
+    static func compactProblemLabels(_ numbers: [Int], chapters: [ProblemChapter], limit: Int?) -> String {
+        let ranges = compactProblemNumberRanges(numbers.sorted(), chapters: chapters)
+        guard let limit, ranges.count > limit else {
+            return ranges.joined(separator: ", ")
+        }
+        return "\(ranges.prefix(limit).joined(separator: ", ")) +\(ranges.count - limit)"
+    }
+
+    private static func compactProblemLabels(_ labels: [String], limit: Int?) -> String {
+        guard let limit, labels.count > limit else {
+            return labels.joined(separator: ", ")
+        }
+        let visible = labels.prefix(limit).joined(separator: ", ")
+        return "\(visible) +\(labels.count - limit)"
+    }
+
+    private static func compactProblemNumberRanges(_ numbers: [Int], chapters: [ProblemChapter]) -> [String] {
+        guard let firstNumber = numbers.first else { return [] }
+        var result: [String] = []
+        var start = firstNumber
+        var previous = firstNumber
+
+        for number in numbers.dropFirst() {
+            if number == previous + 1, sameProblemChapter(start, number, chapters: chapters) {
+                previous = number
+            } else {
+                result.append(problemRangeLabel(start: start, end: previous, chapters: chapters))
+                start = number
+                previous = number
+            }
+        }
+        result.append(problemRangeLabel(start: start, end: previous, chapters: chapters))
+        return result
+    }
+
+    private static func sameProblemChapter(_ left: Int, _ right: Int, chapters: [ProblemChapter]) -> Bool {
+        guard let leftChapter = chapters.location(for: left),
+              let rightChapter = chapters.location(for: right) else {
+            return chapters.isEmpty
+        }
+        return leftChapter.chapterIndex == rightChapter.chapterIndex
+    }
+
+    private static func problemRangeLabel(start: Int, end: Int, chapters: [ProblemChapter]) -> String {
+        guard start != end else {
+            return chapters.label(for: start)
+        }
+        guard let startLocation = chapters.location(for: start),
+              let endLocation = chapters.location(for: end),
+              startLocation.chapterIndex == endLocation.chapterIndex else {
+            return "\(chapters.label(for: start))〜\(chapters.label(for: end))"
+        }
+        return "\(startLocation.chapterTitle) \(startLocation.localNumber)〜\(endLocation.localNumber)問"
     }
 }
 
