@@ -8,6 +8,7 @@ struct TimetableScreen: View {
     @State private var isCreatingTerm = false
     @State private var editorContext: TimetableEditorContext?
     @State private var reviewEditorContext: TimetableReviewOccurrence?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(app: StudyAppContainer) {
         _viewModel = StateObject(wrappedValue: TimetableViewModel(app: app))
@@ -15,6 +16,7 @@ struct TimetableScreen: View {
 
     private var calendar: Calendar { Calendar.current }
     private let weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"]
+    private var usesCompactTimetableLayout: Bool { horizontalSizeClass == .compact }
 
     private var displayYear: Int {
         calendar.component(.year, from: viewModel.displayedMonth)
@@ -31,16 +33,13 @@ struct TimetableScreen: View {
 
                 termOverview
 
-                HStack(alignment: .top, spacing: 8) {
-                    reviewCalendar
-                        .frame(maxWidth: .infinity)
-                    selectedDateLessons
-                        .frame(width: 168)
-                }
+                reviewSection
 
                 timetableGrid
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 96)
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle("時間割")
@@ -51,26 +50,20 @@ struct TimetableScreen: View {
                     isCreatingTerm = true
                     isShowingTermEditor = true
                 } label: {
-                    VStack(spacing: 1) {
-                        Image(systemName: "calendar.badge.plus")
-                            .font(.title3)
-                        Text("学期設定")
-                            .font(.caption2)
-                    }
-                    .foregroundStyle(AppColors.green)
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(AppColors.green)
+                        .frame(width: 34, height: 34)
                 }
                 .accessibilityLabel("学期設定")
 
                 Button {
                     isShowingPeriodSettings = true
                 } label: {
-                    VStack(spacing: 1) {
-                        Image(systemName: "clock.badge")
-                            .font(.title3)
-                        Text("時限設定")
-                            .font(.caption2)
-                    }
-                    .foregroundStyle(AppColors.green)
+                    Image(systemName: "clock.badge")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(AppColors.green)
+                        .frame(width: 34, height: 34)
                 }
                 .accessibilityLabel("時限設定")
             }
@@ -151,31 +144,52 @@ struct TimetableScreen: View {
     }
 
     private var timetableHeader: some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 9) {
-                Text("月〜土の授業")
-                    .font(.title3.bold())
-                    .foregroundStyle(AppColors.textPrimary)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("授業ごとの復習状況を記録できます。")
-                    Text("日付を選択して、この日の授業を確認しましょう。")
+        Group {
+            if usesCompactTimetableLayout {
+                VStack(alignment: .leading, spacing: 14) {
+                    timetableHeaderCopy
+                    HStack(spacing: 10) {
+                        TimetableOutlinedActionButton(title: "学期", systemImage: "graduationcap", expands: true) {
+                            isCreatingTerm = false
+                            isShowingTermEditor = true
+                        }
+                        TimetableOutlinedActionButton(title: "時限", systemImage: "clock", expands: true) {
+                            isShowingPeriodSettings = true
+                        }
+                    }
                 }
-                .font(.footnote)
-                .foregroundStyle(AppColors.textSecondary)
-            }
-            Spacer()
-            HStack(spacing: 10) {
-                TimetableOutlinedActionButton(title: "学期", systemImage: "graduationcap") {
-                    isCreatingTerm = false
-                    isShowingTermEditor = true
-                }
-                TimetableOutlinedActionButton(title: "時限", systemImage: "clock") {
-                    isShowingPeriodSettings = true
+            } else {
+                HStack(alignment: .center, spacing: 14) {
+                    timetableHeaderCopy
+                    Spacer()
+                    HStack(spacing: 10) {
+                        TimetableOutlinedActionButton(title: "学期", systemImage: "graduationcap") {
+                            isCreatingTerm = false
+                            isShowingTermEditor = true
+                        }
+                        TimetableOutlinedActionButton(title: "時限", systemImage: "clock") {
+                            isShowingPeriodSettings = true
+                        }
+                    }
                 }
             }
         }
         .padding(14)
         .background(TimetableCardBackground())
+    }
+
+    private var timetableHeaderCopy: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("月〜土の授業")
+                .font(.title3.bold())
+                .foregroundStyle(AppColors.textPrimary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("授業ごとの復習状況を記録できます。")
+                Text("日付を選択して、この日の授業を確認しましょう。")
+            }
+            .font(.footnote)
+            .foregroundStyle(AppColors.textSecondary)
+        }
     }
 
     private var termOverview: some View {
@@ -221,34 +235,84 @@ struct TimetableScreen: View {
                 }
             }
 
-            HStack(spacing: 12) {
-                Text("復習の進捗")
-                    .font(.subheadline.bold())
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color(.systemGray4))
-                        Capsule()
-                            .fill(AppColors.green)
-                            .frame(width: proxy.size.width * Swift.max(0, Swift.min(1, summary.completionRate)))
+            Group {
+                if usesCompactTimetableLayout {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("復習の進捗")
+                            .font(.subheadline.bold())
+                        HStack(spacing: 12) {
+                            timetableProgressBar(completionRate: summary.completionRate)
+                            timetableProgressPercent(completionRate: summary.completionRate)
+                        }
+                    }
+                } else {
+                    HStack(spacing: 12) {
+                        Text("復習の進捗")
+                            .font(.subheadline.bold())
+                        timetableProgressBar(completionRate: summary.completionRate)
+                        timetableProgressPercent(completionRate: summary.completionRate)
                     }
                 }
-                .frame(height: 8)
-                Text("\(Int((summary.completionRate * 100).rounded()))%")
-                    .font(.headline.bold())
-                    .foregroundStyle(AppColors.green)
-                    .monospacedDigit()
-                    .frame(width: 48, alignment: .trailing)
             }
 
-            HStack(spacing: 30) {
-                TimetableLegendItem(title: "復習済み", color: AppColors.green)
-                TimetableLegendItem(title: "未復習", color: AppColors.orange)
-                TimetableLegendItem(title: "対象外", color: Color(.systemGray3))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 30) {
+                    TimetableLegendItem(title: "復習済み", color: AppColors.green)
+                    TimetableLegendItem(title: "未復習", color: AppColors.orange)
+                    TimetableLegendItem(title: "対象外", color: Color(.systemGray3))
+                }
+                HStack(spacing: 16) {
+                    TimetableLegendItem(title: "復習済み", color: AppColors.green)
+                    TimetableLegendItem(title: "未復習", color: AppColors.orange)
+                    TimetableLegendItem(title: "対象外", color: Color(.systemGray3))
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    TimetableLegendItem(title: "復習済み", color: AppColors.green)
+                    TimetableLegendItem(title: "未復習", color: AppColors.orange)
+                    TimetableLegendItem(title: "対象外", color: Color(.systemGray3))
+                }
             }
         }
         .padding(14)
         .background(TimetableCardBackground())
+    }
+
+    private func timetableProgressBar(completionRate: Double) -> some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(.systemGray4))
+                Capsule()
+                    .fill(AppColors.green)
+                    .frame(width: proxy.size.width * Swift.max(0, Swift.min(1, completionRate)))
+            }
+        }
+        .frame(height: 8)
+    }
+
+    private func timetableProgressPercent(completionRate: Double) -> some View {
+        Text("\(Int((completionRate * 100).rounded()))%")
+            .font(.headline.bold())
+            .foregroundStyle(AppColors.green)
+            .monospacedDigit()
+            .frame(width: 48, alignment: .trailing)
+    }
+
+    @ViewBuilder
+    private var reviewSection: some View {
+        if usesCompactTimetableLayout {
+            VStack(alignment: .leading, spacing: 8) {
+                reviewCalendar
+                selectedDateLessons
+            }
+        } else {
+            HStack(alignment: .top, spacing: 8) {
+                reviewCalendar
+                    .frame(maxWidth: .infinity)
+                selectedDateLessons
+                    .frame(width: 220)
+            }
+        }
     }
 
     private var reviewCalendar: some View {
@@ -343,7 +407,7 @@ struct TimetableScreen: View {
                 Text(viewModel.isDateInSelectedTerm(viewModel.selectedDate) ? "この日の授業はありません" : "選択日は学期の範囲外です")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 284, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, minHeight: usesCompactTimetableLayout ? 52 : 284, alignment: .topLeading)
             } else {
                 VStack(spacing: 0) {
                     ForEach(viewModel.selectedDateOccurrences) { occurrence in
@@ -359,7 +423,7 @@ struct TimetableScreen: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .frame(minHeight: 316, alignment: .top)
+        .frame(minHeight: usesCompactTimetableLayout ? 128 : 316, alignment: .top)
         .background(TimetableCardBackground())
     }
 
@@ -372,40 +436,57 @@ struct TimetableScreen: View {
         let columns = StudyWeekday.timetableDays
         let slotMap = viewModel.entriesBySlot
 
-        return VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                TimetableCornerCell()
-                ForEach(columns) { day in
-                    TimetableDayHeader(day: day)
-                }
-            }
+        return GeometryReader { proxy in
+            let metrics = timetableGridMetrics(availableWidth: proxy.size.width)
 
-            ForEach(Array(rows)) { period in
-                HStack(spacing: 0) {
-                    TimetablePeriodHeader(period: period)
-                    ForEach(columns) { day in
-                        let entry = slotMap[TimetableSlotKey(day: day, periodId: period.id)]
-                        TimetableCell(entry: entry) {
-                            editorContext = TimetableEditorContext(term: viewModel.selectedTerm, day: day, period: period, entry: entry)
+            ScrollView(.horizontal, showsIndicators: metrics.totalWidth > proxy.size.width) {
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        TimetableCornerCell(width: metrics.periodColumnWidth, height: metrics.headerHeight)
+                        ForEach(columns) { day in
+                            TimetableDayHeader(day: day, width: metrics.dayColumnWidth, height: metrics.headerHeight)
                         }
-                        .contextMenu {
-                            if let entry {
-                                Button(role: .destructive) {
-                                    viewModel.deleteEntry(entry)
-                                } label: {
-                                    Label("削除", systemImage: "trash")
+                    }
+
+                    ForEach(Array(rows)) { period in
+                        HStack(spacing: 0) {
+                            TimetablePeriodHeader(period: period, width: metrics.periodColumnWidth, height: metrics.rowHeight)
+                            ForEach(columns) { day in
+                                let entry = slotMap[TimetableSlotKey(day: day, periodId: period.id)]
+                                TimetableCell(entry: entry, width: metrics.dayColumnWidth, height: metrics.rowHeight) {
+                                    editorContext = TimetableEditorContext(term: viewModel.selectedTerm, day: day, period: period, entry: entry)
+                                }
+                                .contextMenu {
+                                    if let entry {
+                                        Button(role: .destructive) {
+                                            viewModel.deleteEntry(entry)
+                                        } label: {
+                                            Label("削除", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
+                .frame(width: metrics.totalWidth)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color(.separator).opacity(0.28), lineWidth: 1)
+                }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color(.separator).opacity(0.28), lineWidth: 1)
-        }
+        .frame(height: timetableGridHeight)
+    }
+
+    private var timetableGridHeight: CGFloat {
+        let rowCount = viewModel.periods.prefix(6).count
+        return TimetableGridMetrics.headerHeight + CGFloat(rowCount) * TimetableGridMetrics.rowHeight
+    }
+
+    private func timetableGridMetrics(availableWidth: CGFloat) -> TimetableGridMetrics {
+        TimetableGridMetrics(availableWidth: availableWidth, isCompact: usesCompactTimetableLayout)
     }
 }
 
@@ -431,15 +512,22 @@ private struct TimetableCardBackground: View {
 private struct TimetableOutlinedActionButton: View {
     let title: String
     let systemImage: String
+    var expands = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 17, weight: .semibold))
+                Text(title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
                 .font(.subheadline.bold())
                 .foregroundStyle(AppColors.green)
                 .padding(.horizontal, 12)
-                .frame(height: 44)
+                .frame(maxWidth: expands ? .infinity : nil, minHeight: 44)
                 .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -447,6 +535,31 @@ private struct TimetableOutlinedActionButton: View {
                 }
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct TimetableGridMetrics {
+    static let headerHeight: CGFloat = 48
+    static let rowHeight: CGFloat = 86
+
+    let periodColumnWidth: CGFloat
+    let dayColumnWidth: CGFloat
+    let headerHeight = Self.headerHeight
+    let rowHeight = Self.rowHeight
+
+    init(availableWidth: CGFloat, isCompact: Bool) {
+        let dayCount = CGFloat(StudyWeekday.timetableDays.count)
+        let preferredPeriodWidth: CGFloat = isCompact ? 50 : 58
+        let preferredDayWidth: CGFloat = isCompact ? 57 : 62
+        let minimumDayWidth: CGFloat = 44
+        let fittedDayWidth = floor((availableWidth - preferredPeriodWidth) / dayCount)
+
+        periodColumnWidth = preferredPeriodWidth
+        dayColumnWidth = max(minimumDayWidth, min(preferredDayWidth, fittedDayWidth))
+    }
+
+    var totalWidth: CGFloat {
+        periodColumnWidth + dayColumnWidth * CGFloat(StudyWeekday.timetableDays.count)
     }
 }
 
@@ -541,9 +654,12 @@ private struct TimetableReviewCalendarDayCell: View {
 }
 
 private struct TimetableCornerCell: View {
+    let width: CGFloat
+    let height: CGFloat
+
     var body: some View {
         Text("")
-            .frame(width: 58, height: 48)
+            .frame(width: width, height: height)
             .background(Color(.secondarySystemGroupedBackground))
             .overlay(alignment: .trailing) {
                 Rectangle()
@@ -555,6 +671,8 @@ private struct TimetableCornerCell: View {
 
 private struct TimetablePeriodHeader: View {
     let period: TimetablePeriod
+    let width: CGFloat
+    let height: CGFloat
 
     var body: some View {
         VStack(spacing: 2) {
@@ -564,8 +682,10 @@ private struct TimetablePeriodHeader: View {
             Text(period.timeRangeText)
                 .font(.caption2)
                 .foregroundStyle(AppColors.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
         }
-        .frame(width: 58, height: 86)
+        .frame(width: width, height: height)
         .background(Color(.secondarySystemGroupedBackground))
         .overlay(alignment: .trailing) {
             Rectangle()
@@ -582,12 +702,14 @@ private struct TimetablePeriodHeader: View {
 
 private struct TimetableDayHeader: View {
     let day: StudyWeekday
+    let width: CGFloat
+    let height: CGFloat
 
     var body: some View {
         Text(day.japaneseShortTitle)
             .font(.subheadline.bold())
             .foregroundStyle(AppColors.textPrimary)
-            .frame(width: 57, height: 48)
+            .frame(width: width, height: height)
             .background(Color(.secondarySystemGroupedBackground))
             .overlay(alignment: .trailing) {
                 Rectangle()
@@ -604,6 +726,8 @@ private struct TimetableDayHeader: View {
 
 private struct TimetableCell: View {
     let entry: TimetableEntry?
+    let width: CGFloat
+    let height: CGFloat
     let action: () -> Void
 
     var body: some View {
@@ -636,7 +760,8 @@ private struct TimetableCell: View {
                         .foregroundStyle(AppColors.textSecondary)
                 }
             }
-            .frame(width: 57, height: 86)
+            .padding(.horizontal, 2)
+            .frame(width: width, height: height)
             .background(entryBackground)
             .overlay(alignment: .trailing) {
                 Rectangle()
@@ -773,4 +898,3 @@ private struct TimetableReviewOccurrenceRow: View {
         }
     }
 }
-
