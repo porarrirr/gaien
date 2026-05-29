@@ -186,6 +186,50 @@ final class AutoSyncCoordinatorTests: XCTestCase {
         )
     }
 
+    func test_schedule_whenRepositoryIsAlreadySyncing_retriesPendingRequest() async throws {
+        repository.status = authenticatedStatus(isSyncing: true)
+        dataVersion = 12
+
+        coordinator.schedule(reason: "data-version-12")
+        try await Task.sleep(nanoseconds: 2_300_000_000)
+        XCTAssertEqual(repository.syncNowCallCount, 0)
+
+        let expectation = XCTestExpectation(description: "syncNow after repository becomes idle")
+        repository.syncNowInvoked = { expectation.fulfill() }
+        repository.status = authenticatedStatus(isSyncing: false)
+
+        await fulfillment(of: [expectation], timeout: 2.0)
+        XCTAssertEqual(repository.syncNowCallCount, 1)
+        XCTAssertEqual(syncStatusChangedCount, 1)
+    }
+
+    func test_schedule_whenMultipleRequestsArriveWhileSyncing_keepsLatestDataVersion() async throws {
+        repository.status = authenticatedStatus(isSyncing: true)
+        dataVersion = 20
+        coordinator.schedule(reason: "data-version-20")
+
+        dataVersion = 21
+        coordinator.schedule(reason: "data-version-21")
+        try await Task.sleep(nanoseconds: 2_300_000_000)
+        XCTAssertEqual(repository.syncNowCallCount, 0)
+
+        let expectation = XCTestExpectation(description: "latest pending sync")
+        repository.syncNowInvoked = { expectation.fulfill() }
+        repository.status = authenticatedStatus(isSyncing: false)
+
+        await fulfillment(of: [expectation], timeout: 2.0)
+        XCTAssertEqual(repository.syncNowCallCount, 1)
+
+        repository.syncNowInvoked = nil
+        coordinator.schedule(reason: "data-version-20")
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(
+            repository.syncNowCallCount,
+            1,
+            "After syncing the latest dataVersion, repeating the same current version must be a no-op."
+        )
+    }
+
     // MARK: - Helpers
 
     private func authenticatedStatus(

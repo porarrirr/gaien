@@ -11,6 +11,7 @@ final class MaterialsViewModel: ScreenViewModel {
     @Published private(set) var isSearchingBook = false
 
     private var lastRequestedIsbn = ""
+    private var bookSearchTask: Task<Void, Never>?
 
     func load() async {
         do {
@@ -58,17 +59,38 @@ final class MaterialsViewModel: ScreenViewModel {
         }
         guard !(isSearchingBook && lastRequestedIsbn == normalizedIsbn) else { return }
 
+        bookSearchTask?.cancel()
         isSearchingBook = true
         lastRequestedIsbn = normalizedIsbn
-        perform {
-            defer { self.isSearchingBook = false }
-            let useCase = ManageMaterialsUseCase(materialRepository: self.app.materialRepo, subjectRepository: self.app.subjectRepo, bookSearchRepository: self.app.bookSearchRepo)
-            self.bookSearchResult = try await useCase.searchBook(isbn: normalizedIsbn)
-            self.isShowingBookResult = self.bookSearchResult != nil
+        bookSearchTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if self.lastRequestedIsbn == normalizedIsbn {
+                    self.isSearchingBook = false
+                    self.bookSearchTask = nil
+                }
+            }
+
+            do {
+                let useCase = ManageMaterialsUseCase(materialRepository: self.app.materialRepo, subjectRepository: self.app.subjectRepo, bookSearchRepository: self.app.bookSearchRepo)
+                let result = try await useCase.searchBook(isbn: normalizedIsbn)
+                guard !Task.isCancelled, self.lastRequestedIsbn == normalizedIsbn else { return }
+                self.bookSearchResult = result
+                self.isShowingBookResult = true
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled, self.lastRequestedIsbn == normalizedIsbn else { return }
+                self.app.present(error)
+            }
         }
     }
 
     func clearSearchResult() {
+        bookSearchTask?.cancel()
+        bookSearchTask = nil
+        isSearchingBook = false
+        lastRequestedIsbn = ""
         bookSearchResult = nil
         isShowingBookResult = false
     }
@@ -125,12 +147,11 @@ final class MaterialsViewModel: ScreenViewModel {
                     )
                 )
             } else {
-                let useCase = ManageMaterialsUseCase(materialRepository: self.app.materialRepo, subjectRepository: self.app.subjectRepo, bookSearchRepository: self.app.bookSearchRepo)
                 let nextOrder = (try await self.app.materialRepo.getAllMaterials().map(\.sortOrder).max() ?? -1) + 1
                 guard let subject = try await self.app.subjectRepo.getSubjectById(subjectId) else {
                     throw ValidationError(message: "科目を選択してください")
                 }
-                try await self.app.materialRepo.insertMaterial(
+                _ = try await self.app.materialRepo.insertMaterial(
                     Material(
                         name: trimmed,
                         subjectId: subjectId,

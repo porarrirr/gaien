@@ -12,6 +12,7 @@ final class AutoSyncCoordinator {
     private let blockedKey = "studyapp.sync.autoSyncBlockedUntilLocalChange"
     private let lastLifecycleSyncKey = "studyapp.sync.lastLifecycleAutoSyncAt"
     private let lifecycleSyncMinimumInterval: TimeInterval = 5 * 60
+    private let syncBusyRetryDelayNanoseconds: UInt64 = 500_000_000
     private var pendingRequest: (reason: String, dataVersion: Int)?
     private var isRunning = false
 
@@ -79,7 +80,11 @@ final class AutoSyncCoordinator {
                 pendingRequest = nil
                 return
             }
-            guard !syncRepository.status.isSyncing else { return }
+            guard !syncRepository.status.isSyncing else {
+                logger.log(category: .sync, message: "Auto sync delayed", details: "reason=\(request.reason) remoteSyncing=true")
+                scheduleRetryForPendingSync()
+                return
+            }
 
             pendingRequest = nil
             isRunning = true
@@ -108,6 +113,15 @@ final class AutoSyncCoordinator {
                 )
             }
             isRunning = false
+        }
+    }
+
+    private func scheduleRetryForPendingSync() {
+        delayTask?.cancel()
+        delayTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: self.syncBusyRetryDelayNanoseconds)
+            await self.runQueuedSync()
         }
     }
 

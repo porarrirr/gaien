@@ -37,6 +37,12 @@ final class SettingsViewModel: ScreenViewModel {
 
     func importBackup(from url: URL) {
         perform {
+            let didStartAccessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
             let contents = try String(contentsOf: url, encoding: .utf8)
             let useCase = ExportImportDataUseCase(repository: self.app.appDataRepo)
             let preferences = try await useCase.importJSON(contents, currentPreferences: self.app.preferences)
@@ -48,12 +54,13 @@ final class SettingsViewModel: ScreenViewModel {
 
     func deleteAllData() {
         perform {
-            try await self.app.appDataRepo.deleteAllData()
             if self.app.syncStatus.isAuthenticated {
-                try await self.app.syncRepository.importLocalDataToCloud()
+                try await self.app.syncRepository.deleteCloudDataForCurrentUser()
             } else {
                 await self.app.syncRepository.clearLocalSyncState()
             }
+            try await self.app.appDataRepo.deleteAllData()
+            await self.app.syncRepository.clearLocalSyncState()
             self.app.updateActiveTimer(nil)
             self.summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
             self.app.logger.log(category: .app, level: .warning, message: "All local data deleted")
@@ -141,16 +148,17 @@ final class SettingsViewModel: ScreenViewModel {
             }
 
             try await self.app.authRepository.reauthenticate(password: password)
+            let backupURL = try await self.writeDeletionBackup(reason: "before-account-delete")
             try await self.app.syncRepository.deleteCloudDataForCurrentUser()
+            try await self.app.authRepository.deleteAccount(password: password)
             try await self.app.appDataRepo.deleteAllData()
             await self.app.syncRepository.clearLocalSyncState()
-            try await self.app.authRepository.deleteAccount(password: password)
             self.app.refreshSyncStatus()
             self.summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
             self.app.updateActiveTimer(nil)
             self.app.bumpDataVersion(shouldScheduleAutoSync: false)
             self.app.recordManualSyncApplied()
-            self.app.logger.log(category: .auth, level: .warning, message: "Sync account and associated data deleted")
+            self.app.logger.log(category: .auth, level: .warning, message: "Sync account and associated data deleted", details: "backup=\(backupURL.lastPathComponent)")
         }
     }
 
@@ -218,6 +226,17 @@ final class SettingsViewModel: ScreenViewModel {
         app.logger.clear()
         app.logger.log(category: .app, level: .warning, message: "Debug logs cleared")
         debugLogEntries = app.logger.recentEntries()
+    }
+
+    private func writeDeletionBackup(reason: String) async throws -> URL {
+        let contents = try await ExportImportDataUseCase(repository: app.appDataRepo).exportJSON()
+        let formatter = StudyFormatters.fileSafeTimestamp
+        let fileName = "studyapp_backup_\(reason)_\(formatter.string(from: Date())).json"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        exportURL = url
+        app.logger.log(category: .app, level: .warning, message: "Deletion backup created", details: "file=\(url.lastPathComponent)")
+        return url
     }
 
     private func normalizedAuthEmail(_ value: String) -> String {

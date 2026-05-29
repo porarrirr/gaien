@@ -61,7 +61,7 @@ struct SettingsScreen: View {
                 }
                 Button("キャンセル", role: .cancel) {}
             } message: {
-                Text("学習記録、教材、科目、試験、計画データが削除されます。設定は保持します。")
+                Text(deleteAllDataConfirmationMessage)
             }
             .alert("アカウントを削除しますか？", isPresented: $isShowingAccountDeletionConfirmation) {
                 SecureField("現在のパスワード", text: $viewModel.accountDeletionPassword)
@@ -739,6 +739,13 @@ struct SettingsScreen: View {
         let hours = viewModel.summary.totalStudyMinutes / 60
         let minutes = viewModel.summary.totalStudyMinutes % 60
         return "\(formattedCount(hours)) 時間 \(minutes) 分"
+    }
+
+    private var deleteAllDataConfirmationMessage: String {
+        if viewModel.app.syncStatus.isAuthenticated {
+            return "学習記録、教材、科目、試験、計画データとクラウド上の同期データが削除されます。設定は保持します。"
+        }
+        return "学習記録、教材、科目、試験、計画データが削除されます。設定は保持します。"
     }
 
     private func formattedCount(_ value: Int) -> String {
