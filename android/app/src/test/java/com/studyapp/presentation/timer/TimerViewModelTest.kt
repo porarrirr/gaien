@@ -1,23 +1,12 @@
 package com.studyapp.presentation.timer
 
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.just
-import io.mockk.mockk
-import io.mockk.runs
-import io.mockk.verify
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
 import com.studyapp.domain.model.AppPreferences
+import com.studyapp.domain.model.LandscapeTimerDisplayPreset
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.ProblemResult
+import com.studyapp.domain.model.ProblemSessionRecord
+import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.StudySessionType
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.repository.AppPreferencesRepository
@@ -29,33 +18,39 @@ import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.domain.usecase.TimerServiceManager
 import com.studyapp.domain.usecase.TimerStopResult
 import com.studyapp.domain.util.Result
-import org.junit.After
-import org.junit.Assert.*
-import org.junit.Before
+import com.studyapp.testutil.MainDispatcherRule
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockk
+import io.mockk.runs
+import io.mockk.slot
+import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TimerViewModelTest {
-    
-    private val testDispatcher = StandardTestDispatcher()
-    
-    private lateinit var subjectRepository: SubjectRepository
-    private lateinit var materialRepository: MaterialRepository
-    private lateinit var saveStudySessionUseCase: SaveStudySessionUseCase
-    private lateinit var getRecentMaterialsUseCase: GetRecentMaterialsUseCase
-    private lateinit var timerServiceManager: TimerServiceManager
-    private lateinit var appPreferencesRepository: AppPreferencesRepository
-    private lateinit var viewModel: TimerViewModel
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
 
-    private fun createViewModel(): TimerViewModel = TimerViewModel(
-        subjectRepository = subjectRepository,
-        materialRepository = materialRepository,
-        saveStudySessionUseCase = saveStudySessionUseCase,
-        getRecentMaterialsUseCase = getRecentMaterialsUseCase,
-        timerServiceManager = timerServiceManager,
-        appPreferencesRepository = appPreferencesRepository
-    )
-    
+    private val subjectRepository = mockk<SubjectRepository>()
+    private val materialRepository = mockk<MaterialRepository>()
+    private val saveStudySessionUseCase = mockk<SaveStudySessionUseCase>()
+    private val getRecentMaterialsUseCase = mockk<GetRecentMaterialsUseCase>()
+    private val timerServiceManager = mockk<TimerServiceManager>(relaxed = true)
+    private val appPreferencesRepository = mockk<AppPreferencesRepository>()
+
     private val elapsedTimeFlow = MutableStateFlow(0L)
     private val remainingTimeFlow = MutableStateFlow(0L)
     private val isRunningFlow = MutableStateFlow(false)
@@ -66,24 +61,249 @@ class TimerViewModelTest {
     private val currentMaterialSyncIdFlow = MutableStateFlow<String?>(null)
     private val currentModeFlow = MutableStateFlow(TimerMode.STOPWATCH)
     private val currentTargetDurationMillisFlow = MutableStateFlow<Long?>(null)
-    
-    @Before
-    fun setup() {
-        Dispatchers.setMain(testDispatcher)
-        
-        subjectRepository = mockk()
-        materialRepository = mockk()
-        saveStudySessionUseCase = mockk()
-        getRecentMaterialsUseCase = mockk()
-        timerServiceManager = mockk(relaxed = true)
-        appPreferencesRepository = mockk(relaxed = true)
 
-        every { appPreferencesRepository.observePreferences() } returns flowOf(AppPreferences())
-        coEvery { appPreferencesRepository.loadPreferences() } returns AppPreferences()
-        every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(emptyList()))
-        every { materialRepository.getAllMaterials() } returns flowOf(Result.Success(emptyList()))
-        every { getRecentMaterialsUseCase() } returns flowOf(emptyList())
-        
+    @Test
+    fun `loadData maps repositories preferences service state and binds service`() = runTest {
+        val math = subject(1, "Math")
+        val english = subject(2, "English")
+        val textbook = material(10, "Textbook", 1)
+        val workbook = material(20, "Workbook", 2)
+        currentSubjectSyncIdFlow.value = english.syncId
+        currentMaterialSyncIdFlow.value = workbook.syncId
+        currentModeFlow.value = TimerMode.TIMER
+        currentTargetDurationMillisFlow.value = 15 * 60_000L
+        isBoundFlow.value = true
+        stubDefaults(
+            subjects = listOf(math, english),
+            materials = listOf(textbook, workbook),
+            recent = listOf(textbook to math),
+            preferences = AppPreferences(landscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.CLOCK_ONLY)
+        )
+
+        val viewModel = createViewModel()
+        advance()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoading)
+        assertEquals(listOf(math, english), state.subjects)
+        assertEquals(listOf(textbook), state.materialsBySubject[1])
+        assertEquals(listOf(textbook to math), state.recentMaterials)
+        assertEquals(english, state.selectedSubject)
+        assertEquals(workbook, state.selectedMaterial)
+        assertEquals(TimerMode.TIMER, state.timerMode)
+        assertEquals(15, state.countdownMinutes)
+        assertEquals(LandscapeTimerDisplayPreset.CLOCK_ONLY, state.landscapeTimerDisplayPreset)
+        assertTrue(state.isServiceBound)
+        verify(exactly = 1) { timerServiceManager.bind() }
+    }
+
+    @Test
+    fun `startTimer requires subject and exposes error without calling service`() = runTest {
+        stubDefaults()
+        val viewModel = createViewModel()
+        advance()
+
+        viewModel.startTimer()
+
+        assertEquals("科目を選択してください", viewModel.uiState.value.error)
+        verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `startTimer supports subject only timer mode with countdown target`() = runTest {
+        val math = subject(1, "Math")
+        stubDefaults(subjects = listOf(math), preferences = AppPreferences(focusModePromptOnTimerStart = false))
+        val viewModel = createViewModel()
+        advance()
+
+        viewModel.selectSubject(math)
+        viewModel.setTimerMode(TimerMode.TIMER)
+        viewModel.setCountdownMinutes(15)
+        viewModel.startTimer()
+
+        verify {
+            timerServiceManager.startTimer(
+                subjectId = 1,
+                subjectSyncId = "subject-1",
+                materialId = null,
+                materialSyncId = null,
+                mode = TimerMode.TIMER,
+                targetDurationMillis = 15 * 60_000L
+            )
+        }
+    }
+
+    @Test
+    fun `running timer blocks mode and countdown changes`() = runTest {
+        stubDefaults()
+        val viewModel = createViewModel()
+        advance()
+        isRunningFlow.value = true
+        advance()
+
+        viewModel.setTimerMode(TimerMode.TIMER)
+        assertEquals(TimerMode.STOPWATCH, viewModel.uiState.value.timerMode)
+        assertEquals("実行中はタイマー種別を変更できません", viewModel.uiState.value.error)
+
+        viewModel.clearError()
+        viewModel.setCountdownMinutes(10)
+        assertEquals(25, viewModel.uiState.value.countdownMinutes)
+        assertEquals("実行中は時間を変更できません", viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `service flows update timer state`() = runTest {
+        stubDefaults()
+        val viewModel = createViewModel()
+        advance()
+
+        elapsedTimeFlow.value = 30_000
+        remainingTimeFlow.value = 90_000
+        isRunningFlow.value = true
+        isBoundFlow.value = true
+        advance()
+
+        assertEquals(30_000L, viewModel.uiState.value.elapsedTime)
+        assertEquals(90_000L, viewModel.uiState.value.remainingTime)
+        assertTrue(viewModel.uiState.value.isRunning)
+        assertTrue(viewModel.uiState.value.isServiceBound)
+    }
+
+    @Test
+    fun `stopTimer creates pending evaluation and save persists enriched session`() = runTest {
+        val math = subject(1, "Math")
+        val textbook = material(10, "Textbook", 1)
+        val captured = slot<StudySession>()
+        stubDefaults(subjects = listOf(math), materials = listOf(textbook))
+        every { timerServiceManager.stopTimer() } returns TimerStopResult(
+            elapsed = 60_000,
+            materialId = 10,
+            intervals = listOf(StudySessionInterval(1_000, 61_000)),
+            sessionType = StudySessionType.STOPWATCH
+        )
+        coEvery { saveStudySessionUseCase(capture(captured)) } returns Result.Success(42)
+        val viewModel = createViewModel()
+        advance()
+
+        viewModel.selectMaterial(textbook, math)
+        viewModel.stopTimer()
+        advance()
+
+        assertNotNull(viewModel.uiState.value.pendingSessionEvaluation)
+
+        viewModel.savePendingSessionEvaluation(
+            rating = 4,
+            note = "  good focus  ",
+            problemRecords = listOf(ProblemSessionRecord(3, ProblemResult.WRONG)),
+            problemStart = null,
+            problemEnd = null,
+            wrongProblemCount = null
+        )
+        advance()
+
+        val saved = captured.captured
+        assertEquals(1L, saved.subjectId)
+        assertEquals(10L, saved.materialId)
+        assertEquals(60_000L, saved.duration)
+        assertEquals(4, saved.rating)
+        assertEquals("  good focus  ", saved.note)
+        assertEquals(3, saved.problemStart)
+        assertEquals(3, saved.problemEnd)
+        assertEquals(1, saved.wrongProblemCount)
+        assertEquals(listOf("3"), saved.problemRecords.map { it.stableKey })
+        assertNull(viewModel.uiState.value.pendingSessionEvaluation)
+        assertEquals(0L, viewModel.uiState.value.elapsedTime)
+    }
+
+    @Test
+    fun `cancelPendingSessionEvaluation saves original pending session without rating`() = runTest {
+        val math = subject(1, "Math")
+        val captured = slot<StudySession>()
+        stubDefaults(subjects = listOf(math))
+        every { timerServiceManager.stopTimer() } returns TimerStopResult(
+            elapsed = 30_000,
+            materialId = null,
+            intervals = emptyList(),
+            sessionType = StudySessionType.STOPWATCH
+        )
+        coEvery { saveStudySessionUseCase(capture(captured)) } returns Result.Success(1)
+        val viewModel = createViewModel()
+        advance()
+
+        viewModel.selectSubject(math)
+        viewModel.stopTimer()
+        advance()
+        viewModel.cancelPendingSessionEvaluation()
+        advance()
+
+        assertNull(captured.captured.rating)
+        assertNull(captured.captured.note)
+        assertNull(viewModel.uiState.value.pendingSessionEvaluation)
+    }
+
+    @Test
+    fun `problem count clamps records and toggle cycles tile state`() = runTest {
+        stubDefaults()
+        val viewModel = createViewModel()
+        advance()
+
+        viewModel.setProblemCount(250)
+        assertEquals(200, viewModel.uiState.value.problemCount)
+        assertEquals(200, viewModel.uiState.value.problemStates.size)
+
+        viewModel.toggleProblemState(3)
+        assertEquals(ProblemTileState.CORRECT, viewModel.uiState.value.problemStates[3])
+        viewModel.toggleProblemState(3)
+        assertEquals(ProblemTileState.WRONG, viewModel.uiState.value.problemStates[3])
+        viewModel.toggleProblemState(3)
+        assertEquals(ProblemTileState.UNTOUCHED, viewModel.uiState.value.problemStates[3])
+
+        viewModel.setProblemCount(2)
+        assertEquals(2, viewModel.uiState.value.problemCount)
+        assertFalse(viewModel.uiState.value.problemStates.containsKey(3))
+    }
+
+    @Test
+    fun `saveManualEntry validates time range before use case call`() = runTest {
+        stubDefaults()
+        val viewModel = createViewModel()
+        advance()
+
+        viewModel.saveManualEntry(subjectId = 1, materialId = null, startTime = 2_000, endTime = 1_000)
+        advance()
+
+        assertEquals("終了時刻は開始時刻より後にしてください", viewModel.uiState.value.error)
+        coVerify(exactly = 0) {
+            saveStudySessionUseCase(
+                subjectId = any<Long>(),
+                materialId = any(),
+                duration = any<Long>(),
+                intervals = any(),
+                sessionType = any()
+            )
+        }
+    }
+
+    private fun createViewModel(): TimerViewModel = TimerViewModel(
+        subjectRepository = subjectRepository,
+        materialRepository = materialRepository,
+        saveStudySessionUseCase = saveStudySessionUseCase,
+        getRecentMaterialsUseCase = getRecentMaterialsUseCase,
+        timerServiceManager = timerServiceManager,
+        appPreferencesRepository = appPreferencesRepository
+    )
+
+    private fun stubDefaults(
+        subjects: List<Subject> = emptyList(),
+        materials: List<Material> = emptyList(),
+        recent: List<Pair<Material, Subject>> = emptyList(),
+        preferences: AppPreferences = AppPreferences()
+    ) {
+        every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(subjects))
+        every { materialRepository.getAllMaterials() } returns flowOf(Result.Success(materials))
+        every { getRecentMaterialsUseCase() } returns flowOf(recent)
+        every { appPreferencesRepository.observePreferences() } returns flowOf(preferences)
+        every { appPreferencesRepository.loadPreferences() } returns preferences
         every { timerServiceManager.elapsedTime } returns elapsedTimeFlow
         every { timerServiceManager.remainingTime } returns remainingTimeFlow
         every { timerServiceManager.isRunning } returns isRunningFlow
@@ -96,509 +316,24 @@ class TimerViewModelTest {
         every { timerServiceManager.currentTargetDurationMillis } returns currentTargetDurationMillisFlow
         every { timerServiceManager.bind() } just runs
         every { timerServiceManager.unbind() } just runs
-        
-        viewModel = createViewModel()
-    }
-    
-    @After
-    fun tearDown() {
-        Dispatchers.resetMain()
-    }
-    
-    @Test
-    fun `initial state is loading`() = runTest {
-        val state = viewModel.uiState.value
-        assertTrue(state.isLoading)
-        assertNull(state.error)
-    }
-    
-    @Test
-    fun `initial state is not running`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertFalse(viewModel.uiState.value.isRunning)
-    }
-    
-    @Test
-    fun `initial state has zero elapsed time`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertEquals(0L, viewModel.uiState.value.elapsedTime)
-    }
-    
-    @Test
-    fun `initial state has empty subjects list`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertTrue(viewModel.uiState.value.subjects.isEmpty())
-    }
-    
-    @Test
-    fun `loadData emits success state`() = runTest {
-        val subjects = listOf(
-            Subject(id = 1L, name = "Math", color = 0xFF0000.toInt()),
-            Subject(id = 2L, name = "English", color = 0x00FF00.toInt())
-        )
-        val materials = listOf(
-            Material(id = 1L, name = "Textbook", subjectId = 1L),
-            Material(id = 2L, name = "Workbook", subjectId = 1L)
-        )
-        
-        every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(subjects))
-        every { materialRepository.getAllMaterials() } returns flowOf(Result.Success(materials))
-        every { getRecentMaterialsUseCase() } returns flowOf(emptyList())
-        
-        viewModel = createViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        val state = viewModel.uiState.value
-        assertFalse(state.isLoading)
-        assertNull(state.error)
-        assertEquals(2, state.subjects.size)
-        assertEquals("Math", state.subjects.first().name)
-        
-        verify { subjectRepository.getAllSubjects() }
-        verify { materialRepository.getAllMaterials() }
-        verify { getRecentMaterialsUseCase() }
-    }
-    
-    @Test
-    fun `loadData emits error state on failure`() = runTest {
-        val exception = RuntimeException("Database error")
-        every { subjectRepository.getAllSubjects() } returns flow { throw exception }
-        
-        viewModel = createViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        val state = viewModel.uiState.value
-        assertFalse(state.isLoading)
-        assertNotNull(state.error)
-        assertEquals("Database error", state.error)
-    }
-    
-    @Test
-    fun `subjects are loaded from repository`() = runTest {
-        val subjects = listOf(
-            Subject(id = 1L, name = "Math", color = 0xFF0000.toInt()),
-            Subject(id = 2L, name = "English", color = 0x00FF00.toInt())
-        )
-        
-        every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(subjects))
-        
-        viewModel = createViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertEquals(2, viewModel.uiState.value.subjects.size)
-        assertEquals("Math", viewModel.uiState.value.subjects.first().name)
-    }
-    
-    @Test
-    fun `selectMaterial updates selected material and subject`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        val material = Material(id = 1L, name = "Textbook", subjectId = 1L)
-        
-        viewModel.selectMaterial(material, subject)
-        
-        assertEquals(material, viewModel.uiState.value.selectedMaterial)
-        assertEquals(subject, viewModel.uiState.value.selectedSubject)
     }
 
-    @Test
-    fun `selectSubject updates subject without requiring material`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-
-        viewModel.selectSubject(subject)
-
-        assertEquals(subject, viewModel.uiState.value.selectedSubject)
-        assertNull(viewModel.uiState.value.selectedMaterial)
+    private fun advance() {
+        mainDispatcherRule.dispatcher.scheduler.advanceUntilIdle()
     }
 
-    @Test
-    fun `selectSubject clears material when material belongs to another subject`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
+    private fun subject(id: Long, name: String) = Subject(
+        id = id,
+        syncId = "subject-$id",
+        name = name,
+        color = id.toInt()
+    )
 
-        val math = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        val english = Subject(id = 2L, name = "English", color = 0x00FF00.toInt())
-        val material = Material(id = 1L, name = "Textbook", subjectId = 1L)
-
-        viewModel.selectMaterial(material, math)
-        viewModel.selectSubject(english)
-
-        assertEquals(english, viewModel.uiState.value.selectedSubject)
-        assertNull(viewModel.uiState.value.selectedMaterial)
-    }
-    
-    @Test
-    fun `materials are grouped by subject`() = runTest {
-        val materials = listOf(
-            Material(id = 1L, name = "Textbook 1", subjectId = 1L),
-            Material(id = 2L, name = "Textbook 2", subjectId = 1L),
-            Material(id = 3L, name = "Workbook", subjectId = 2L)
-        )
-        
-        every { materialRepository.getAllMaterials() } returns flowOf(Result.Success(materials))
-        
-        viewModel = createViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertEquals(2, viewModel.uiState.value.materialsBySubject[1L]?.size)
-        assertEquals(1, viewModel.uiState.value.materialsBySubject[2L]?.size)
-    }
-    
-    @Test
-    fun `startTimer calls service manager with correct parameters`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        val material = Material(id = 1L, name = "Textbook", subjectId = 1L)
-        
-        viewModel.selectMaterial(material, subject)
-        
-        every {
-            timerServiceManager.startTimer(1L, subject.syncId, 1L, material.syncId, TimerMode.STOPWATCH, null)
-        } just runs
-        
-        viewModel.startTimer()
-        
-        verify {
-            timerServiceManager.startTimer(
-                subjectId = 1L,
-                subjectSyncId = subject.syncId,
-                materialId = 1L,
-                materialSyncId = material.syncId,
-                mode = TimerMode.STOPWATCH,
-                targetDurationMillis = null
-            )
-        }
-    }
-
-    @Test
-    fun `startTimer works when only subject is selected`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        viewModel.selectSubject(subject)
-
-        every {
-            timerServiceManager.startTimer(1L, subject.syncId, null, null, TimerMode.STOPWATCH, null)
-        } just runs
-
-        viewModel.startTimer()
-
-        verify {
-            timerServiceManager.startTimer(
-                subjectId = 1L,
-                subjectSyncId = subject.syncId,
-                materialId = null,
-                materialSyncId = null,
-                mode = TimerMode.STOPWATCH,
-                targetDurationMillis = null
-            )
-        }
-    }
-    
-    @Test
-    fun `startTimer does nothing when already running`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        val material = Material(id = 1L, name = "Textbook", subjectId = 1L)
-        
-        viewModel.selectMaterial(material, subject)
-        
-        isRunningFlow.value = true
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        viewModel.startTimer()
-        
-        verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any(), any(), any()) }
-    }
-    
-    @Test
-    fun `startTimer does nothing when no subject selected`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        viewModel.startTimer()
-        
-        verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any(), any(), any()) }
-    }
-    
-    @Test
-    fun `pauseTimer calls service manager`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        viewModel.pauseTimer()
-        
-        verify { timerServiceManager.pauseTimer() }
-    }
-    
-    @Test
-    fun `stopTimer saves session when elapsed time is positive`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        val material = Material(id = 1L, name = "Textbook", subjectId = 1L)
-        
-        viewModel.selectMaterial(material, subject)
-        
-        every { timerServiceManager.stopTimer() } returns TimerStopResult(
-            elapsed = 60000L,
-            materialId = 1L,
-            intervals = emptyList(),
-            sessionType = StudySessionType.STOPWATCH
-        )
-        coEvery {
-            saveStudySessionUseCase(any<com.studyapp.domain.model.StudySession>())
-        } returns Result.Success(1L)
-
-        viewModel.stopTimer()
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        assertNotNull(viewModel.uiState.value.pendingSessionEvaluation)
-        viewModel.savePendingSessionEvaluation(
-            rating = 4,
-            note = null,
-            problemRecords = emptyList(),
-            problemStart = null,
-            problemEnd = null,
-            wrongProblemCount = null
-        )
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify {
-            saveStudySessionUseCase(match { session ->
-                session.subjectId == 1L &&
-                    session.materialId == 1L &&
-                    session.duration == 60000L &&
-                    session.sessionType == StudySessionType.STOPWATCH
-            })
-        }
-        assertFalse(viewModel.uiState.value.isRunning)
-        assertEquals(0L, viewModel.uiState.value.elapsedTime)
-        assertNull(viewModel.uiState.value.pendingSessionEvaluation)
-    }
-    
-    @Test
-    fun `stopTimer does not save session when elapsed time is zero`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        val material = Material(id = 1L, name = "Textbook", subjectId = 1L)
-        
-        viewModel.selectMaterial(material, subject)
-        
-        every { timerServiceManager.stopTimer() } returns TimerStopResult(
-            elapsed = 0L,
-            materialId = null,
-            intervals = emptyList(),
-            sessionType = StudySessionType.STOPWATCH
-        )
-        
-        viewModel.stopTimer()
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        coVerify(exactly = 0) {
-            saveStudySessionUseCase(
-                subjectId = any<Long>(),
-                materialId = any(),
-                duration = any<Long>(),
-                intervals = any(),
-                sessionType = any()
-            )
-        }
-    }
-    
-    @Test
-    fun `stopTimer does not save session when no subject selected`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        every { timerServiceManager.stopTimer() } returns TimerStopResult(
-            elapsed = 60000L,
-            materialId = null,
-            intervals = emptyList(),
-            sessionType = StudySessionType.STOPWATCH
-        )
-        
-        viewModel.stopTimer()
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        coVerify(exactly = 0) {
-            saveStudySessionUseCase(
-                subjectId = any<Long>(),
-                materialId = any(),
-                duration = any<Long>(),
-                intervals = any(),
-                sessionType = any()
-            )
-        }
-    }
-    
-    @Test
-    fun `stopTimer handles save error`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        val material = Material(id = 1L, name = "Textbook", subjectId = 1L)
-        
-        viewModel.selectMaterial(material, subject)
-        
-        every { timerServiceManager.stopTimer() } returns TimerStopResult(
-            elapsed = 60000L,
-            materialId = 1L,
-            intervals = emptyList(),
-            sessionType = StudySessionType.STOPWATCH
-        )
-        coEvery {
-            saveStudySessionUseCase(any<com.studyapp.domain.model.StudySession>())
-        } returns Result.Error(RuntimeException("Save failed"), "保存に失敗しました")
-
-        viewModel.stopTimer()
-        testDispatcher.scheduler.advanceUntilIdle()
-        viewModel.savePendingSessionEvaluation(
-            rating = 0,
-            note = null,
-            problemRecords = emptyList(),
-            problemStart = null,
-            problemEnd = null,
-            wrongProblemCount = null
-        )
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        assertNotNull(viewModel.uiState.value.error)
-        assertEquals("保存に失敗しました", viewModel.uiState.value.error)
-    }
-    
-    @Test
-    fun `saveManualEntry calls saveStudySessionUseCase with correct duration`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        val startTime = 1_000L
-        val endTime = 61_000L
-
-        coEvery { saveStudySessionUseCase(1L, 2L, 60000L, any(), StudySessionType.MANUAL) } returns Result.Success(1L)
-
-        viewModel.saveManualEntry(subjectId = 1L, materialId = 2L, startTime = startTime, endTime = endTime)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify {
-            saveStudySessionUseCase(
-                subjectId = 1L,
-                materialId = 2L,
-                duration = 60000L,
-                intervals = any(),
-                sessionType = StudySessionType.MANUAL
-            )
-        }
-    }
-    
-    @Test
-    fun `saveManualEntry handles error`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coEvery {
-            saveStudySessionUseCase(1L, null, 300000L, any(), StudySessionType.MANUAL)
-        } returns Result.Error(RuntimeException("Error"), "保存エラー")
-
-        viewModel.saveManualEntry(subjectId = 1L, materialId = null, startTime = 0L, endTime = 300000L)
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertNotNull(viewModel.uiState.value.error)
-    }
-    
-    @Test
-    fun `elapsedTime updates from service manager`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        elapsedTimeFlow.value = 30000L
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertEquals(30000L, viewModel.uiState.value.elapsedTime)
-        
-        elapsedTimeFlow.value = 60000L
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertEquals(60000L, viewModel.uiState.value.elapsedTime)
-    }
-    
-    @Test
-    fun `isRunning updates from service manager`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertFalse(viewModel.uiState.value.isRunning)
-        
-        isRunningFlow.value = true
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertTrue(viewModel.uiState.value.isRunning)
-    }
-    
-    @Test
-    fun `isServiceBound updates from service manager`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertFalse(viewModel.uiState.value.isServiceBound)
-        
-        isBoundFlow.value = true
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertTrue(viewModel.uiState.value.isServiceBound)
-    }
-    
-    @Test
-    fun `clearError removes error from state`() = runTest {
-        val exception = RuntimeException("Test error")
-        every { subjectRepository.getAllSubjects() } returns flow { throw exception }
-        
-        viewModel = createViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        assertNotNull(viewModel.uiState.value.error)
-        
-        viewModel.clearError()
-        
-        assertNull(viewModel.uiState.value.error)
-    }
-    
-    @Test
-    fun `recent materials are loaded from use case`() = runTest {
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        val material = Material(id = 1L, name = "Textbook", subjectId = 1L)
-        val recentMaterials = listOf(material to subject)
-        
-        every { getRecentMaterialsUseCase() } returns flowOf(recentMaterials)
-        
-        viewModel = createViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        
-        val state = viewModel.uiState.value
-        assertEquals(1, state.recentMaterials.size)
-        assertEquals("Textbook", state.recentMaterials.first().first.name)
-        assertEquals("Math", state.recentMaterials.first().second.name)
-    }
-
-    @Test
-    fun `active timer selection is restored from service manager state`() = runTest {
-        val subject = Subject(id = 1L, name = "Math", color = 0xFF0000.toInt())
-        val material = Material(id = 2L, name = "Workbook", subjectId = 1L)
-
-        every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(listOf(subject)))
-        every { materialRepository.getAllMaterials() } returns flowOf(Result.Success(listOf(material)))
-        currentSubjectIdFlow.value = subject.id
-        currentMaterialIdFlow.value = material.id
-
-        viewModel = createViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        assertEquals(subject, viewModel.uiState.value.selectedSubject)
-        assertEquals(material, viewModel.uiState.value.selectedMaterial)
-    }
-    
-    @Test
-    fun `bindToService is called on init`() = runTest {
-        verify { timerServiceManager.bind() }
-    }
+    private fun material(id: Long, name: String, subjectId: Long) = Material(
+        id = id,
+        syncId = "material-$id",
+        name = name,
+        subjectId = subjectId,
+        subjectSyncId = "subject-$subjectId"
+    )
 }

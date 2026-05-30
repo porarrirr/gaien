@@ -1,17 +1,24 @@
 import Foundation
 
 struct Clock {
+    private let nowProvider: () -> Date
+
+    init(nowProvider: @escaping () -> Date = Date.init) {
+        self.nowProvider = nowProvider
+    }
+
     func now() -> Date {
-        Date()
+        nowProvider()
     }
 
-    func startOfToday(reference: Date = Date()) -> Int64 {
-        Calendar.current.startOfDay(for: reference).epochMilliseconds
+    func startOfToday(reference: Date? = nil) -> Int64 {
+        Calendar.current.startOfDay(for: reference ?? now()).epochMilliseconds
     }
 
-    func startOfWeek(reference: Date = Date()) -> Int64 {
-        let interval = Calendar.current.dateInterval(of: .weekOfYear, for: reference)
-        return (interval?.start ?? Calendar.current.startOfDay(for: reference)).epochMilliseconds
+    func startOfWeek(reference: Date? = nil) -> Int64 {
+        let value = reference ?? now()
+        let interval = Calendar.current.dateInterval(of: .weekOfYear, for: value)
+        return (interval?.start ?? Calendar.current.startOfDay(for: value)).epochMilliseconds
     }
 }
 

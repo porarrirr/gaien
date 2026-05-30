@@ -133,14 +133,14 @@ class GetReportsDataUseCase @Inject constructor(
         var streak = 0
         var currentDate = clock.startOfToday()
         
-        repeat(MAX_STREAK_DAYS) {
+        for (i in 0 until MAX_STREAK_DAYS) {
             val sessions = getSessionsBetween(currentDate, currentDate + DAY_MS)
             
             if (sessions.isNotEmpty()) {
                 streak++
                 currentDate -= DAY_MS
             } else {
-                return@repeat
+                break
             }
         }
         

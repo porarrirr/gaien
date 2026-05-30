@@ -320,13 +320,20 @@ class TimerViewModel @Inject constructor(
         wrongProblemCount: Int?
     ) {
         val pending = _uiState.value.pendingSessionEvaluation ?: return
+        val sortedProblemRecords = problemRecords.sortedWith(
+            compareBy<ProblemSessionRecord> { it.number }.thenBy { it.normalizedSubNumber ?: "" }
+        )
         val session = pending.session.copy(
             rating = rating,
             note = note?.takeIf { it.isNotBlank() },
-            problemRecords = problemRecords,
-            problemStart = problemStart,
-            problemEnd = problemEnd,
-            wrongProblemCount = wrongProblemCount,
+            problemRecords = sortedProblemRecords,
+            problemStart = sortedProblemRecords.firstOrNull()?.number ?: problemStart,
+            problemEnd = sortedProblemRecords.lastOrNull()?.number ?: problemEnd,
+            wrongProblemCount = if (sortedProblemRecords.isEmpty()) {
+                wrongProblemCount
+            } else {
+                sortedProblemRecords.count { it.result == com.studyapp.domain.model.ProblemResult.WRONG }
+            },
             updatedAt = System.currentTimeMillis()
         )
         _uiState.update { it.copy(pendingSessionEvaluation = null) }

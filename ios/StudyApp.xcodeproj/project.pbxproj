@@ -130,6 +130,12 @@
 		A30000000000000000000081 /* TimerAmbientModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000081 /* TimerAmbientModels.swift */; };
 		A30000000000000000000082 /* AppPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000082 /* AppPreferencesTests.swift */; };
 		A30000000000000000000083 /* CalendarDayDetailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000083 /* CalendarDayDetailTests.swift */; };
+		A30000000000000000000090 /* UseCaseTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000090 /* UseCaseTestDoubles.swift */; };
+		A30000000000000000000091 /* GetReportsDataUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000091 /* GetReportsDataUseCaseTests.swift */; };
+		A30000000000000000000092 /* GetHomeDataUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000092 /* GetHomeDataUseCaseTests.swift */; };
+		A30000000000000000000093 /* SaveStudySessionUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000093 /* SaveStudySessionUseCaseTests.swift */; };
+		A30000000000000000000094 /* ManageGoalsUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000094 /* ManageGoalsUseCaseTests.swift */; };
+		A30000000000000000000095 /* ManagePlansUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000095 /* ManagePlansUseCaseTests.swift */; };
 		A40000000000000000000001 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
 		A40000000000000000000002 /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* Subject.swift */; };
 		A40000000000000000000003 /* SupportingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000003 /* SupportingModels.swift */; };
@@ -330,6 +336,12 @@
 		B30000000000000000000081 /* TimerAmbientModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientModels.swift; sourceTree = "<group>"; };
 		B30000000000000000000082 /* AppPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000083 /* CalendarDayDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayDetailTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000090 /* UseCaseTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseCaseTestDoubles.swift; sourceTree = "<group>"; };
+		B30000000000000000000091 /* GetReportsDataUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetReportsDataUseCaseTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000092 /* GetHomeDataUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetHomeDataUseCaseTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000093 /* SaveStudySessionUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveStudySessionUseCaseTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000094 /* ManageGoalsUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageGoalsUseCaseTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000095 /* ManagePlansUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePlansUseCaseTests.swift; sourceTree = "<group>"; };
 		B40000000000000000000001 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
 		B40000000000000000000002 /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		B40000000000000000000003 /* SupportingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportingModels.swift; sourceTree = "<group>"; };
@@ -810,6 +822,12 @@
 				B30000000000000000000082 /* AppPreferencesTests.swift */,
 				B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */,
 				B30000000000000000000057 /* SyncDeltaSerializerTests.swift */,
+				B30000000000000000000090 /* UseCaseTestDoubles.swift */,
+				B30000000000000000000091 /* GetReportsDataUseCaseTests.swift */,
+				B30000000000000000000092 /* GetHomeDataUseCaseTests.swift */,
+				B30000000000000000000093 /* SaveStudySessionUseCaseTests.swift */,
+				B30000000000000000000094 /* ManageGoalsUseCaseTests.swift */,
+				B30000000000000000000095 /* ManagePlansUseCaseTests.swift */,
 			);
 			path = StudyAppTests;
 			sourceTree = "<group>";
@@ -1158,6 +1176,12 @@
 				A30000000000000000000082 /* AppPreferencesTests.swift in Sources */,
 				A30000000000000000000056 /* GoalCollectionExtensionsTests.swift in Sources */,
 				A30000000000000000000057 /* SyncDeltaSerializerTests.swift in Sources */,
+				A30000000000000000000090 /* UseCaseTestDoubles.swift in Sources */,
+				A30000000000000000000091 /* GetReportsDataUseCaseTests.swift in Sources */,
+				A30000000000000000000092 /* GetHomeDataUseCaseTests.swift in Sources */,
+				A30000000000000000000093 /* SaveStudySessionUseCaseTests.swift in Sources */,
+				A30000000000000000000094 /* ManageGoalsUseCaseTests.swift in Sources */,
+				A30000000000000000000095 /* ManagePlansUseCaseTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

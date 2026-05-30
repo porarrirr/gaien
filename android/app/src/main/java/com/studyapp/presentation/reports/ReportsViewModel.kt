@@ -125,11 +125,9 @@ class ReportsViewModel @Inject constructor(
                 is Result.Success -> result.data
                 is Result.Error -> return result
             }
-            val calendar = Calendar.getInstance()
-            calendar.set(Calendar.HOUR_OF_DAY, 0)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-            calendar.set(Calendar.MILLISECOND, 0)
+            val calendar = Calendar.getInstance().apply {
+                timeInMillis = clock.startOfToday()
+            }
             
             val dailyData = mutableListOf<DailyStudyData>()
             val dateFormat = SimpleDateFormat("M/d (E)", Locale.JAPANESE)
@@ -168,12 +166,9 @@ class ReportsViewModel @Inject constructor(
                 is Result.Success -> result.data
                 is Result.Error -> return result
             }
-            val calendar = Calendar.getInstance()
-            calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
-            calendar.set(Calendar.HOUR_OF_DAY, 0)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-            calendar.set(Calendar.MILLISECOND, 0)
+            val calendar = Calendar.getInstance().apply {
+                timeInMillis = clock.startOfWeek()
+            }
             
             val weeklyData = mutableListOf<WeeklyStudyData>()
             
@@ -228,12 +223,9 @@ class ReportsViewModel @Inject constructor(
     
     private suspend fun loadMonthlyData(): Result<List<MonthlyStudyData>> {
         return try {
-            val calendar = Calendar.getInstance()
-            calendar.set(Calendar.DAY_OF_MONTH, 1)
-            calendar.set(Calendar.HOUR_OF_DAY, 0)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-            calendar.set(Calendar.MILLISECOND, 0)
+            val calendar = Calendar.getInstance().apply {
+                timeInMillis = clock.startOfMonth()
+            }
             
             val monthlyData = mutableListOf<MonthlyStudyData>()
             val dateFormat = SimpleDateFormat("M月", Locale.JAPANESE)
@@ -267,7 +259,9 @@ class ReportsViewModel @Inject constructor(
     
     private suspend fun loadSubjectBreakdown(): Result<List<SubjectStudyData>> {
         return try {
-            val calendar = Calendar.getInstance()
+            val calendar = Calendar.getInstance().apply {
+                timeInMillis = clock.currentTimeMillis()
+            }
             calendar.add(Calendar.MONTH, -1)
             val startTime = calendar.timeInMillis
             val endTime = clock.currentTimeMillis()

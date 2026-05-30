@@ -41,10 +41,13 @@ class ReportsViewModelTest {
 
         every { clock.currentTimeMillis() } returns 1_700_000_000_000L
         every { clock.startOfToday() } returns 1_700_000_000_000L
+        every { clock.startOfWeek() } returns 1_699_747_200_000L
+        every { clock.startOfMonth() } returns 1_698_796_800_000L
         every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(emptyList()))
         every { studySessionRepository.getSessionsBetweenDates(any(), any()) } returns flowOf(Result.Success(emptyList()))
         coEvery { studySessionRepository.getTotalDurationBetweenDates(any(), any()) } returns Result.Success(0L)
         coEvery { studySessionRepository.getTotalDurationByDate(any()) } returns Result.Success(0L)
+        coEvery { studySessionRepository.getTotalDurationBySubjectBetweenDates(any(), any(), any()) } returns Result.Success(0L)
     }
 
     @After
@@ -77,10 +80,7 @@ class ReportsViewModelTest {
         every { clock.currentTimeMillis() } returns now
         every { subjectRepository.getAllSubjects() } returns flowOf(Result.Success(listOf(subject)))
         coEvery { studySessionRepository.getTotalDurationBetweenDates(any(), any()) } returns Result.Success(60 * 60 * 1000L)
-        coEvery { studySessionRepository.getTotalDurationByDate(any()) } returnsMany listOf(
-            Result.Success(60 * 60 * 1000L),
-            Result.Success(0L)
-        )
+        coEvery { studySessionRepository.getTotalDurationByDate(any()) } returns Result.Success(0L)
         coEvery {
             studySessionRepository.getTotalDurationBySubjectBetweenDates(subject.id, any(), now)
         } returns Result.Success(2 * 60 * 60 * 1000L)
