@@ -8,6 +8,7 @@ enum ScreenTimeFocusError: LocalizedError {
     case authorizationRequired
     case missingAllowedApplications
     case settingsSaveFailed
+    case goalProgressSaveFailed
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ enum ScreenTimeFocusError: LocalizedError {
             return "許可するアプリを選択してください"
         case .settingsSaveFailed:
             return "集中制限の設定を保存できませんでした"
+        case .goalProgressSaveFailed:
+            return "目標達成状態を保存できませんでした"
         }
     }
 }
@@ -98,6 +101,7 @@ final class ScreenTimeFocusController: ObservableObject {
         if next.isEnabled, next.scheduledRestrictionEnabled {
             stopStudyAppScheduleMonitoring()
             try syncScheduleMonitoring(settings: next)
+            try applyScheduleRestrictionIfNeeded()
         } else {
             stopStudyAppScheduleMonitoring()
             ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
@@ -126,7 +130,8 @@ final class ScreenTimeFocusController: ObservableObject {
         }
         guard settings.isEnabled, settings.timerRestrictionEnabled else { return }
         guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
-        guard ScreenTimeFocusShared.applyRestrictions(using: timerStore, settings: settings) else {
+        let result = ScreenTimeFocusShared.applyRestrictions(using: timerStore, settings: settings)
+        guard result != .missingAllowedSelection else {
             throw ScreenTimeFocusError.missingAllowedApplications
         }
     }
@@ -151,6 +156,27 @@ final class ScreenTimeFocusController: ObservableObject {
         }
         stopStudyAppScheduleMonitoring()
         try syncScheduleMonitoring(settings: settings)
+        try applyScheduleRestrictionIfNeeded()
+    }
+
+    func applyScheduleRestrictionIfNeeded(referenceDate: Date = Date()) throws {
+        guard settings.isEnabled, settings.scheduledRestrictionEnabled else {
+            ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
+            return
+        }
+        guard settings.hasActiveScheduleSlot(at: referenceDate) else {
+            ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
+            return
+        }
+        guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
+        let result = ScreenTimeFocusShared.applyRestrictions(
+            using: scheduleStore,
+            settings: settings,
+            referenceDate: referenceDate
+        )
+        guard result != .missingAllowedSelection else {
+            throw ScreenTimeFocusError.missingAllowedApplications
+        }
     }
 
     private func save(_ next: ScreenTimeFocusSettings) throws {

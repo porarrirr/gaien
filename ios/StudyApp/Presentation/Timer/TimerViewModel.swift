@@ -16,6 +16,7 @@ final class TimerViewModel: ScreenViewModel {
     @Published private(set) var timerProblemCountDraft = ""
 
     private var cancellable: AnyCancellable?
+    private var lastScreenTimeGoalSyncMinute: Int64?
 
     func load() async {
         do {
@@ -351,10 +352,22 @@ final class TimerViewModel: ScreenViewModel {
                 guard let self else { return }
                 self.elapsedMilliseconds = self.app.preferences.activeTimer?.elapsedTime() ?? 0
                 self.remainingMilliseconds = self.app.preferences.activeTimer?.remainingTime() ?? 0
+                self.refreshScreenTimeGoalProgressIfNeeded()
                 if self.mode == .timer, self.remainingMilliseconds <= 0 {
                     self.stop()
                 }
             }
+    }
+
+    private func refreshScreenTimeGoalProgressIfNeeded() {
+        guard app.screenTimeFocusController.settings.isEnabled,
+              app.screenTimeFocusController.settings.unlockRestrictionsWhenDailyGoalReached else {
+            return
+        }
+        let currentMinute = elapsedMilliseconds / 60_000
+        guard currentMinute > 0, currentMinute != lastScreenTimeGoalSyncMinute else { return }
+        lastScreenTimeGoalSyncMinute = currentMinute
+        Task { await self.app.refreshScreenTimeFocusState(reason: "active-timer-progress") }
     }
 
     private func finalizeTimerForEvaluation() -> TimerSnapshot? {

@@ -7,6 +7,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     case calendar
     case timetable
     case reports
+    case screenTime
 
     var id: String { rawValue }
 
@@ -24,6 +25,8 @@ enum AppTab: String, CaseIterable, Identifiable {
             return "カレンダー"
         case .reports:
             return "レポート"
+        case .screenTime:
+            return "Screen Time"
         }
     }
 
@@ -41,6 +44,8 @@ enum AppTab: String, CaseIterable, Identifiable {
             return "calendar"
         case .reports:
             return "chart.bar"
+        case .screenTime:
+            return "hourglass"
         }
     }
 
@@ -59,6 +64,8 @@ enum AppTab: String, CaseIterable, Identifiable {
             CalendarScreen(app: app)
         case .reports:
             ReportsScreen(app: app)
+        case .screenTime:
+            ScreenTimeSettingsScreen(app: app)
         }
     }
 }

@@ -41,12 +41,59 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
     var endDateComponents: DateComponents {
         DateComponents(hour: endHour, minute: endMinute)
     }
+
+    func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
+        let currentMinute = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+        let startMinuteOfDay = startHour * 60 + startMinute
+        let endMinuteOfDay = endHour * 60 + endMinute
+
+        guard startMinuteOfDay != endMinuteOfDay else { return false }
+        if startMinuteOfDay < endMinuteOfDay {
+            return currentMinute >= startMinuteOfDay && currentMinute < endMinuteOfDay
+        }
+        return currentMinute >= startMinuteOfDay || currentMinute < endMinuteOfDay
+    }
+}
+
+struct ScreenTimeDailyGoalProgress: Codable, Equatable {
+    var dayStart: Int64
+    var studyMinutes: Int
+    var targetMinutes: Int
+    var updatedAt: Int64
+
+    var hasTarget: Bool {
+        targetMinutes > 0
+    }
+
+    var hasReachedTarget: Bool {
+        hasTarget && studyMinutes >= targetMinutes
+    }
+
+    func isForDay(containing date: Date, calendar: Calendar = .current) -> Bool {
+        dayStart == Self.epochMilliseconds(for: calendar.startOfDay(for: date))
+    }
+
+    func unlocksRestrictions(on date: Date = Date(), calendar: Calendar = .current) -> Bool {
+        isForDay(containing: date, calendar: calendar) && hasReachedTarget
+    }
+
+    private static func epochMilliseconds(for date: Date) -> Int64 {
+        Int64(date.timeIntervalSince1970 * 1_000)
+    }
+}
+
+enum ScreenTimeRestrictionApplyResult: Equatable {
+    case inactive
+    case missingAllowedSelection
+    case skippedDailyGoalReached
+    case applied
 }
 
 struct ScreenTimeFocusSettings: Codable, Equatable {
     var isEnabled: Bool
     var timerRestrictionEnabled: Bool
     var scheduledRestrictionEnabled: Bool
+    var unlockRestrictionsWhenDailyGoalReached: Bool
     var scheduleSlots: [FocusScheduleSlot]
     var activitySelection: FamilyActivitySelection
 
@@ -54,14 +101,45 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         isEnabled: Bool = false,
         timerRestrictionEnabled: Bool = false,
         scheduledRestrictionEnabled: Bool = false,
+        unlockRestrictionsWhenDailyGoalReached: Bool = false,
         scheduleSlots: [FocusScheduleSlot] = [],
         activitySelection: FamilyActivitySelection = FamilyActivitySelection()
     ) {
         self.isEnabled = isEnabled
         self.timerRestrictionEnabled = timerRestrictionEnabled
         self.scheduledRestrictionEnabled = scheduledRestrictionEnabled
+        self.unlockRestrictionsWhenDailyGoalReached = unlockRestrictionsWhenDailyGoalReached
         self.scheduleSlots = scheduleSlots
         self.activitySelection = activitySelection
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isEnabled
+        case timerRestrictionEnabled
+        case scheduledRestrictionEnabled
+        case unlockRestrictionsWhenDailyGoalReached
+        case scheduleSlots
+        case activitySelection
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
+        timerRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .timerRestrictionEnabled) ?? false
+        scheduledRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .scheduledRestrictionEnabled) ?? false
+        unlockRestrictionsWhenDailyGoalReached = try container.decodeIfPresent(Bool.self, forKey: .unlockRestrictionsWhenDailyGoalReached) ?? false
+        scheduleSlots = try container.decodeIfPresent([FocusScheduleSlot].self, forKey: .scheduleSlots) ?? []
+        activitySelection = try container.decodeIfPresent(FamilyActivitySelection.self, forKey: .activitySelection) ?? FamilyActivitySelection()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(timerRestrictionEnabled, forKey: .timerRestrictionEnabled)
+        try container.encode(scheduledRestrictionEnabled, forKey: .scheduledRestrictionEnabled)
+        try container.encode(unlockRestrictionsWhenDailyGoalReached, forKey: .unlockRestrictionsWhenDailyGoalReached)
+        try container.encode(scheduleSlots, forKey: .scheduleSlots)
+        try container.encode(activitySelection, forKey: .activitySelection)
     }
 
     var allowedApplicationTokens: Set<ApplicationToken> {
@@ -80,11 +158,29 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     var canApplyRestrictions: Bool {
         isEnabled && (!allowedApplicationTokens.isEmpty || !allowedWebDomainTokens.isEmpty)
     }
+
+    func activeScheduleSlots(at date: Date = Date(), calendar: Calendar = .current) -> [FocusScheduleSlot] {
+        enabledScheduleSlots.filter { $0.contains(date, calendar: calendar) }
+    }
+
+    func hasActiveScheduleSlot(at date: Date = Date(), calendar: Calendar = .current) -> Bool {
+        !activeScheduleSlots(at: date, calendar: calendar).isEmpty
+    }
+
+    func shouldUnlockRestrictionsForDailyGoal(
+        progress: ScreenTimeDailyGoalProgress?,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard isEnabled, unlockRestrictionsWhenDailyGoalReached, let progress else { return false }
+        return progress.unlocksRestrictions(on: referenceDate, calendar: calendar)
+    }
 }
 
 enum ScreenTimeFocusShared {
     static let appGroupIdentifier = "group.com.studyapp.ios.shared"
     static let settingsKey = "screenTimeFocusSettings.v1"
+    static let dailyGoalProgressKey = "screenTimeFocusDailyGoalProgress.v1"
     static let scheduleActivityNamePrefix = "studyapp.focus.schedule."
     static let timerStoreName = ManagedSettingsStore.Name("studyapp.focus.timer")
     static let scheduleStoreName = ManagedSettingsStore.Name("studyapp.focus.schedule")
@@ -112,14 +208,50 @@ enum ScreenTimeFocusShared {
         return true
     }
 
-    static func applyRestrictions(using store: ManagedSettingsStore, settings: ScreenTimeFocusSettings) -> Bool {
-        guard settings.canApplyRestrictions else {
-            clearRestrictions(using: store)
+    static func loadDailyGoalProgress() -> ScreenTimeDailyGoalProgress? {
+        guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
+              let data = defaults.data(forKey: dailyGoalProgressKey) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(ScreenTimeDailyGoalProgress.self, from: data)
+    }
+
+    @discardableResult
+    static func saveDailyGoalProgress(_ progress: ScreenTimeDailyGoalProgress) -> Bool {
+        guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
+              let data = try? JSONEncoder().encode(progress) else {
             return false
         }
+        defaults.set(data, forKey: dailyGoalProgressKey)
+        return true
+    }
+
+    static func applyRestrictions(
+        using store: ManagedSettingsStore,
+        settings: ScreenTimeFocusSettings,
+        referenceDate: Date = Date()
+    ) -> ScreenTimeRestrictionApplyResult {
+        guard settings.isEnabled else {
+            clearRestrictions(using: store)
+            return .inactive
+        }
+
+        guard settings.canApplyRestrictions else {
+            clearRestrictions(using: store)
+            return .missingAllowedSelection
+        }
+
+        if settings.shouldUnlockRestrictionsForDailyGoal(
+            progress: loadDailyGoalProgress(),
+            referenceDate: referenceDate
+        ) {
+            clearRestrictions(using: store)
+            return .skippedDailyGoalReached
+        }
+
         store.shield.applicationCategories = .all(except: settings.allowedApplicationTokens)
         store.shield.webDomainCategories = .all(except: settings.allowedWebDomainTokens)
-        return true
+        return .applied
     }
 
     static func clearRestrictions(using store: ManagedSettingsStore) {

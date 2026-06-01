@@ -12,6 +12,11 @@ final class StudyAppDeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
         super.intervalDidEnd(for: activity)
-        ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
+        let settings = ScreenTimeFocusShared.loadSettings()
+        if settings.hasActiveScheduleSlot() {
+            _ = ScreenTimeFocusShared.applyRestrictions(using: scheduleStore, settings: settings)
+        } else {
+            ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
+        }
     }
 }

@@ -120,7 +120,7 @@ final class StudyAppContainer: ObservableObject {
             bumpDataVersion(shouldScheduleAutoSync: false)
             scheduleAutoSync(reason: "app-load")
             syncLiveActivity(reason: "app-load")
-            restoreScreenTimeFocus(reason: "app-load")
+            await refreshScreenTimeFocusState(reason: "app-load")
         } catch {
             isLoaded = true
             present(error)
@@ -207,6 +207,9 @@ final class StudyAppContainer: ObservableObject {
         if preferences.reminderEnabled {
             Task { await refreshTimetableReviewReminder() }
         }
+        if screenTimeFocusController.settings.unlockRestrictionsWhenDailyGoalReached {
+            Task { await refreshScreenTimeFocusState(reason: "data-version-\(dataVersion)") }
+        }
     }
 
     func clearError() {
@@ -219,7 +222,7 @@ final class StudyAppContainer: ObservableObject {
 
     func handleSceneDidBecomeActive() {
         scheduleAutoSync(reason: "scene-active")
-        restoreScreenTimeFocus(reason: "scene-active")
+        Task { await refreshScreenTimeFocusState(reason: "scene-active") }
     }
 
     func scheduleAutoSync(reason: String) {
@@ -252,6 +255,50 @@ final class StudyAppContainer: ObservableObject {
         errorMessage = message
     }
 
+    func currentScreenTimeDailyGoalProgress(reference: Date? = nil) async throws -> ScreenTimeDailyGoalProgress {
+        let now = reference ?? clock.now()
+        let todayStart = clock.startOfToday(reference: now)
+        let dayMs: Int64 = 86_400_000
+        let todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: now))
+
+        async let sessionsTask = sessionRepo.getSessionsBetweenDates(start: todayStart, end: todayStart + dayMs)
+        async let goalsTask = goalRepo.getAllGoals()
+
+        let sessions = try await sessionsTask
+        let goals = try await goalsTask
+        let storedStudyMinutes = sessions.reduce(0) { $0 + $1.durationMinutes }
+        let activeTimerMinutes = activeTimerStudyMinutesForToday(reference: now, dayStart: todayStart)
+        let targetMinutes = goals.latestActiveDailyGoal(for: todayWeekday)?.targetMinutes ?? 0
+
+        return ScreenTimeDailyGoalProgress(
+            dayStart: todayStart,
+            studyMinutes: storedStudyMinutes + activeTimerMinutes,
+            targetMinutes: targetMinutes,
+            updatedAt: now.epochMilliseconds
+        )
+    }
+
+    @discardableResult
+    func refreshScreenTimeFocusState(reason: String) async -> ScreenTimeDailyGoalProgress? {
+        do {
+            screenTimeFocusController.refresh()
+            guard screenTimeFocusController.settings.unlockRestrictionsWhenDailyGoalReached else {
+                restoreScreenTimeFocus(reason: reason)
+                return nil
+            }
+            let progress = try await currentScreenTimeDailyGoalProgress()
+            if !ScreenTimeFocusShared.saveDailyGoalProgress(progress) {
+                throw ScreenTimeFocusError.goalProgressSaveFailed
+            }
+            restoreScreenTimeFocus(reason: reason)
+            return progress
+        } catch {
+            logger.log(category: .app, level: .error, message: "Screen Time focus refresh failed", details: reason, error: error)
+            present(error)
+            return nil
+        }
+    }
+
     private func shouldSyncLiveActivity(previous: AppPreferences, next: AppPreferences) -> Bool {
         previous.activeTimer != next.activeTimer ||
         previous.liveActivityEnabled != next.liveActivityEnabled ||
@@ -266,6 +313,19 @@ final class StudyAppContainer: ObservableObject {
             guard let self else { return }
             await self.liveActivityController.sync(activeTimer: activeTimer, preferences: preferences, reason: reason)
         }
+    }
+
+    private func activeTimerStudyMinutesForToday(reference: Date, dayStart: Int64) -> Int {
+        guard let timer = preferences.activeTimer else { return 0 }
+        let dayEnd = dayStart + 86_400_000
+        let intervals = timer.finalizedIntervals(at: reference)
+        let duration = intervals.reduce(Int64(0)) { total, interval in
+            let start = max(interval.startTime, dayStart)
+            let end = min(interval.endTime, dayEnd)
+            guard end > start else { return total }
+            return total + (end - start)
+        }
+        return Int(duration / 60_000)
     }
 
     private func restoreScreenTimeFocus(reason: String) {
