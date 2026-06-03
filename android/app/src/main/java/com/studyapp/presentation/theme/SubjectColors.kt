@@ -10,3 +10,7 @@ val SubjectColors = listOf(
     Color(0xFF795548),
     Color(0xFF607D8B)
 )
+
+fun Int.toSubjectColor(): Color {
+    return Color(0xFF000000.toInt() or (this and 0x00FFFFFF))
+}

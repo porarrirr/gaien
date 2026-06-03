@@ -55,25 +55,25 @@
             android:orientation="horizontal"
             android:visibility="gone">
 
-            <View android:id="@+id/widget_progress_segment_1" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
-            <Space android:layout_width="4dp" android:layout_height="1dp" />
-            <View android:id="@+id/widget_progress_segment_2" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
-            <Space android:layout_width="4dp" android:layout_height="1dp" />
-            <View android:id="@+id/widget_progress_segment_3" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
-            <Space android:layout_width="4dp" android:layout_height="1dp" />
-            <View android:id="@+id/widget_progress_segment_4" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
-            <Space android:layout_width="4dp" android:layout_height="1dp" />
-            <View android:id="@+id/widget_progress_segment_5" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
-            <Space android:layout_width="4dp" android:layout_height="1dp" />
-            <View android:id="@+id/widget_progress_segment_6" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
-            <Space android:layout_width="4dp" android:layout_height="1dp" />
-            <View android:id="@+id/widget_progress_segment_7" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
-            <Space android:layout_width="4dp" android:layout_height="1dp" />
-            <View android:id="@+id/widget_progress_segment_8" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
-            <Space android:layout_width="4dp" android:layout_height="1dp" />
-            <View android:id="@+id/widget_progress_segment_9" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
-            <Space android:layout_width="4dp" android:layout_height="1dp" />
-            <View android:id="@+id/widget_progress_segment_10" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:id="@+id/widget_progress_segment_1" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:layout_width="4dp" android:layout_height="1dp" />
+            <TextView android:id="@+id/widget_progress_segment_2" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:layout_width="4dp" android:layout_height="1dp" />
+            <TextView android:id="@+id/widget_progress_segment_3" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:layout_width="4dp" android:layout_height="1dp" />
+            <TextView android:id="@+id/widget_progress_segment_4" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:layout_width="4dp" android:layout_height="1dp" />
+            <TextView android:id="@+id/widget_progress_segment_5" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:layout_width="4dp" android:layout_height="1dp" />
+            <TextView android:id="@+id/widget_progress_segment_6" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:layout_width="4dp" android:layout_height="1dp" />
+            <TextView android:id="@+id/widget_progress_segment_7" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:layout_width="4dp" android:layout_height="1dp" />
+            <TextView android:id="@+id/widget_progress_segment_8" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:layout_width="4dp" android:layout_height="1dp" />
+            <TextView android:id="@+id/widget_progress_segment_9" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
+            <TextView android:layout_width="4dp" android:layout_height="1dp" />
+            <TextView android:id="@+id/widget_progress_segment_10" android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:background="@color/widget_progress_background" />
         </LinearLayout>
 
         <TextView

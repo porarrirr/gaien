@@ -18,12 +18,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -53,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,10 +68,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.ProblemChapter
 import com.studyapp.domain.model.ProblemResult
+import com.studyapp.domain.model.ProblemReviewRating
+import com.studyapp.domain.model.ProblemReviewRecord
 import com.studyapp.domain.model.StudySession
 import com.studyapp.presentation.components.EmptyState
 import com.studyapp.presentation.components.LoadingState
+import com.studyapp.presentation.theme.toSubjectColor
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.YearMonth
@@ -132,66 +144,31 @@ fun MaterialHistoryScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item {
                         MaterialHistorySummary(uiState)
                     }
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilterChip(
-                                selected = selectedTab == 0,
-                                onClick = { selectedTab = 0 },
-                                label = { Text("履歴") }
-                            )
-                            FilterChip(
-                                selected = selectedTab == 1,
-                                onClick = { selectedTab = 1 },
-                                label = { Text("問題集") }
-                            )
-                        }
+                        MaterialDetailTabSelector(
+                            selectedTab = selectedTab,
+                            onSelectTab = { selectedTab = it }
+                        )
                     }
                     if (selectedTab == 0) {
                         item {
-                            MaterialHistoryCalendar(
-                                displayedMonth = uiState.displayedMonth,
-                                selectedDate = uiState.selectedDate,
-                                studyMinutesByDay = uiState.studyMinutesByDay,
-                                onPrevious = viewModel::previousMonth,
-                                onNext = viewModel::nextMonth,
-                                onDateSelect = viewModel::selectDate
+                            MaterialHistoryListSection(
+                                sessions = uiState.sessions,
+                                chapters = uiState.material?.problemChapters ?: emptyList()
                             )
-                        }
-                        item {
-                            SelectedDateHeader(
-                                selectedDate = uiState.selectedDate,
-                                totalMinutes = uiState.selectedDateMinutes,
-                                sessionCount = uiState.selectedDateSessions.size
-                            )
-                        }
-                        item {
-                            DateJumpButtons { days ->
-                                viewModel.selectDate(uiState.selectedDate.plusDays(days))
-                            }
-                        }
-                        if (uiState.selectedDateSessions.isEmpty()) {
-                            item {
-                                EmptySelectedDateCard()
-                            }
-                        } else {
-                            items(uiState.selectedDateSessions, key = { it.id }) { session ->
-                                MaterialSessionCard(session = session)
-                            }
                         }
                     } else {
                         item {
                             ProblemProgressSection(
                                 material = uiState.material,
-                                sessions = uiState.sessions
+                                sessions = uiState.sessions,
+                                reviewRecords = uiState.problemReviewRecords
                             )
                         }
                     }
@@ -204,49 +181,493 @@ fun MaterialHistoryScreen(
 @Composable
 private fun MaterialHistorySummary(uiState: MaterialHistoryUiState) {
     val material = uiState.material ?: return
-    ElevatedCard(
+    val subjectColor = (material.color ?: uiState.subject?.color ?: 0x1DBBE8).toSubjectColor()
+    val answerRate = remember(material, uiState.sessions, uiState.problemReviewRecords) {
+        calculateMaterialAnswerRate(
+            material = material,
+            sessions = uiState.sessions,
+            reviewRecords = uiState.problemReviewRecords
+        )
+    }
+
+    OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            MaterialBookCover(
+                material = material,
+                modifier = Modifier.size(width = 64.dp, height = 90.dp)
+            )
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(11.dp)
+                            .clip(CircleShape)
+                            .background(subjectColor)
+                    )
+                    Text(
+                        text = uiState.subject?.name ?: "科目未設定",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
                 Text(
                     text = material.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "正誤率",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = "$answerRate%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { answerRate / 100f },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = Color(0xFF1E88E5),
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        Text(
+                            text = "$answerRate%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "問題数（合計）",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "${material.effectiveTotalProblems}問",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaterialDetailTabSelector(
+    selectedTab: Int,
+    onSelectTab: (Int) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f)
+    ) {
+        Row(modifier = Modifier.padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            listOf("履歴", "問題集").forEachIndexed { index, label ->
+                val selected = selectedTab == index
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(7.dp))
+                        .clickable { onSelectTab(index) },
+                    shape = RoundedCornerShape(7.dp),
+                    color = if (selected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                    tonalElevation = if (selected) 1.dp else 0.dp
+                ) {
+                    Text(
+                        text = label,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaterialHistoryListSection(
+    sessions: List<StudySession>,
+    chapters: List<ProblemChapter>
+) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "学習履歴",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "（新しい順）",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = uiState.subject?.name ?: "科目未設定",
+                    text = "編集",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        if (sessions.isEmpty()) {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Text(
+                    text = "記録はありません",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp, horizontal = 16.dp),
+                    textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        } else {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    sessions.forEachIndexed { index, session ->
+                        MaterialHistorySessionRow(session = session, chapters = chapters)
+                        if (index != sessions.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 22.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
-            if (material.totalPages > 0) {
-                LinearProgressIndicator(
-                    progress = { material.progress.toFloat().coerceIn(0f, 1f) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                )
+@Composable
+private fun MaterialHistorySessionRow(
+    session: StudySession,
+    chapters: List<ProblemChapter>
+) {
+    val dateFormat = remember { SimpleDateFormat("yyyy/M/d（E）", Locale.JAPANESE) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.JAPANESE) }
+    val dateText = remember(session.sessionStartTime) { dateFormat.format(Date(session.sessionStartTime)) }
+    val timeText = remember(session.sessionStartTime, session.sessionEndTime) {
+        "${timeFormat.format(Date(session.sessionStartTime))} - ${timeFormat.format(Date(session.sessionEndTime))}"
+    }
+    val problemNumbers = remember(session.problemRecords) {
+        session.problemRecords.map { it.number }.distinct().sorted()
+    }
+    val problemRangeDisplay = remember(problemNumbers, session.problemRangeText) {
+        val rangeText = session.problemRangeText
+        when {
+            problemNumbers.isNotEmpty() -> {
+                val first = problemNumbers.first()
+                val last = problemNumbers.last()
+                if (first == last) "$first" else "$first-$last"
+            }
+            rangeText != null -> rangeText.replace("問", "")
+            else -> "未入力"
+        }
+    }
+    val pageRangeDisplay = remember(problemRangeDisplay) {
+        if (problemRangeDisplay == "未入力") "未入力" else "p.$problemRangeDisplay"
+    }
+    val chapterText = remember(problemNumbers, chapters) {
+        val first = problemNumbers.firstOrNull() ?: return@remember ""
+        val chapter = chapters.chapterFor(first) ?: return@remember ""
+        "（${chapter.title}）"
+    }
+    val wrongNumbersText = remember(session.problemRecords) {
+        session.problemRecords
+            .filter { it.result == ProblemResult.WRONG }
+            .map { it.number.toString() }
+            .distinct()
+            .joinToString(", ")
+    }
+    val correctCount = remember(session.problemRecords) {
+        session.problemRecords.count { it.result == ProblemResult.CORRECT }
+    }
+    val wrongCount = remember(session.problemRecords, session.wrongProblemCount) {
+        if (session.problemRecords.isNotEmpty()) {
+            session.problemRecords.count { it.result == ProblemResult.WRONG }
+        } else {
+            session.wrongProblemCount ?: 0
+        }
+    }
+    val reviewCorrectCount = remember(session.problemRecords) {
+        session.problemRecords.count { it.result == ProblemResult.REVIEW_CORRECT }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "${material.currentPage}/${material.totalPages}ページ ・ ${material.progressPercent}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = dateText,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(13.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${session.durationMinutes}分",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
+                    )
+                }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SummaryPill(label = "累計", value = formatDuration(uiState.totalMinutes))
-                SummaryPill(label = "記録", value = "${uiState.sessions.size}回")
-                SummaryPill(label = "最終", value = uiState.latestStudyDate?.formatJapaneseDate() ?: "なし")
+            Text(
+                text = timeText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            if ((session.rating ?: 0) > 0) {
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    repeat(5) { index ->
+                        Icon(
+                            if (index < (session.rating ?: 0)) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = if (index < (session.rating ?: 0)) Color(0xFFF59E0B) else MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
             }
+
+            Text(
+                text = "範囲： $pageRangeDisplay $chapterText",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "問題： $problemRangeDisplay",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (wrongNumbersText.isNotEmpty()) {
+                Text(
+                    text = "不正解： $wrongNumbersText",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                text = "メモ： ${session.note?.takeIf { it.isNotBlank() } ?: "メモはありません"}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Row(
+            modifier = Modifier.width(150.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            MaterialHistoryCountColumn("正解", correctCount, Color(0xFF2E9D45), Modifier.weight(1f))
+            MaterialHistoryCountColumn("不正解", wrongCount, MaterialTheme.colorScheme.error, Modifier.weight(1f))
+            MaterialHistoryCountColumn("復習正解", reviewCorrectCount, Color(0xFFF59E0B), Modifier.weight(1f))
+        }
+
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.outline
+        )
+    }
+}
+
+@Composable
+private fun MaterialHistoryCountColumn(
+    title: String,
+    value: Int,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            fontSize = 10.sp
+        )
+        Text(
+            text = "$value",
+            style = MaterialTheme.typography.bodyMedium,
+            color = color,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun MaterialBookCover(
+    material: Material,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color(0xFFFAFAF8),
+                        Color(0xFFE6EBEC),
+                        Color(0xFF004257)
+                    )
+                )
+            )
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                shape = RoundedCornerShape(4.dp)
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .width(24.dp)
+                .height(130.dp)
+                .align(Alignment.BottomEnd)
+                .background(Color(0xFFD79B21))
+        )
+        Box(
+            modifier = Modifier
+                .width(12.dp)
+                .height(110.dp)
+                .align(Alignment.TopEnd)
+                .padding(top = 8.dp)
+                .background(Color(0xFF18A8C9))
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(5.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = "Focus Gold",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 8.sp,
+                color = Color.Black,
+                maxLines = 1
+            )
+            Text(
+                text = material.name.replace("Focus Gold", "").trim().ifBlank { material.name },
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 6.sp,
+                color = Color.Black,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -594,38 +1015,37 @@ private fun LocalDate.formatJapaneseDate(): String {
 
 @Composable
 private fun ProblemProgressSection(
-    material: com.studyapp.domain.model.Material?,
-    sessions: List<StudySession>
+    material: Material?,
+    sessions: List<StudySession>,
+    reviewRecords: List<ProblemReviewRecord>
 ) {
     if (material == null) return
     val totalProblems = material.effectiveTotalProblems
     if (totalProblems <= 0) {
         OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-            Text(
-                text = "問題数が設定されていません",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp)
+            EmptyState(
+                icon = Icons.Default.Book,
+                title = "全問題数が未設定です",
+                description = "教材編集から問題数を設定すると、ここに進捗が表示されます。",
+                modifier = Modifier.padding(16.dp)
             )
         }
         return
     }
 
-    val latestRecords = remember(material, sessions) {
-        buildLatestProblemRecords(material, sessions)
+    val latestRecords = remember(material, sessions, reviewRecords) {
+        buildLatestProblemRecords(material, sessions, reviewRecords)
     }
 
     val correctCount = latestRecords.count { it.value == ProblemResult.CORRECT }
     val wrongCount = latestRecords.count { it.value == ProblemResult.WRONG }
     val reviewCorrectCount = latestRecords.count { it.value == ProblemResult.REVIEW_CORRECT }
-    val unattemptedCount = totalProblems - latestRecords.size
+    val unattemptedCount = (totalProblems - latestRecords.size).coerceAtLeast(0)
 
-    ElevatedCard(
+    OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier
@@ -633,75 +1053,215 @@ private fun ProblemProgressSection(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "問題集",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ProblemStatPill(
-                    label = "正解",
-                    value = "$correctCount",
-                    color = Color(0xFF4CAF50),
-                    modifier = Modifier.weight(1f)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(
+                    Icons.Default.GridView,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
-                ProblemStatPill(
-                    label = "不正解",
-                    value = "$wrongCount",
-                    color = Color(0xFFE53935),
-                    modifier = Modifier.weight(1f)
-                )
-                ProblemStatPill(
-                    label = "復習正解",
-                    value = "$reviewCorrectCount",
-                    color = Color(0xFF2196F3),
-                    modifier = Modifier.weight(1f)
-                )
-                ProblemStatPill(
-                    label = "未着手",
-                    value = "$unattemptedCount",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
+                Text(
+                    text = "問題集の進捗",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                MaterialProblemMetricTile("正解", "$correctCount", Color(0xFF2E9D45), Modifier.weight(1f))
+                MaterialProblemMetricTile("不正解", "$wrongCount", MaterialTheme.colorScheme.error, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                MaterialProblemMetricTile("復習正解", "$reviewCorrectCount", Color(0xFFF59E0B), Modifier.weight(1f))
+                MaterialProblemMetricTile("未実施", "$unattemptedCount", MaterialTheme.colorScheme.onSurfaceVariant, Modifier.weight(1f))
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                MaterialProblemLegendItem("未着手", MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, Modifier.weight(1f))
+                MaterialProblemLegendItem("正解", Color(0xFF2E9D45).copy(alpha = 0.18f), Color(0xFF2E9D45), Modifier.weight(1f))
+                MaterialProblemLegendItem("不正解", MaterialTheme.colorScheme.error.copy(alpha = 0.18f), MaterialTheme.colorScheme.error, Modifier.weight(1f))
+                MaterialProblemLegendItem("復習正解", Color(0xFFF59E0B).copy(alpha = 0.20f), Color(0xFFF59E0B), Modifier.weight(1f))
+            }
 
             Text(
-                text = "問題一覧",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
+                text = "誤答履歴を含む問題は、赤から黄緑へ寄る5段階の色で復調度を表示します。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            val columns = 6
-            val rows = (totalProblems + columns - 1) / columns
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (row in 0 until rows) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        for (col in 0 until columns) {
-                            val problemNum = row * columns + col + 1
-                            if (problemNum <= totalProblems) {
-                                val result = latestRecords[problemNum]
-                                ProblemTile(
-                                    number = problemNum,
-                                    result = result,
-                                    modifier = Modifier.weight(1f)
+            val chapters = material.problemChapters.filter { it.problemCount > 0 }
+            if (chapters.isNotEmpty()) {
+                var startNumber = 1
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    chapters.forEach { chapter ->
+                        val chapterStart = startNumber
+                        startNumber += chapter.problemCount
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = chapter.title,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
-                            } else {
                                 Spacer(modifier = Modifier.weight(1f))
+                                Text(
+                                    text = "${chapter.problemCount}問",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
+                            ProblemProgressRows(
+                                rows = problemRows(start = chapterStart, count = chapter.problemCount),
+                                latestRecords = latestRecords,
+                                chapters = material.problemChapters,
+                                showsGlobalNumber = true
+                            )
                         }
                     }
                 }
+            } else {
+                ProblemProgressRows(
+                    rows = problemRows(start = 1, count = totalProblems),
+                    latestRecords = latestRecords,
+                    chapters = emptyList(),
+                    showsGlobalNumber = false
+                )
+            }
+
+            val wrongNumbers = latestRecords
+                .filterValues { it == ProblemResult.WRONG }
+                .keys
+                .sorted()
+            if (wrongNumbers.isNotEmpty()) {
+                Text(
+                    text = "不正解: ${wrongNumbers.take(30).joinToString(", ")}${if (wrongNumbers.size > 30) " ..." else ""}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun ProblemProgressRows(
+    rows: List<List<Int>>,
+    latestRecords: Map<Int, ProblemResult>,
+    chapters: List<ProblemChapter>,
+    showsGlobalNumber: Boolean
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEach { rowNumbers ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                rowNumbers.forEach { number ->
+                    val location = chapters.chapterLocation(number)
+                    ProblemTile(
+                        label = if (showsGlobalNumber) {
+                            location?.localNumber?.toString() ?: number.toString()
+                        } else {
+                            number.toString()
+                        },
+                        result = latestRecords[number],
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                repeat((5 - rowNumbers.size).coerceAtLeast(0)) {
+                    Spacer(
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaterialProblemMetricTile(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                .padding(11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = color,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaterialProblemLegendItem(
+    label: String,
+    color: Color,
+    textColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(14.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(color)
+                .border(1.dp, textColor.copy(alpha = 0.45f), RoundedCornerShape(4.dp))
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = textColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -738,56 +1298,134 @@ private fun ProblemStatPill(
 
 @Composable
 private fun ProblemTile(
-    number: Int,
+    label: String,
     result: ProblemResult?,
     modifier: Modifier = Modifier
 ) {
     val backgroundColor = when (result) {
-        ProblemResult.CORRECT -> Color(0xFF4CAF50)
-        ProblemResult.WRONG -> Color(0xFFE53935)
-        ProblemResult.REVIEW_CORRECT -> Color(0xFF2196F3)
-        null -> MaterialTheme.colorScheme.surfaceVariant
+        ProblemResult.CORRECT -> Color(0xFF2E9D45).copy(alpha = 0.18f)
+        ProblemResult.WRONG -> MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
+        ProblemResult.REVIEW_CORRECT -> Color(0xFFF59E0B).copy(alpha = 0.20f)
+        null -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f)
     }
-    val textColor = if (result != null) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+    val textColor = when (result) {
+        ProblemResult.CORRECT -> Color(0xFF2E9D45)
+        ProblemResult.WRONG -> MaterialTheme.colorScheme.error
+        ProblemResult.REVIEW_CORRECT -> Color(0xFFF59E0B)
+        null -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
     Box(
         modifier = modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
             .border(
                 width = 1.dp,
-                color = backgroundColor.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(6.dp)
+                color = textColor.copy(alpha = 0.35f),
+                shape = RoundedCornerShape(8.dp)
             ),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "$number",
+            text = label,
             color = textColor,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
         )
     }
 }
 
+private data class ProblemTimelineEntry(
+    val number: Int,
+    val timestamp: Long,
+    val result: ProblemResult
+)
+
 private fun buildLatestProblemRecords(
-    material: com.studyapp.domain.model.Material,
-    sessions: List<StudySession>
+    material: Material,
+    sessions: List<StudySession>,
+    reviewRecords: List<ProblemReviewRecord>
 ): Map<Int, ProblemResult> {
-    val records = mutableMapOf<Int, ProblemResult>()
-    val sortedSessions = sessions.sortedByDescending { it.startTime }
-    for (session in sortedSessions) {
-        for (record in session.problemRecords) {
-            if (record.number !in records) {
-                records[record.number] = record.result
+    val totalProblems = material.effectiveTotalProblems
+    if (totalProblems <= 0) return emptyMap()
+
+    val entries = buildList {
+        sessions.forEach { session ->
+            session.problemRecords.forEach { record ->
+                if (record.number in 1..totalProblems) {
+                    add(ProblemTimelineEntry(record.number, session.sessionStartTime, record.result))
+                }
             }
         }
-        for (record in material.problemRecords) {
-            if (record.number !in records) {
-                records[record.number] = record.result
+        material.problemRecords.forEach { record ->
+            if (record.number in 1..totalProblems) {
+                // Material-level records are baseline sync data; material metadata edits must not make them latest.
+                add(ProblemTimelineEntry(record.number, Long.MIN_VALUE, record.result))
+            }
+        }
+        reviewRecords.forEach { record ->
+            if (record.problemNumber in 1..totalProblems) {
+                add(ProblemTimelineEntry(record.problemNumber, record.reviewedAt, record.rating.toProblemResult()))
             }
         }
     }
-    return records
+
+    return entries
+        .sortedByDescending { it.timestamp }
+        .fold(linkedMapOf<Int, ProblemResult>()) { latest, entry ->
+            if (entry.number !in latest) {
+                latest[entry.number] = entry.result
+            }
+            latest
+        }
+}
+
+private fun calculateMaterialAnswerRate(
+    material: Material,
+    sessions: List<StudySession>,
+    reviewRecords: List<ProblemReviewRecord>
+): Int {
+    val totalProblems = material.effectiveTotalProblems
+    if (totalProblems <= 0) return 0
+    val latestRecords = buildLatestProblemRecords(material, sessions, reviewRecords)
+    val correct = latestRecords.values.count { it == ProblemResult.CORRECT || it == ProblemResult.REVIEW_CORRECT }
+    return ((correct.toDouble() / totalProblems.toDouble()) * 100.0).toInt()
+}
+
+private fun ProblemReviewRating.toProblemResult(): ProblemResult {
+    return when (this) {
+        ProblemReviewRating.AGAIN -> ProblemResult.WRONG
+        ProblemReviewRating.GOOD -> ProblemResult.CORRECT
+    }
+}
+
+private fun problemRows(start: Int, count: Int): List<List<Int>> {
+    if (count <= 0) return emptyList()
+    val end = start + count - 1
+    return (start..end).chunked(5)
+}
+
+private data class ChapterLocation(
+    val chapter: ProblemChapter,
+    val localNumber: Int
+)
+
+private fun List<ProblemChapter>.chapterFor(globalNumber: Int): ProblemChapter? {
+    return chapterLocation(globalNumber)?.chapter
+}
+
+private fun List<ProblemChapter>.chapterLocation(globalNumber: Int): ChapterLocation? {
+    if (globalNumber <= 0) return null
+    var offset = 0
+    for (chapter in this) {
+        val count = chapter.problemCount.coerceAtLeast(0)
+        if (count <= 0) continue
+        if (globalNumber in (offset + 1)..(offset + count)) {
+            return ChapterLocation(chapter = chapter, localNumber = globalNumber - offset)
+        }
+        offset += count
+    }
+    return null
 }

@@ -3,6 +3,7 @@ package com.studyapp.presentation.subjects
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.studyapp.domain.model.Subject
+import com.studyapp.domain.model.SubjectIcon
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.repository.SubjectRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -72,12 +73,13 @@ class SubjectsViewModel @Inject constructor(
         .launchIn(viewModelScope)
     }
     
-    fun addSubject(name: String, color: Int) {
+    fun addSubject(name: String, color: Int, icon: SubjectIcon) {
         viewModelScope.launch {
             subjectRepository.insertSubject(
                 Subject(
                     name = name,
-                    color = color
+                    color = color,
+                    icon = icon
                 )
             ).onError { error ->
                 _uiState.update { it.copy(error = error.message ?: "科目の追加に失敗しました") }

@@ -61,7 +61,7 @@
     <string name="pause">一時停止</string>
     
     <!-- Materials -->
-    <string name="materials_title">教材管理</string>
+    <string name="materials_title">教材</string>
     <string name="materials_add">教材を追加</string>
     <string name="materials_edit">編集</string>
     <string name="materials_delete">削除</string>
@@ -79,7 +79,7 @@
     <string name="materials_isbn">ISBN</string>
     <string name="materials_author">著者</string>
     <string name="materials_publisher">出版社</string>
-    <string name="materials_search_by_isbn">ISBNで検索</string>
+    <string name="materials_search_by_isbn">ISBN検索</string>
     <string name="materials_search_by_title">タイトルで検索</string>
     <string name="materials_not_found">書籍が見つかりませんでした</string>
     
@@ -347,7 +347,7 @@
     <string name="timer_manual_input_title">手動入力</string>
     
     <!-- Materials Screen -->
-    <string name="materials_screen_title">教材管理</string>
+    <string name="materials_screen_title">教材</string>
     <string name="materials_empty_title">教材がありません</string>
     <string name="materials_empty_message">＋ボタンで追加してください</string>
     <string name="materials_delete_title">削除確認</string>

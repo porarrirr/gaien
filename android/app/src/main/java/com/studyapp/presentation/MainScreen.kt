@@ -130,8 +130,6 @@ fun MainScreen() {
         ) {
             composable(Screen.Home.route) {
                 HomeScreen(
-                    onNavigateToTimer = { navController.navigate(Screen.Timer.route) },
-                    onNavigateToMaterials = { navController.navigate(Screen.Materials.route) },
                     onNavigateToExams = { navController.navigate(Screen.Exams.route) },
                     onNavigateToGoals = { navController.navigate(Screen.Goals.route) },
                     onNavigateToHistory = { navController.navigate(Screen.History.route) },

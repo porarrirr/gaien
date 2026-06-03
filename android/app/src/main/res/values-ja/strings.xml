@@ -51,6 +51,9 @@
     <string name="timer_notification_description">学習タイマーの通知を表示</string>
     <string name="timer_notification_title">学習中</string>
     <string name="timer_notification_paused">一時停止中</string>
+    <string name="timer_start_time">開始時刻</string>
+    <string name="timer_end_time">終了時刻</string>
+    <string name="timer_time_format_hint">HH:mm 形式で入力</string>
     <string name="timer_manual_input">手動入力</string>
     <string name="timer_countdown">カウントダウン</string>
     <string name="timer_stopwatch">ストップウォッチ</string>
@@ -327,6 +330,8 @@
     <string name="home_quick_goals">目標設定</string>
     <string name="home_quick_exams">テスト管理</string>
     <string name="home_quick_plan">学習計画</string>
+    <string name="home_quick_timetable">時間割</string>
+    <string name="home_quick_subjects">科目管理</string>
     <string name="home_quick_actions_title">クイックアクション</string>
     <string name="home_nav_history">履歴</string>
     <string name="home_nav_settings">設定</string>

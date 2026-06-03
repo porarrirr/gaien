@@ -1,15 +1,13 @@
 package com.studyapp.presentation.timer
 
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import android.content.Intent
 import android.content.res.Configuration
 import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -28,7 +26,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -37,17 +36,15 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -85,7 +82,7 @@ import com.studyapp.domain.model.Subject
 import com.studyapp.domain.usecase.TimerMode
 import com.studyapp.presentation.components.CircularProgressRing
 import com.studyapp.presentation.components.PulsingEffect
-import com.studyapp.presentation.components.SectionHeader
+import com.studyapp.presentation.theme.toSubjectColor
 import com.studyapp.R
 
 private fun formatTimeMillis(time: Long): String {
@@ -174,16 +171,16 @@ fun TimerScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
                     titleContentColor = theme.foreground
-                ),
-                actions = {
-                    IconButton(onClick = { showManualInputDialog = true }) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = stringResource(R.string.timer_manual_input_title),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                )
+            )
+        },
+        bottomBar = {
+            ManualEntryButton(
+                onClick = { showManualInputDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(theme.bottomBarBackground)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
             )
         }
     ) { paddingValues ->
@@ -228,88 +225,51 @@ fun TimerScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                        .padding(16.dp)
+                        .padding(horizontal = 12.dp, vertical = 12.dp)
                         .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    MaterialSelector(
+                    TimerSelectionPanel(
                         selectedMaterial = uiState.selectedMaterial,
                         selectedSubject = uiState.selectedSubject,
+                        hasSubjects = uiState.subjects.isNotEmpty(),
                         onClick = { showMaterialPicker = true }
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    QuickSelectionSection(
+                        subjects = uiState.subjects,
+                        selectedSubject = uiState.selectedSubject,
+                        recentMaterials = uiState.recentMaterials,
+                        selectedMaterial = uiState.selectedMaterial,
+                        onSelectSubject = viewModel::selectSubject,
+                        onSelectMaterial = { material, subject ->
+                            viewModel.selectMaterial(material, subject)
+                        }
+                    )
 
-                    TimerModeSelector(
+                    TimerPanel(
                         selectedMode = uiState.timerMode,
                         countdownMinutes = uiState.countdownMinutes,
                         isRunning = uiState.isRunning,
-                        onSelectMode = viewModel::setTimerMode,
-                        onSelectMinutes = viewModel::setCountdownMinutes
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // Large CircularProgressRing with PulsingEffect
-                    val displayTime = if (uiState.timerMode == TimerMode.TIMER) uiState.remainingTime else uiState.elapsedTime
-                    val progress = when {
-                        uiState.timerMode == TimerMode.TIMER -> {
-                            val target = (uiState.countdownMinutes * 60_000L).coerceAtLeast(1L)
-                            1f - (uiState.remainingTime.toFloat() / target.toFloat())
-                        }
-                        else -> {
-                            val elapsedMinutes = uiState.elapsedTime / 60000f
-                            (elapsedMinutes % 60f) / 60f
-                        }
-                    }
-
-                    PulsingEffect(isPulsing = uiState.isRunning) {
-                        CircularProgressRing(
-                            progress = if (displayTime > 0L || uiState.isRunning) progress.coerceIn(0f, 1f) else 0f,
-                            size = 280.dp,
-                            strokeWidth = 14.dp,
-                            showPercentage = false,
-                            centerContent = {
-                                TimerDisplay(
-                                    time = displayTime,
-                                    isRunning = uiState.isRunning,
-                                    mode = uiState.timerMode
-                                )
-                            }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(36.dp))
-
-                    TimerControls(
-                        isRunning = uiState.isRunning,
                         displayTime = displayTime,
-                        onStart = { viewModel.startTimer() },
-                        onPause = { viewModel.pauseTimer() },
-                        onStop = { viewModel.stopTimer() }
+                        progress = progress,
+                        onSelectMode = viewModel::setTimerMode,
+                        onSelectMinutes = viewModel::setCountdownMinutes,
+                        onStart = viewModel::startTimer,
+                        onPause = viewModel::pauseTimer,
+                        onStop = viewModel::stopTimer
                     )
 
-                    if (!uiState.isRunning && uiState.selectedMaterial != null) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        ProblemProgressSection(
-                            problemCount = uiState.problemCount,
-                            problemStates = uiState.problemStates,
-                            onSetCount = viewModel::setProblemCount,
-                            onToggleState = viewModel::toggleProblemState
-                        )
-                    }
+                    ProblemProgressSection(
+                        problemCount = uiState.problemCount,
+                        problemStates = uiState.problemStates,
+                        selectedMaterial = uiState.selectedMaterial,
+                        onSetCount = viewModel::setProblemCount,
+                        onToggleState = viewModel::toggleProblemState
+                    )
 
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    val recentMaterials = uiState.recentMaterials
-                    if (recentMaterials.isNotEmpty()) {
-                        RecentMaterialsSection(
-                            materials = recentMaterials,
-                            onSelect = { material, subject ->
-                                viewModel.selectMaterial(material, subject)
-                            }
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
         }
@@ -366,60 +326,273 @@ fun TimerScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MaterialSelector(
+private fun TimerSelectionPanel(
     selectedMaterial: Material?,
     selectedSubject: Subject?,
+    hasSubjects: Boolean,
     onClick: () -> Unit
 ) {
-    val borderColor = selectedSubject?.let { Color(it.color) }
-        ?: MaterialTheme.colorScheme.outline
-
     ElevatedCard(
-        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Colored left border strip matching the selected subject
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TimerSelectionRow(
+                label = "科目",
+                value = selectedSubject?.name ?: if (hasSubjects) "科目を選択" else "科目を追加してください",
+                accent = selectedSubject?.let { Color(it.color) } ?: Color(0xFF1D7FEA),
+                icon = null,
+                onClick = onClick
+            )
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .height(64.dp)
-                    .background(borderColor)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
             )
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = selectedSubject?.name ?: stringResource(R.string.timer_select_subject),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (selectedMaterial != null) {
-                        Text(
-                            text = selectedMaterial.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            TimerSelectionRow(
+                label = "教材",
+                value = selectedMaterial?.name ?: "なし",
+                accent = MaterialTheme.colorScheme.primary,
+                icon = Icons.Default.Book,
+                onClick = onClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimerSelectionRow(
+    label: String,
+    value: String,
+    accent: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector?,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(62.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.13f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (icon == null) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(accent)
+                )
+            } else {
                 Icon(
-                    Icons.Default.ArrowDropDown,
-                    contentDescription = stringResource(R.string.timer_dropdown)
+                    icon,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = stringResource(R.string.timer_dropdown),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+@Composable
+private fun QuickSelectionSection(
+    subjects: List<Subject>,
+    selectedSubject: Subject?,
+    recentMaterials: List<Pair<Material, Subject>>,
+    selectedMaterial: Material?,
+    onSelectSubject: (Subject) -> Unit,
+    onSelectMaterial: (Material, Subject) -> Unit
+) {
+    if (subjects.isEmpty() && recentMaterials.isEmpty()) return
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (subjects.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(subjects.take(5)) { subject ->
+                    TimerQuickChip(
+                        title = subject.name,
+                        selected = selectedSubject?.id == subject.id,
+                        leadingColor = subject.color.toSubjectColor(),
+                        onClick = { onSelectSubject(subject) }
+                    )
+                }
+            }
+        }
+        if (recentMaterials.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(recentMaterials.take(4)) { (material, subject) ->
+                    TimerQuickChip(
+                        title = material.name,
+                        selected = selectedMaterial?.id == material.id,
+                        leadingColor = MaterialTheme.colorScheme.primary,
+                        onClick = { onSelectMaterial(material, subject) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimerQuickChip(
+    title: String,
+    selected: Boolean,
+    leadingColor: Color,
+    onClick: () -> Unit
+) {
+    AssistChip(
+        onClick = onClick,
+        label = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+        },
+        leadingIcon = {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(if (selected) Color.White else leadingColor)
+            )
+        },
+        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+            labelColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+            leadingIconContentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+        ),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.primary.copy(alpha = if (selected) 0f else 0.3f)
+        )
+    )
+}
+
+@Composable
+private fun TimerPanel(
+    selectedMode: TimerMode,
+    countdownMinutes: Int,
+    isRunning: Boolean,
+    displayTime: Long,
+    progress: Float,
+    onSelectMode: (TimerMode) -> Unit,
+    onSelectMinutes: (Int) -> Unit,
+    onStart: () -> Unit,
+    onPause: () -> Unit,
+    onStop: () -> Unit
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            TimerModeSelector(
+                selectedMode = selectedMode,
+                countdownMinutes = countdownMinutes,
+                isRunning = isRunning,
+                onSelectMode = onSelectMode,
+                onSelectMinutes = onSelectMinutes
+            )
+            PulsingEffect(isPulsing = isRunning) {
+                CircularProgressRing(
+                    progress = if (displayTime > 0L || isRunning) progress.coerceIn(0f, 1f) else 0f,
+                    size = 204.dp,
+                    strokeWidth = 13.dp,
+                    showPercentage = false,
+                    centerContent = {
+                        TimerDisplay(
+                            time = displayTime,
+                            isRunning = isRunning,
+                            mode = selectedMode
+                        )
+                    }
+                )
+            }
+            TimerControls(
+                isRunning = isRunning,
+                displayTime = displayTime,
+                onStart = onStart,
+                onPause = onPause,
+                onStop = onStop
+            )
+        }
+    }
+}
+
+@Composable
+private fun ManualEntryButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(54.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF2563EB),
+            contentColor = Color.White
+        )
+    ) {
+        Icon(
+            Icons.Default.Edit,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = stringResource(R.string.timer_manual_input_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -441,24 +614,26 @@ private fun TimerDisplay(
     }
 
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            text = timeText,
-            fontSize = 48.sp,
-            fontWeight = FontWeight.Light,
-            color = if (isRunning) MaterialTheme.colorScheme.primary
-                   else MaterialTheme.colorScheme.onSurface
+            text = if (isRunning) "記録中" else "待機中",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        if (isRunning) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = if (mode == TimerMode.TIMER) "カウントダウン中" else stringResource(R.string.timer_studying),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
+        Text(
+            text = timeText,
+            fontSize = 46.sp,
+            fontWeight = FontWeight.Light,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = if (mode == TimerMode.TIMER) "カウントダウン" else "経過を記録中",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -477,61 +652,58 @@ private fun TimerControls(
     }
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-        verticalAlignment = Alignment.Top
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (isRunning) {
-                LargeFloatingActionButton(
-                    onClick = onPause,
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(80.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Pause,
-                        contentDescription = stringResource(R.string.timer_pause),
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-            } else {
-                LargeFloatingActionButton(
-                    onClick = onStart,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(80.dp)
-                ) {
-                    Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = primaryLabel,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = if (isRunning) onPause else onStart,
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
+            Icon(
+                if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = primaryLabel,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = primaryLabel,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
         }
 
-        if (displayTime > 0) {
+        Button(
+            onClick = onStop,
+            enabled = displayTime > 0L,
+            modifier = Modifier
+                .width(66.dp)
+                .height(56.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+                disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
+                disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f)
+            )
+        ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                LargeFloatingActionButton(
-                    onClick = onStop,
-                    containerColor = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(80.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Stop,
-                        contentDescription = stringResource(R.string.timer_stop),
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
+                Icon(
+                    Icons.Default.Stop,
+                    contentDescription = stringResource(R.string.timer_stop),
+                    modifier = Modifier.size(18.dp)
+                )
                 Text(
                     text = stringResource(R.string.timer_stop),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -579,46 +751,12 @@ private fun TimerModeSelector(
     }
 }
 
-@Composable
-private fun RecentMaterialsSection(
-    materials: List<Pair<Material, Subject>>,
-    onSelect: (Material, Subject) -> Unit
-) {
-    val displayMaterials = remember(materials) { materials.take(5) }
-
-    Column {
-        SectionHeader(
-            title = stringResource(R.string.timer_recent_materials_title)
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(displayMaterials) { (material, subject) ->
-                AssistChip(
-                    onClick = { onSelect(material, subject) },
-                    label = { Text(material.name) },
-                    leadingIcon = {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(Color(subject.color))
-                        )
-                    }
-                )
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProblemProgressSection(
     problemCount: Int,
     problemStates: Map<Int, ProblemTileState>,
+    selectedMaterial: Material?,
     onSetCount: (Int) -> Unit,
     onToggleState: (Int) -> Unit
 ) {
@@ -659,84 +797,93 @@ private fun ProblemProgressSection(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                listOf(10, 20, 50).forEach { preset ->
-                    FilterChip(
-                        selected = problemCount == preset,
-                        onClick = { onSetCount(preset) },
-                        label = { Text("$preset") }
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(
-                    onClick = { onSetCount((problemCount - 1).coerceAtLeast(0)) }
-                ) {
-                    Text(
-                        text = "−",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            if (selectedMaterial == null) {
                 Text(
-                    text = "$problemCount",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    text = "教材を選択すると問題進捗を入力できます",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                IconButton(
-                    onClick = { onSetCount(problemCount + 1) }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    listOf(10, 20, 50).forEach { preset ->
+                        FilterChip(
+                            selected = problemCount == preset,
+                            onClick = { onSetCount(preset) },
+                            label = { Text("$preset") }
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = { onSetCount((problemCount - 1).coerceAtLeast(0)) }
+                    ) {
+                        Text(
+                            text = "−",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     Text(
-                        text = "+",
-                        style = MaterialTheme.typography.titleLarge,
+                        text = "$problemCount",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                }
-            }
-
-            if (problemCount > 0) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    for (i in 1..problemCount) {
-                        val state = problemStates[i] ?: ProblemTileState.UNTOUCHED
-                        val bgColor = when (state) {
-                            ProblemTileState.UNTOUCHED -> MaterialTheme.colorScheme.surfaceVariant
-                            ProblemTileState.CORRECT -> Color(0xFF4CAF50)
-                            ProblemTileState.WRONG -> Color(0xFFE53935)
-                        }
-                        val textColor = when (state) {
-                            ProblemTileState.UNTOUCHED -> MaterialTheme.colorScheme.onSurfaceVariant
-                            else -> Color.White
-                        }
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(bgColor)
-                                .clickable { onToggleState(i) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "$i",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = textColor
-                            )
-                        }
+                    IconButton(
+                        onClick = { onSetCount(problemCount + 1) }
+                    ) {
+                        Text(
+                            text = "+",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 
-                Text(
-                    text = "正解: $correctCount  不正解: $wrongCount  未着手: $untouchedCount",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (problemCount > 0) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        for (i in 1..problemCount) {
+                            val state = problemStates[i] ?: ProblemTileState.UNTOUCHED
+                            val bgColor = when (state) {
+                                ProblemTileState.UNTOUCHED -> MaterialTheme.colorScheme.surfaceVariant
+                                ProblemTileState.CORRECT -> Color(0xFF4CAF50)
+                                ProblemTileState.WRONG -> Color(0xFFE53935)
+                            }
+                            val textColor = when (state) {
+                                ProblemTileState.UNTOUCHED -> MaterialTheme.colorScheme.onSurfaceVariant
+                                else -> Color.White
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(bgColor)
+                                    .clickable { onToggleState(i) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "$i",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textColor
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "正解: $correctCount  不正解: $wrongCount  未着手: $untouchedCount",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

@@ -44,7 +44,8 @@ data class CalendarUiState(
     val error: String? = null,
     val detailMode: CalendarDetailMode = CalendarDetailMode.TIMELINE,
     val monthlyStudyDays: Int = 0,
-    val monthlyTotalMinutes: Long = 0
+    val monthlyTotalMinutes: Long = 0,
+    val monthlyAverageRating: Double? = null
 )
 
 sealed class TimelineItem {
@@ -161,6 +162,12 @@ class CalendarViewModel @Inject constructor(
 
                             val monthlyTotalMinutes = studyData.values.sum()
                             val monthlyStudyDays = studyData.size
+                            val ratings = result.data.mapNotNull { session ->
+                                session.rating?.takeIf { it > 0 }
+                            }
+                            val monthlyAverageRating = ratings
+                                .takeIf { it.isNotEmpty() }
+                                ?.average()
 
                             _uiState.update { state ->
                                 state.copy(
@@ -169,9 +176,13 @@ class CalendarViewModel @Inject constructor(
                                     studyDataByDate = studyData,
                                     monthlyTotalMinutes = monthlyTotalMinutes,
                                     monthlyStudyDays = monthlyStudyDays,
+                                    monthlyAverageRating = monthlyAverageRating,
                                     isLoading = false,
                                     error = null
                                 )
+                            }
+                            if (selectedDateState.value == null) {
+                                selectDate(defaultDateForMonth(year, month, studyData))
                             }
                         }
 
@@ -439,6 +450,26 @@ class CalendarViewModel @Inject constructor(
                 isDetailLoading = false,
                 updatingSessionId = null
             )
+        }
+    }
+
+    private fun defaultDateForMonth(year: Int, month: Int, studyData: Map<Int, Long>): Date {
+        val today = Calendar.getInstance()
+        val day = if (
+            today.get(Calendar.YEAR) == year &&
+            today.get(Calendar.MONTH) == month - 1
+        ) {
+            today.get(Calendar.DAY_OF_MONTH)
+        } else {
+            studyData
+                .filterValues { it > 0L }
+                .keys
+                .maxOrNull() ?: 1
+        }
+        return Calendar.getInstance().run {
+            set(year, month - 1, day, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+            time
         }
     }
 

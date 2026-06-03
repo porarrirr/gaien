@@ -4,9 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.studyapp.domain.model.Material
+import com.studyapp.domain.model.ProblemReviewRecord
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.repository.MaterialRepository
+import com.studyapp.domain.repository.ProblemReviewRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.util.Result
@@ -28,6 +30,7 @@ data class MaterialHistoryUiState(
     val material: Material? = null,
     val subject: Subject? = null,
     val sessions: List<StudySession> = emptyList(),
+    val problemReviewRecords: List<ProblemReviewRecord> = emptyList(),
     val displayedMonth: YearMonth = YearMonth.now(),
     val selectedDate: LocalDate = LocalDate.now(),
     val studyMinutesByDay: Map<Int, Long> = emptyMap(),
@@ -39,12 +42,20 @@ data class MaterialHistoryUiState(
     val error: String? = null
 )
 
+private data class HistorySources(
+    val materialsResult: Result<List<Material>>,
+    val subjectsResult: Result<List<Subject>>,
+    val sessionsResult: Result<List<StudySession>>,
+    val problemReviewRecordsResult: Result<List<ProblemReviewRecord>>
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class MaterialHistoryViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val materialRepository: MaterialRepository,
     private val subjectRepository: SubjectRepository,
+    private val problemReviewRepository: ProblemReviewRepository,
     private val studySessionRepository: StudySessionRepository
 ) : ViewModel() {
 
@@ -64,28 +75,43 @@ class MaterialHistoryViewModel @Inject constructor(
             combine(
                 materialRepository.getAllMaterials(),
                 subjectRepository.getAllSubjects(),
-                studySessionRepository.getSessionsByMaterial(materialId)
-            ) { materialsResult, subjectsResult, sessionsResult ->
-                Triple(materialsResult, subjectsResult, sessionsResult)
-            }.collect { (materialsResult, subjectsResult, sessionsResult) ->
-                val materials = when (materialsResult) {
+                studySessionRepository.getSessionsByMaterial(materialId),
+                problemReviewRepository.getActiveReviewRecords()
+            ) { materialsResult, subjectsResult, sessionsResult, problemReviewRecordsResult ->
+                HistorySources(
+                    materialsResult = materialsResult,
+                    subjectsResult = subjectsResult,
+                    sessionsResult = sessionsResult,
+                    problemReviewRecordsResult = problemReviewRecordsResult
+                )
+            }.collect { sources ->
+                val materials = when (val materialsResult = sources.materialsResult) {
                     is Result.Success -> materialsResult.data
                     is Result.Error -> {
                         publishError(materialsResult)
                         return@collect
                     }
                 }
-                val subjects = when (subjectsResult) {
+                val subjects = when (val subjectsResult = sources.subjectsResult) {
                     is Result.Success -> subjectsResult.data
                     is Result.Error -> {
                         publishError(subjectsResult)
                         return@collect
                     }
                 }
-                val sessions = when (sessionsResult) {
+                val sessions = when (val sessionsResult = sources.sessionsResult) {
                     is Result.Success -> sessionsResult.data.sortedByDescending { it.startTime }
                     is Result.Error -> {
                         publishError(sessionsResult)
+                        return@collect
+                    }
+                }
+                val problemReviewRecords = when (val problemReviewRecordsResult = sources.problemReviewRecordsResult) {
+                    is Result.Success -> problemReviewRecordsResult.data
+                        .filter { it.materialId == materialId }
+                        .sortedByDescending { it.reviewedAt }
+                    is Result.Error -> {
+                        publishError(problemReviewRecordsResult)
                         return@collect
                     }
                 }
@@ -112,6 +138,7 @@ class MaterialHistoryViewModel @Inject constructor(
                         material = material,
                         subject = subject,
                         sessions = sessions,
+                        problemReviewRecords = problemReviewRecords,
                         displayedMonth = displayedMonth,
                         selectedDate = selectedDate,
                         latestStudyDate = latestStudyDate
@@ -131,6 +158,7 @@ class MaterialHistoryViewModel @Inject constructor(
                 material = state.material,
                 subject = state.subject,
                 sessions = state.sessions,
+                problemReviewRecords = state.problemReviewRecords,
                 displayedMonth = displayedMonth,
                 selectedDate = selectedDate,
                 latestStudyDate = state.latestStudyDate
@@ -148,6 +176,7 @@ class MaterialHistoryViewModel @Inject constructor(
                 material = state.material,
                 subject = state.subject,
                 sessions = state.sessions,
+                problemReviewRecords = state.problemReviewRecords,
                 displayedMonth = displayedMonth,
                 selectedDate = selectedDate,
                 latestStudyDate = state.latestStudyDate
@@ -161,6 +190,7 @@ class MaterialHistoryViewModel @Inject constructor(
                 material = state.material,
                 subject = state.subject,
                 sessions = state.sessions,
+                problemReviewRecords = state.problemReviewRecords,
                 displayedMonth = YearMonth.from(date),
                 selectedDate = date,
                 latestStudyDate = state.latestStudyDate
@@ -176,6 +206,7 @@ class MaterialHistoryViewModel @Inject constructor(
         material: Material?,
         subject: Subject?,
         sessions: List<StudySession>,
+        problemReviewRecords: List<ProblemReviewRecord>,
         displayedMonth: YearMonth,
         selectedDate: LocalDate,
         latestStudyDate: LocalDate?
@@ -190,6 +221,7 @@ class MaterialHistoryViewModel @Inject constructor(
             material = material,
             subject = subject,
             sessions = sessions,
+            problemReviewRecords = problemReviewRecords,
             displayedMonth = displayedMonth,
             selectedDate = selectedDate,
             studyMinutesByDay = studyMinutesByDay,

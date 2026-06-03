@@ -252,7 +252,8 @@ class TimerViewModel @Inject constructor(
                 null
             }
         )
-        if (appPreferencesRepository.loadPreferences().focusModePromptOnTimerStart) {
+        val appPreferences = appPreferencesRepository.loadPreferences()
+        if (appPreferences.focusModeEnabled && appPreferences.focusModePromptOnTimerStart) {
             viewModelScope.launch { _openDndSettings.emit(Unit) }
         }
     }

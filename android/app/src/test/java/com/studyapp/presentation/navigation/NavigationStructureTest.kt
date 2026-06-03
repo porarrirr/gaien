@@ -15,7 +15,7 @@ class NavigationStructureTest {
     @Test
     fun `more navigation matches iOS overflow tabs`() {
         assertEquals(
-            listOf("時間割", "レポート", "Screen Time"),
+            listOf("時間割", "レポート", "Screen Time", "設定"),
             moreScreens.map { it.title }
         )
     }

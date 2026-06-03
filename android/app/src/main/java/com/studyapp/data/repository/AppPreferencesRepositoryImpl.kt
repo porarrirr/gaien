@@ -47,6 +47,7 @@ class AppPreferencesRepositoryImpl @Inject constructor(
         val TIMER_NOTIFICATION_RICH_ENABLED = booleanPreferencesKey("timer_notification_rich_enabled")
         val TIMER_NOTIFICATION_DISPLAY_PRESET = intPreferencesKey("timer_notification_display_preset")
         val LANDSCAPE_TIMER_DISPLAY_PRESET = intPreferencesKey("landscape_timer_display_preset")
+        val FOCUS_MODE_ENABLED = booleanPreferencesKey("focus_mode_enabled")
         val FOCUS_MODE_PROMPT_ON_TIMER_START = booleanPreferencesKey("focus_mode_prompt_on_timer_start")
     }
 
@@ -76,6 +77,7 @@ class AppPreferencesRepositoryImpl @Inject constructor(
             prefs[Keys.TIMER_NOTIFICATION_RICH_ENABLED] = preferences.timerNotificationRichEnabled
             prefs[Keys.TIMER_NOTIFICATION_DISPLAY_PRESET] = preferences.timerNotificationDisplayPreset.ordinal
             prefs[Keys.LANDSCAPE_TIMER_DISPLAY_PRESET] = preferences.landscapeTimerDisplayPreset.ordinal
+            prefs[Keys.FOCUS_MODE_ENABLED] = preferences.focusModeEnabled
             prefs[Keys.FOCUS_MODE_PROMPT_ON_TIMER_START] = preferences.focusModePromptOnTimerStart
             if (preferences.activeTimer != null) {
                 prefs[Keys.ACTIVE_TIMER] = json.encodeToString(preferences.activeTimer)
@@ -107,6 +109,8 @@ class AppPreferencesRepositoryImpl @Inject constructor(
                 .getOrNull(notificationPresetOrdinal) ?: TimerNotificationDisplayPreset.STANDARD,
             landscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.entries
                 .getOrNull(landscapePresetOrdinal) ?: LandscapeTimerDisplayPreset.PROBLEM_PROGRESS,
+            focusModeEnabled = this[Keys.FOCUS_MODE_ENABLED]
+                ?: (this[Keys.FOCUS_MODE_PROMPT_ON_TIMER_START] ?: false),
             focusModePromptOnTimerStart = this[Keys.FOCUS_MODE_PROMPT_ON_TIMER_START] ?: false,
             activeTimer = decodeActiveTimer(activeTimerJson)
         )

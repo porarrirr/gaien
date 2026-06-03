@@ -83,6 +83,8 @@ class CalendarViewModelTest {
 
         every { studySessionRepository.getSessionsBetweenDates(any(), any()) } returns
             flowOf(Result.Success(monthSessions))
+        every { studySessionRepository.getSessionsByDate(any()) } returns
+            flowOf(Result.Success(emptyList()))
         every { studySessionRepository.getSessionsByDate(dayStart) } returns
             flowOf(Result.Success(daySessions))
 
@@ -100,6 +102,8 @@ class CalendarViewModelTest {
     @Test
     fun `updateSessionNote stores blank note as null`() = runTest {
         every { studySessionRepository.getSessionsBetweenDates(any(), any()) } returns
+            flowOf(Result.Success(emptyList()))
+        every { studySessionRepository.getSessionsByDate(any()) } returns
             flowOf(Result.Success(emptyList()))
         coEvery { studySessionRepository.updateSession(any()) } returns Result.Success(Unit)
 

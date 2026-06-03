@@ -27,9 +27,14 @@ import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -131,6 +136,52 @@ class TimerViewModelTest {
                 targetDurationMillis = 15 * 60_000L
             )
         }
+    }
+
+    @Test
+    fun `startTimer opens dnd settings when focus mode and timer restriction are enabled`() = runTest {
+        val math = subject(1, "Math")
+        stubDefaults(
+            subjects = listOf(math),
+            preferences = AppPreferences(
+                focusModeEnabled = true,
+                focusModePromptOnTimerStart = true
+            )
+        )
+        val viewModel = createViewModel()
+        advance()
+
+        viewModel.selectSubject(math)
+        val dndEvent = async { viewModel.openDndSettings.first() }
+        viewModel.startTimer()
+        advance()
+
+        dndEvent.await()
+    }
+
+    @Test
+    fun `startTimer does not open dnd settings when focus mode master is disabled`() = runTest {
+        val math = subject(1, "Math")
+        stubDefaults(
+            subjects = listOf(math),
+            preferences = AppPreferences(
+                focusModeEnabled = false,
+                focusModePromptOnTimerStart = true
+            )
+        )
+        val viewModel = createViewModel()
+        advance()
+        val events = mutableListOf<Unit>()
+        val collector = launch {
+            viewModel.openDndSettings.collect { events.add(Unit) }
+        }
+
+        viewModel.selectSubject(math)
+        viewModel.startTimer()
+        advance()
+
+        assertEquals(0, events.size)
+        collector.cancel()
     }
 
     @Test

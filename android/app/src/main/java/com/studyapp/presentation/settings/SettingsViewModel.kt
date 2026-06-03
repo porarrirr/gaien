@@ -57,6 +57,7 @@ data class SettingsUiState(
     val timerNotificationRichEnabled: Boolean = true,
     val timerNotificationDisplayPreset: TimerNotificationDisplayPreset = TimerNotificationDisplayPreset.STANDARD,
     val landscapeTimerDisplayPreset: LandscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.PROBLEM_PROGRESS,
+    val focusModeEnabled: Boolean = false,
     val focusModePromptOnTimerStart: Boolean = false,
     val signInEmail: String = "",
     val signInPassword: String = "",
@@ -104,6 +105,7 @@ class SettingsViewModel @Inject constructor(
                         timerNotificationRichEnabled = preferences.timerNotificationRichEnabled,
                         timerNotificationDisplayPreset = preferences.timerNotificationDisplayPreset,
                         landscapeTimerDisplayPreset = preferences.landscapeTimerDisplayPreset,
+                        focusModeEnabled = preferences.focusModeEnabled,
                         focusModePromptOnTimerStart = preferences.focusModePromptOnTimerStart
                     )
                 }
@@ -134,6 +136,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             updateAppPreferences { it.copy(landscapeTimerDisplayPreset = preset) }
             _uiState.update { it.copy(landscapeTimerDisplayPreset = preset) }
+        }
+    }
+
+    fun setFocusModeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            updateAppPreferences { it.copy(focusModeEnabled = enabled) }
+            _uiState.update { it.copy(focusModeEnabled = enabled) }
         }
     }
 

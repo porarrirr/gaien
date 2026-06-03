@@ -1,6 +1,7 @@
 package com.studyapp.presentation.home
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,11 +15,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.EventNote
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Event
@@ -34,7 +36,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -60,20 +61,21 @@ import com.studyapp.domain.model.TimetableLesson
 import com.studyapp.domain.model.TodayReviewProblem
 import com.studyapp.domain.usecase.TodaySession
 import com.studyapp.presentation.components.CircularProgressRing
-import com.studyapp.presentation.components.SectionHeader
 import com.studyapp.presentation.components.SlideInCard
+import com.studyapp.presentation.theme.toSubjectColor
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.util.Date
 import java.util.Locale
 import kotlin.math.absoluteValue
 
+private const val DEFAULT_DAILY_GOAL_MINUTES = 120
+private const val DEFAULT_WEEKLY_GOAL_MINUTES = 600
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
-    onNavigateToTimer: () -> Unit = {},
-    onNavigateToMaterials: () -> Unit = {},
     onNavigateToExams: () -> Unit = {},
     onNavigateToGoals: () -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
@@ -155,28 +157,13 @@ fun HomeScreen(
                     }
                 }
 
-                // Today's sessions section
-                if (uiState.todaySessions.isNotEmpty()) {
-                    item {
-                        SlideInCard(visible = true, delayMillis = 100) {
-                            Column {
-                                SectionHeader(
-                                    title = "今日のセッション",
-                                    icon = Icons.Default.Timer
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                TodaySessionsSection(sessions = uiState.todaySessions)
-                            }
-                        }
-                    }
-                }
-
                 // Weekly goal section
                 item {
                     SlideInCard(visible = true, delayMillis = 200) {
                         WeeklyGoalSection(
                             goal = uiState.weeklyGoal,
-                            currentMinutes = uiState.weeklyStudyMinutes
+                            currentMinutes = uiState.weeklyStudyMinutes,
+                            onViewGoals = onNavigateToGoals
                         )
                     }
                 }
@@ -205,59 +192,39 @@ fun HomeScreen(
                     }
                 }
 
+                // Today's sessions section
+                item {
+                    SlideInCard(visible = true, delayMillis = 275) {
+                        TodaySessionsSection(sessions = uiState.todaySessions)
+                    }
+                }
+
                 // Upcoming exams section
-                if (uiState.upcomingExams.isNotEmpty()) {
-                    item {
-                        SlideInCard(visible = true, delayMillis = 300) {
-                            Column {
-                                SectionHeader(
-                                    title = stringResource(R.string.home_upcoming_exams_title),
-                                    icon = Icons.Default.Event
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                ExamsSection(exams = uiState.upcomingExams)
-                            }
-                        }
+                item {
+                    SlideInCard(visible = true, delayMillis = 300) {
+                        ExamsSection(exams = uiState.upcomingExams)
                     }
                 }
 
                 // Recent materials section
-                if (uiState.recentMaterials.isNotEmpty()) {
-                    item {
-                        SlideInCard(visible = true, delayMillis = 350) {
-                            Column {
-                                SectionHeader(
-                                    title = "最近使った教材",
-                                    icon = Icons.Default.Book
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                RecentMaterialsHomeSection(materials = uiState.recentMaterials)
-                            }
-                        }
+                item {
+                    SlideInCard(visible = true, delayMillis = 350) {
+                        RecentMaterialsHomeSection(materials = uiState.recentMaterials)
                     }
                 }
 
                 // Quick actions grid
                 item {
                     SlideInCard(visible = true, delayMillis = 400) {
-                        Column {
-                            SectionHeader(
-                                title = stringResource(R.string.home_quick_actions_title),
-                                icon = Icons.Default.Timer
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            QuickActionsSection(
-                                onStartTimer = onNavigateToTimer,
-                                onAddMaterial = onNavigateToMaterials,
-                                onViewExams = onNavigateToExams,
-                                onViewGoals = onNavigateToGoals,
-                                onViewPlan = onNavigateToPlan,
-                                onViewTimetable = onNavigateToTimetable,
-                                onViewSubjects = onNavigateToSubjects,
-                                onViewHistory = onNavigateToHistory,
-                                onViewSettings = onNavigateToSettings
-                            )
-                        }
+                        QuickActionsSection(
+                            onViewExams = onNavigateToExams,
+                            onViewGoals = onNavigateToGoals,
+                            onViewPlan = onNavigateToPlan,
+                            onViewTimetable = onNavigateToTimetable,
+                            onViewSubjects = onNavigateToSubjects,
+                            onViewHistory = onNavigateToHistory,
+                            onViewSettings = onNavigateToSettings
+                        )
                     }
                 }
 
@@ -272,22 +239,12 @@ fun HomeScreen(
 
 @Composable
 private fun TodayReviewSection(problems: List<TodayReviewProblem>) {
-    val visibleProblems = problems.take(8)
-    val countText = if (problems.size > visibleProblems.size) {
-        "${visibleProblems.size}/${problems.size}件"
-    } else {
-        "${problems.size}件"
-    }
+    val groups = rememberReviewGroups(problems)
 
-    ElevatedCard(
+    HomeCard(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+            .animateContentSize()
     ) {
         Column(
             modifier = Modifier
@@ -298,23 +255,23 @@ private fun TodayReviewSection(problems: List<TodayReviewProblem>) {
             HomeCardHeader(
                 title = "今日の復習",
                 icon = Icons.AutoMirrored.Filled.EventNote,
-                countText = countText
+                countText = "${problems.size}件",
+                showChevron = true
             )
             if (problems.isEmpty()) {
-                Text(
-                    text = "今日の復習はありません",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                        .padding(top = 10.dp)
-                )
+                EmptyCompactText("今日の復習はありません")
             } else {
-                visibleProblems.forEachIndexed { index, problem ->
-                    TodayReviewProblemRow(problem = problem)
-                    if (index != visibleProblems.lastIndex) {
+                groups.take(3).forEachIndexed { index, group ->
+                    TodayReviewGroupRow(
+                        group = group,
+                        dueText = reviewDueRelativeText(group.earliestReviewDate),
+                        color = listOf(
+                            MaterialTheme.colorScheme.primary,
+                            Color(0xFFF59E0B),
+                            Color(0xFF1D7FEA)
+                        )[index % 3]
+                    )
+                    if (index != groups.take(3).lastIndex) {
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -329,65 +286,95 @@ private fun TodayReviewSection(problems: List<TodayReviewProblem>) {
 }
 
 @Composable
-private fun TodayReviewProblemRow(problem: TodayReviewProblem) {
+private fun TodayReviewGroupRow(
+    group: TodayReviewMaterialGroup,
+    dueText: String,
+    color: Color
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(42.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.tertiaryContainer),
+                .background(color),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = problem.problemLabel,
+                text = "${group.problems.size}",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                color = Color.White,
                 maxLines = 1
             )
         }
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Text(
-                text = problem.materialName,
+                text = group.materialName,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = group.subjectText,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+                Text(
+                    text = dueText,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = when (dueText) {
+                        "今日まで" -> MaterialTheme.colorScheme.error
+                        "明日まで" -> Color(0xFFF59E0B)
+                        else -> MaterialTheme.colorScheme.onSurface
+                    },
+                    maxLines = 1
+                )
+            }
             Text(
-                text = buildReviewProblemSubtitle(problem),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = group.compactProblemLabels(limit = 4),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2
             )
         }
-        Text(
-            text = reviewDueText(problem.nextReviewDate),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary
+
+        Column(
+            modifier = Modifier.width(58.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "復習",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+            Text(
+                text = "${group.problems.size}問",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier
+                .padding(top = 14.dp)
+                .size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
-    }
-}
-
-private fun buildReviewProblemSubtitle(problem: TodayReviewProblem): String {
-    val subject = problem.subjectName.ifBlank { "科目未設定" }
-    return "$subject・連続正解 ${problem.consecutiveCorrectCount}・不正解 ${problem.wrongCount}"
-}
-
-private fun reviewDueText(nextReviewDate: Long): String {
-    val today = LocalDate.now()
-    val dueDate = java.time.Instant.ofEpochMilli(nextReviewDate)
-        .atZone(java.time.ZoneId.systemDefault())
-        .toLocalDate()
-    return when {
-        dueDate.isBefore(today) -> "期限超過"
-        dueDate == today -> "今日"
-        else -> SimpleDateFormat("M/d", Locale.JAPANESE).format(Date(nextReviewDate))
     }
 }
 
@@ -396,14 +383,8 @@ private fun TodayStudySection(
     totalMinutes: Long,
     goal: Goal?
 ) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
-    ) {
+    val targetMinutes = goal?.targetMinutes ?: DEFAULT_DAILY_GOAL_MINUTES
+    HomeCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -451,17 +432,14 @@ private fun TodayStudySection(
                     )
                 }
                 Text(
-                    text = goal?.let { "目標 ${it.targetFormatted}" } ?: "目標未設定",
+                    text = "目標 ${Goal.formatMinutes(targetMinutes)}",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            val progress = goal?.let {
-                val dailyTargetMinutes = it.targetMinutes.toFloat().coerceAtLeast(1f)
-                (totalMinutes.toFloat() / dailyTargetMinutes).coerceIn(0f, 1f)
-            } ?: 0f
+            val progress = (totalMinutes.toFloat() / targetMinutes.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
             CircularProgressRing(
                 progress = progress,
                 size = 90.dp,
@@ -471,33 +449,18 @@ private fun TodayStudySection(
                 showPercentage = false,
                 centerContent = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (goal == null) {
-                            Text(
-                                text = "未設定",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "目標",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            Text(
-                                text = "${(progress * 100).toInt()}%",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "達成率",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            text = "${(progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "達成率",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             )
@@ -518,95 +481,51 @@ private fun subjectColor(name: String): Color {
 
 @Composable
 private fun TodaySessionsSection(sessions: List<TodaySession>) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-    ) {
+    HomeCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            sessions.forEach { session ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(subjectColor(session.subjectName))
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = session.subjectName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            if (session.materialName.isNotBlank()) {
-                                Text(
-                                    text = session.materialName,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+            HomeCardHeader(
+                title = "今日のセッション",
+                icon = Icons.Default.Timer,
+                countText = "${sessions.size}件",
+                showChevron = true
+            )
+            if (sessions.isEmpty()) {
+                EmptyCompactText("セッションはまだありません")
+            } else {
+                sessions.take(3).forEachIndexed { index, session ->
+                    SessionRow(session = session, color = sessionColor(index))
+                    if (index != sessions.take(3).lastIndex) {
+                        DividerLine()
                     }
-                    Text(
-                        text = "${session.duration / 60000}分",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
+            FooterLink("すべてのセッションを表示")
         }
     }
 }
 
 @Composable
 private fun RecentMaterialsHomeSection(materials: List<Pair<Material, com.studyapp.domain.model.Subject>>) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-    ) {
+    HomeCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            materials.take(5).forEach { (material, subject) ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(Color(subject.color))
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = material.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = subject.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (material.totalPages > 0) {
-                        Text(
-                            text = "${material.progressPercent}%",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+            HomeCardHeader(
+                title = "最近使った教材",
+                icon = Icons.Default.Book,
+                countText = "${materials.size}件",
+                showChevron = true
+            )
+            if (materials.isEmpty()) {
+                EmptyCompactText("最近使った教材はありません")
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(materials.take(6)) { (material, subject) ->
+                        MaterialMiniCard(material = material, subject = subject)
                     }
                 }
             }
@@ -617,15 +536,15 @@ private fun RecentMaterialsHomeSection(materials: List<Pair<Material, com.studya
 @Composable
 private fun WeeklyGoalSection(
     goal: Goal?,
-    currentMinutes: Long
+    currentMinutes: Long,
+    onViewGoals: () -> Unit
 ) {
-    ElevatedCard(
+    val targetMinutes = goal?.targetMinutes?.toLong() ?: DEFAULT_WEEKLY_GOAL_MINUTES.toLong()
+    val progress = (currentMinutes.toFloat() / targetMinutes.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
+
+    HomeCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+        onClick = onViewGoals
     ) {
         Column(
             modifier = Modifier
@@ -633,60 +552,46 @@ private fun WeeklyGoalSection(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            val targetMinutes = goal?.targetMinutes?.toLong()
             HomeCardHeader(
                 title = stringResource(R.string.home_weekly_goal_title),
                 icon = Icons.Default.Flag,
-                countText = targetMinutes?.let {
-                    "${Goal.formatMinutes(currentMinutes.toInt())} / ${Goal.formatMinutes(it.toInt())}"
-                }
+                countText = "${Goal.formatMinutes(currentMinutes.toInt())} / ${Goal.formatMinutes(targetMinutes.toInt())}",
+                showChevron = true
             )
-            if (goal != null) {
-                val weeklyTargetMinutes = targetMinutes ?: goal.targetMinutes.toLong()
-                val progress = if (weeklyTargetMinutes > 0) {
-                    (currentMinutes.toFloat() / weeklyTargetMinutes.toFloat()).coerceIn(0f, 1f)
-                } else 0f
-                Text(
-                    text = "学習時間の目標 ${goal.targetFormatted}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+
+            Text(
+                text = "学習時間の目標 ${Goal.formatMinutes(targetMinutes.toInt())}",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Box(
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth(progress)
                             .height(7.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(progress)
-                                .height(7.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.primary)
-                        )
-                    }
-                    Text(
-                        text = "${(progress * 100).toInt()}%",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.width(46.dp),
-                        textAlign = TextAlign.End
+                            .background(MaterialTheme.colorScheme.primary)
                     )
                 }
-            } else {
                 Text(
-                    text = stringResource(R.string.home_no_goal_set),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.height(42.dp)
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.width(46.dp),
+                    textAlign = TextAlign.End
                 )
             }
         }
@@ -739,40 +644,36 @@ private fun HomeCardHeader(
 
 @Composable
 private fun ExamsSection(exams: List<Exam>) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-    ) {
+    HomeCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            exams.take(3).forEach { exam ->
-                val daysRemaining = exam.daysRemaining(LocalDate.now())
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = exam.name)
-                    Text(
-                        text = stringResource(R.string.home_days_left, daysRemaining),
-                        color = if (daysRemaining <= 7) MaterialTheme.colorScheme.error
-                               else MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
+            HomeCardHeader(
+                title = "今後のテスト",
+                icon = Icons.Default.Event,
+                countText = "${exams.size}件",
+                showChevron = true
+            )
+            if (exams.isEmpty()) {
+                EmptyCompactText("予定されたテストはありません")
+            } else {
+                exams.take(4).forEachIndexed { index, exam ->
+                    ExamRow(exam = exam)
+                    if (index != exams.take(4).lastIndex) {
+                        DividerLine()
+                    }
                 }
             }
+            FooterLink("すべてのテストを表示")
         }
     }
 }
 
 @Composable
 private fun QuickActionsSection(
-    onStartTimer: () -> Unit,
-    onAddMaterial: () -> Unit,
     onViewExams: () -> Unit = {},
     onViewGoals: () -> Unit = {},
     onViewPlan: () -> Unit = {},
@@ -782,35 +683,38 @@ private fun QuickActionsSection(
     onViewSettings: () -> Unit = {}
 ) {
     val actions = listOf(
-        Triple(Icons.Default.Timer, R.string.home_quick_timer, onStartTimer),
-        Triple(Icons.Default.Add, R.string.home_quick_material, onAddMaterial),
-        Triple(Icons.Default.Event, R.string.home_quick_exams, onViewExams),
-        Triple(Icons.Default.Category, R.string.home_quick_subjects, onViewSubjects),
-        Triple(Icons.Default.History, R.string.home_nav_history, onViewHistory),
-        Triple(Icons.Default.Flag, R.string.home_quick_goals, onViewGoals),
-        Triple(Icons.AutoMirrored.Filled.EventNote, R.string.home_quick_plan, onViewPlan),
-        Triple(Icons.Default.GridView, R.string.home_quick_timetable, onViewTimetable),
-        Triple(Icons.Default.Settings, R.string.home_nav_settings, onViewSettings)
+        Triple(Icons.Default.Event, "試験", onViewExams),
+        Triple(Icons.Default.Category, "科目", onViewSubjects),
+        Triple(Icons.Default.History, "履歴", onViewHistory),
+        Triple(Icons.Default.Flag, "目標", onViewGoals),
+        Triple(Icons.AutoMirrored.Filled.EventNote, "計画", onViewPlan),
+        Triple(Icons.Default.GridView, "時間割", onViewTimetable),
+        Triple(Icons.Default.Settings, "設定", onViewSettings)
     )
 
-    // 2-column grid layout
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        actions.chunked(2).forEach { rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rowItems.forEach { (icon, labelRes, onClick) ->
-                    QuickActionItem(
-                        icon = icon,
-                        label = stringResource(labelRes),
-                        onClick = onClick,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                // Fill remaining space if odd number of items in this row
-                if (rowItems.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
+    HomeCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            actions.chunked(4).forEach { rowItems ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    rowItems.forEach { (icon, label, onClick) ->
+                        QuickActionItem(
+                            icon = icon,
+                            label = label,
+                            onClick = onClick,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    repeat(4 - rowItems.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -826,14 +730,9 @@ private fun TimetableLessonHomeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ElevatedCard(
+    HomeCard(
         onClick = onClick,
         modifier = modifier.height(128.dp),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -998,34 +897,307 @@ private fun QuickActionItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ElevatedCard(
+    HomeCard(
         onClick = onClick,
-        modifier = modifier.height(80.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        modifier = modifier.height(62.dp),
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
+                .padding(horizontal = 4.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 icon,
                 contentDescription = null,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(22.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeCard(
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    val shape = RoundedCornerShape(8.dp)
+    val border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+    if (onClick != null) {
+        Surface(
+            onClick = onClick,
+            modifier = modifier,
+            shape = shape,
+            color = containerColor,
+            shadowElevation = 1.dp,
+            border = border,
+            content = content
+        )
+    } else {
+        Surface(
+            modifier = modifier,
+            shape = shape,
+            color = containerColor,
+            shadowElevation = 1.dp,
+            border = border,
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun EmptyCompactText(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(92.dp),
+        textAlign = TextAlign.Center
+    )
+}
+
+@Composable
+private fun FooterLink(title: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(38.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun DividerLine() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    ) {}
+}
+
+@Composable
+private fun SessionRow(session: TodaySession, color: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = session.subjectName.ifBlank { "科目未設定" },
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Text(
+                text = session.materialName.ifBlank { "教材未設定" },
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = "${session.duration / 60000}分",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = timeRangeText(session.startTime, session.duration),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExamRow(exam: Exam) {
+    val daysRemaining = exam.daysRemaining(LocalDate.now())
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = exam.name,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Text(
+                text = SimpleDateFormat("M/d", Locale.JAPANESE).format(Date(exam.date)),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = stringResource(R.string.home_days_left, daysRemaining),
+            color = if (daysRemaining <= 7) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelMedium
+        )
+    }
+}
+
+@Composable
+private fun MaterialMiniCard(
+    material: Material,
+    subject: com.studyapp.domain.model.Subject
+) {
+    HomeCard(
+        modifier = Modifier
+            .width(138.dp)
+            .height(90.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(subject.color.toSubjectColor())
+                )
+                Text(
+                    text = subject.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+            Text(
+                text = material.name,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2
+            )
+            if (material.totalPages > 0) {
+                Text(
+                    text = "${material.progressPercent}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+private fun reviewDueRelativeText(nextReviewDate: Long): String {
+    val today = LocalDate.now()
+    val dueDate = java.time.Instant.ofEpochMilli(nextReviewDate)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+    val days = java.time.temporal.ChronoUnit.DAYS.between(today, dueDate)
+    return when {
+        days <= 0 -> "今日まで"
+        days == 1L -> "明日まで"
+        else -> "${days}日後"
+    }
+}
+
+private fun timeRangeText(startTime: Long, duration: Long): String {
+    val formatter = SimpleDateFormat("H:mm", Locale.JAPANESE)
+    val start = Date(startTime)
+    val end = Date(startTime + duration)
+    return "${formatter.format(start)}-${formatter.format(end)}"
+}
+
+private fun sessionColor(index: Int): Color {
+    return listOf(Color(0xFF1D7FEA), Color(0xFFE53935), Color(0xFFF59E0B))[index % 3]
+}
+
+private fun rememberReviewGroups(problems: List<TodayReviewProblem>): List<TodayReviewMaterialGroup> {
+    return problems
+        .groupBy { it.materialId }
+        .map { (_, values) ->
+            val sorted = values.sortedWith(
+                compareBy<TodayReviewProblem> { it.nextReviewDate }
+                    .thenBy { it.problemNumber }
+            )
+            val first = sorted.first()
+            TodayReviewMaterialGroup(
+                materialId = first.materialId,
+                materialName = first.materialName,
+                subjectName = first.subjectName,
+                problems = sorted
+            )
+        }
+        .sortedWith(
+            compareBy<TodayReviewMaterialGroup> { it.earliestReviewDate }
+                .thenBy { it.materialName }
+                .thenBy { it.materialId }
+        )
+}
+
+private data class TodayReviewMaterialGroup(
+    val materialId: Long,
+    val materialName: String,
+    val subjectName: String,
+    val problems: List<TodayReviewProblem>
+) {
+    val subjectText: String
+        get() = subjectName.ifBlank { "科目未設定" }
+
+    val earliestReviewDate: Long
+        get() = problems.minOfOrNull { it.nextReviewDate } ?: 0L
+
+    fun compactProblemLabels(limit: Int): String {
+        val labels = problems.map { it.problemLabel }
+        return if (labels.size <= limit) {
+            labels.joinToString("、")
+        } else {
+            "${labels.take(limit).joinToString("、")} ほか${labels.size - limit}問"
         }
     }
 }

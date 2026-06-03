@@ -3,6 +3,7 @@ package com.studyapp.presentation.settings
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -29,6 +30,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -51,6 +53,13 @@ fun SettingsScreen(
     var showDeleteDataDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showDebugLog by remember { mutableStateOf(false) }
+    var showAuthSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.syncAuthenticated) {
+        if (uiState.syncAuthenticated) {
+            showAuthSheet = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -72,74 +81,81 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .padding(horizontal = 17.dp)
                 .verticalScroll(rememberScrollState())
+                .padding(top = 14.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            ThemeSection(
+            SettingsAppearanceGroup(
                 selectedColorTheme = uiState.selectedColorTheme,
                 selectedThemeMode = uiState.selectedThemeMode,
                 onColorThemeChange = { viewModel.setColorTheme(it) },
                 onThemeModeChange = { viewModel.setThemeMode(it) }
             )
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            TimerDisplaySection(
-                landscapePreset = uiState.landscapeTimerDisplayPreset,
-                notificationRichEnabled = uiState.timerNotificationRichEnabled,
-                notificationPreset = uiState.timerNotificationDisplayPreset,
-                onLandscapePresetChange = viewModel::setLandscapeTimerDisplayPreset,
-                onNotificationRichEnabledChange = viewModel::setTimerNotificationRichEnabled,
-                onNotificationPresetChange = viewModel::setTimerNotificationDisplayPreset
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            
-            NotificationSection(
+            SettingsReminderGroup(
                 reminderEnabled = uiState.reminderEnabled,
                 reminderTime = uiState.reminderTime,
                 onReminderEnabledChange = actions.onReminderEnabledChange,
                 onReminderTimeClick = actions.onReminderTimeClick
             )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SettingsLandscapeTimerGroup(
+                landscapePreset = uiState.landscapeTimerDisplayPreset,
+                onLandscapePresetChange = viewModel::setLandscapeTimerDisplayPreset
+            )
 
-            SyncSection(
+            SettingsTimerNotificationGroup(
+                notificationRichEnabled = uiState.timerNotificationRichEnabled,
+                notificationPreset = uiState.timerNotificationDisplayPreset,
+                onNotificationRichEnabledChange = viewModel::setTimerNotificationRichEnabled,
+                onNotificationPresetChange = viewModel::setTimerNotificationDisplayPreset
+            )
+
+            SettingsDataSummaryGroup(
+                totalSessions = uiState.totalSessions,
+                totalStudyTime = uiState.totalStudyTime
+            )
+
+            SettingsCloudSyncGroup(
                 syncAuthenticated = uiState.syncAuthenticated,
                 syncAccountEmail = uiState.syncAccountEmail,
-                signInEmail = uiState.signInEmail,
-                signInPassword = uiState.signInPassword,
-                createEmail = uiState.createEmail,
-                createPassword = uiState.createPassword,
                 syncInProgress = uiState.syncInProgress,
                 lastSyncAt = uiState.lastSyncAt,
                 syncError = uiState.syncError,
-                onSignInEmailChange = viewModel::setSignInEmail,
-                onSignInPasswordChange = viewModel::setSignInPassword,
-                onCreateEmailChange = viewModel::setCreateEmail,
-                onCreatePasswordChange = viewModel::setCreatePassword,
-                onSignIn = viewModel::signInToSync,
-                onCreateAccount = viewModel::createSyncAccount,
-                onSendPasswordReset = viewModel::sendPasswordReset,
                 onSignOut = viewModel::signOutOfSync,
                 onDeleteAccount = { showDeleteAccountDialog = true },
                 onSyncNow = viewModel::syncNow,
-                onImportLocal = viewModel::importLocalDataToCloud
+                onImportLocal = viewModel::importLocalDataToCloud,
+                onOpenAuth = { showAuthSheet = true }
             )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            
-            DataSection(
-                totalSessions = uiState.totalSessions,
-                totalStudyTime = uiState.totalStudyTime,
+            SettingsBackupGroup(
                 onExport = { showExportDialog = true },
-                onImport = { showImportDialog = true },
-                onDeleteData = { showDeleteDataDialog = true }
+                onImport = { showImportDialog = true }
             )
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            
-            AboutSection(onShowDebugLog = { showDebugLog = true })
+
+            SettingsDangerGroup(onDeleteData = { showDeleteDataDialog = true })
+
+            SettingsDiagnosticGroup(
+                onShowDebugLog = { showDebugLog = true },
+                onClearDebugLog = viewModel::clearDebugLogs
+            )
         }
+    }
+
+    if (showAuthSheet) {
+        CloudAuthSheet(
+            uiState = uiState,
+            onDismiss = { showAuthSheet = false },
+            onSignInEmailChange = viewModel::setSignInEmail,
+            onSignInPasswordChange = viewModel::setSignInPassword,
+            onCreateEmailChange = viewModel::setCreateEmail,
+            onCreatePasswordChange = viewModel::setCreatePassword,
+            onSignIn = viewModel::signInToSync,
+            onCreateAccount = viewModel::createSyncAccount,
+            onSendPasswordReset = viewModel::sendPasswordReset
+        )
     }
     
     if (showExportDialog) {
@@ -194,6 +210,781 @@ fun SettingsScreen(
             onClear = { viewModel.clearDebugLogs() }
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsAppearanceGroup(
+    selectedColorTheme: ColorTheme,
+    selectedThemeMode: ThemeMode,
+    onColorThemeChange: (ColorTheme) -> Unit,
+    onThemeModeChange: (ThemeMode) -> Unit
+) {
+    var themeModeExpanded by remember { mutableStateOf(false) }
+    var colorThemeExpanded by remember { mutableStateOf(false) }
+
+    SettingsGroup(title = "テーマ設定") {
+        Box {
+            SettingsValueRow(
+                icon = Icons.Default.Palette,
+                title = "テーマ",
+                value = selectedThemeMode.title,
+                onClick = { themeModeExpanded = true }
+            )
+            DropdownMenu(
+                expanded = themeModeExpanded,
+                onDismissRequest = { themeModeExpanded = false }
+            ) {
+                ThemeMode.entries.forEach { mode ->
+                    DropdownMenuItem(
+                        text = { Text(mode.title) },
+                        onClick = {
+                            onThemeModeChange(mode)
+                            themeModeExpanded = false
+                        },
+                        trailingIcon = {
+                            if (selectedThemeMode == mode) {
+                                Icon(Icons.Default.Check, contentDescription = null)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+        HorizontalDivider()
+        Box {
+            SettingsValueRow(
+                icon = Icons.Default.Palette,
+                title = "カラー",
+                value = selectedColorTheme.title,
+                color = Color(0xFF000000 or selectedColorTheme.hex),
+                showsColorDot = true,
+                onClick = { colorThemeExpanded = true }
+            )
+            DropdownMenu(
+                expanded = colorThemeExpanded,
+                onDismissRequest = { colorThemeExpanded = false }
+            ) {
+                ColorTheme.entries.forEach { theme ->
+                    DropdownMenuItem(
+                        text = { Text(theme.title) },
+                        onClick = {
+                            onColorThemeChange(theme)
+                            colorThemeExpanded = false
+                        },
+                        leadingIcon = {
+                            Box(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF000000 or theme.hex))
+                            )
+                        },
+                        trailingIcon = {
+                            if (selectedColorTheme == theme) {
+                                Icon(Icons.Default.Check, contentDescription = null)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsReminderGroup(
+    reminderEnabled: Boolean,
+    reminderTime: String,
+    onReminderEnabledChange: (Boolean) -> Unit,
+    onReminderTimeClick: () -> Unit
+) {
+    SettingsGroup(title = "通知") {
+        SettingsToggleRow(
+            icon = Icons.Default.Notifications,
+            title = "毎日のリマインダー",
+            checked = reminderEnabled,
+            onCheckedChange = onReminderEnabledChange
+        )
+        HorizontalDivider()
+        SettingsValueRow(
+            icon = Icons.Default.Schedule,
+            title = "通知時刻",
+            value = reminderTime,
+            enabled = reminderEnabled,
+            onClick = onReminderTimeClick
+        )
+    }
+    Text(
+        text = "※時間割の未復習が48時間を超えた場合に通知します",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 18.dp)
+    )
+}
+
+@Composable
+private fun SettingsLandscapeTimerGroup(
+    landscapePreset: LandscapeTimerDisplayPreset,
+    onLandscapePresetChange: (LandscapeTimerDisplayPreset) -> Unit
+) {
+    SettingsGroup(title = "横向きタイマーの表示") {
+        LandscapeTimerDisplayPreset.entries.forEachIndexed { index, preset ->
+            SettingsSelectionRow(
+                icon = if (preset == LandscapeTimerDisplayPreset.PROBLEM_PROGRESS) {
+                    Icons.Default.GridView
+                } else {
+                    Icons.Default.Timer
+                },
+                title = settingsTitle(preset),
+                selected = landscapePreset == preset,
+                onClick = { onLandscapePresetChange(preset) }
+            )
+            if (index != LandscapeTimerDisplayPreset.entries.lastIndex) {
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsTimerNotificationGroup(
+    notificationRichEnabled: Boolean,
+    notificationPreset: TimerNotificationDisplayPreset,
+    onNotificationRichEnabledChange: (Boolean) -> Unit,
+    onNotificationPresetChange: (TimerNotificationDisplayPreset) -> Unit
+) {
+    SettingsGroup(title = "タイマー通知の表示") {
+        SettingsToggleRow(
+            icon = Icons.Default.Notifications,
+            title = "リッチ通知を使用",
+            checked = notificationRichEnabled,
+            onCheckedChange = onNotificationRichEnabledChange
+        )
+        if (notificationRichEnabled) {
+            HorizontalDivider()
+            TimerNotificationDisplayPreset.entries.forEachIndexed { index, preset ->
+                SettingsSelectionRow(
+                    icon = Icons.Default.Description,
+                    title = settingsTitle(preset),
+                    selected = notificationPreset == preset,
+                    onClick = { onNotificationPresetChange(preset) }
+                )
+                if (index != TimerNotificationDisplayPreset.entries.lastIndex) {
+                    HorizontalDivider()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsDataSummaryGroup(
+    totalSessions: Int,
+    totalStudyTime: Long
+) {
+    SettingsGroup(title = "データ概要") {
+        SettingsInfoRow(
+            icon = Icons.Default.BarChart,
+            title = "学習記録数",
+            value = "${totalSessions} 件"
+        )
+        HorizontalDivider()
+        SettingsInfoRow(
+            icon = Icons.Default.Schedule,
+            title = "総学習時間",
+            value = formatStudyTime(totalStudyTime)
+        )
+    }
+}
+
+@Composable
+private fun SettingsCloudSyncGroup(
+    syncAuthenticated: Boolean,
+    syncAccountEmail: String?,
+    syncInProgress: Boolean,
+    lastSyncAt: Long?,
+    syncError: String?,
+    onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit,
+    onSyncNow: () -> Unit,
+    onImportLocal: () -> Unit,
+    onOpenAuth: () -> Unit
+) {
+    SettingsGroup(title = "クラウド同期") {
+        if (syncAuthenticated) {
+            SettingsInfoRow(
+                icon = Icons.Default.Public,
+                title = "接続中",
+                value = "接続中",
+                valueColor = MaterialTheme.colorScheme.primary,
+                showsStatusDot = true
+            )
+            HorizontalDivider()
+            SettingsInfoRow(
+                icon = Icons.Default.Person,
+                title = "メールアドレス",
+                value = syncAccountEmail ?: "-"
+            )
+            HorizontalDivider()
+            SettingsInfoRow(
+                icon = Icons.Default.Schedule,
+                title = "最終同期",
+                value = lastSyncAt?.let { SimpleDateFormat("M/d HH:mm", Locale.JAPANESE).format(Date(it)) } ?: "未同期"
+            )
+            HorizontalDivider()
+            SettingsActionLine(
+                icon = Icons.Default.Refresh,
+                title = if (syncInProgress) "同期中..." else "今すぐ同期",
+                color = MaterialTheme.colorScheme.primary,
+                enabled = !syncInProgress,
+                action = onSyncNow
+            )
+            HorizontalDivider()
+            SettingsActionLine(
+                icon = Icons.Default.Upload,
+                title = "ローカルデータをアップロード",
+                color = MaterialTheme.colorScheme.primary,
+                enabled = !syncInProgress,
+                action = onImportLocal
+            )
+            HorizontalDivider()
+            SettingsActionLine(
+                icon = Icons.Default.Delete,
+                title = "サインアウト",
+                color = MaterialTheme.colorScheme.error,
+                enabled = !syncInProgress,
+                action = onSignOut
+            )
+            HorizontalDivider()
+            SettingsActionLine(
+                icon = Icons.Default.DeleteForever,
+                title = "アカウントを削除",
+                color = MaterialTheme.colorScheme.error,
+                enabled = !syncInProgress,
+                action = onDeleteAccount
+            )
+        } else {
+            SettingsValueRow(
+                icon = Icons.Default.Person,
+                title = "サインイン / アカウント作成",
+                value = "",
+                onClick = onOpenAuth
+            )
+        }
+
+        syncError?.takeIf { it.isNotBlank() }?.let { error ->
+            HorizontalDivider()
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsBackupGroup(
+    onExport: () -> Unit,
+    onImport: () -> Unit
+) {
+    SettingsGroup(title = "バックアップ") {
+        SettingsActionLine(
+            icon = Icons.Default.Download,
+            title = "エクスポート",
+            color = MaterialTheme.colorScheme.primary,
+            action = onExport
+        )
+        HorizontalDivider()
+        SettingsActionLine(
+            icon = Icons.Default.Upload,
+            title = "インポート",
+            color = MaterialTheme.colorScheme.primary,
+            action = onImport
+        )
+    }
+}
+
+@Composable
+private fun SettingsDangerGroup(onDeleteData: () -> Unit) {
+    SettingsGroup(title = "危険な操作") {
+        SettingsActionLine(
+            icon = Icons.Default.DeleteForever,
+            title = "全データを削除",
+            color = MaterialTheme.colorScheme.error,
+            action = onDeleteData
+        )
+    }
+}
+
+@Composable
+private fun SettingsDiagnosticGroup(
+    onShowDebugLog: () -> Unit,
+    onClearDebugLog: () -> Unit
+) {
+    SettingsGroup(title = "診断ログ") {
+        SettingsActionLine(
+            icon = Icons.Default.Folder,
+            title = "診断ログを開く",
+            color = MaterialTheme.colorScheme.primary,
+            action = onShowDebugLog
+        )
+        HorizontalDivider()
+        SettingsActionLine(
+            icon = Icons.Default.Delete,
+            title = "診断ログをクリア",
+            color = MaterialTheme.colorScheme.error,
+            action = onClearDebugLog
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CloudAuthSheet(
+    uiState: SettingsUiState,
+    onDismiss: () -> Unit,
+    onSignInEmailChange: (String) -> Unit,
+    onSignInPasswordChange: (String) -> Unit,
+    onCreateEmailChange: (String) -> Unit,
+    onCreatePasswordChange: (String) -> Unit,
+    onSignIn: () -> Unit,
+    onCreateAccount: () -> Unit,
+    onSendPasswordReset: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 26.dp)
+                .padding(bottom = 26.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                Icon(
+                    Icons.Default.Upload,
+                    contentDescription = null,
+                    modifier = Modifier.size(54.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "クラウド同期（オプション）",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Firebase を使用してデータを同期します。同期はいつでも設定からオン／オフできます。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            AuthCard(title = "サインイン", description = "既存のアカウントでサインインしてデータを同期します。") {
+                OutlinedTextField(
+                    value = uiState.signInEmail,
+                    onValueChange = onSignInEmailChange,
+                    label = { Text("メールアドレス") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = uiState.signInPassword,
+                    onValueChange = onSignInPasswordChange,
+                    label = { Text("パスワード") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextButton(
+                    onClick = onSendPasswordReset,
+                    enabled = !uiState.syncInProgress && uiState.signInEmail.isNotBlank()
+                ) {
+                    Text("パスワードをお忘れですか？")
+                }
+                Button(
+                    onClick = onSignIn,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(58.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = !uiState.syncInProgress &&
+                        uiState.signInEmail.isNotBlank() &&
+                        uiState.signInPassword.isNotBlank()
+                ) {
+                    Text("サインイン", style = MaterialTheme.typography.titleMedium)
+                }
+            }
+
+            AuthCard(title = "アカウント作成", description = "新しいアカウントを作成してクラウド同期を利用します。") {
+                OutlinedTextField(
+                    value = uiState.createEmail,
+                    onValueChange = onCreateEmailChange,
+                    label = { Text("メールアドレス") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = uiState.createPassword,
+                    onValueChange = onCreatePasswordChange,
+                    label = { Text("パスワード") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = "※ 8文字以上のパスワードを設定してください。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(
+                    onClick = onCreateAccount,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(58.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = !uiState.syncInProgress &&
+                        uiState.createEmail.isNotBlank() &&
+                        uiState.createPassword.isNotBlank()
+                ) {
+                    Text("アカウント作成", style = MaterialTheme.typography.titleMedium)
+                }
+            }
+
+            uiState.syncError?.takeIf { it.isNotBlank() }?.let { error ->
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .padding(16.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Lock,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "通信は暗号化され、安全に保護されています。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AuthCard(
+    title: String,
+    description: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsGroup(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 11.dp)
+        )
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color = MaterialTheme.colorScheme.onSurface) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        modifier = Modifier.size(28.dp),
+        tint = tint
+    )
+}
+
+@Composable
+private fun SettingsValueRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    value: String,
+    color: Color = MaterialTheme.colorScheme.primary,
+    showsColorDot: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 46.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SettingsIcon(icon, tint = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.weight(1f)
+        )
+        if (showsColorDot) {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+        }
+        if (value.isNotEmpty()) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End,
+                modifier = Modifier.widthIn(max = 190.dp)
+            )
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 46.dp)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SettingsIcon(icon)
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 1
+        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun SettingsSelectionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 46.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SettingsIcon(icon)
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (selected) {
+            Icon(
+                Icons.Default.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    showsStatusDot: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        SettingsIcon(icon)
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 1
+        )
+        if (showsStatusDot) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(valueColor)
+            )
+        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = valueColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.widthIn(max = 210.dp)
+        )
+    }
+}
+
+@Composable
+private fun SettingsActionLine(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    color: Color,
+    enabled: Boolean = true,
+    action: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(enabled = enabled, onClick = action)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        SettingsIcon(icon, tint = if (enabled) color else MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) color else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+private fun settingsTitle(preset: LandscapeTimerDisplayPreset): String {
+    return when (preset) {
+        LandscapeTimerDisplayPreset.PROBLEM_PROGRESS -> "問題集つき（推奨）"
+        LandscapeTimerDisplayPreset.CLOCK_ONLY -> "時計のみ"
+    }
+}
+
+private fun settingsTitle(preset: TimerNotificationDisplayPreset): String {
+    return when (preset) {
+        TimerNotificationDisplayPreset.STANDARD -> "シンプル"
+        TimerNotificationDisplayPreset.FOCUS -> "集中"
+        TimerNotificationDisplayPreset.PROGRESS -> "進捗"
+        TimerNotificationDisplayPreset.SUBJECT_DETAIL -> "科目詳細"
+    }
+}
+
+private fun formatStudyTime(totalStudyTime: Long): String {
+    val hours = totalStudyTime / 60
+    val minutes = totalStudyTime % 60
+    return "${hours} 時間 ${minutes} 分"
 }
 
 @Composable

@@ -5,6 +5,7 @@ import com.studyapp.domain.model.Material
 import com.studyapp.domain.model.StudySession
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.repository.MaterialRepository
+import com.studyapp.domain.repository.ProblemReviewRepository
 import com.studyapp.domain.repository.StudySessionRepository
 import com.studyapp.domain.repository.SubjectRepository
 import com.studyapp.domain.util.Result
@@ -31,6 +32,7 @@ class MaterialHistoryViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var materialRepository: MaterialRepository
     private lateinit var subjectRepository: SubjectRepository
+    private lateinit var problemReviewRepository: ProblemReviewRepository
     private lateinit var studySessionRepository: StudySessionRepository
 
     @Before
@@ -38,7 +40,9 @@ class MaterialHistoryViewModelTest {
         Dispatchers.setMain(testDispatcher)
         materialRepository = mockk()
         subjectRepository = mockk()
+        problemReviewRepository = mockk()
         studySessionRepository = mockk()
+        every { problemReviewRepository.getActiveReviewRecords() } returns flowOf(Result.Success(emptyList()))
     }
 
     @After
@@ -76,6 +80,7 @@ class MaterialHistoryViewModelTest {
             SavedStateHandle(mapOf("materialId" to 7L)),
             materialRepository,
             subjectRepository,
+            problemReviewRepository,
             studySessionRepository
         )
         testDispatcher.scheduler.advanceUntilIdle()
@@ -109,6 +114,7 @@ class MaterialHistoryViewModelTest {
             SavedStateHandle(mapOf("materialId" to 7L)),
             materialRepository,
             subjectRepository,
+            problemReviewRepository,
             studySessionRepository
         )
         testDispatcher.scheduler.advanceUntilIdle()
@@ -133,6 +139,7 @@ class MaterialHistoryViewModelTest {
             SavedStateHandle(mapOf("materialId" to 7L)),
             materialRepository,
             subjectRepository,
+            problemReviewRepository,
             studySessionRepository
         )
         testDispatcher.scheduler.advanceUntilIdle()

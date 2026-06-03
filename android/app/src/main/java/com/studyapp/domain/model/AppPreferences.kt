@@ -97,6 +97,7 @@ data class AppPreferences(
     val timerNotificationRichEnabled: Boolean = true,
     val timerNotificationDisplayPreset: TimerNotificationDisplayPreset = TimerNotificationDisplayPreset.STANDARD,
     val landscapeTimerDisplayPreset: LandscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.PROBLEM_PROGRESS,
+    val focusModeEnabled: Boolean = false,
     val focusModePromptOnTimerStart: Boolean = false,
     val activeTimer: TimerSnapshot? = null
 )

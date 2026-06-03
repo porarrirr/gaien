@@ -1,6 +1,7 @@
 package com.studyapp.presentation.materials
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,10 +27,13 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +55,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -75,6 +83,8 @@ fun MaterialsScreen(
     var editingMaterial by remember { mutableStateOf<Material?>(null) }
     var showScanner by remember { mutableStateOf(false) }
     var showBookSearchDialog by remember { mutableStateOf(false) }
+    var showIsbnSearchDialog by remember { mutableStateOf(false) }
+    var showAddMenu by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     
     var previousSearchResult by remember { mutableStateOf<com.studyapp.data.service.BookInfo?>(null) }
@@ -108,36 +118,52 @@ fun MaterialsScreen(
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 actions = {
+                    IconButton(onClick = onNavigateToSubjects) {
+                        Icon(
+                            Icons.Default.Category,
+                            contentDescription = stringResource(R.string.materials_nav_subjects),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     IconButton(onClick = { showScanner = true }) {
                         Icon(
                             Icons.Default.QrCodeScanner,
                             contentDescription = stringResource(R.string.materials_scan_barcode),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                    TextButton(onClick = onNavigateToSubjects) {
-                        Icon(
-                            Icons.Default.Category,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = stringResource(R.string.materials_nav_subjects),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Box {
+                        IconButton(onClick = { showAddMenu = true }) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = stringResource(R.string.common_add),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showAddMenu,
+                            onDismissRequest = { showAddMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.materials_add)) },
+                                leadingIcon = { Icon(Icons.Default.Book, contentDescription = null) },
+                                onClick = {
+                                    showAddMenu = false
+                                    showAddDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.materials_search_by_isbn)) },
+                                leadingIcon = { Icon(Icons.Default.QrCodeScanner, contentDescription = null) },
+                                onClick = {
+                                    showAddMenu = false
+                                    showIsbnSearchDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.common_add))
-            }
         },
         bottomBar = {
             if (!uiState.isLoading && uiState.subjects.isEmpty()) {
@@ -170,7 +196,7 @@ fun MaterialsScreen(
                 EmptyState(
                     icon = Icons.Default.Book,
                     title = stringResource(R.string.materials_empty_title),
-                    description = stringResource(R.string.materials_empty_message),
+                    description = "教材を追加するか、ISBN から検索して登録できます。",
                     modifier = Modifier.padding(paddingValues)
                 )
             }
@@ -265,6 +291,20 @@ fun MaterialsScreen(
             onDismiss = { showScanner = false }
         )
     }
+
+    if (showIsbnSearchDialog) {
+        IsbnSearchDialog(
+            onDismiss = { showIsbnSearchDialog = false },
+            onScan = {
+                showIsbnSearchDialog = false
+                showScanner = true
+            },
+            onSearch = { isbn ->
+                viewModel.searchBookByIsbn(isbn)
+                showIsbnSearchDialog = false
+            }
+        )
+    }
     
     uiState.searchResult?.let { bookInfo ->
         if (showBookSearchDialog) {
@@ -288,6 +328,109 @@ fun MaterialsScreen(
                     previousSearchResult = null
                     onNavigateToSubjects()
                 }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun IsbnSearchDialog(
+    onDismiss: () -> Unit,
+    onScan: () -> Unit,
+    onSearch: (String) -> Unit
+) {
+    var isbn by remember { mutableStateOf("") }
+    val normalizedIsbn = isbn.filter { it.isDigit() || it == 'X' || it == 'x' }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.common_close))
+                }
+                Text(
+                    text = stringResource(R.string.materials_search_by_isbn),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                TextButton(
+                    onClick = { onSearch(normalizedIsbn) },
+                    enabled = normalizedIsbn.isNotBlank()
+                ) {
+                    Text(stringResource(R.string.materials_search))
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.materials_isbn),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                OutlinedTextField(
+                    value = isbn,
+                    onValueChange = { isbn = it },
+                    placeholder = { Text("例）978406XXXXXXX") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Text(
+                    text = "ハイフンなしの13桁または10桁のISBNを入力してください",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Button(
+                onClick = onScan,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 18.dp)
+            ) {
+                Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = stringResource(R.string.materials_scan_barcode),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Text(
+                text = "ISBNコードは書籍の裏表紙のバーコード付近に記載されています",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

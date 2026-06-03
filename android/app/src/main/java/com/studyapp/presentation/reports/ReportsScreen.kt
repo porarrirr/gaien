@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,9 +34,7 @@ fun ReportsScreen(
     viewModel: ReportsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("概要", "日別", "週別", "月別", "科目別")
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -48,62 +47,409 @@ fun ReportsScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                ),
+                actions = {
+                    Icon(
+                        Icons.Default.CalendarMonth,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                }
             )
         }
     ) { paddingValues ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(paddingValues),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ScrollableTabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary,
-                edgePadding = 16.dp,
-                divider = {}
+            item { ReportStreakSection(uiState) }
+            item { ReportDailyChartCard(uiState) }
+            item { ReportWeeklyChartCard(uiState) }
+            item { ReportRatingSection(uiState.ratingAverages) }
+            item { ReportSubjectSection(uiState) }
+        }
+    }
+}
+
+@Composable
+private fun ReportStreakSection(uiState: ReportsUiState) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        ReportMetricCard(
+            icon = Icons.Default.CalendarMonth,
+            title = "連続日数",
+            value = "${uiState.streakDays}",
+            suffix = "日",
+            subtitle = "今日も継続中！",
+            modifier = Modifier.weight(1f)
+        )
+        ReportMetricCard(
+            icon = Icons.Default.EmojiEvents,
+            title = "最長記録",
+            value = "${uiState.bestStreak}",
+            suffix = "日",
+            subtitle = if (uiState.bestStreak > 0) "これまでの最高記録" else "-",
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun ReportMetricCard(
+    icon: ImageVector,
+    title: String,
+    value: String,
+    suffix: String,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedCard(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
             ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = { 
-                            Text(
-                                text = title,
-                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = value,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = suffix,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 5.dp)
                     )
                 }
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
             }
-            
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                when (selectedTab) {
-                    0 -> {
-                        item { OverviewSection(uiState) }
-                    }
-                    1 -> {
-                        item { DailyReportSection(uiState) }
-                    }
-                    2 -> {
-                        item { WeeklyReportSection(uiState) }
-                    }
-                    3 -> {
-                        item { MonthlyReportSection(uiState) }
-                    }
-                    4 -> {
-                        item { SubjectReportSection(uiState) }
+        }
+    }
+}
+
+@Composable
+private fun ReportDailyChartCard(uiState: ReportsUiState) {
+    ReportStackedChartCard(
+        title = "日別学習時間",
+        subtitle = "（直近7日）",
+        total = formatReportMinutes(uiState.dailyData.sumOf { it.minutes }),
+        labels = uiState.dailyData.map { it.dateLabel.substringBefore(" ") },
+        data = uiState.dailyData.map { day ->
+            day.segments.map { segment ->
+                BarChartData(
+                    label = segment.subjectName,
+                    value = segment.minutes.toFloat(),
+                    color = Color(segment.color)
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun ReportWeeklyChartCard(uiState: ReportsUiState) {
+    ReportStackedChartCard(
+        title = "週別学習時間",
+        subtitle = "（直近4週間）",
+        total = formatReportMinutes(uiState.weeklyData.sumOf { it.hours * 60 + it.minutes }),
+        labels = uiState.weeklyData.map { it.weekLabel },
+        data = uiState.weeklyData.map { week ->
+            week.segments.map { segment ->
+                BarChartData(
+                    label = segment.subjectName,
+                    value = segment.minutes.toFloat(),
+                    color = Color(segment.color)
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun ReportStackedChartCard(
+    title: String,
+    subtitle: String,
+    total: String,
+    labels: List<String>,
+    data: List<List<BarChartData>>
+) {
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ReportSectionHeader(title = title, subtitle = subtitle, total = total)
+            if (data.isEmpty()) {
+                ReportEmptyText()
+            } else {
+                StackedBarChart(
+                    data = data,
+                    labels = labels,
+                    modifier = Modifier.fillMaxWidth(),
+                    title = ""
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportRatingSection(ratingAverages: RatingAveragesData) {
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = "平均評価",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "（★は5段階評価）",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            RatingAverageRow(title = "今日", summary = ratingAverages.today)
+            RatingAverageRow(title = "今週", summary = ratingAverages.week)
+            RatingAverageRow(title = "今月", summary = ratingAverages.month)
+        }
+    }
+}
+
+@Composable
+private fun RatingAverageRow(title: String, summary: RatingAverageSummary) {
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.width(42.dp)
+                )
+                RatingStarsInline(summary.average)
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = summary.average?.let { String.format("%.1f", it) } ?: "-",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ReportValuePair(
+                    title = "評価付き",
+                    value = if (summary.ratedMinutes > 0) formatReportMinutes(summary.ratedMinutes.toLong()) else "0分",
+                    modifier = Modifier.weight(1f)
+                )
+                ReportValuePair(
+                    title = "未評価",
+                    value = "0分",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RatingStarsInline(average: Double?) {
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        val rounded = average?.let { kotlin.math.round(it).toInt() } ?: 0
+        repeat(5) { index ->
+            Icon(
+                imageVector = if (index < rounded) Icons.Default.Star else Icons.Default.StarBorder,
+                contentDescription = null,
+                tint = if (index < rounded) Color(0xFFFFB300) else MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReportValuePair(
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun ReportSubjectSection(uiState: ReportsUiState) {
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            val totalMinutes = uiState.subjectBreakdown.sumOf { it.hours * 60 + it.minutes }
+            ReportSectionHeader(
+                title = "科目別",
+                subtitle = "（今月）",
+                total = formatReportMinutes(totalMinutes)
+            )
+            if (uiState.subjectBreakdown.isEmpty()) {
+                ReportEmptyText()
+            } else {
+                HorizontalBarChart(
+                    data = uiState.subjectBreakdown.map { data ->
+                        BarChartData(
+                            label = data.subjectName,
+                            value = (data.hours * 60 + data.minutes).toFloat(),
+                            color = Color(data.color)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                HorizontalDivider()
+                uiState.subjectBreakdown.forEach { data ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(data.color))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = data.subjectName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = formatReportMinutes(data.hours * 60 + data.minutes),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ReportSectionHeader(title: String, subtitle: String, total: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "合計",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = total,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun ReportEmptyText() {
+    Text(
+        text = "データがありません",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        textAlign = TextAlign.Center
+    )
+}
+
+private fun formatReportMinutes(minutes: Long): String {
+    val hours = minutes / 60
+    val rest = minutes % 60
+    return if (hours > 0) "${hours}時間 ${rest}分" else "${rest}分"
 }
 
 @Composable
@@ -222,7 +568,7 @@ private fun SummaryStatsCard(
                 )
                 
                 StatItem(
-                    icon = Icons.Default.TrendingUp,
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
                     label = "1日平均",
                     value = "${averageTime}分",
                     color = MaterialTheme.colorScheme.secondary

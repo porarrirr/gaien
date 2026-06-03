@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
@@ -95,19 +96,14 @@ fun CalendarScreen(
                 )
             }
 
-            item(key = "monthly_summary") {
-                MonthlySummarySection(
-                    totalMinutes = uiState.monthlyTotalMinutes,
-                    studyDays = uiState.monthlyStudyDays
-                )
-            }
-
             if (uiState.selectedDate != null) {
-                item(key = "detail_mode_toggle") {
-                    DetailModeToggle(
-                        currentMode = uiState.detailMode,
-                        onModeChange = { viewModel.setDetailMode(it) }
-                    )
+                if (uiState.selectedDateSessions.isNotEmpty()) {
+                    item(key = "detail_mode_toggle") {
+                        DetailModeToggle(
+                            currentMode = uiState.detailMode,
+                            onModeChange = { viewModel.setDetailMode(it) }
+                        )
+                    }
                 }
 
                 item(key = "day_detail") {
@@ -124,6 +120,16 @@ fun CalendarScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
+
+            item(key = "monthly_summary") {
+                MonthlySummarySection(
+                    month = uiState.currentMonth,
+                    daysInMonth = daysInMonth(uiState.currentYear, uiState.currentMonth),
+                    totalMinutes = uiState.monthlyTotalMinutes,
+                    studyDays = uiState.monthlyStudyDays,
+                    averageRating = uiState.monthlyAverageRating
+                )
             }
 
             item(key = "bottom_spacer") {
@@ -378,29 +384,105 @@ private fun HeatmapLegend(
 
 @Composable
 private fun MonthlySummarySection(
+    month: Int,
+    daysInMonth: Int,
     totalMinutes: Long,
-    studyDays: Int
+    studyDays: Int,
+    averageRating: Double?
 ) {
-    Row(
+    OutlinedCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        shape = RoundedCornerShape(8.dp)
     ) {
-        SummaryChip(
-            label = "合計",
-            value = formatDurationCompact(totalMinutes),
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.weight(1f)
-        )
-        SummaryChip(
-            label = "学習日数",
-            value = "${studyDays}日",
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.weight(1f)
-        )
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${month}月のまとめ",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "(1〜${daysInMonth}日)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MonthlyStatCard(
+                    title = "合計学習時間",
+                    value = formatDurationCompact(totalMinutes),
+                    modifier = Modifier.weight(1f)
+                )
+                MonthlyStatCard(
+                    title = "学習日数",
+                    value = "${studyDays}日",
+                    modifier = Modifier.weight(1f)
+                )
+                MonthlyStatCard(
+                    title = "平均評価（5段階）",
+                    value = averageRating?.let { String.format(Locale.JAPANESE, "%.1f", it) } ?: "-",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthlyStatCard(
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedCard(
+        modifier = modifier.defaultMinSize(minHeight = 78.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = value,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+private fun daysInMonth(year: Int, month: Int): Int {
+    return Calendar.getInstance().run {
+        set(year, month - 1, 1)
+        getActualMaximum(Calendar.DAY_OF_MONTH)
     }
 }
 
@@ -695,26 +777,22 @@ private fun DayDetailHeader(
     sessionCount: Int
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = dateText,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SummaryChip(
-                label = "学習時間",
-                value = formatDurationCompact(totalMinutes),
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = dateText,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
             )
-            SummaryChip(
-                label = "セッション",
-                value = "${sessionCount}回",
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = "合計 ${formatDurationCompact(totalMinutes)} ・ ${sessionCount}セッション",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
 
@@ -722,35 +800,6 @@ private fun DayDetailHeader(
             modifier = Modifier.padding(top = 12.dp),
             color = MaterialTheme.colorScheme.outlineVariant
         )
-    }
-}
-
-@Composable
-private fun SummaryChip(
-    label: String,
-    value: String,
-    containerColor: Color,
-    contentColor: Color,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = containerColor
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = contentColor.copy(alpha = 0.7f)
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = contentColor
-            )
-        }
     }
 }
 
@@ -769,7 +818,12 @@ private fun EmptySessionsPlaceholder() {
                 .padding(vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("📚", fontSize = 36.sp)
+            Icon(
+                Icons.Default.Book,
+                contentDescription = null,
+                modifier = Modifier.size(36.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+            )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "この日の記録はありません",

@@ -67,14 +67,14 @@ fun TimetableScreen(
                         Icon(
                             Icons.Default.CalendarMonth,
                             contentDescription = "学期設定",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = { isShowingPeriodSettings = true }) {
                         Icon(
                             Icons.Default.Schedule,
                             contentDescription = "時限設定",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -95,19 +95,25 @@ fun TimetableScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                item {
+                    TimetableHeaderCard(
+                        onTermClick = {
+                            isCreatingTerm = false
+                            isShowingTermEditor = true
+                        },
+                        onPeriodClick = { isShowingPeriodSettings = true }
+                    )
+                }
+
                 item {
                     TermOverviewCard(
                         terms = uiState.terms,
                         selectedTerm = uiState.terms.find { it.id == uiState.selectedTermId },
                         termSummary = uiState.termSummary,
-                        onSelectTerm = viewModel::selectTerm,
-                        onCreateTerm = {
-                            isCreatingTerm = true
-                            isShowingTermEditor = true
-                        }
+                        onSelectTerm = viewModel::selectTerm
                     )
                 }
 
@@ -119,14 +125,13 @@ fun TimetableScreen(
                     )
                 }
 
-                if (uiState.selectedDateOccurrences.isNotEmpty()) {
-                    item {
-                        SelectedDateLessonsCard(
-                            date = uiState.selectedDate,
-                            occurrences = uiState.selectedDateOccurrences,
-                            onOccurrenceClick = { reviewEditorOccurrence = it }
-                        )
-                    }
+                item {
+                    SelectedDateLessonsCard(
+                        date = uiState.selectedDate,
+                        selectedTerm = uiState.terms.find { it.id == uiState.selectedTermId },
+                        occurrences = uiState.selectedDateOccurrences,
+                        onOccurrenceClick = { reviewEditorOccurrence = it }
+                    )
                 }
 
                 item {
@@ -213,47 +218,118 @@ fun TimetableScreen(
 }
 
 @Composable
-private fun TermOverviewCard(
-    terms: List<TimetableTerm>,
-    selectedTerm: TimetableTerm?,
-    termSummary: TimetableReviewSummary,
-    onSelectTerm: (TimetableTerm) -> Unit,
-    onCreateTerm: () -> Unit
+private fun TimetableHeaderCard(
+    onTermClick: () -> Unit,
+    onPeriodClick: () -> Unit
 ) {
-    ElevatedCard(
+    OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(8.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "月〜土の授業",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "授業ごとの復習状況を記録できます。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "日付を選択して、この日の授業を確認しましょう。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = onTermClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.School, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("学期")
+                }
+                OutlinedButton(
+                    onClick = onPeriodClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.Schedule, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("時限")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TermOverviewCard(
+    terms: List<TimetableTerm>,
+    selectedTerm: TimetableTerm?,
+    termSummary: TimetableReviewSummary,
+    onSelectTerm: (TimetableTerm) -> Unit
+) {
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = selectedTerm?.name ?: "学期未設定",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
                     )
+                ) {
                     Text(
-                        text = selectedTerm?.dateRangeText ?: "学期を設定してください",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = selectedTerm?.name ?: "前期",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = selectedTerm?.dateRangeText?.replace(" - ", " 〜 ") ?: "学期を設定してください",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (terms.isNotEmpty()) {
                     if (terms.size > 1) {
                         var expanded by remember { mutableStateOf(false) }
                         Box {
-                            OutlinedButton(onClick = { expanded = true }) {
-                                Text("切替")
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            IconButton(onClick = { expanded = true }) {
+                                Icon(
+                                    Icons.Default.ArrowDropDownCircle,
+                                    contentDescription = "学期を切替",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             }
                             DropdownMenu(
                                 expanded = expanded,
@@ -271,44 +347,47 @@ private fun TermOverviewCard(
                             }
                         }
                     }
-                    OutlinedButton(onClick = onCreateTerm) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("追加")
-                    }
                 }
             }
 
             if (selectedTerm != null) {
-                LinearProgressIndicator(
-                    progress = { termSummary.completionRate },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = if (termSummary.pending > 0) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.primary,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "復習の進捗",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { termSummary.completionRate },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "${(termSummary.completionRate * 100).toInt()}%",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.width(48.dp),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    SummaryBadge(
-                        label = "復習済み",
-                        value = termSummary.reviewed,
-                        color = Color(0xFF4CAF50),
-                        modifier = Modifier.weight(1f)
-                    )
-                    SummaryBadge(
-                        label = "未復習",
-                        value = termSummary.pending,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.weight(1f)
-                    )
-                    SummaryBadge(
-                        label = "対象外",
-                        value = termSummary.excluded,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
+                    TimetableLegendItem(title = "復習済み", color = MaterialTheme.colorScheme.primary)
+                    TimetableLegendItem(title = "未復習", color = Color(0xFFFF9800))
+                    TimetableLegendItem(title = "対象外", color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }
@@ -316,33 +395,22 @@ private fun TermOverviewCard(
 }
 
 @Composable
-private fun SummaryBadge(
-    label: String,
-    value: Int,
-    color: Color,
-    modifier: Modifier = Modifier
+private fun TimetableLegendItem(
+    title: String,
+    color: Color
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
-        color = color.copy(alpha = 0.1f)
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "$value",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = color
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = color.copy(alpha = 0.8f)
-            )
-        }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(color)
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -352,14 +420,15 @@ private fun ReviewCalendarCard(
     selectedTerm: TimetableTerm?,
     onDateSelect: (LocalDate) -> Unit
 ) {
-    ElevatedCard(
+    OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(8.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             val monthNames = listOf(
                 "1月", "2月", "3月", "4月", "5月", "6月",
@@ -385,35 +454,35 @@ private fun ReviewCalendarCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            val weekDays = listOf("月", "火", "水", "木", "金", "土")
+            val weekDays = listOf("日", "月", "火", "水", "木", "金", "土")
             Row(modifier = Modifier.fillMaxWidth()) {
-                weekDays.forEach { day ->
+                weekDays.forEachIndexed { index, day ->
                     Text(
                         text = day,
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.Bold,
+                        color = when (index) {
+                            0 -> Color(0xFFE53935)
+                            6 -> Color(0xFF1E88E5)
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
             val firstDay = displayMonth.withDayOfMonth(1)
             val daysInMonth = displayMonth.lengthOfMonth()
-            val firstDayOfWeek = firstDay.dayOfWeek.value // 1=Monday
-            val startOffset = firstDayOfWeek - 1 // 0-based from Monday
+            val startOffset = firstDay.dayOfWeek.value % 7
 
             val totalCells = startOffset + daysInMonth
-            val rows = (totalCells + 5) / 6
+            val rows = (totalCells + 6) / 7
 
             for (row in 0 until rows) {
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    for (col in 0 until 6) {
-                        val cellIndex = row * 6 + col
+                    for (col in 0 until 7) {
+                        val cellIndex = row * 7 + col
                         val dayNumber = cellIndex - startOffset + 1
 
                         if (cellIndex < startOffset || dayNumber > daysInMonth) {
@@ -467,32 +536,54 @@ private fun ReviewCalendarCard(
 @Composable
 private fun SelectedDateLessonsCard(
     date: LocalDate,
+    selectedTerm: TimetableTerm?,
     occurrences: List<TimetableReviewOccurrence>,
     onOccurrenceClick: (TimetableReviewOccurrence) -> Unit
 ) {
     val dateFormat = remember { DateTimeFormatter.ofPattern("M月d日 (E)", java.util.Locale.JAPANESE) }
 
-    ElevatedCard(
+    OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(8.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = dateFormat.format(date),
+                text = "この日の授業復習",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
+            Text(
+                text = dateFormat.format(date),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-            occurrences.forEach { occurrence ->
-                ReviewOccurrenceRow(
-                    occurrence = occurrence,
-                    onClick = { onOccurrenceClick(occurrence) }
+            if (occurrences.isEmpty()) {
+                Text(
+                    text = if (selectedTerm?.contains(date) != false) {
+                        "この日の授業はありません"
+                    } else {
+                        "選択日は学期の範囲外です"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
                 )
+            } else {
+                occurrences.forEach { occurrence ->
+                    ReviewOccurrenceRow(
+                        occurrence = occurrence,
+                        onClick = { onOccurrenceClick(occurrence) }
+                    )
+                }
             }
         }
     }
@@ -970,7 +1061,7 @@ private fun PeriodSettingsDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                val periods = drafts.map { draft ->
+                val updatedPeriods = drafts.map { draft ->
                     val startParts = draft.startText.split(":")
                     val endParts = draft.endText.split(":")
                     val startMinute = (startParts.getOrNull(0)?.toIntOrNull() ?: 0) * 60 +
@@ -989,7 +1080,7 @@ private fun PeriodSettingsDialog(
                         updatedAt = System.currentTimeMillis()
                     )
                 }
-                onSave(periods)
+                onSave(updatedPeriods)
             }) {
                 Text("保存")
             }
