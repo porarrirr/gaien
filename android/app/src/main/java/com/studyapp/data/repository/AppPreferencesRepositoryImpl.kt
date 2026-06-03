@@ -1,6 +1,7 @@
 package com.studyapp.data.repository
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,6 +32,9 @@ private val Context.appPreferencesDataStore: DataStore<Preferences> by preferenc
 class AppPreferencesRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context
 ) : AppPreferencesRepository {
+    private companion object {
+        const val TAG = "AppPreferencesRepo"
+    }
 
     private object Keys {
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
@@ -91,7 +96,7 @@ class AppPreferencesRepositoryImpl @Inject constructor(
             ?: LandscapeTimerDisplayPreset.PROBLEM_PROGRESS.ordinal
 
         return AppPreferences(
-            onboardingCompleted = this[Keys.ONBOARDING_COMPLETED] ?: true,
+            onboardingCompleted = this[Keys.ONBOARDING_COMPLETED] ?: false,
             reminderEnabled = this[Keys.REMINDER_ENABLED] ?: false,
             reminderHour = this[Keys.REMINDER_HOUR] ?: 19,
             reminderMinute = this[Keys.REMINDER_MINUTE] ?: 0,
@@ -103,9 +108,20 @@ class AppPreferencesRepositoryImpl @Inject constructor(
             landscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.entries
                 .getOrNull(landscapePresetOrdinal) ?: LandscapeTimerDisplayPreset.PROBLEM_PROGRESS,
             focusModePromptOnTimerStart = this[Keys.FOCUS_MODE_PROMPT_ON_TIMER_START] ?: false,
-            activeTimer = activeTimerJson?.let {
-                try { json.decodeFromString<TimerSnapshot>(it) } catch (_: Exception) { null }
-            }
+            activeTimer = decodeActiveTimer(activeTimerJson)
         )
+    }
+
+    private fun decodeActiveTimer(rawValue: String?): TimerSnapshot? {
+        if (rawValue == null) return null
+        return try {
+            json.decodeFromString<TimerSnapshot>(rawValue)
+        } catch (exception: SerializationException) {
+            Log.e(TAG, "Failed to decode active timer preferences", exception)
+            null
+        } catch (exception: IllegalArgumentException) {
+            Log.e(TAG, "Invalid active timer preferences", exception)
+            null
+        }
     }
 }

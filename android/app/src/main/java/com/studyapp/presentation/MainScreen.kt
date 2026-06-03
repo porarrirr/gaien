@@ -27,6 +27,7 @@ import com.studyapp.presentation.materials.MaterialHistoryScreen
 import com.studyapp.presentation.materials.MaterialsScreen
 import com.studyapp.presentation.calendar.CalendarScreen
 import com.studyapp.presentation.reports.ReportsScreen
+import com.studyapp.presentation.screentime.ScreenTimeSettingsScreen
 import com.studyapp.presentation.exams.ExamsScreen
 import com.studyapp.presentation.subjects.SubjectsScreen
 import com.studyapp.presentation.history.HistoryScreen
@@ -34,8 +35,10 @@ import com.studyapp.presentation.settings.SettingsScreen
 import com.studyapp.presentation.goals.GoalsScreen
 import com.studyapp.presentation.plans.PlanScreen
 import com.studyapp.presentation.timetable.TimetableScreen
+import com.studyapp.presentation.more.MoreScreen
 import com.studyapp.presentation.navigation.Screen
 import com.studyapp.presentation.navigation.bottomScreens
+import com.studyapp.presentation.navigation.moreScreens
 
 private const val NAV_ANIM_DURATION = 300
 
@@ -79,6 +82,13 @@ fun MainScreen() {
                 val currentDestination = navBackStackEntry?.destination
 
                 bottomScreens.forEach { screen ->
+                    val isSelected = if (screen == Screen.More) {
+                        currentDestination?.hierarchy?.any { destination ->
+                            moreScreens.any { it.route == destination.route } || destination.route == Screen.More.route
+                        } == true
+                    } else {
+                        currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                    }
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = screen.title) },
                         label = {
@@ -87,7 +97,7 @@ fun MainScreen() {
                                 style = MaterialTheme.typography.labelSmall
                             )
                         },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        selected = isSelected,
                         onClick = {
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
@@ -153,11 +163,23 @@ fun MainScreen() {
             composable(Screen.Calendar.route) {
                 CalendarScreen()
             }
+            composable(Screen.More.route) {
+                MoreScreen(
+                    onNavigate = { screen ->
+                        navController.navigate(screen.route) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
             composable(Screen.Timetable.route) {
                 TimetableScreen()
             }
             composable(Screen.Reports.route) {
                 ReportsScreen()
+            }
+            composable(Screen.ScreenTime.route) {
+                ScreenTimeSettingsScreen()
             }
             composable(Screen.Exams.route) {
                 ExamsScreen()

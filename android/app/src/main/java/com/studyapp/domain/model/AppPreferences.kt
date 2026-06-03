@@ -17,16 +17,16 @@ enum class ColorTheme {
 
     val hex: Long
         get() = when (this) {
-            GREEN -> 0x4CAF50
-            BLUE -> 0x2196F3
-            ORANGE -> 0xFF9800
+            GREEN -> 0x2E9D45
+            BLUE -> 0x1E88E5
+            ORANGE -> 0xF59E0B
         }
 
     val accentHex: Long
         get() = when (this) {
-            GREEN -> 0x2196F3
-            BLUE -> 0x4CAF50
-            ORANGE -> 0x2196F3
+            GREEN -> 0x1E88E5
+            BLUE -> 0x2E9D45
+            ORANGE -> 0x1E88E5
         }
 }
 
@@ -88,7 +88,7 @@ enum class ThemeMode {
 
 @Serializable
 data class AppPreferences(
-    val onboardingCompleted: Boolean = true,
+    val onboardingCompleted: Boolean = false,
     val reminderEnabled: Boolean = false,
     val reminderHour: Int = 19,
     val reminderMinute: Int = 0,

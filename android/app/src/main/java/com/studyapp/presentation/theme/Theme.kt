@@ -140,7 +140,7 @@ private val AppShapes = Shapes(
 // ── Color Schemes per ColorTheme ────────────────────────────────────────────
 
 private fun greenLightScheme() = lightColorScheme(
-    primary = Color(0xFF2E7D32),
+    primary = Color(0xFF2E9D45),
     onPrimary = Color.White,
     primaryContainer = Color(0xFFB9F6CA),
     onPrimaryContainer = Color(0xFF002204),
@@ -167,7 +167,7 @@ private fun greenLightScheme() = lightColorScheme(
     inverseSurface = Color(0xFF2E312D),
     inverseOnSurface = Color(0xFFF0F1EC),
     inversePrimary = Color(0xFF6ADE73),
-    surfaceTint = Color(0xFF2E7D32)
+    surfaceTint = Color(0xFF2E9D45)
 )
 
 private fun greenDarkScheme() = darkColorScheme(
@@ -197,12 +197,12 @@ private fun greenDarkScheme() = darkColorScheme(
     outlineVariant = Color(0xFF414941),
     inverseSurface = Color(0xFFE1E3DE),
     inverseOnSurface = Color(0xFF2E312D),
-    inversePrimary = Color(0xFF2E7D32),
+    inversePrimary = Color(0xFF2E9D45),
     surfaceTint = Color(0xFF6ADE73)
 )
 
 private fun blueLightScheme() = lightColorScheme(
-    primary = Color(0xFF1565C0),
+    primary = Color(0xFF1E88E5),
     onPrimary = Color.White,
     primaryContainer = Color(0xFFD4E3FF),
     onPrimaryContainer = Color(0xFF001C3A),
@@ -229,7 +229,7 @@ private fun blueLightScheme() = lightColorScheme(
     inverseSurface = Color(0xFF2E3135),
     inverseOnSurface = Color(0xFFF0F0F4),
     inversePrimary = Color(0xFFA6C8FF),
-    surfaceTint = Color(0xFF1565C0)
+    surfaceTint = Color(0xFF1E88E5)
 )
 
 private fun blueDarkScheme() = darkColorScheme(
@@ -259,12 +259,12 @@ private fun blueDarkScheme() = darkColorScheme(
     outlineVariant = Color(0xFF43474E),
     inverseSurface = Color(0xFFE1E2E8),
     inverseOnSurface = Color(0xFF2E3135),
-    inversePrimary = Color(0xFF1565C0),
+    inversePrimary = Color(0xFF1E88E5),
     surfaceTint = Color(0xFFA6C8FF)
 )
 
 private fun orangeLightScheme() = lightColorScheme(
-    primary = Color(0xFFE65100),
+    primary = Color(0xFFF59E0B),
     onPrimary = Color.White,
     primaryContainer = Color(0xFFFFDBC8),
     onPrimaryContainer = Color(0xFF331200),
@@ -291,7 +291,7 @@ private fun orangeLightScheme() = lightColorScheme(
     inverseSurface = Color(0xFF372F29),
     inverseOnSurface = Color(0xFFFDEEE5),
     inversePrimary = Color(0xFFFFB68B),
-    surfaceTint = Color(0xFFE65100)
+    surfaceTint = Color(0xFFF59E0B)
 )
 
 private fun orangeDarkScheme() = darkColorScheme(
@@ -321,7 +321,7 @@ private fun orangeDarkScheme() = darkColorScheme(
     outlineVariant = Color(0xFF52443B),
     inverseSurface = Color(0xFFF0DFD5),
     inverseOnSurface = Color(0xFF372F29),
-    inversePrimary = Color(0xFFE65100),
+    inversePrimary = Color(0xFFF59E0B),
     surfaceTint = Color(0xFFFFB68B)
 )
 

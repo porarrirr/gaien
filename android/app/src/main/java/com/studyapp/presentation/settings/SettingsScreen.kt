@@ -23,8 +23,6 @@ import com.studyapp.domain.model.ColorTheme
 import com.studyapp.domain.model.LandscapeTimerDisplayPreset
 import com.studyapp.domain.model.ThemeMode
 import com.studyapp.domain.model.TimerNotificationDisplayPreset
-import android.content.Intent
-import android.provider.Settings
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -92,13 +90,6 @@ fun SettingsScreen(
                 onLandscapePresetChange = viewModel::setLandscapeTimerDisplayPreset,
                 onNotificationRichEnabledChange = viewModel::setTimerNotificationRichEnabled,
                 onNotificationPresetChange = viewModel::setTimerNotificationDisplayPreset
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            FocusModeSection(
-                promptOnTimerStart = uiState.focusModePromptOnTimerStart,
-                onPromptOnTimerStartChange = viewModel::setFocusModePromptOnTimerStart
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -554,59 +545,6 @@ private fun TimerDisplaySection(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FocusModeSection(
-    promptOnTimerStart: Boolean,
-    onPromptOnTimerStartChange: (Boolean) -> Unit
-) {
-    val context = LocalContext.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "集中モード",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Android では Screen Time によるアプリ遮断は利用できません。代わりに、おやすみモード（DND）の設定へ誘導できます。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("タイマー開始時に DND 設定を開く")
-                    Switch(
-                        checked = promptOnTimerStart,
-                        onCheckedChange = onPromptOnTimerStartChange
-                    )
-                }
-                OutlinedButton(
-                    onClick = {
-                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("おやすみモードの設定")
-                }
-                Text(
-                    text = "許可するアプリはシステム設定で手動で選んでください。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
