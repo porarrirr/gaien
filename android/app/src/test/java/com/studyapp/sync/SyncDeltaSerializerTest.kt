@@ -3,10 +3,12 @@ package com.studyapp.sync
 import com.studyapp.domain.model.PlanItem
 import com.studyapp.domain.model.StudyPlan
 import com.studyapp.domain.model.StudySession
+import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.StudyWeekday
 import com.studyapp.domain.model.Subject
 import com.studyapp.domain.usecase.AppData
 import com.studyapp.domain.usecase.PlanData
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -35,6 +37,34 @@ class SyncDeltaSerializerTest {
 
         assertEquals(1, envelopes.count { it.kind == SyncEntityKind.PLAN })
         assertEquals(1, envelopes.count { it.kind == SyncEntityKind.PLAN_ITEM })
+    }
+
+    @Test
+    fun `session envelope uses iOS compatible json field names`() {
+        val source = session("session-1").copy(
+            materialId = 10,
+            materialSyncId = "material-1",
+            materialName = "数学問題集",
+            subjectId = 20,
+            subjectSyncId = "subject-1",
+            subjectName = "数学",
+            intervals = listOf(
+                StudySessionInterval(startTime = 1_000, endTime = 61_000)
+            )
+        )
+
+        val envelope = SyncDeltaSerializer.decompose(appData(sessions = listOf(source)))
+            .single { it.kind == SyncEntityKind.SESSION }
+        val json = JSONObject(envelope.json)
+
+        assertEquals("session-1", json.getString("syncId"))
+        assertEquals("material-1", json.getString("materialSyncId"))
+        assertEquals("数学問題集", json.getString("materialName"))
+        assertEquals("subject-1", json.getString("subjectSyncId"))
+        assertEquals("数学", json.getString("subjectName"))
+        assertEquals("STOPWATCH", json.getString("sessionType"))
+        assertEquals(1_000, json.getJSONArray("intervals").getJSONObject(0).getLong("startTime"))
+        assertEquals(61_000, json.getJSONArray("intervals").getJSONObject(0).getLong("endTime"))
     }
 
     @Test

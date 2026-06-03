@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Book
@@ -42,7 +43,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -120,50 +120,30 @@ fun HomeScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(horizontal = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Surface-styled header row
                 item {
-                    Row(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .height(52.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = stringResource(R.string.home_screen_title),
-                            style = MaterialTheme.typography.headlineMedium,
+                            text = "ホーム",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Row {
-                            IconButton(onClick = onNavigateToHistory) {
-                                Icon(
-                                    Icons.Default.History,
-                                    contentDescription = stringResource(R.string.home_nav_history),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            IconButton(onClick = onNavigateToSettings) {
-                                Icon(
-                                    Icons.Default.Settings,
-                                    contentDescription = stringResource(R.string.home_nav_settings),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
                     }
                 }
 
-                // Gradient hero section with CircularProgressRing
                 item {
                     SlideInCard(visible = true, delayMillis = 0) {
                         TodayStudySection(
                             totalMinutes = uiState.todayStudyMinutes,
-                            sessions = uiState.todaySessions,
                             goal = uiState.todayGoal
                         )
                     }
@@ -171,14 +151,7 @@ fun HomeScreen(
 
                 item {
                     SlideInCard(visible = true, delayMillis = 50) {
-                        Column {
-                            SectionHeader(
-                                title = "今日の復習",
-                                icon = Icons.AutoMirrored.Filled.EventNote
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TodayReviewSection(problems = uiState.todayReviewProblems)
-                        }
+                        TodayReviewSection(problems = uiState.todayReviewProblems)
                     }
                 }
 
@@ -201,37 +174,32 @@ fun HomeScreen(
                 // Weekly goal section
                 item {
                     SlideInCard(visible = true, delayMillis = 200) {
-                        Column {
-                            SectionHeader(
-                                title = stringResource(R.string.home_weekly_goal_title),
-                                icon = Icons.Default.Flag
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            WeeklyGoalSection(
-                                goal = uiState.weeklyGoal,
-                                currentMinutes = uiState.weeklyStudyMinutes
-                            )
-                        }
+                        WeeklyGoalSection(
+                            goal = uiState.weeklyGoal,
+                            currentMinutes = uiState.weeklyStudyMinutes
+                        )
                     }
                 }
 
                 // Timetable lesson sections (current + upcoming)
                 item {
                     SlideInCard(visible = true, delayMillis = 250) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TimetableLessonHomeCard(
                                 eyebrow = "現在の授業",
                                 lesson = uiState.timetableLesson,
                                 emptyMessage = "現在の授業はありません",
                                 accentColor = MaterialTheme.colorScheme.primary,
-                                onClick = onNavigateToTimetable
+                                onClick = onNavigateToTimetable,
+                                modifier = Modifier.weight(1f)
                             )
                             TimetableLessonHomeCard(
                                 eyebrow = "次の授業",
                                 lesson = uiState.upcomingTimetableLesson,
                                 emptyMessage = "登録された次の授業はありません",
                                 accentColor = MaterialTheme.colorScheme.tertiary,
-                                onClick = onNavigateToTimetable
+                                onClick = onNavigateToTimetable,
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -286,7 +254,8 @@ fun HomeScreen(
                                 onViewPlan = onNavigateToPlan,
                                 onViewTimetable = onNavigateToTimetable,
                                 onViewSubjects = onNavigateToSubjects,
-                                onViewHistory = onNavigateToHistory
+                                onViewHistory = onNavigateToHistory,
+                                onViewSettings = onNavigateToSettings
                             )
                         }
                     }
@@ -303,28 +272,49 @@ fun HomeScreen(
 
 @Composable
 private fun TodayReviewSection(problems: List<TodayReviewProblem>) {
+    val visibleProblems = problems.take(8)
+    val countText = if (problems.size > visibleProblems.size) {
+        "${visibleProblems.size}/${problems.size}件"
+    } else {
+        "${problems.size}件"
+    }
+
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            HomeCardHeader(
+                title = "今日の復習",
+                icon = Icons.AutoMirrored.Filled.EventNote,
+                countText = countText
+            )
             if (problems.isEmpty()) {
                 Text(
                     text = "今日の復習はありません",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .padding(top = 10.dp)
                 )
             } else {
-                problems.take(8).forEachIndexed { index, problem ->
+                visibleProblems.forEachIndexed { index, problem ->
                     TodayReviewProblemRow(problem = problem)
-                    if (index != problems.take(8).lastIndex) {
+                    if (index != visibleProblems.lastIndex) {
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -404,110 +394,113 @@ private fun reviewDueText(nextReviewDate: Long): String {
 @Composable
 private fun TodayStudySection(
     totalMinutes: Long,
-    sessions: List<TodaySession>,
     goal: Goal?
 ) {
-    val heroGradient = Brush.verticalGradient(
-        colors = listOf(
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.surface
-        )
-    )
-
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(heroGradient)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = stringResource(R.string.home_today_study),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "$totalMinutes",
+                        fontSize = 44.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = stringResource(R.string.home_minutes),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
                 Text(
-                    text = stringResource(R.string.home_today_study),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth()
+                    text = goal?.let { "目標 ${it.targetFormatted}" } ?: "目標未設定",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Progress ring showing today's study as fraction of a daily goal (e.g. 120 min)
-                val dailyTargetMinutes = (goal?.targetMinutes ?: 120).toFloat()
-                val progress = (totalMinutes.toFloat() / dailyTargetMinutes).coerceIn(0f, 1f)
-
-                CircularProgressRing(
-                    progress = progress,
-                    size = 140.dp,
-                    strokeWidth = 12.dp,
-                    showPercentage = false,
-                    centerContent = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val progress = goal?.let {
+                val dailyTargetMinutes = it.targetMinutes.toFloat().coerceAtLeast(1f)
+                (totalMinutes.toFloat() / dailyTargetMinutes).coerceIn(0f, 1f)
+            } ?: 0f
+            CircularProgressRing(
+                progress = progress,
+                size = 90.dp,
+                strokeWidth = 8.dp,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                progressColor = MaterialTheme.colorScheme.primary,
+                showPercentage = false,
+                centerContent = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (goal == null) {
                             Text(
-                                text = "$totalMinutes",
-                                fontSize = 36.sp,
+                                text = "未設定",
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = stringResource(R.string.home_minutes),
-                                style = MaterialTheme.typography.bodySmall,
+                                text = "目標",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            goal?.let {
-                                Text(
-                                    text = "目標 ${it.targetFormatted}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        } else {
                             Text(
                                 text = "${(progress * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                        }
-                    }
-                )
-
-                if (sessions.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        sessions.take(3).forEach { session ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Subject color indicator dot
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(subjectColor(session.subjectName))
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = stringResource(
-                                        R.string.home_session_minutes,
-                                        session.subjectName,
-                                        session.duration / 60000
-                                    ),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            Text(
+                                text = "達成率",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
-            }
+            )
         }
     }
 }
@@ -628,51 +621,118 @@ private fun WeeklyGoalSection(
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            val targetMinutes = goal?.targetMinutes?.toLong()
+            HomeCardHeader(
+                title = stringResource(R.string.home_weekly_goal_title),
+                icon = Icons.Default.Flag,
+                countText = targetMinutes?.let {
+                    "${Goal.formatMinutes(currentMinutes.toInt())} / ${Goal.formatMinutes(it.toInt())}"
+                }
+            )
             if (goal != null) {
-                val targetMinutes = goal.targetMinutes.toLong()
-                val progress = if (targetMinutes > 0) {
-                    (currentMinutes.toFloat() / targetMinutes.toFloat()).coerceIn(0f, 1f)
+                val weeklyTargetMinutes = targetMinutes ?: goal.targetMinutes.toLong()
+                val progress = if (weeklyTargetMinutes > 0) {
+                    (currentMinutes.toFloat() / weeklyTargetMinutes.toFloat()).coerceIn(0f, 1f)
                 } else 0f
-
+                Text(
+                    text = "学習時間の目標 ${goal.targetFormatted}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    CircularProgressRing(
-                        progress = progress,
-                        size = 80.dp,
-                        strokeWidth = 8.dp,
-                        showPercentage = true
-                    )
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Column {
-                        Text(
-                            text = stringResource(R.string.home_achievement_percent, (progress * 100).toInt()),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = stringResource(R.string.home_progress_minutes, currentMinutes, targetMinutes),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(7.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(progress)
+                                .height(7.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.primary)
                         )
                     }
+                    Text(
+                        text = "${(progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.width(46.dp),
+                        textAlign = TextAlign.End
+                    )
                 }
             } else {
                 Text(
                     text = stringResource(R.string.home_no_goal_set),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.height(42.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun HomeCardHeader(
+    title: String,
+    icon: ImageVector,
+    countText: String? = null,
+    showChevron: Boolean = false
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+        countText?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (showChevron) {
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -718,16 +778,19 @@ private fun QuickActionsSection(
     onViewPlan: () -> Unit = {},
     onViewTimetable: () -> Unit = {},
     onViewSubjects: () -> Unit = {},
-    onViewHistory: () -> Unit = {}
+    onViewHistory: () -> Unit = {},
+    onViewSettings: () -> Unit = {}
 ) {
     val actions = listOf(
         Triple(Icons.Default.Timer, R.string.home_quick_timer, onStartTimer),
         Triple(Icons.Default.Add, R.string.home_quick_material, onAddMaterial),
-        Triple(Icons.Default.Flag, R.string.home_quick_goals, onViewGoals),
         Triple(Icons.Default.Event, R.string.home_quick_exams, onViewExams),
+        Triple(Icons.Default.Category, R.string.home_quick_subjects, onViewSubjects),
+        Triple(Icons.Default.History, R.string.home_nav_history, onViewHistory),
+        Triple(Icons.Default.Flag, R.string.home_quick_goals, onViewGoals),
         Triple(Icons.AutoMirrored.Filled.EventNote, R.string.home_quick_plan, onViewPlan),
         Triple(Icons.Default.GridView, R.string.home_quick_timetable, onViewTimetable),
-        Triple(Icons.Default.Category, R.string.home_quick_subjects, onViewSubjects)
+        Triple(Icons.Default.Settings, R.string.home_nav_settings, onViewSettings)
     )
 
     // 2-column grid layout
@@ -760,31 +823,86 @@ private fun TimetableLessonHomeCard(
     lesson: TimetableLesson?,
     emptyMessage: String,
     accentColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader(
-            title = eyebrow,
-            icon = Icons.Default.GridView
-        )
-        if (lesson == null) {
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-            ) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = modifier.height(128.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text(
+                text = eyebrow,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = accentColor
+            )
+            if (lesson == null) {
+                Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = emptyMessage,
                     style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp)
+                    maxLines = 2
+                )
+                Text(
+                    text = "時間割で登録してください",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.weight(1f))
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(accentColor)
+                    )
+                    Text(
+                        text = lesson.entry.subjectName.ifBlank { "授業名未設定" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
+                    )
+                }
+                Text(
+                    text = lesson.entry.courseName?.takeIf { it.isNotBlank() } ?: "講座名なし",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Text(
+                    text = "${lesson.dayOfWeek.japaneseTitle} ${lesson.period.name}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+                Text(
+                    text = lesson.period.timeRangeText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
             }
-        } else {
-            TimetableLessonCard(
-                lesson = lesson,
-                accentColor = accentColor,
-                onClick = onClick
-            )
         }
     }
 }
