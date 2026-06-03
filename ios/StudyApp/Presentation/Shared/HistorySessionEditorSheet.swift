@@ -285,7 +285,7 @@ struct HistorySessionEditorSheet: View {
         let correct = problemRecords.filter { $0.result == .correct }.count
         let wrong = problemRecords.filter(\.isWrong).count
         let review = problemRecords.filter { $0.result == .reviewCorrect }.count
-        return "タップで正解、すばやく2回タップで不正解、長押しで復習正解とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
+        return "タップで正解、すばやく2回タップで不正解、長押しで状態とメモを編集。選択 \(done)問 / 正解 \(correct)問 / 不正解 \(wrong)問 / 復習正解 \(review)問"
     }
 
     private var effectiveProblemCount: Int {
@@ -557,8 +557,7 @@ private struct HistoryProblemRecordGrid: View {
                         label: tileLabel(for: number),
                         record: records.first(where: { $0.number == number }),
                         onTap: { toggleCorrect(number) },
-                        onWrong: { setResult(.wrong, for: number) },
-                        onReview: { setResult(.reviewCorrect, for: number) }
+                        onWrong: { setResult(.wrong, for: number) }
                     )
                 }
             }
@@ -616,7 +615,6 @@ private struct HistoryProblemTile: View {
     let record: ProblemSessionRecord?
     let onTap: () -> Void
     let onWrong: () -> Void
-    let onReview: () -> Void
 
     var body: some View {
         Button(action: onTap) {
@@ -643,7 +641,6 @@ private struct HistoryProblemTile: View {
         .contextMenu {
             Button("正解", action: onTap)
             Button("不正解", action: onWrong)
-            Button("復習正解", action: onReview)
         }
     }
 

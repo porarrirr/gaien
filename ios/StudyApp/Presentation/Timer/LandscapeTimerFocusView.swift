@@ -232,7 +232,6 @@ struct LandscapeTimerFocusView: View {
         HStack(spacing: 18) {
             legendItem(color: resultColor(.correct), title: "正解")
             legendItem(color: resultColor(.wrong), title: "不正解")
-            legendItem(color: resultColor(.reviewCorrect), title: "復習正解")
             legendItem(color: unansweredColor, title: "未解答")
         }
     }
@@ -287,7 +286,7 @@ struct LandscapeTimerFocusView: View {
             borderWidth: record == nil ? 1.5 : 2,
             onCorrectTap: { toggleCorrect(globalNumber) },
             onWrongTap: { setResult(.wrong, for: globalNumber) },
-            onLongPress: { cycleDetailedResult(for: globalNumber) }
+            onLongPress: { removeResult(for: globalNumber) }
         )
     }
 
@@ -337,16 +336,6 @@ struct LandscapeTimerFocusView: View {
             records.append(ProblemSessionRecord(number: number, result: result))
         }
         saveLandscapeRecords(records)
-    }
-
-    private func cycleDetailedResult(for number: Int) {
-        let current = viewModel.timerProblemRecords.first { $0.number == number }?.result
-        switch current {
-        case .reviewCorrect:
-            removeResult(for: number)
-        default:
-            setResult(.reviewCorrect, for: number)
-        }
     }
 
     private func removeResult(for number: Int) {
@@ -512,7 +501,7 @@ private struct LandscapeProblemProgressTile: View {
             .onTapGesture(perform: handleTap)
             .onLongPressGesture(minimumDuration: 0.45, perform: onLongPress)
             .accessibilityLabel(accessibilityLabel)
-            .accessibilityHint("タップで正解、すばやく2回タップで不正解、長押しで復習正解")
+            .accessibilityHint("タップで正解、すばやく2回タップで不正解、長押しで未解答")
     }
 
     private func handleTap() {
@@ -526,4 +515,3 @@ private struct LandscapeProblemProgressTile: View {
         onCorrectTap()
     }
 }
-

@@ -57,4 +57,57 @@ class StudySessionTest {
         assertEquals(1, session.effectiveWrongProblemCount)
         assertEquals("3:2", session.problemRecords[1].stableKey)
     }
+
+    @Test
+    fun `review resolver treats manual review correct as correct input`() {
+        val records = ProblemSessionReviewResolver.canonicalInputRecords(
+            listOf(ProblemSessionRecord(number = 1, result = ProblemResult.REVIEW_CORRECT))
+        )
+
+        assertEquals(listOf(ProblemResult.CORRECT), records.map { it.result })
+    }
+
+    @Test
+    fun `review resolver marks correct after previous wrong as review correct`() {
+        val previousResults = linkedMapOf<String, ProblemResult>()
+        val first = ProblemSessionReviewResolver.applyingAutomaticReviewCorrect(
+            session = sessionWithRecords(
+                startTime = 1_000,
+                records = listOf(ProblemSessionRecord(number = 4, result = ProblemResult.WRONG))
+            ),
+            previousResults = previousResults
+        )
+        val second = ProblemSessionReviewResolver.applyingAutomaticReviewCorrect(
+            session = sessionWithRecords(
+                startTime = 2_000,
+                records = listOf(ProblemSessionRecord(number = 4, result = ProblemResult.CORRECT))
+            ),
+            previousResults = previousResults
+        )
+        val third = ProblemSessionReviewResolver.applyingAutomaticReviewCorrect(
+            session = sessionWithRecords(
+                startTime = 3_000,
+                records = listOf(ProblemSessionRecord(number = 4, result = ProblemResult.CORRECT))
+            ),
+            previousResults = previousResults
+        )
+
+        assertEquals(listOf(ProblemResult.WRONG), first.problemRecords.map { it.result })
+        assertEquals(listOf(ProblemResult.REVIEW_CORRECT), second.problemRecords.map { it.result })
+        assertEquals(listOf(ProblemResult.CORRECT), third.problemRecords.map { it.result })
+        assertEquals(0, second.wrongProblemCount)
+    }
+
+    private fun sessionWithRecords(
+        startTime: Long,
+        records: List<ProblemSessionRecord>
+    ): StudySession {
+        return StudySession(
+            materialId = 10,
+            subjectId = 1,
+            startTime = startTime,
+            endTime = startTime + 600_000,
+            problemRecords = records
+        )
+    }
 }

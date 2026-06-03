@@ -31,7 +31,7 @@ final class TimerViewModel: ScreenViewModel {
             remainingMilliseconds = activeTimer?.remainingTime() ?? 0
             mode = activeTimer?.mode ?? .stopwatch
             countdownMinutes = Int(((activeTimer?.targetDurationMilliseconds ?? Int64(countdownMinutes) * 60_000) / 60_000))
-            timerProblemRecords = activeTimer?.problemRecords ?? []
+            timerProblemRecords = ProblemSessionReviewResolver.canonicalInputRecords(activeTimer?.problemRecords ?? [])
             timerProblemCountDraft = activeTimer?.problemCountDraft ?? ""
             syncActiveTimerSelection()
             configureTicker()
@@ -85,7 +85,7 @@ final class TimerViewModel: ScreenViewModel {
                 completedIntervals: completedIntervals,
                 mode: self.mode,
                 targetDurationMilliseconds: self.mode == .timer ? Int64(self.countdownMinutes * 60_000) : nil,
-                problemRecords: current?.problemRecords ?? self.timerProblemRecords,
+                problemRecords: ProblemSessionReviewResolver.canonicalInputRecords(current?.problemRecords ?? self.timerProblemRecords),
                 problemCountDraft: current?.problemCountDraft ?? self.timerProblemCountDraft,
                 isRunning: true
             )
@@ -198,16 +198,15 @@ final class TimerViewModel: ScreenViewModel {
                     startTime: start,
                     endTime: end,
                     intervals: intervals,
-                    problemRecords: timer.problemRecords.sorted { $0.number < $1.number }
+                    problemRecords: ProblemSessionReviewResolver.canonicalInputRecords(timer.problemRecords)
                 )
             )
         }
     }
 
     func updateTimerProblemRecords(_ records: [ProblemSessionRecord], totalProblems: Int) {
-        let normalizedRecords = records
+        let normalizedRecords = ProblemSessionReviewResolver.canonicalInputRecords(records)
             .filter { totalProblems <= 0 || $0.number <= totalProblems }
-            .sorted { $0.number < $1.number }
         timerProblemRecords = normalizedRecords
         guard var timer = app.preferences.activeTimer else { return }
         timer.problemRecords = normalizedRecords
@@ -236,7 +235,7 @@ final class TimerViewModel: ScreenViewModel {
     ) {
         perform {
             try TimerProblemValidation.validateRating(rating)
-            let normalizedRecords = problemRecords.sorted { $0.number < $1.number }
+            let normalizedRecords = ProblemSessionReviewResolver.canonicalInputRecords(problemRecords)
             try TimerProblemValidation.validate(
                 problemStart: normalizedRecords.first?.number ?? problemStart,
                 problemEnd: normalizedRecords.last?.number ?? problemEnd,
@@ -302,7 +301,7 @@ final class TimerViewModel: ScreenViewModel {
             if let rating {
                 try TimerProblemValidation.validateRating(rating)
             }
-            let normalizedRecords = problemRecords.sorted { $0.number < $1.number }
+            let normalizedRecords = ProblemSessionReviewResolver.canonicalInputRecords(problemRecords)
             try TimerProblemValidation.validate(
                 problemStart: normalizedRecords.first?.number ?? problemStart,
                 problemEnd: normalizedRecords.last?.number ?? problemEnd,

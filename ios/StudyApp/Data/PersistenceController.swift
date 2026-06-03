@@ -1135,7 +1135,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         persistedLastSyncedAt: Int64? = nil
     ) -> StudySession {
         let effectiveIntervals = session.effectiveIntervals
-        return StudySession(
+        let sanitized = StudySession(
             id: assignedId,
             syncId: persistedSyncId ?? session.syncId,
             materialId: session.materialId,
@@ -1159,6 +1159,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             deletedAt: session.deletedAt,
             lastSyncedAt: persistedLastSyncedAt ?? session.lastSyncedAt
         )
+        return ProblemSessionReviewResolver.canonicalInputSession(sanitized)
     }
 
     private func applySession(_ session: StudySession, to record: NSManagedObject) {

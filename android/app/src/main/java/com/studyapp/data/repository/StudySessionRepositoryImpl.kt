@@ -10,6 +10,7 @@ import com.studyapp.data.local.db.entity.StudySessionWithDetails
 import com.studyapp.domain.model.ProblemResult
 import com.studyapp.domain.model.ProblemReviewRating
 import com.studyapp.domain.model.ProblemReviewRecord
+import com.studyapp.domain.model.ProblemSessionReviewResolver
 import com.studyapp.domain.model.ProblemSessionRecord
 import com.studyapp.domain.model.StudySessionInterval
 import com.studyapp.domain.model.StudySession
@@ -118,8 +119,9 @@ class StudySessionRepositoryImpl @Inject constructor(
         return try {
             val id = writeLock.withLock {
                 studyDatabase.withTransaction {
-                    val insertedId = studySessionDao.insertSession(session.toEntity())
-                    session.materialId?.let { rebuildProblemReviewRecords(it) }
+                    val canonical = ProblemSessionReviewResolver.canonicalInputSession(session)
+                    val insertedId = studySessionDao.insertSession(canonical.toEntity())
+                    canonical.materialId?.let { rebuildProblemReviewRecords(it) }
                     insertedId
                 }
             }
@@ -136,7 +138,9 @@ class StudySessionRepositoryImpl @Inject constructor(
             writeLock.withLock {
                 studyDatabase.withTransaction {
                     val oldMaterialId = studySessionDao.getSessionById(session.id)?.materialId
-                    val updated = session.copy(updatedAt = System.currentTimeMillis())
+                    val updated = ProblemSessionReviewResolver
+                        .canonicalInputSession(session)
+                        .copy(updatedAt = System.currentTimeMillis())
                     studySessionDao.updateSession(updated.toEntity())
                     buildSet {
                         oldMaterialId?.let(::add)
@@ -256,8 +260,19 @@ class StudySessionRepositoryImpl @Inject constructor(
         val problemReviewDao = studyDatabase.problemReviewRecordDao()
         problemReviewDao.softDeleteActiveByMaterial(materialId, now, now)
 
+        val previousResults = linkedMapOf<String, ProblemResult>()
         val sessions = studySessionDao.getActiveSessionsByMaterialForReviewRebuild(materialId)
-            .map { it.toDomainSimple() }
+            .map { entity ->
+                val original = entity.toDomainSimple()
+                val resolved = ProblemSessionReviewResolver.applyingAutomaticReviewCorrect(
+                    session = original,
+                    previousResults = previousResults
+                )
+                if (original.problemProgressChanged(resolved)) {
+                    studySessionDao.updateSession(resolved.copy(updatedAt = now).toEntity())
+                }
+                resolved
+            }
         val latestByProblem = linkedMapOf<String, ProblemReviewRecord>()
 
         sessions.forEach { session ->
@@ -283,6 +298,13 @@ class StudySessionRepositoryImpl @Inject constructor(
                     problemReviewDao.insert(scheduled.toEntity())
                 }
         }
+    }
+
+    private fun StudySession.problemProgressChanged(other: StudySession): Boolean {
+        return problemRecords != other.problemRecords ||
+            problemStart != other.problemStart ||
+            problemEnd != other.problemEnd ||
+            wrongProblemCount != other.wrongProblemCount
     }
 
     private fun scheduleProblemReview(

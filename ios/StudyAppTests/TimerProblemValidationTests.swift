@@ -148,4 +148,52 @@ final class TimerProblemValidationTests: XCTestCase {
         XCTAssertEqual(records.first?.normalizedSubNumber, nil)
         XCTAssertEqual(records.first?.result, .wrong)
     }
+
+    func test_reviewResolver_treatsManualReviewCorrectAsCorrectInput() {
+        let records = ProblemSessionReviewResolver.canonicalInputRecords([
+            ProblemSessionRecord(number: 1, result: .reviewCorrect)
+        ])
+
+        XCTAssertEqual(records.map(\.result), [.correct])
+    }
+
+    func test_reviewResolver_marksCorrectAfterPreviousWrongAsReviewCorrect() {
+        var previousResults = [String: ProblemResult]()
+        let first = ProblemSessionReviewResolver.applyingAutomaticReviewCorrect(
+            to: makeSession(
+                startTime: 1_000,
+                records: [ProblemSessionRecord(number: 4, result: .wrong)]
+            ),
+            previousResults: &previousResults
+        )
+        let second = ProblemSessionReviewResolver.applyingAutomaticReviewCorrect(
+            to: makeSession(
+                startTime: 2_000,
+                records: [ProblemSessionRecord(number: 4, result: .correct)]
+            ),
+            previousResults: &previousResults
+        )
+        let third = ProblemSessionReviewResolver.applyingAutomaticReviewCorrect(
+            to: makeSession(
+                startTime: 3_000,
+                records: [ProblemSessionRecord(number: 4, result: .correct)]
+            ),
+            previousResults: &previousResults
+        )
+
+        XCTAssertEqual(first.problemRecords.map(\.result), [.wrong])
+        XCTAssertEqual(second.problemRecords.map(\.result), [.reviewCorrect])
+        XCTAssertEqual(third.problemRecords.map(\.result), [.correct])
+        XCTAssertEqual(second.wrongProblemCount, 0)
+    }
+
+    private func makeSession(startTime: Int64, records: [ProblemSessionRecord]) -> StudySession {
+        StudySession(
+            materialId: 10,
+            subjectId: 1,
+            startTime: startTime,
+            endTime: startTime + 600_000,
+            problemRecords: records
+        )
+    }
 }

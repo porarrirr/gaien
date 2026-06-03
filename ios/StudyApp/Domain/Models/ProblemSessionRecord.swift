@@ -109,3 +109,70 @@ struct ProblemSessionRecord: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(normalizedSubNumber, forKey: .subNumber)
     }
 }
+
+enum ProblemSessionReviewResolver {
+    static func canonicalInputSession(_ session: StudySession) -> StudySession {
+        replacingProblemRecords(in: session, with: canonicalInputRecords(session.problemRecords))
+    }
+
+    static func applyingAutomaticReviewCorrect(
+        to session: StudySession,
+        previousResults: inout [String: ProblemResult]
+    ) -> StudySession {
+        let resolved = canonicalInputRecords(session.problemRecords).map { record in
+            let inputResult = userInputResult(record.result)
+            let resolvedResult: ProblemResult = if inputResult == .correct, previousResults[record.stableKey] == .wrong {
+                .reviewCorrect
+            } else {
+                inputResult
+            }
+            previousResults[record.stableKey] = inputResult
+            return ProblemSessionRecord(
+                number: record.number,
+                result: resolvedResult,
+                detail: record.detail,
+                subNumber: record.normalizedSubNumber
+            )
+        }
+        return replacingProblemRecords(in: session, with: resolved)
+    }
+
+    static func canonicalInputRecords(_ records: [ProblemSessionRecord]) -> [ProblemSessionRecord] {
+        var latestByKey = [String: ProblemSessionRecord]()
+        for record in records {
+            let normalized = ProblemSessionRecord(
+                number: record.number,
+                result: userInputResult(record.result),
+                detail: record.detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank,
+                subNumber: record.normalizedSubNumber
+            )
+            latestByKey[normalized.stableKey] = normalized
+        }
+        return latestByKey.values.sorted { lhs, rhs in
+            lhs.number == rhs.number
+                ? (lhs.normalizedSubNumber ?? "") < (rhs.normalizedSubNumber ?? "")
+                : lhs.number < rhs.number
+        }
+    }
+
+    private static func userInputResult(_ result: ProblemResult) -> ProblemResult {
+        result == .wrong ? .wrong : .correct
+    }
+
+    private static func replacingProblemRecords(
+        in session: StudySession,
+        with records: [ProblemSessionRecord]
+    ) -> StudySession {
+        guard !records.isEmpty else {
+            var updated = session
+            updated.problemRecords = []
+            return updated
+        }
+        var updated = session
+        updated.problemRecords = records
+        updated.problemStart = records.map(\.number).min()
+        updated.problemEnd = records.map(\.number).max()
+        updated.wrongProblemCount = records.filter(\.isWrong).count
+        return updated
+    }
+}

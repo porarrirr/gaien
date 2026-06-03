@@ -502,7 +502,6 @@ struct TimerScreen: View {
         HStack(spacing: 9) {
             problemLegendItem(color: AppColors.success, title: "正解")
             problemLegendItem(color: AppColors.danger, title: "不正解")
-            problemLegendItem(color: AppColors.warning, title: "復習正解")
             problemLegendItem(color: Color(.systemGray3), title: "未解答")
         }
         .minimumScaleFactor(0.82)

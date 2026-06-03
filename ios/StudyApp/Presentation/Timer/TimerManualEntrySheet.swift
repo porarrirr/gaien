@@ -12,7 +12,6 @@ struct ManualEntrySheet: View {
     @State private var manualRating: Int?
     @State private var correctCount = "0"
     @State private var wrongCount = "0"
-    @State private var reviewCorrectCount = "0"
     @State private var unansweredCount = "0"
 
     var body: some View {
@@ -235,7 +234,6 @@ struct ManualEntrySheet: View {
             HStack(alignment: .top, spacing: 12) {
                 problemCountField(title: "正解", text: $correctCount, color: AppColors.success)
                 problemCountField(title: "不正解", text: $wrongCount, color: AppColors.danger)
-                problemCountField(title: "復習正解", text: $reviewCorrectCount, color: AppColors.warning)
                 problemCountField(title: "未解答", text: $unansweredCount, color: Color(.systemGray3))
             }
         }
@@ -246,7 +244,6 @@ struct ManualEntrySheet: View {
         HStack(spacing: 0) {
             summaryColumn(title: "正解", value: correctTotal, color: AppColors.success)
             summaryColumn(title: "不正解", value: wrongTotal, color: AppColors.danger)
-            summaryColumn(title: "復習正解", value: reviewCorrectTotal, color: AppColors.warning)
             summaryColumn(title: "未解答", value: unansweredTotal, color: AppColors.textSecondary)
             summaryColumn(title: "合計", value: totalProblemCount, color: AppColors.textPrimary)
         }
@@ -352,10 +349,9 @@ struct ManualEntrySheet: View {
 
     private var correctTotal: Int { Int(correctCount) ?? 0 }
     private var wrongTotal: Int { Int(wrongCount) ?? 0 }
-    private var reviewCorrectTotal: Int { Int(reviewCorrectCount) ?? 0 }
     private var unansweredTotal: Int { Int(unansweredCount) ?? 0 }
     private var totalProblemCount: Int {
-        correctTotal + wrongTotal + reviewCorrectTotal + unansweredTotal
+        correctTotal + wrongTotal + unansweredTotal
     }
 
     private var aggregateProblemRecords: [ProblemSessionRecord] {
@@ -367,10 +363,6 @@ struct ManualEntrySheet: View {
         }
         for _ in 0..<wrongTotal {
             records.append(ProblemSessionRecord(number: nextNumber, result: .wrong))
-            nextNumber += 1
-        }
-        for _ in 0..<reviewCorrectTotal {
-            records.append(ProblemSessionRecord(number: nextNumber, result: .reviewCorrect))
             nextNumber += 1
         }
         return records

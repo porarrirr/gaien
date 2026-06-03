@@ -37,7 +37,7 @@ enum ProblemReviewRebuilder {
             review.setValue(now, forKey: "updatedAt")
         }
 
-        let sessions = try CoreDataQuery.fetch(
+        let sessionRecords = try CoreDataQuery.fetch(
             "StudySessionRecord",
             in: context,
             predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
@@ -45,7 +45,20 @@ enum ProblemReviewRebuilder {
                 NSPredicate(format: "deletedAt == NIL")
             ]),
             sort: [NSSortDescriptor(key: "startTime", ascending: true)]
-        ).map(PersistenceMappers.session)
+        )
+
+        var previousResults = [String: ProblemResult]()
+        let sessions = sessionRecords.map { record in
+            let original = PersistenceMappers.session(record)
+            let resolved = ProblemSessionReviewResolver.applyingAutomaticReviewCorrect(
+                to: original,
+                previousResults: &previousResults
+            )
+            if problemProgressChanged(from: original, to: resolved) {
+                applyProblemProgress(resolved, updatedAt: now, to: record)
+            }
+            return resolved
+        }
 
         var latestByProblem = [String: ProblemReviewRecord]()
         for session in sessions where !session.problemRecords.isEmpty {
@@ -74,5 +87,24 @@ enum ProblemReviewRebuilder {
                 PersistenceMappers.apply(scheduled, assignedId: allocated, now: now, to: reviewRecord)
             }
         }
+    }
+
+    private static func problemProgressChanged(from original: StudySession, to resolved: StudySession) -> Bool {
+        original.problemRecords != resolved.problemRecords
+            || original.problemStart != resolved.problemStart
+            || original.problemEnd != resolved.problemEnd
+            || original.wrongProblemCount != resolved.wrongProblemCount
+    }
+
+    private static func applyProblemProgress(
+        _ session: StudySession,
+        updatedAt: Int64,
+        to record: NSManagedObject
+    ) {
+        record.setValue(session.problemStart.map { Int64($0) }, forKey: "problemStart")
+        record.setValue(session.problemEnd.map { Int64($0) }, forKey: "problemEnd")
+        record.setValue(session.wrongProblemCount.map { Int64($0) }, forKey: "wrongProblemCount")
+        record.setValue(PersistenceMappers.encodeProblemRecords(session.problemRecords), forKey: "problemRecordsData")
+        record.setValue(updatedAt, forKey: "updatedAt")
     }
 }

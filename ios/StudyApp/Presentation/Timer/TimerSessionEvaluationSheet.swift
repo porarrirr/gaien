@@ -136,7 +136,6 @@ struct SessionEvaluationSheet: View {
             HStack(spacing: 26) {
                 ProblemLegendItem(symbol: "○", title: "正解", color: AppColors.success)
                 ProblemLegendItem(symbol: "×", title: "不正解", color: AppColors.danger)
-                ProblemLegendItem(symbol: "△", title: "復習正解", color: AppColors.orange)
                 ProblemLegendItem(symbol: "−", title: "未解答", color: Color(hex: 0x9A9DA3))
             }
             .frame(maxWidth: .infinity)
@@ -375,11 +374,9 @@ private struct ProblemChapterRecordRow: View {
     private func advanceRecord(_ number: Int) {
         if let index = records.firstIndex(where: { $0.number == number }) {
             switch records[index].result {
-            case .correct:
+            case .correct, .reviewCorrect:
                 records[index].result = .wrong
             case .wrong:
-                records[index].result = .reviewCorrect
-            case .reviewCorrect:
                 records.remove(at: index)
             }
         } else {

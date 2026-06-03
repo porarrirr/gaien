@@ -38,7 +38,6 @@ struct ProblemTileSelector: View {
                         Text("未着手").tag(ProblemTileEditStatus.untouched)
                         Text("正解").tag(ProblemTileEditStatus.correct)
                         Text("不正解").tag(ProblemTileEditStatus.wrong)
-                        Text("復習正解").tag(ProblemTileEditStatus.reviewCorrect)
                     }
                     TextField("小問（任意・例: 1、(2)、a）", text: $subNumberText)
                         .keyboardType(.default)
@@ -305,14 +304,12 @@ private enum ProblemTileEditStatus: Hashable {
     case untouched
     case correct
     case wrong
-    case reviewCorrect
 
     var problemResult: ProblemResult? {
         switch self {
         case .untouched: return nil
         case .correct: return .correct
         case .wrong: return .wrong
-        case .reviewCorrect: return .reviewCorrect
         }
     }
 }
@@ -322,7 +319,7 @@ private extension ProblemResult {
         switch self {
         case .correct: return .correct
         case .wrong: return .wrong
-        case .reviewCorrect: return .reviewCorrect
+        case .reviewCorrect: return .correct
         }
     }
 }

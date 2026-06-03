@@ -71,7 +71,6 @@ struct TimerProblemProgressEditor: View {
                     Picker("状態", selection: $editingSubQuestionStatus) {
                         Text("正解").tag(TimerSubQuestionStatus.correct)
                         Text("不正解").tag(TimerSubQuestionStatus.wrong)
-                        Text("復習正解").tag(TimerSubQuestionStatus.reviewCorrect)
                     }
                     TextField("メモ（任意）", text: $editingSubQuestionDetail, axis: .vertical)
                 }
@@ -207,11 +206,9 @@ struct TimerProblemProgressEditor: View {
     private func cycleRecord(_ number: Int) {
         if let index = records.firstIndex(where: { $0.number == number && $0.normalizedSubNumber == nil }) {
             switch records[index].result {
-            case .correct:
+            case .correct, .reviewCorrect:
                 records[index].result = .wrong
             case .wrong:
-                records[index].result = .reviewCorrect
-            case .reviewCorrect:
                 records.remove(at: index)
             }
         } else {
@@ -380,13 +377,11 @@ private struct TimerSubQuestionEditTarget: Identifiable {
 private enum TimerSubQuestionStatus: Hashable {
     case correct
     case wrong
-    case reviewCorrect
 
     var problemResult: ProblemResult {
         switch self {
         case .correct: return .correct
         case .wrong: return .wrong
-        case .reviewCorrect: return .reviewCorrect
         }
     }
 }
