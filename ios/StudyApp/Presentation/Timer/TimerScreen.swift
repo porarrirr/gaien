@@ -18,6 +18,7 @@ struct TimerScreen: View {
     @State private var sessionProblemCountDraft = ""
     @State private var initializedEvaluationId: UUID?
     @State private var ringScale: CGFloat = 1.0
+    @State private var isShowingClockOnlyFocus = false
 
     init(app: StudyAppContainer) {
         _app = ObservedObject(wrappedValue: app)
@@ -49,20 +50,9 @@ struct TimerScreen: View {
                             }
                         )
                     case .clockOnly:
-                        LandscapeClockOnlyTimerView(
-                            viewModel: viewModel,
-                            subjectText: selectedSubjectText,
-                            materialText: selectedMaterialText,
-                            timerText: durationString(milliseconds: viewModel.displayMilliseconds),
-                            modeText: "記録中",
-                            progress: timerProgress,
-                            onPauseToggle: {
-                                viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
-                            },
-                            onStop: {
-                                viewModel.stop()
-                            }
-                        )
+                        clockOnlyFocusView {
+                            viewModel.stop()
+                        }
                     }
                 } else {
                     ZStack {
@@ -108,7 +98,7 @@ struct TimerScreen: View {
                                             .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
                                         }
 
-                                        controlButtonsSection(theme: ambientTheme)
+                                        controlButtonsSection(theme: ambientTheme, size: geometry.size)
                                     }
                                     .onChange(of: viewModel.isRunning) { running in
                                         if running {
@@ -154,6 +144,9 @@ struct TimerScreen: View {
             NavigationStack {
                 ManualEntrySheet(viewModel: viewModel, manualNote: $manualNote, isPresented: $showManualEntry)
             }
+        }
+        .fullScreenCover(isPresented: $isShowingClockOnlyFocus) {
+            clockOnlyFocusCover
         }
         .sheet(item: $viewModel.pendingSessionEvaluation, onDismiss: {
             sessionRatingDraft = nil
@@ -290,19 +283,35 @@ struct TimerScreen: View {
         viewModel.isRunning ? "一時停止" : (viewModel.displayMilliseconds > 0 ? "再開" : "開始")
     }
 
-    private func controlButtonsSection(theme: TimerAmbientTheme) -> some View {
-        HStack(spacing: 10) {
-            primaryTimerButton(theme: theme)
+    private var clockOnlyFocusButtonTitle: String {
+        if viewModel.isRunning {
+            return "シンプル表示"
+        }
+        if viewModel.displayMilliseconds > 0 {
+            return "再開してシンプル表示"
+        }
+        return "開始してシンプル表示"
+    }
 
-            stopTimerButton(
-                systemImage: "stop.fill",
-                title: "停止",
-                color: viewModel.displayMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3),
-                action: {
-                    viewModel.stop()
-                }
-            )
-            .disabled(viewModel.displayMilliseconds == 0)
+    private func controlButtonsSection(theme: TimerAmbientTheme, size: CGSize) -> some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                primaryTimerButton(theme: theme)
+
+                stopTimerButton(
+                    systemImage: "stop.fill",
+                    title: "停止",
+                    color: viewModel.displayMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3),
+                    action: {
+                        viewModel.stop()
+                    }
+                )
+                .disabled(viewModel.displayMilliseconds == 0)
+            }
+
+            if shouldShowManualClockOnlyFocusButton(size: size) {
+                clockOnlyFocusButton(theme: theme)
+            }
         }
     }
 
@@ -323,6 +332,35 @@ struct TimerScreen: View {
             .shadow(color: theme.accent.opacity(0.26), radius: 10, x: 0, y: 6)
         }
         .buttonStyle(.plain)
+    }
+
+    private func clockOnlyFocusButton(theme: TimerAmbientTheme) -> some View {
+        Button {
+            presentClockOnlyFocus()
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: "timer")
+                    .font(.system(size: 16, weight: .bold))
+                Text(clockOnlyFocusButtonTitle)
+                    .font(.system(size: 15, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                Spacer(minLength: 8)
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 13, weight: .heavy))
+            }
+            .foregroundStyle(theme.accent)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity)
+            .frame(height: 46)
+            .background(theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(theme.accent.opacity(0.28), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(clockOnlyFocusButtonTitle)
     }
 
     private func timerModeSection(theme: TimerAmbientTheme) -> some View {
@@ -597,6 +635,64 @@ struct TimerScreen: View {
         formatter.dateFormat = "HH:mm"
         return formatter
     }()
+
+    private var clockOnlyFocusCover: some View {
+        ZStack(alignment: .topTrailing) {
+            clockOnlyFocusView {
+                viewModel.stop()
+                isShowingClockOnlyFocus = false
+            }
+
+            Button {
+                isShowingClockOnlyFocus = false
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 52, height: 52)
+                    .background(Color.white.opacity(0.12), in: Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("閉じる")
+            .padding(.top, 18)
+            .padding(.trailing, 18)
+        }
+        .statusBarHidden(true)
+    }
+
+    private func clockOnlyFocusView(onStop: @escaping () -> Void) -> some View {
+        LandscapeClockOnlyTimerView(
+            viewModel: viewModel,
+            subjectText: selectedSubjectText,
+            materialText: selectedMaterialText,
+            timerText: durationString(milliseconds: viewModel.displayMilliseconds),
+            modeText: "記録中",
+            progress: timerProgress,
+            onPauseToggle: {
+                viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
+            },
+            onStop: onStop
+        )
+    }
+
+    private func presentClockOnlyFocus() {
+        guard viewModel.effectiveSelectedSubjectId != nil else {
+            viewModel.startOrResume()
+            return
+        }
+        if !viewModel.isRunning {
+            viewModel.startOrResume()
+        }
+        isShowingClockOnlyFocus = true
+    }
+
+    private func shouldShowManualClockOnlyFocusButton(size: CGSize) -> Bool {
+        !shouldShowLandscapeFocus(size: size) && min(size.width, size.height) >= 520
+    }
 
     private func shouldShowLandscapeFocus(size: CGSize) -> Bool {
         viewModel.isRunning && size.width > size.height && size.height < 520
