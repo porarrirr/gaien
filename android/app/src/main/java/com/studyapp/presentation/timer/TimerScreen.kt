@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -27,8 +28,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
@@ -45,11 +48,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -71,6 +77,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -84,6 +91,7 @@ import com.studyapp.presentation.components.CircularProgressRing
 import com.studyapp.presentation.components.PulsingEffect
 import com.studyapp.presentation.theme.toSubjectColor
 import com.studyapp.R
+import java.util.Calendar
 
 private fun formatTimeMillis(time: Long): String {
     val hours = time / 3600000
@@ -106,7 +114,7 @@ fun TimerScreen(
     val context = LocalContext.current
     val theme = TimerAmbientTheme.current()
     var showManualInputDialog by remember { mutableStateOf(false) }
-    var showMaterialPicker by remember { mutableStateOf(false) }
+    var showTargetSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.openDndSettings.collect {
@@ -221,56 +229,23 @@ fun TimerScreen(
                 }
             }
             else -> {
-                Column(
+                FocusTimerContent(
+                    uiState = uiState,
+                    theme = theme,
+                    displayTime = displayTime,
+                    progress = progress.coerceIn(0f, 1f),
+                    onOpenTargetSheet = { showTargetSheet = true },
+                    onSelectMode = viewModel::setTimerMode,
+                    onSelectMinutes = viewModel::setCountdownMinutes,
+                    onStart = viewModel::startTimer,
+                    onPause = viewModel::pauseTimer,
+                    onStop = viewModel::stopTimer,
+                    onSetProblemCount = viewModel::setProblemCount,
+                    onToggleProblemState = viewModel::toggleProblemState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                        .padding(horizontal = 12.dp, vertical = 12.dp)
-                        .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TimerSelectionPanel(
-                        selectedMaterial = uiState.selectedMaterial,
-                        selectedSubject = uiState.selectedSubject,
-                        hasSubjects = uiState.subjects.isNotEmpty(),
-                        onClick = { showMaterialPicker = true }
-                    )
-
-                    QuickSelectionSection(
-                        subjects = uiState.subjects,
-                        selectedSubject = uiState.selectedSubject,
-                        recentMaterials = uiState.recentMaterials,
-                        selectedMaterial = uiState.selectedMaterial,
-                        onSelectSubject = viewModel::selectSubject,
-                        onSelectMaterial = { material, subject ->
-                            viewModel.selectMaterial(material, subject)
-                        }
-                    )
-
-                    TimerPanel(
-                        selectedMode = uiState.timerMode,
-                        countdownMinutes = uiState.countdownMinutes,
-                        isRunning = uiState.isRunning,
-                        displayTime = displayTime,
-                        progress = progress,
-                        onSelectMode = viewModel::setTimerMode,
-                        onSelectMinutes = viewModel::setCountdownMinutes,
-                        onStart = viewModel::startTimer,
-                        onPause = viewModel::pauseTimer,
-                        onStop = viewModel::stopTimer
-                    )
-
-                    ProblemProgressSection(
-                        problemCount = uiState.problemCount,
-                        problemStates = uiState.problemStates,
-                        selectedMaterial = uiState.selectedMaterial,
-                        onSetCount = viewModel::setProblemCount,
-                        onToggleState = viewModel::toggleProblemState
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
+                )
             }
         }
     }
@@ -288,19 +263,18 @@ fun TimerScreen(
         )
     }
 
-    if (showMaterialPicker) {
-        MaterialPickerDialog(
+    if (showTargetSheet) {
+        TargetSelectionSheet(
             subjects = uiState.subjects,
             materialsBySubject = uiState.materialsBySubject,
+            recentMaterials = uiState.recentMaterials,
             initialSubjectId = uiState.selectedSubject?.id,
-            onDismiss = { showMaterialPicker = false },
-            onSelectSubject = { subject ->
-                viewModel.selectSubject(subject)
-                showMaterialPicker = false
-            },
-            onSelectMaterial = { material, subject ->
-                viewModel.selectMaterial(material, subject)
-                showMaterialPicker = false
+            selectedSubject = uiState.selectedSubject,
+            selectedMaterial = uiState.selectedMaterial,
+            onDismiss = { showTargetSheet = false },
+            onSelect = { subject, material ->
+                viewModel.selectTimerTarget(subject, material)
+                showTargetSheet = false
             }
         )
     }
@@ -325,6 +299,561 @@ fun TimerScreen(
         )
     }
 }
+
+@Composable
+private fun FocusTimerContent(
+    uiState: TimerUiState,
+    theme: TimerAmbientTheme,
+    displayTime: Long,
+    progress: Float,
+    onOpenTargetSheet: () -> Unit,
+    onSelectMode: (TimerMode) -> Unit,
+    onSelectMinutes: (Int) -> Unit,
+    onStart: () -> Unit,
+    onPause: () -> Unit,
+    onStop: () -> Unit,
+    onSetProblemCount: (Int) -> Unit,
+    onToggleProblemState: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .padding(horizontal = 14.dp, vertical = 14.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(22.dp)
+    ) {
+        TargetLauncher(
+            selectedSubject = uiState.selectedSubject,
+            selectedMaterial = uiState.selectedMaterial,
+            theme = theme,
+            onClick = onOpenTargetSheet
+        )
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            FocusStatusRow(
+                isRunning = uiState.isRunning,
+                targetText = targetEndText(uiState.timerMode, displayTime),
+                theme = theme
+            )
+            FocusTimeField(
+                displayTime = displayTime,
+                isRunning = uiState.isRunning
+            )
+            FocusProgressRail(
+                progress = progress,
+                midLabel = progressMidLabel(uiState.timerMode, uiState.countdownMinutes),
+                endLabel = progressEndLabel(uiState.timerMode, uiState.countdownMinutes),
+                theme = theme
+            )
+        }
+
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.elevatedCardColors(containerColor = theme.panelOverlay),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TimerControls(
+                    isRunning = uiState.isRunning,
+                    displayTime = displayTime,
+                    onStart = onStart,
+                    onPause = onPause,
+                    onStop = onStop
+                )
+                FocusModeControls(
+                    selectedMode = uiState.timerMode,
+                    countdownMinutes = uiState.countdownMinutes,
+                    isRunning = uiState.isRunning,
+                    onSelectMode = onSelectMode,
+                    onSelectMinutes = onSelectMinutes
+                )
+            }
+        }
+
+        ProblemProgressSection(
+            problemCount = uiState.problemCount,
+            problemStates = uiState.problemStates,
+            selectedMaterial = uiState.selectedMaterial,
+            onSetCount = onSetProblemCount,
+            onToggleState = onToggleProblemState
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun TargetLauncher(
+    selectedSubject: Subject?,
+    selectedMaterial: Material?,
+    theme: TimerAmbientTheme,
+    onClick: () -> Unit
+) {
+    val subjectColor = selectedSubject?.color?.toSubjectColor() ?: theme.accent
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(72.dp),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, theme.panelStroke),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = theme.panelOverlay,
+            contentColor = theme.foreground
+        ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(subjectColor.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(subjectColor)
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "学習対象",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = selectedSubject?.name ?: "科目を追加してください",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = theme.foreground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = selectedMaterial?.name ?: "教材なしで記録",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = theme.secondaryForeground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Icon(
+            Icons.Default.KeyboardArrowDown,
+            contentDescription = "学習対象を選択",
+            tint = theme.accent,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+@Composable
+private fun FocusStatusRow(
+    isRunning: Boolean,
+    targetText: String,
+    theme: TimerAmbientTheme
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(if (isRunning) theme.accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f))
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = if (isRunning) "記録中" else "待機中",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (isRunning) theme.accent else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = targetText,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = theme.secondaryForeground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun FocusTimeField(
+    displayTime: Long,
+    isRunning: Boolean
+) {
+    val timeText = formatTimeMillis(displayTime)
+    val timeSize = if (timeText.length > 5) 66.sp else 82.sp
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = timeText,
+            fontSize = timeSize,
+            fontWeight = FontWeight.Light,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1
+        )
+        Text(
+            text = if (isRunning) "集中していきましょう" else "学習対象を選んで開始",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun FocusProgressRail(
+    progress: Float,
+    midLabel: String,
+    endLabel: String,
+    theme: TimerAmbientTheme
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(7.dp)
+                .clip(CircleShape),
+            color = theme.accent,
+            trackColor = theme.ringTrack
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            listOf("0", midLabel, endLabel).forEach { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = theme.secondaryForeground
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FocusModeControls(
+    selectedMode: TimerMode,
+    countdownMinutes: Int,
+    isRunning: Boolean,
+    onSelectMode: (TimerMode) -> Unit,
+    onSelectMinutes: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = selectedMode == TimerMode.STOPWATCH,
+                onClick = { onSelectMode(TimerMode.STOPWATCH) },
+                label = { Text("ストップウォッチ") },
+                enabled = !isRunning,
+                modifier = Modifier.weight(1f)
+            )
+            FilterChip(
+                selected = selectedMode == TimerMode.TIMER,
+                onClick = { onSelectMode(TimerMode.TIMER) },
+                label = { Text("タイマー") },
+                enabled = !isRunning,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (selectedMode == TimerMode.TIMER) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(15, 25, 45, 60).forEach { minutes ->
+                    FilterChip(
+                        selected = countdownMinutes == minutes,
+                        onClick = { onSelectMinutes(minutes) },
+                        label = { Text("${minutes}分") },
+                        enabled = !isRunning,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private enum class TargetSelectionTab(val label: String) {
+    RECENT("最近"),
+    SUBJECTS("科目"),
+    MATERIALS("教材")
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TargetSelectionSheet(
+    subjects: List<Subject>,
+    materialsBySubject: Map<Long, List<Material>>,
+    recentMaterials: List<Pair<Material, Subject>>,
+    initialSubjectId: Long?,
+    selectedSubject: Subject?,
+    selectedMaterial: Material?,
+    onDismiss: () -> Unit,
+    onSelect: (Subject, Material?) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var selectedTab by remember { mutableStateOf(TargetSelectionTab.RECENT) }
+    var activeSubjectId by remember(initialSubjectId, subjects) {
+        mutableStateOf(initialSubjectId ?: subjects.firstOrNull()?.id)
+    }
+    val activeSubject = remember(subjects, activeSubjectId) {
+        subjects.firstOrNull { it.id == activeSubjectId } ?: subjects.firstOrNull()
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = "学習対象を選択",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            TabRow(selectedTabIndex = selectedTab.ordinal) {
+                TargetSelectionTab.values().forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.label) }
+                    )
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                when (selectedTab) {
+                    TargetSelectionTab.RECENT -> {
+                        item {
+                            Text(
+                                text = "最近使った教材",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (recentMaterials.isEmpty()) {
+                            item {
+                                Text(
+                                    text = "最近使った教材はまだありません。科目または教材から選んでください。",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            items(recentMaterials.take(8)) { (material, subject) ->
+                                TargetSelectionRow(
+                                    subject = subject,
+                                    material = material,
+                                    subtitle = "最近使用",
+                                    selected = selectedSubject?.id == subject.id && selectedMaterial?.id == material.id,
+                                    onClick = { onSelect(subject, material) }
+                                )
+                            }
+                        }
+                        activeSubject?.let { subject ->
+                            item {
+                                TargetSelectionRow(
+                                    subject = subject,
+                                    material = null,
+                                    subtitle = "時間だけを記録",
+                                    selected = selectedSubject?.id == subject.id && selectedMaterial == null,
+                                    onClick = { onSelect(subject, null) }
+                                )
+                            }
+                        }
+                    }
+                    TargetSelectionTab.SUBJECTS -> {
+                        if (subjects.isEmpty()) {
+                            item {
+                                Text(
+                                    text = "科目を追加するとタイマーを開始できます。",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            items(subjects) { subject ->
+                                TargetSelectionRow(
+                                    subject = subject,
+                                    material = null,
+                                    subtitle = "教材なしで記録",
+                                    selected = selectedSubject?.id == subject.id && selectedMaterial == null,
+                                    onClick = { onSelect(subject, null) }
+                                )
+                            }
+                        }
+                    }
+                    TargetSelectionTab.MATERIALS -> {
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(subjects) { subject ->
+                                    FilterChip(
+                                        selected = activeSubject?.id == subject.id,
+                                        onClick = { activeSubjectId = subject.id },
+                                        label = { Text(subject.name) }
+                                    )
+                                }
+                            }
+                        }
+                        activeSubject?.let { subject ->
+                            item {
+                                TargetSelectionRow(
+                                    subject = subject,
+                                    material = null,
+                                    subtitle = "教材なしで記録",
+                                    selected = selectedSubject?.id == subject.id && selectedMaterial == null,
+                                    onClick = { onSelect(subject, null) }
+                                )
+                            }
+                            val materials = materialsBySubject[subject.id].orEmpty()
+                            if (materials.isEmpty()) {
+                                item {
+                                    Text(
+                                        text = "この科目には教材がありません。",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else {
+                                items(materials) { material ->
+                                    TargetSelectionRow(
+                                        subject = subject,
+                                        material = material,
+                                        subtitle = material.effectiveTotalProblems.takeIf { it > 0 }?.let { "${it}問" },
+                                        selected = selectedSubject?.id == subject.id && selectedMaterial?.id == material.id,
+                                        onClick = { onSelect(subject, material) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TargetSelectionRow(
+    subject: Subject,
+    material: Material?,
+    subtitle: String?,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(
+            1.dp,
+            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+            else MaterialTheme.colorScheme.outlineVariant
+        ),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(14.dp)
+                .clip(CircleShape)
+                .background(subject.color.toSubjectColor())
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = material?.name ?: "教材なしで記録",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = listOfNotNull(subject.name, subtitle).joinToString(" / "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Icon(
+            imageVector = if (selected) Icons.Default.CheckCircle else Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(if (selected) 20.dp else 18.dp)
+        )
+    }
+}
+
+private fun targetEndText(mode: TimerMode, displayTime: Long): String {
+    if (mode == TimerMode.TIMER && displayTime > 0L) {
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = System.currentTimeMillis() + displayTime
+        }
+        return String.format(
+            "目標終了 %02d:%02d",
+            calendar.get(Calendar.HOUR_OF_DAY),
+            calendar.get(Calendar.MINUTE)
+        )
+    }
+    return if (mode == TimerMode.TIMER) "カウントダウン" else "経過を記録中"
+}
+
+private fun progressMidLabel(mode: TimerMode, countdownMinutes: Int): String =
+    if (mode == TimerMode.TIMER) "${(countdownMinutes / 2).coerceAtLeast(1)}:00" else "30:00"
+
+private fun progressEndLabel(mode: TimerMode, countdownMinutes: Int): String =
+    if (mode == TimerMode.TIMER) "${countdownMinutes}:00" else "60:00"
 
 @Composable
 private fun TimerSelectionPanel(

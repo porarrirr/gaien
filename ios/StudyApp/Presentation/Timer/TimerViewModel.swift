@@ -164,6 +164,21 @@ final class TimerViewModel: ScreenViewModel {
         syncActiveTimerSelection()
     }
 
+    func selectTimerTarget(subjectId: Int64, materialId: Int64?) {
+        guard subjects.contains(where: { $0.id == subjectId }) else { return }
+        let resolvedMaterialId = materialId.flatMap { candidate in
+            materials.contains(where: { $0.id == candidate && $0.subjectId == subjectId }) ? candidate : nil
+        }
+        let materialChanged = selectedMaterialId != resolvedMaterialId
+        selectedSubjectId = subjectId
+        selectedMaterialId = resolvedMaterialId
+        if materialChanged {
+            timerProblemRecords = []
+            timerProblemCountDraft = ""
+        }
+        syncActiveTimerSelection()
+    }
+
     func stop() {
         perform {
             guard self.pendingSessionEvaluation == nil else { return }

@@ -17,7 +17,7 @@ struct TimerScreen: View {
     @State private var sessionProblemRecords: [ProblemSessionRecord] = []
     @State private var sessionProblemCountDraft = ""
     @State private var initializedEvaluationId: UUID?
-    @State private var ringScale: CGFloat = 1.0
+    @State private var showTargetSelection = false
     @State private var isShowingClockOnlyFocus = false
 
     init(app: StudyAppContainer) {
@@ -55,83 +55,7 @@ struct TimerScreen: View {
                         }
                     }
                 } else {
-                    ZStack {
-                        TimerAmbientBackgroundView(theme: ambientTheme, isRunning: viewModel.isRunning)
-
-                        ScrollView(showsIndicators: false) {
-                            VStack(spacing: 12) {
-                                selectorSection(theme: ambientTheme)
-                                quickSelectionSection(theme: ambientTheme)
-
-                                VStack(spacing: 12) {
-                                    timerModeSection(theme: ambientTheme)
-
-                                    VStack(spacing: 14) {
-                                        ZStack {
-                                            ProgressRing(
-                                                progress: timerProgress,
-                                                size: timerRingSize(for: geometry.size),
-                                                lineWidth: 13,
-                                                ringColor: viewModel.isRunning ? ambientTheme.accent : Color.secondary.opacity(0.42),
-                                                trackColor: ambientTheme.ringTrack,
-                                                showPercentage: false
-                                            )
-                                            .scaleEffect(ringScale)
-
-                                            VStack(spacing: 5) {
-                                                Text(viewModel.isRunning ? "記録中" : "待機中")
-                                                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                                                    .foregroundStyle(viewModel.isRunning ? ambientTheme.accent : AppColors.textSecondary)
-                                                Text(durationString(milliseconds: viewModel.displayMilliseconds))
-                                                    .font(.system(size: timerTextFontSize(for: geometry.size), weight: .regular, design: .rounded))
-                                                    .monospacedDigit()
-                                                    .foregroundStyle(AppColors.textPrimary)
-                                                    .lineLimit(1)
-                                                    .minimumScaleFactor(0.72)
-                                                    .frame(width: timerTextWidth(for: geometry.size), alignment: .center)
-                                                Text(targetEndText)
-                                                    .font(.system(size: 13, weight: .medium))
-                                                    .foregroundStyle(AppColors.textSecondary)
-                                                    .lineLimit(1)
-                                                    .minimumScaleFactor(0.82)
-                                            }
-                                            .animation(.easeOut(duration: 0.25), value: viewModel.isRunning)
-                                        }
-
-                                        controlButtonsSection(theme: ambientTheme, size: geometry.size)
-                                    }
-                                    .onChange(of: viewModel.isRunning) { running in
-                                        if running {
-                                            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                                                ringScale = 1.02
-                                            }
-                                        } else {
-                                            withAnimation(.easeOut(duration: 0.3)) {
-                                                ringScale = 1.0
-                                            }
-                                        }
-                                    }
-                                }
-                                .timerGlassPanel(theme: ambientTheme, padding: 12)
-
-                                timerProblemProgressSection(theme: ambientTheme)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 12)
-                            .padding(.top, 12)
-                            .padding(.bottom, 92)
-                        }
-                        .safeAreaInset(edge: .bottom, spacing: 0) {
-                            VStack(spacing: 0) {
-                                manualEntryButton(theme: ambientTheme)
-                                    .padding(.horizontal, 12)
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 10)
-                                Divider()
-                            }
-                            .background(ambientTheme.bottomBarBackground)
-                        }
-                    }
+                    portraitTimerContent(theme: ambientTheme, size: geometry.size)
                 }
             }
             .toolbar(isLandscapeFocus ? .hidden : .visible, for: .navigationBar)
@@ -144,6 +68,24 @@ struct TimerScreen: View {
             NavigationStack {
                 ManualEntrySheet(viewModel: viewModel, manualNote: $manualNote, isPresented: $showManualEntry)
             }
+        }
+        .sheet(isPresented: $showTargetSelection) {
+            TimerTargetSelectionSheet(
+                subjects: viewModel.subjects,
+                materialsForSubject: { subject in
+                    viewModel.materials.filter { $0.subjectId == subject.id }
+                },
+                recentMaterialPairs: viewModel.recentMaterialPairs,
+                selectedSubjectId: viewModel.effectiveSelectedSubjectId,
+                selectedMaterialId: viewModel.selectedMaterialId,
+                onSelect: { subject, material in
+                    viewModel.selectTimerTarget(subjectId: subject.id, materialId: material?.id)
+                    showTargetSelection = false
+                },
+                onDismiss: {
+                    showTargetSelection = false
+                }
+            )
         }
         .fullScreenCover(isPresented: $isShowingClockOnlyFocus) {
             clockOnlyFocusCover
@@ -196,12 +138,6 @@ struct TimerScreen: View {
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
         }
-        .onChange(of: viewModel.selectedSubjectId) { _ in
-            viewModel.handleSubjectSelectionChange()
-        }
-        .onChange(of: viewModel.selectedMaterialId) { _ in
-            viewModel.handleMaterialSelectionChange()
-        }
         .keepScreenAwake(true)
     }
 
@@ -213,6 +149,190 @@ struct TimerScreen: View {
         }
         let targetMs: Double = 60 * 60 * 1000
         return min(Double(viewModel.elapsedMilliseconds) / targetMs, 1.0)
+    }
+
+    private func portraitTimerContent(theme: TimerAmbientTheme, size: CGSize) -> some View {
+        ZStack {
+            TimerAmbientBackgroundView(theme: theme, isRunning: viewModel.isRunning)
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 22) {
+                    targetLauncher(theme: theme)
+
+                    VStack(spacing: 16) {
+                        focusStatusRow(theme: theme)
+                        focusTimeField(size: size)
+                        focusProgressRail(theme: theme)
+                    }
+                    .padding(.top, 18)
+
+                    VStack(spacing: 12) {
+                        controlButtonsSection(theme: theme, size: size)
+                        focusModeControls(theme: theme)
+                    }
+                    .timerGlassPanel(theme: theme, padding: 12)
+
+                    timerProblemProgressSection(theme: theme)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 14)
+                .padding(.top, 16)
+                .padding(.bottom, 92)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    manualEntryButton(theme: theme)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 10)
+                        .padding(.bottom, 10)
+                    Divider()
+                }
+                .background(theme.bottomBarBackground)
+            }
+        }
+    }
+
+    private func targetLauncher(theme: TimerAmbientTheme) -> some View {
+        Button {
+            showTargetSelection = true
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(subjectColor.opacity(0.14))
+                    Circle()
+                        .fill(subjectColor)
+                        .frame(width: 14, height: 14)
+                }
+                .frame(width: 42, height: 42)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("学習対象")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(AppColors.textSecondary)
+                    Text(selectedSubjectText)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(AppColors.textPrimary)
+                        .lineLimit(1)
+                    Text(selectedMaterialText == "なし" ? "教材なしで記録" : selectedMaterialText)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppColors.textSecondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 15, weight: .heavy))
+                    .foregroundStyle(theme.accent)
+            }
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity)
+            .frame(height: 72)
+            .background(theme.panelOverlay, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(theme.panelStroke, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("学習対象を選択")
+    }
+
+    private func focusStatusRow(theme: TimerAmbientTheme) -> some View {
+        HStack {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(viewModel.isRunning ? theme.accent : AppColors.textSecondary.opacity(0.42))
+                    .frame(width: 10, height: 10)
+                Text(viewModel.isRunning ? "記録中" : "待機中")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(viewModel.isRunning ? theme.accent : AppColors.textSecondary)
+            }
+
+            Spacer()
+
+            Text(targetEndText)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppColors.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+    }
+
+    private func focusTimeField(size: CGSize) -> some View {
+        VStack(spacing: 8) {
+            Text(durationString(milliseconds: viewModel.displayMilliseconds))
+                .font(.system(size: focusTimerTextSize(for: size), weight: .light, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(AppColors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            Text(viewModel.isRunning ? "集中していきましょう" : "学習対象を選んで開始")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(AppColors.textSecondary)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func focusProgressRail(theme: TimerAmbientTheme) -> some View {
+        VStack(spacing: 8) {
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(theme.ringTrack)
+                        .frame(height: 7)
+                    Capsule()
+                        .fill(theme.accent)
+                        .frame(width: max(8, width * timerProgress), height: 7)
+                }
+            }
+            .frame(height: 7)
+
+            HStack {
+                Text("0")
+                Spacer()
+                Text(progressMidLabel)
+                Spacer()
+                Text(progressEndLabel)
+            }
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundStyle(AppColors.textSecondary)
+        }
+    }
+
+    private func focusModeControls(theme: TimerAmbientTheme) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                timerModeButton(title: "ストップウォッチ", mode: .stopwatch, theme: theme)
+                timerModeButton(title: "タイマー", mode: .timer, theme: theme)
+            }
+
+            if viewModel.mode == .timer {
+                HStack(spacing: 8) {
+                    ForEach([15, 25, 45, 60], id: \.self) { minutes in
+                        Button {
+                            viewModel.setCountdownMinutes(minutes)
+                        } label: {
+                            Text("\(minutes)分")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : theme.accent)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 34)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(viewModel.countdownMinutes == minutes ? theme.accent : theme.accent.opacity(0.12))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isRunning)
+                    }
+                }
+            }
+        }
     }
 
     private func selectorSection(theme: TimerAmbientTheme) -> some View {
@@ -590,6 +710,15 @@ struct TimerScreen: View {
         return viewModel.subjects.isEmpty ? "科目を追加してください" : "科目を選択"
     }
 
+    private var selectedSubject: Subject? {
+        guard let subjectId = viewModel.effectiveSelectedSubjectId else { return nil }
+        return viewModel.subjects.first(where: { $0.id == subjectId })
+    }
+
+    private var subjectColor: Color {
+        selectedSubject.map { Color(hex: $0.color) } ?? AppColors.success
+    }
+
     private var selectedMaterialText: String {
         if let materialId = viewModel.selectedMaterialId,
            let material = viewModel.materialsForSelectedSubject().first(where: { $0.id == materialId }) {
@@ -627,6 +756,20 @@ struct TimerScreen: View {
             return "目標終了 \(Self.hourMinuteFormatter.string(from: target))"
         }
         return viewModel.mode == .timer ? "カウントダウン" : "経過を記録中"
+    }
+
+    private var progressMidLabel: String {
+        if viewModel.mode == .timer {
+            return "\(max(viewModel.countdownMinutes / 2, 1)):00"
+        }
+        return "30:00"
+    }
+
+    private var progressEndLabel: String {
+        if viewModel.mode == .timer {
+            return "\(viewModel.countdownMinutes):00"
+        }
+        return "60:00"
     }
 
     private static let hourMinuteFormatter: DateFormatter = {
@@ -724,6 +867,12 @@ struct TimerScreen: View {
         return min(max(ringSize * 0.22, 38), 46)
     }
 
+    private func focusTimerTextSize(for size: CGSize) -> CGFloat {
+        let compactHeight = size.height < 720
+        let widthDriven = size.width * 0.24
+        return min(max(widthDriven, compactHeight ? 64 : 72), compactHeight ? 88 : 104)
+    }
+
     private func stopTimerButton(systemImage: String, title: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
@@ -737,6 +886,271 @@ struct TimerScreen: View {
             .background(color, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private enum TimerTargetSelectionTab: String, CaseIterable, Identifiable, Hashable {
+    case recent = "最近"
+    case subjects = "科目"
+    case materials = "教材"
+
+    var id: String { rawValue }
+}
+
+private struct TimerTargetSelectionSheet: View {
+    let subjects: [Subject]
+    let materialsForSubject: (Subject) -> [Material]
+    let recentMaterialPairs: [(Material, Subject)]
+    let selectedSubjectId: Int64?
+    let selectedMaterialId: Int64?
+    let onSelect: (Subject, Material?) -> Void
+    let onDismiss: () -> Void
+
+    @State private var selectedTab: TimerTargetSelectionTab = .recent
+    @State private var activeSubjectId: Int64?
+
+    init(
+        subjects: [Subject],
+        materialsForSubject: @escaping (Subject) -> [Material],
+        recentMaterialPairs: [(Material, Subject)],
+        selectedSubjectId: Int64?,
+        selectedMaterialId: Int64?,
+        onSelect: @escaping (Subject, Material?) -> Void,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.subjects = subjects
+        self.materialsForSubject = materialsForSubject
+        self.recentMaterialPairs = recentMaterialPairs
+        self.selectedSubjectId = selectedSubjectId
+        self.selectedMaterialId = selectedMaterialId
+        self.onSelect = onSelect
+        self.onDismiss = onDismiss
+        _activeSubjectId = State(initialValue: selectedSubjectId ?? subjects.first?.id)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 14) {
+                Picker("選択方法", selection: $selectedTab) {
+                    ForEach(TimerTargetSelectionTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        switch selectedTab {
+                        case .recent:
+                            recentContent
+                        case .subjects:
+                            subjectsContent
+                        case .materials:
+                            materialsContent
+                        }
+                    }
+                    .padding(.bottom, 24)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .background(AppColors.groupedBackground)
+            .navigationTitle("学習対象を選択")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる", action: onDismiss)
+                        .foregroundStyle(AppColors.success)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var recentContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("最近使った教材")
+                .timerTargetSectionTitle()
+
+            if recentMaterialPairs.isEmpty {
+                Text("最近使った教材はまだありません。科目または教材から選んでください。")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 12)
+            } else {
+                ForEach(Array(recentMaterialPairs.prefix(8)).indices, id: \.self) { index in
+                    let pair = recentMaterialPairs[index]
+                    TimerTargetRow(
+                        subject: pair.1,
+                        material: pair.0,
+                        subtitle: "最近使用",
+                        isSelected: selectedSubjectId == pair.1.id && selectedMaterialId == pair.0.id
+                    ) {
+                        onSelect(pair.1, pair.0)
+                    }
+                }
+            }
+
+            if let subject = activeSubject {
+                TimerTargetRow(
+                    subject: subject,
+                    material: nil,
+                    subtitle: "時間だけを記録",
+                    isSelected: selectedSubjectId == subject.id && selectedMaterialId == nil
+                ) {
+                    onSelect(subject, nil)
+                }
+            }
+        }
+    }
+
+    private var subjectsContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("科目")
+                .timerTargetSectionTitle()
+
+            if subjects.isEmpty {
+                Text("科目を追加するとタイマーを開始できます。")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .padding(.vertical, 12)
+            } else {
+                ForEach(subjects) { subject in
+                    TimerTargetRow(
+                        subject: subject,
+                        material: nil,
+                        subtitle: "教材なしで記録",
+                        isSelected: selectedSubjectId == subject.id && selectedMaterialId == nil
+                    ) {
+                        onSelect(subject, nil)
+                    }
+                }
+            }
+        }
+    }
+
+    private var materialsContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("教材")
+                .timerTargetSectionTitle()
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(subjects) { subject in
+                        Button {
+                            activeSubjectId = subject.id
+                        } label: {
+                            Text(subject.name)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(activeSubjectId == subject.id ? Color.white : Color(hex: subject.color))
+                                .padding(.horizontal, 14)
+                                .frame(height: 36)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(activeSubjectId == subject.id ? Color(hex: subject.color) : Color(hex: subject.color).opacity(0.12))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            if let subject = activeSubject {
+                TimerTargetRow(
+                    subject: subject,
+                    material: nil,
+                    subtitle: "教材なしで記録",
+                    isSelected: selectedSubjectId == subject.id && selectedMaterialId == nil
+                ) {
+                    onSelect(subject, nil)
+                }
+
+                let materials = materialsForSubject(subject)
+                if materials.isEmpty {
+                    Text("この科目には教材がありません。")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.textSecondary)
+                        .padding(.vertical, 10)
+                } else {
+                    ForEach(materials) { material in
+                        TimerTargetRow(
+                            subject: subject,
+                            material: material,
+                            subtitle: material.effectiveTotalProblems > 0 ? "\(material.effectiveTotalProblems)問" : nil,
+                            isSelected: selectedSubjectId == subject.id && selectedMaterialId == material.id
+                        ) {
+                            onSelect(subject, material)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var activeSubject: Subject? {
+        if let activeSubjectId,
+           let subject = subjects.first(where: { $0.id == activeSubjectId }) {
+            return subject
+        }
+        return subjects.first
+    }
+}
+
+private struct TimerTargetRow: View {
+    let subject: Subject
+    let material: Material?
+    let subtitle: String?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(Color(hex: subject.color))
+                    .frame(width: 14, height: 14)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(material?.name ?? "教材なしで記録")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(AppColors.textPrimary)
+                        .lineLimit(1)
+                    Text([subject.name, subtitle].compactMap(\.self).joined(separator: " / "))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppColors.textSecondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(AppColors.success)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 58)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? AppColors.success.opacity(0.55) : AppColors.cardBorder, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private extension Text {
+    func timerTargetSectionTitle() -> some View {
+        font(.system(size: 13, weight: .bold))
+            .foregroundStyle(AppColors.textSecondary)
+            .textCase(.uppercase)
     }
 }
 
