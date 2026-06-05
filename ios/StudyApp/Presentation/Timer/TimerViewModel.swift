@@ -17,6 +17,7 @@ final class TimerViewModel: ScreenViewModel {
 
     private var cancellable: AnyCancellable?
     private var lastScreenTimeGoalSyncMinute: Int64?
+    private var shouldOpenSubjectCreatorAfterMissingSubjectError = false
 
     func load() async {
         do {
@@ -68,6 +69,7 @@ final class TimerViewModel: ScreenViewModel {
     func startOrResume() {
         perform {
             guard let subjectId = self.effectiveSelectedSubjectId else {
+                self.shouldOpenSubjectCreatorAfterMissingSubjectError = true
                 throw ValidationError(message: "科目を選択してください")
             }
             let current = self.app.preferences.activeTimer
@@ -96,6 +98,26 @@ final class TimerViewModel: ScreenViewModel {
             self.remainingMilliseconds = next.remainingTime()
             self.configureTicker()
         }
+    }
+
+    func consumeSubjectCreatorRequestAfterMissingSubjectError() -> Bool {
+        let shouldOpen = shouldOpenSubjectCreatorAfterMissingSubjectError
+        shouldOpenSubjectCreatorAfterMissingSubjectError = false
+        return shouldOpen
+    }
+
+    func createSubject(name: String, color: Int, icon: SubjectIcon?) async throws -> Subject {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw ValidationError(message: "科目名を入力してください") }
+
+        var subject = Subject(name: trimmed, color: color, icon: icon)
+        let id = try await app.subjectRepo.insertSubject(subject)
+        subject.id = id
+        selectedSubjectId = id
+        selectedMaterialId = nil
+        await load()
+        app.bumpDataVersion()
+        return subject
     }
 
     func pause() {

@@ -95,6 +95,18 @@ final class MaterialsViewModel: ScreenViewModel {
         isShowingBookResult = false
     }
 
+    func createSubject(name: String, color: Int, icon: SubjectIcon?) async throws -> Subject {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw ValidationError(message: "科目名を入力してください") }
+
+        var subject = Subject(name: trimmed, color: color, icon: icon)
+        let id = try await app.subjectRepo.insertSubject(subject)
+        subject.id = id
+        await load()
+        app.bumpDataVersion()
+        return subject
+    }
+
     func saveMaterial(
         id: Int64? = nil,
         name: String,

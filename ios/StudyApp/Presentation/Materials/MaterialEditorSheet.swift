@@ -5,103 +5,118 @@ struct MaterialEditorSheet: View {
     let title: String
     @Binding var draft: MaterialDraft
     let subjects: [Subject]
+    let onCreateSubject: @MainActor (String, Int, SubjectIcon?) async throws -> Subject
+    let onSubjectCreationError: (Error) -> Void
     let onSave: () -> Void
     let onCancel: () -> Void
+    @State private var showSubjectCreator = false
+    @State private var subjectCreationDraft = SubjectCreationDraft()
+    @State private var isCreatingSubject = false
+
+    private var hasValidSubjectSelection: Bool {
+        subjects.contains { $0.id == draft.subjectId }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if subjects.isEmpty {
-                    Text("先に科目を作成してください")
-                        .materialEditorCard(padding: 16)
-                } else {
-                    labeledField(title: "教材名") {
-                        MaterialEditorTextField(text: $draft.name, clearable: true)
+                labeledField(title: "教材名") {
+                    MaterialEditorTextField(text: $draft.name, clearable: true)
+                }
+
+                labeledField(title: "科目") {
+                    MaterialSubjectMenu(
+                        subjectId: $draft.subjectId,
+                        subjects: subjects,
+                        onAddSubject: {
+                            subjectCreationDraft = SubjectCreationDraft()
+                            showSubjectCreator = true
+                        }
+                    )
+
+                    if subjects.isEmpty {
+                        Text("教材を保存するには科目を1つ作成してください。")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(AppColors.textSecondary)
+                            .padding(.leading, 18)
                     }
+                }
 
-                    labeledField(title: "科目") {
-                        MaterialSubjectMenu(
-                            subjectId: $draft.subjectId,
-                            subjects: subjects
-                        )
-                    }
+                MaterialEditorStatsCard {
+                    MaterialEditorNumberRow(
+                        title: "総ページ数",
+                        text: $draft.totalPages,
+                        unit: "ページ"
+                    )
+                    MaterialEditorDivider()
+                    MaterialEditorNumberRow(
+                        title: "現在ページ",
+                        text: $draft.currentPage,
+                        unit: "ページ"
+                    )
+                    MaterialEditorDivider()
+                    MaterialEditorNumberRow(
+                        title: "問題数（合計）",
+                        text: totalProblemsBinding,
+                        unit: "問"
+                    )
+                    MaterialProblemInfoBox(total: draft.effectiveTotalProblems)
+                        .padding(.top, 2)
+                }
 
-                    MaterialEditorStatsCard {
-                        MaterialEditorNumberRow(
-                            title: "総ページ数",
-                            text: $draft.totalPages,
-                            unit: "ページ"
-                        )
-                        MaterialEditorDivider()
-                        MaterialEditorNumberRow(
-                            title: "現在ページ",
-                            text: $draft.currentPage,
-                            unit: "ページ"
-                        )
-                        MaterialEditorDivider()
-                        MaterialEditorNumberRow(
-                            title: "問題数（合計）",
-                            text: totalProblemsBinding,
-                            unit: "問"
-                        )
-                        MaterialProblemInfoBox(total: draft.effectiveTotalProblems)
-                            .padding(.top, 2)
-                    }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("章・節ごとの問題数")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AppColors.textPrimary)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("章・節ごとの問題数")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(AppColors.textPrimary)
-
-                        VStack(spacing: 0) {
-                            ForEach(draft.problemChapters.indices, id: \.self) { index in
-                                MaterialChapterEditorRow(
-                                    index: index,
-                                    title: $draft.problemChapters[index].title,
-                                    problemCount: $draft.problemChapters[index].problemCount,
-                                    onDelete: {
-                                        draft.problemChapters.remove(at: index)
-                                    }
-                                )
-                                if index < draft.problemChapters.count - 1 {
-                                    MaterialEditorDivider()
+                    VStack(spacing: 0) {
+                        ForEach(draft.problemChapters.indices, id: \.self) { index in
+                            MaterialChapterEditorRow(
+                                index: index,
+                                title: $draft.problemChapters[index].title,
+                                problemCount: $draft.problemChapters[index].problemCount,
+                                onDelete: {
+                                    draft.problemChapters.remove(at: index)
                                 }
-                            }
-
-                            Button {
-                                if draft.problemChapters.isEmpty,
-                                   let total = draft.totalProblems.nilIfBlank {
-                                    draft.problemChapters.append(
-                                        ProblemChapterDraft(title: "", problemCount: total)
-                                    )
-                                    draft.totalProblems = ""
-                                } else {
-                                    draft.problemChapters.append(
-                                        ProblemChapterDraft(title: "", problemCount: "")
-                                    )
-                                }
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "plus.circle")
-                                        .font(.system(size: 22, weight: .medium))
-                                    Text("章・節を追加")
-                                        .font(.system(size: 17, weight: .semibold))
-                                }
-                                .foregroundStyle(AppColors.success)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 47)
-                            }
-                            .buttonStyle(.plain)
-                            .overlay(alignment: .top) {
+                            )
+                            if index < draft.problemChapters.count - 1 {
                                 MaterialEditorDivider()
                             }
                         }
-                        .materialEditorCard(padding: 0)
-                    }
 
-                    labeledField(title: "メモ") {
-                        MaterialEditorNoteField(text: $draft.note)
+                        Button {
+                            if draft.problemChapters.isEmpty,
+                               let total = draft.totalProblems.nilIfBlank {
+                                draft.problemChapters.append(
+                                    ProblemChapterDraft(title: "", problemCount: total)
+                                )
+                                draft.totalProblems = ""
+                            } else {
+                                draft.problemChapters.append(
+                                    ProblemChapterDraft(title: "", problemCount: "")
+                                )
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "plus.circle")
+                                    .font(.system(size: 22, weight: .medium))
+                                Text("章・節を追加")
+                                    .font(.system(size: 17, weight: .semibold))
+                            }
+                            .foregroundStyle(AppColors.success)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 47)
+                        }
+                        .buttonStyle(.plain)
+                        .overlay(alignment: .top) {
+                            MaterialEditorDivider()
+                        }
                     }
+                    .materialEditorCard(padding: 0)
+                }
+
+                labeledField(title: "メモ") {
+                    MaterialEditorNoteField(text: $draft.note)
                 }
             }
             .padding(.horizontal, 16)
@@ -111,14 +126,47 @@ struct MaterialEditorSheet: View {
         .background(AppColors.subtleBackground)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showSubjectCreator) {
+            NavigationStack {
+                SubjectCreationSheet(
+                    draft: $subjectCreationDraft,
+                    isSaving: isCreatingSubject,
+                    onSave: createSubject,
+                    onCancel: {
+                        guard !isCreatingSubject else { return }
+                        showSubjectCreator = false
+                    }
+                )
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("キャンセル", action: onCancel)
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("保存", action: onSave)
-                    .disabled(subjects.isEmpty)
+                    .disabled(!hasValidSubjectSelection || isCreatingSubject)
             }
+        }
+    }
+
+    private func createSubject() {
+        guard !isCreatingSubject else { return }
+        isCreatingSubject = true
+        let name = subjectCreationDraft.name
+        let color = subjectCreationDraft.colorInt
+        let icon = subjectCreationDraft.icon
+
+        Task { @MainActor in
+            do {
+                let subject = try await onCreateSubject(name, color, icon)
+                draft.subjectId = subject.id
+                showSubjectCreator = false
+                subjectCreationDraft = SubjectCreationDraft()
+            } catch {
+                onSubjectCreationError(error)
+            }
+            isCreatingSubject = false
         }
     }
 
@@ -155,43 +203,181 @@ struct MaterialEditorSheet: View {
 struct MaterialSubjectMenu: View {
     @Binding var subjectId: Int64
     let subjects: [Subject]
+    let onAddSubject: () -> Void
 
     private var selectedSubject: Subject? {
-        subjects.first { $0.id == subjectId } ?? subjects.first
+        subjects.first { $0.id == subjectId }
     }
 
     var body: some View {
-        Menu {
-            ForEach(subjects) { subject in
-                Button {
-                    subjectId = subject.id
+        Group {
+            if subjects.isEmpty {
+                Button(action: onAddSubject) {
+                    label(
+                        title: "科目を追加",
+                        color: AppColors.success,
+                        trailingSystemImage: "plus.circle.fill"
+                    )
+                }
+            } else {
+                Menu {
+                    Button(action: onAddSubject) {
+                        Label("新しい科目を追加", systemImage: "plus.circle")
+                    }
+                    Divider()
+                    ForEach(subjects) { subject in
+                        Button {
+                            subjectId = subject.id
+                        } label: {
+                            Text(subject.name)
+                        }
+                    }
                 } label: {
-                    Text(subject.name)
+                    label(
+                        title: selectedSubject?.name ?? "科目を選択",
+                        color: Color(hex: selectedSubject?.color ?? 0x2196F3),
+                        trailingSystemImage: "chevron.right"
+                    )
                 }
             }
-        } label: {
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(Color(hex: selectedSubject?.color ?? 0x2196F3))
-                    .frame(width: 18, height: 18)
-                Text(selectedSubject?.name ?? "科目を選択")
-                    .font(.system(size: 19))
-                    .foregroundStyle(AppColors.textPrimary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Color(.tertiaryLabel))
-            }
-            .frame(height: 58)
-            .padding(.horizontal, 16)
-            .materialEditorCard(padding: 0)
         }
         .buttonStyle(.plain)
         .onAppear {
-            if subjectId == 0, let first = subjects.first {
-                subjectId = first.id
+            ensureValidSelection()
+        }
+        .onChange(of: subjects) { _ in
+            ensureValidSelection()
+        }
+    }
+
+    private func label(title: String, color: Color, trailingSystemImage: String) -> some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(color)
+                .frame(width: 18, height: 18)
+            Text(title)
+                .font(.system(size: 19))
+                .foregroundStyle(AppColors.textPrimary)
+            Spacer()
+            Image(systemName: trailingSystemImage)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(subjects.isEmpty ? AppColors.success : Color(.tertiaryLabel))
+        }
+        .frame(height: 58)
+        .padding(.horizontal, 16)
+        .materialEditorCard(padding: 0)
+    }
+
+    private func ensureValidSelection() {
+        guard !subjects.isEmpty else { return }
+        if subjectId == 0 {
+            subjectId = subjects[0].id
+        }
+    }
+}
+
+struct SubjectCreationSheet: View {
+    @Binding var draft: SubjectCreationDraft
+    let isSaving: Bool
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("科目名")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AppColors.textPrimary)
+                    MaterialEditorTextField(text: $draft.name, clearable: true)
+                }
+                .materialEditorCard(padding: 16)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("色")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AppColors.textPrimary)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
+                        ForEach(SubjectCreationDraft.presetColors, id: \.self) { colorInt in
+                            let color = Color(hex: colorInt)
+                            Circle()
+                                .fill(color)
+                                .frame(width: 38, height: 38)
+                                .overlay {
+                                    if colorInt == draft.colorInt {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 15, weight: .bold))
+                                            .foregroundStyle(.white)
+                                    }
+                                }
+                                .contentShape(Circle())
+                                .onTapGesture {
+                                    draft.color = color
+                                }
+                        }
+                    }
+                    ColorPicker("カスタム色", selection: $draft.color, supportsOpacity: false)
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .materialEditorCard(padding: 16)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("アイコン")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AppColors.textPrimary)
+                    Picker("アイコン", selection: $draft.icon) {
+                        ForEach(SubjectIcon.allCases) { icon in
+                            Label(icon.rawValue, systemImage: icon.systemImage).tag(icon)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                .materialEditorCard(padding: 16)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 22)
+            .padding(.bottom, 26)
+        }
+        .background(AppColors.subtleBackground)
+        .navigationTitle("科目を追加")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("キャンセル", action: onCancel)
+                    .disabled(isSaving)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button(action: onSave) {
+                    if isSaving {
+                        ProgressView()
+                    } else {
+                        Text("保存")
+                    }
+                }
+                .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
             }
         }
+    }
+}
+
+struct SubjectCreationDraft {
+    static let presetColors: [Int] = [
+        0x4CAF50, 0x2196F3, 0xFF9800, 0xF44336, 0x9C27B0, 0x00BCD4,
+        0xE91E63, 0x795548, 0x607D8B, 0x3F51B5, 0x009688, 0xFFC107
+    ]
+
+    var name = ""
+    var color: Color = Color(hex: 0x4CAF50)
+    var icon: SubjectIcon = .book
+
+    var colorInt: Int {
+        let resolved = UIColor(color)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        resolved.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return (Int(r * 255) << 16) | (Int(g * 255) << 8) | Int(b * 255)
     }
 }
 

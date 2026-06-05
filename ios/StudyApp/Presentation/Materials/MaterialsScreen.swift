@@ -170,6 +170,12 @@ struct MaterialsScreen: View {
                     title: material.id > 0 ? "教材を編集" : "教材を追加",
                     draft: $materialDraft,
                     subjects: viewModel.subjects,
+                    onCreateSubject: { name, color, icon in
+                        try await viewModel.createSubject(name: name, color: color, icon: icon)
+                    },
+                    onSubjectCreationError: { error in
+                        viewModel.app.present(error)
+                    },
                     onSave: {
                         viewModel.saveMaterial(
                             id: material.id > 0 ? material.id : nil,
@@ -247,4 +253,3 @@ struct MaterialsScreen: View {
         }
     }
 }
-

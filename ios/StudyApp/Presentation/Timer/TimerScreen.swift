@@ -19,6 +19,9 @@ struct TimerScreen: View {
     @State private var initializedEvaluationId: UUID?
     @State private var showTargetSelection = false
     @State private var isShowingClockOnlyFocus = false
+    @State private var showSubjectCreator = false
+    @State private var subjectCreationDraft = SubjectCreationDraft()
+    @State private var isCreatingSubject = false
 
     init(app: StudyAppContainer) {
         _app = ObservedObject(wrappedValue: app)
@@ -87,6 +90,19 @@ struct TimerScreen: View {
                 }
             )
         }
+        .sheet(isPresented: $showSubjectCreator) {
+            NavigationStack {
+                SubjectCreationSheet(
+                    draft: $subjectCreationDraft,
+                    isSaving: isCreatingSubject,
+                    onSave: createSubjectFromTimer,
+                    onCancel: {
+                        guard !isCreatingSubject else { return }
+                        showSubjectCreator = false
+                    }
+                )
+            }
+        }
         .fullScreenCover(isPresented: $isShowingClockOnlyFocus) {
             clockOnlyFocusCover
         }
@@ -138,7 +154,32 @@ struct TimerScreen: View {
         .task(id: viewModel.app.dataVersion) {
             await viewModel.load()
         }
+        .onChange(of: app.errorMessage) { message in
+            guard message == nil else { return }
+            guard viewModel.consumeSubjectCreatorRequestAfterMissingSubjectError() else { return }
+            subjectCreationDraft = SubjectCreationDraft()
+            showSubjectCreator = true
+        }
         .keepScreenAwake(true)
+    }
+
+    private func createSubjectFromTimer() {
+        guard !isCreatingSubject else { return }
+        isCreatingSubject = true
+        let name = subjectCreationDraft.name
+        let color = subjectCreationDraft.colorInt
+        let icon = subjectCreationDraft.icon
+
+        Task { @MainActor in
+            do {
+                _ = try await viewModel.createSubject(name: name, color: color, icon: icon)
+                showSubjectCreator = false
+                subjectCreationDraft = SubjectCreationDraft()
+            } catch {
+                app.present(error)
+            }
+            isCreatingSubject = false
+        }
     }
 
     private var timerProgress: Double {
