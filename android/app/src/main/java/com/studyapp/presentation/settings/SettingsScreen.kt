@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -54,6 +55,7 @@ fun SettingsScreen(
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showDebugLog by remember { mutableStateOf(false) }
     var showAuthSheet by remember { mutableStateOf(false) }
+    var showConflictResolution by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.syncAuthenticated) {
         if (uiState.syncAuthenticated) {
@@ -123,10 +125,12 @@ fun SettingsScreen(
                 syncInProgress = uiState.syncInProgress,
                 lastSyncAt = uiState.lastSyncAt,
                 syncError = uiState.syncError,
+                pendingConflictCount = uiState.pendingConflictCount,
                 onSignOut = viewModel::signOutOfSync,
                 onDeleteAccount = { showDeleteAccountDialog = true },
                 onSyncNow = viewModel::syncNow,
                 onImportLocal = viewModel::importLocalDataToCloud,
+                onResolveConflicts = { showConflictResolution = true },
                 onOpenAuth = { showAuthSheet = true }
             )
 
@@ -142,6 +146,17 @@ fun SettingsScreen(
                 onClearDebugLog = viewModel::clearDebugLogs
             )
         }
+    }
+
+    if (showConflictResolution) {
+        SyncConflictResolutionSheet(
+            conflicts = viewModel.pendingSyncConflicts(),
+            onDismiss = { showConflictResolution = false },
+            onApply = { resolutions ->
+                viewModel.resolveSyncConflicts(resolutions)
+                showConflictResolution = false
+            }
+        )
     }
 
     if (showAuthSheet) {
@@ -398,6 +413,82 @@ private fun SettingsDataSummaryGroup(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SyncConflictResolutionSheet(
+    conflicts: List<com.studyapp.sync.SyncConflict>,
+    onDismiss: () -> Unit,
+    onApply: (List<com.studyapp.sync.SyncConflictResolution>) -> Unit
+) {
+    val selections = remember(conflicts) {
+        mutableStateMapOf<String, com.studyapp.sync.SyncConflictResolutionStrategy>().apply {
+            conflicts.forEach { put(it.documentId, com.studyapp.sync.SyncConflictResolutionStrategy.KEEP_MERGED) }
+        }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 17.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text("同期の競合", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (conflicts.isEmpty()) {
+                Text("解決が必要な競合はありません", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text(
+                    "端末とクラウドで同じデータが異なる内容に更新されています。残す内容を選んでください。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items(conflicts, key = { it.documentId }) { conflict ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(conflict.summary, fontWeight = FontWeight.SemiBold)
+                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                SegmentedButton(
+                                    selected = selections[conflict.documentId] == com.studyapp.sync.SyncConflictResolutionStrategy.KEEP_LOCAL,
+                                    onClick = { selections[conflict.documentId] = com.studyapp.sync.SyncConflictResolutionStrategy.KEEP_LOCAL },
+                                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
+                                ) { Text("この端末") }
+                                SegmentedButton(
+                                    selected = selections[conflict.documentId] == com.studyapp.sync.SyncConflictResolutionStrategy.KEEP_REMOTE,
+                                    onClick = { selections[conflict.documentId] = com.studyapp.sync.SyncConflictResolutionStrategy.KEEP_REMOTE },
+                                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
+                                ) { Text("クラウド") }
+                                SegmentedButton(
+                                    selected = selections[conflict.documentId] == com.studyapp.sync.SyncConflictResolutionStrategy.KEEP_MERGED,
+                                    onClick = { selections[conflict.documentId] = com.studyapp.sync.SyncConflictResolutionStrategy.KEEP_MERGED },
+                                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+                                ) { Text("自動統合") }
+                            }
+                        }
+                    }
+                }
+                Button(
+                    onClick = {
+                        val resolutions = conflicts.mapNotNull { conflict ->
+                            val strategy = selections[conflict.documentId] ?: return@mapNotNull null
+                            com.studyapp.sync.SyncConflictResolution(conflict.kind, conflict.syncId, strategy)
+                        }
+                        onApply(resolutions)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = conflicts.isNotEmpty() && selections.size >= conflicts.size
+                ) {
+                    Text("適用")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun SettingsCloudSyncGroup(
     syncAuthenticated: Boolean,
@@ -405,10 +496,12 @@ private fun SettingsCloudSyncGroup(
     syncInProgress: Boolean,
     lastSyncAt: Long?,
     syncError: String?,
+    pendingConflictCount: Int,
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit,
     onSyncNow: () -> Unit,
     onImportLocal: () -> Unit,
+    onResolveConflicts: () -> Unit,
     onOpenAuth: () -> Unit
 ) {
     SettingsGroup(title = "クラウド同期") {
@@ -440,6 +533,16 @@ private fun SettingsCloudSyncGroup(
                 enabled = !syncInProgress,
                 action = onSyncNow
             )
+            if (pendingConflictCount > 0) {
+                HorizontalDivider()
+                SettingsActionLine(
+                    icon = Icons.Default.Warning,
+                    title = "競合を解決（${pendingConflictCount}件）",
+                    color = MaterialTheme.colorScheme.error,
+                    enabled = !syncInProgress,
+                    action = onResolveConflicts
+                )
+            }
             HorizontalDivider()
             SettingsActionLine(
                 icon = Icons.Default.Upload,

@@ -140,7 +140,13 @@ fun MainScreen() {
                 )
             }
             composable(Screen.Timer.route) {
-                TimerScreen()
+                TimerScreen(
+                    onNavigateToSubjects = {
+                        navController.navigate(Screen.Subjects.route) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
             composable(Screen.Materials.route) {
                 MaterialsScreen(

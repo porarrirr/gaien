@@ -198,6 +198,18 @@ final class SettingsViewModel: ScreenViewModel {
         }
     }
 
+    func resolveSyncConflicts(_ resolutions: [SyncConflictResolution]) {
+        guard !app.syncStatus.isSyncing else { return }
+        perform {
+            try await self.app.syncRepository.resolveConflicts(resolutions)
+            self.app.refreshSyncStatus()
+            self.summary = try await GetSettingsSummaryUseCase(sessionRepository: self.app.sessionRepo).execute()
+            self.debugLogEntries = self.app.logger.recentEntries()
+            self.app.bumpDataVersion(shouldScheduleAutoSync: false)
+            self.app.recordManualSyncApplied()
+        }
+    }
+
     func refreshDebugLogs() {
         debugLogEntries = app.logger.recentEntries()
     }

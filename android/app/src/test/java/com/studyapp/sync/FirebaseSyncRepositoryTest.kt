@@ -78,14 +78,17 @@ class FirebaseSyncRepositoryTest {
                 every { getLocalSyncOwnerUserId() } returns null
                 every { setLocalSyncOwnerUserId(any()) } just runs
                 every { clearLocalSyncState() } just runs
-                every { getDeltaCursor(any()) } returns 0L
+                every { getDeltaCursor(any()) } returns SyncDeltaCursor.ZERO
                 every { isDeltaMigrationDone(any()) } returns false
             every { saveLocalBackup(any(), any(), any()) } just runs
             },
             exportImportDataUseCase = mockk(relaxed = true),
             writeLock = AppDataWriteLock(),
             deltaStore = mockk(relaxed = true),
-            syncChangeNotifier = SyncChangeNotifier(mockk(relaxed = true))
+            syncChangeNotifier = SyncChangeNotifier(mockk(relaxed = true)),
+            baseShadowStore = mockk(relaxed = true),
+            conflictStore = mockk(relaxed = true),
+            revisionStamper = mockk(relaxed = true)
         )
 
         val error = runCatching { repository.syncNow() }.exceptionOrNull()
@@ -143,8 +146,9 @@ class FirebaseSyncRepositoryTest {
             every { setLastSyncAt(any()) } just runs
             every { setLocalSyncOwnerUserId(any()) } just runs
             every { clearLocalSyncState() } just runs
-            every { getDeltaCursor(any()) } returns 0L
-            every { setDeltaCursor(any(), any()) } just runs
+            every { getDeltaCursor(any()) } returns SyncDeltaCursor.ZERO
+            every { setDeltaCursor(any(), any<SyncDeltaCursor>()) } just runs
+            every { setDeltaCursor(any(), any<Long>()) } just runs
             every { isDeltaMigrationDone(any()) } returns false
             every { saveLocalBackup(any(), any(), any()) } just runs
             every { setDeltaMigrationDone(any(), any()) } just runs
@@ -152,7 +156,7 @@ class FirebaseSyncRepositoryTest {
             every { setLastLifecycleAutoSyncAt(any()) } just runs
         }
         val deltaStore = mockk<FirestoreDeltaSyncStore> {
-            coEvery { fetchEnvelopes(any(), any()) } returns emptyList()
+            coEvery { fetchEnvelopes(any(), any<SyncDeltaCursor>()) } returns emptyList()
             coEvery { writeEnvelopes(any(), any()) } returns Unit
             coEvery { purgeTombstonesOlderThan(any(), any(), any()) } returns Unit
         }
@@ -166,7 +170,21 @@ class FirebaseSyncRepositoryTest {
             exportImportDataUseCase = exportImportDataUseCase,
             writeLock = AppDataWriteLock(),
             deltaStore = deltaStore,
-            syncChangeNotifier = syncChangeNotifier
+            syncChangeNotifier = syncChangeNotifier,
+            baseShadowStore = mockk(relaxed = true) {
+                every { bootstrapIfNeeded(any(), any()) } just runs
+                every { load(any()) } returns null
+                every { save(any(), any()) } just runs
+                every { loadRevisionMap(any()) } returns emptyMap()
+                every { mergeRevisionMap(any(), any()) } just runs
+            },
+            conflictStore = mockk(relaxed = true) {
+                every { load(any()) } returns emptyList()
+                every { save(any(), any()) } just runs
+            },
+            revisionStamper = mockk(relaxed = true) {
+                every { stamp(any(), any(), any()) } answers { firstArg() }
+            }
         )
     }
 

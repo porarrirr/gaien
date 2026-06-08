@@ -34,6 +34,11 @@ struct SyncEntityEnvelope: Equatable {
     var deletedAt: Int64?
     /// The entity encoded as JSON using the domain type's `Codable` conformance.
     var json: String
+    /// Optional revision metadata (ignored by legacy clients/readers).
+    var revisionId: String?
+    var parentRevisionId: String?
+    var deviceId: String?
+    var contentHash: String?
 
     /// Stable document id used by the Firestore delta store. The leading kind
     /// keeps ids unique across domain types even if syncIds collide (they
@@ -104,10 +109,14 @@ enum SyncDeltaSerializer {
         return envelopes
     }
 
-    /// Same as `decompose`, but filtered to only the entities with
-    /// `updatedAt > cursor`. This is the upload primitive.
+    /// Same as `decompose`, but filtered to only entities after the composite cursor.
+    static func changedSince(_ appData: AppData, cursor: SyncDeltaCursor) -> [SyncEntityEnvelope] {
+        decompose(appData).filter { $0.cursorPosition > cursor }
+    }
+
+    /// Legacy Int64 cursor support.
     static func changedSince(_ appData: AppData, cursor: Int64) -> [SyncEntityEnvelope] {
-        decompose(appData).filter { $0.updatedAt > cursor }
+        changedSince(appData, cursor: SyncDeltaCursor.fromLegacy(cursor))
     }
 
     // MARK: - Reassembly (envelopes + base -> AppData)
@@ -171,7 +180,7 @@ enum SyncDeltaSerializer {
     /// Rebuilds the subset of `AppData` that the envelopes describe.
     /// The resulting `AppData` is suitable as the `remote` argument to
     /// `SyncMergeEngine.merge`. Unknown kinds are skipped.
-    private static func partialAppData(
+    static func partialAppData(
         from envelopes: [SyncEntityEnvelope],
         exportDate: Int64
     ) -> AppData {

@@ -9,6 +9,9 @@ enum ScreenTimeFocusError: LocalizedError {
     case missingAllowedApplications
     case settingsSaveFailed
     case goalProgressSaveFailed
+    case settingsLocked(until: Date)
+    case settingsAlreadyLocked(until: Date)
+    case invalidLockDuration
 
     var errorDescription: String? {
         switch self {
@@ -22,8 +25,22 @@ enum ScreenTimeFocusError: LocalizedError {
             return "集中制限の設定を保存できませんでした"
         case .goalProgressSaveFailed:
             return "目標達成状態を保存できませんでした"
+        case .settingsLocked(let until):
+            return "設定は\(Self.lockDateFormatter.string(from: until))まで変更できません"
+        case .settingsAlreadyLocked(let until):
+            return "設定はすでに\(Self.lockDateFormatter.string(from: until))までロックされています"
+        case .invalidLockDuration:
+            return "ロック期間は1日以上を指定してください"
         }
     }
+
+    private static let lockDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter
+    }()
 }
 
 @MainActor
@@ -83,6 +100,14 @@ final class ScreenTimeFocusController: ObservableObject {
         settings.allowedWebDomainTokens.count
     }
 
+    var isSettingsLocked: Bool {
+        settings.isSettingsLocked
+    }
+
+    var settingsLockExpiryDate: Date? {
+        settings.settingsLockExpiryDate
+    }
+
     func refresh() {
         settings = ScreenTimeFocusShared.loadSettings()
         authorizationStatus = AuthorizationCenter.shared.authorizationStatus
@@ -95,16 +120,56 @@ final class ScreenTimeFocusController: ObservableObject {
     }
 
     func updateSettings(_ update: (inout ScreenTimeFocusSettings) -> Void) throws {
+        if settings.isSettingsLocked, let expiryDate = settings.settingsLockExpiryDate {
+            throw ScreenTimeFocusError.settingsLocked(until: expiryDate)
+        }
         var next = settings
         update(&next)
         try save(next)
+        try syncRestrictionsAfterSettingsChange(next)
+    }
+
+    func activateSettingsLock(months: Int, days: Int, referenceDate: Date = Date()) throws {
+        if settings.isSettingsLocked, let expiryDate = settings.settingsLockExpiryDate {
+            throw ScreenTimeFocusError.settingsAlreadyLocked(until: expiryDate)
+        }
+        guard let expiryDate = ScreenTimeFocusSettings.lockExpiryDate(
+            from: referenceDate,
+            months: months,
+            days: days
+        ) else {
+            throw ScreenTimeFocusError.invalidLockDuration
+        }
+        try updateSettingsBypassingLock { settings in
+            settings.settingsLockedUntilEpochMilliseconds = expiryDate.epochMilliseconds
+        }
+    }
+
+    private func updateSettingsBypassingLock(_ update: (inout ScreenTimeFocusSettings) -> Void) throws {
+        var next = settings
+        update(&next)
+        try save(next)
+        try syncRestrictionsAfterSettingsChange(next)
+    }
+
+    private func syncRestrictionsAfterSettingsChange(_ next: ScreenTimeFocusSettings) throws {
         if next.isEnabled, next.scheduledRestrictionEnabled {
-            stopStudyAppScheduleMonitoring()
-            try syncScheduleMonitoring(settings: next)
-            try applyScheduleRestrictionIfNeeded()
+            do {
+                stopStudyAppScheduleMonitoring()
+                try syncScheduleMonitoring(settings: next)
+                try applyScheduleRestrictionIfNeeded()
+            } catch {
+                stopStudyAppScheduleMonitoring()
+                ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
+                throw error
+            }
         } else {
             stopStudyAppScheduleMonitoring()
             ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
+        }
+
+        if !next.isEnabled || !next.timerRestrictionEnabled {
+            clearTimerRestriction()
         }
     }
 

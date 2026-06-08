@@ -71,10 +71,20 @@ class SyncDeltaSerializerTest {
     fun `changedSince includes only entities strictly newer than cursor`() {
         val changed = SyncDeltaSerializer.changedSince(
             appData(subjects = listOf(subject("old", updatedAt = 100), subject("boundary", updatedAt = 200), subject("new", updatedAt = 201))),
-            cursor = 200
+            cursor = SyncDeltaCursor.fromLegacy(200)
         )
 
-        assertEquals(listOf("new"), changed.map { it.syncId })
+        assertEquals(listOf("boundary", "new"), changed.map { it.syncId }.sorted())
+    }
+
+    @Test
+    fun `changedSince uses document id tie-break at same updatedAt`() {
+        val changed = SyncDeltaSerializer.changedSince(
+            appData(subjects = listOf(subject("a", updatedAt = 200), subject("z", updatedAt = 200))),
+            cursor = SyncDeltaCursor(updatedAt = 200, documentId = "subject-a")
+        )
+
+        assertEquals(listOf("z"), changed.map { it.syncId })
     }
 
     @Test

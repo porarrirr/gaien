@@ -24,7 +24,11 @@ data class SyncEntityEnvelope(
     val syncId: String,
     val updatedAt: Long,
     val deletedAt: Long?,
-    val json: String
+    val json: String,
+    val revisionId: String? = null,
+    val parentRevisionId: String? = null,
+    val deviceId: String? = null,
+    val contentHash: String? = null
 ) {
     val documentId: String get() = "${kind.rawValue}-$syncId"
 }

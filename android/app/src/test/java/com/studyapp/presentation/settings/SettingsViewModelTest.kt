@@ -65,6 +65,7 @@ class SettingsViewModelTest {
         every { reminderPreferences.getReminderTime() } returns flowOf("19:00")
         every { authRepository.session } returns MutableStateFlow<AuthSession?>(null)
         every { syncRepository.status } returns MutableStateFlow(SyncStatus())
+        every { syncRepository.pendingConflicts() } returns emptyList()
     }
 
     @After

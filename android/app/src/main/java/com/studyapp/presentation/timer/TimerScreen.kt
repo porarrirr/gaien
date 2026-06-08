@@ -107,7 +107,8 @@ private fun formatTimeMillis(time: Long): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimerScreen(
-    viewModel: TimerViewModel = hiltViewModel()
+    viewModel: TimerViewModel = hiltViewModel(),
+    onNavigateToSubjects: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val configuration = LocalConfiguration.current
@@ -223,7 +224,15 @@ fun TimerScreen(
                         color = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { viewModel.clearError() }) {
+                    Button(
+                        onClick = {
+                            val shouldNavigate = uiState.shouldNavigateToSubjectsAfterError
+                            viewModel.clearError()
+                            if (shouldNavigate) {
+                                onNavigateToSubjects()
+                            }
+                        }
+                    ) {
                         Text(stringResource(R.string.common_ok))
                     }
                 }

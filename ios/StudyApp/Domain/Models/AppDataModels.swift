@@ -13,6 +13,8 @@ struct SyncStatus: Equatable {
     var isSyncing = false
     var lastSyncAt: Int64?
     var errorMessage: String?
+    var pendingConflictCount = 0
+    var requiresResolution: Bool { pendingConflictCount > 0 }
 }
 
 struct HomeData: Hashable {

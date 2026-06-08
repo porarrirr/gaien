@@ -58,4 +58,10 @@ final class DisabledSyncRepository: SyncRepository {
     }
 
     func clearLocalSyncState() async {}
+
+    func pendingConflicts() -> [SyncConflict] { [] }
+
+    func resolveConflicts(_ resolutions: [SyncConflictResolution]) async throws {
+        throw ValidationError(message: FirebaseBootstrap.status.unavailableMessage ?? "Firebase設定が無効なため、クラウド同期は利用できません")
+    }
 }

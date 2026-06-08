@@ -249,6 +249,28 @@ struct SettingsScreen: View {
                 compactInfoRow(icon: "person", title: "メールアドレス", value: viewModel.app.syncStatus.email ?? "-")
                 Divider()
                 compactInfoRow(icon: "clock", title: "最終同期", value: viewModel.app.syncStatus.lastSyncAt.map { StudyFormatters.slashTimestamp.string(from: Date(epochMilliseconds: $0)) } ?? "未同期")
+                if viewModel.app.syncStatus.pendingConflictCount > 0 {
+                    Divider()
+                    NavigationLink {
+                        SyncConflictResolutionScreen(viewModel: viewModel)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.triangle.merge")
+                                .foregroundStyle(AppColors.warning)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("競合を解決")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(AppColors.textPrimary)
+                                Text("\(viewModel.app.syncStatus.pendingConflictCount)件の競合があります")
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.warning)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
                 Divider()
                 actionLine(icon: "arrow.triangle.2.circlepath", title: viewModel.app.syncStatus.isSyncing ? "同期中..." : "今すぐ同期", color: AppColors.success) {
                     viewModel.syncNow()

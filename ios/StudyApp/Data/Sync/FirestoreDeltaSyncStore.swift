@@ -64,6 +64,10 @@ struct FirestoreDeltaSyncStore {
                 "json": envelope.json
             ]
             data["deletedAt"] = envelope.deletedAt ?? NSNull()
+            if let revisionId = envelope.revisionId { data["revisionId"] = revisionId }
+            if let parentRevisionId = envelope.parentRevisionId { data["parentRevisionId"] = parentRevisionId }
+            if let deviceId = envelope.deviceId { data["deviceId"] = deviceId }
+            if let contentHash = envelope.contentHash { data["contentHash"] = contentHash }
             operations.append((ref, data))
         }
 
@@ -99,35 +103,34 @@ struct FirestoreDeltaSyncStore {
     /// tombstone) since the previous sync. `cursor` is the `updatedAt` that
     /// the last successful sync observed; pass `0` for a full initial load.
     ///
-    /// Firestore rejects `whereField(_:isGreaterThan:)` on a numeric field
-    /// when the index is missing, so we paginate by `updatedAt` ascending and
-    /// stop reading once we consume a page shorter than the page size. This
-    /// keeps us on the default single-field index.
-    func fetchEnvelopes(userId: String, changedSince cursor: Int64) async throws -> [SyncEntityEnvelope] {
+    /// Paginates by `updatedAt` plus document id so documents sharing the same
+    /// millisecond timestamp are not skipped or fetched forever.
+    func fetchEnvelopes(userId: String, changedSince cursor: SyncDeltaCursor) async throws -> [SyncEntityEnvelope] {
         let collection = entitiesCollection(userId: userId)
         let pageSize = 500
         var results: [SyncEntityEnvelope] = []
-        var lastSeen: Int64 = cursor
+        var lastSeen = cursor
 
         logger.log(
             category: .sync,
             message: "Delta envelope fetch started",
-            details: "path=users/<uid>/sync_entities cursor=\(cursor) pageSize=\(pageSize)"
+            details: "path=users/<uid>/sync_entities cursorUpdatedAt=\(cursor.updatedAt) cursorDoc=\(cursor.documentId) pageSize=\(pageSize)"
         )
 
         while true {
             let snapshot: QuerySnapshot
             do {
                 snapshot = try await collection
-                    .whereField("updatedAt", isGreaterThan: lastSeen)
                     .order(by: "updatedAt")
+                    .order(by: FieldPath.documentID())
+                    .start(after: [lastSeen.updatedAt, lastSeen.documentId])
                     .limit(to: pageSize)
                     .getDocuments()
             } catch {
                 logFirestoreFailure(
                     operation: "fetchDeltaEnvelopes",
                     userId: userId,
-                    details: "path=users/<uid>/sync_entities cursor=\(cursor) lastSeen=\(lastSeen) pageSize=\(pageSize)",
+                    details: "path=users/<uid>/sync_entities cursorUpdatedAt=\(cursor.updatedAt) lastSeen=\(lastSeen.updatedAt) lastDoc=\(lastSeen.documentId) pageSize=\(pageSize)",
                     error: error
                 )
                 throw error
@@ -146,10 +149,14 @@ struct FirestoreDeltaSyncStore {
                     )
                     continue
                 }
+                guard envelope.cursorPosition > cursor else { continue }
                 results.append(envelope)
-                if envelope.updatedAt > lastSeen {
-                    lastSeen = envelope.updatedAt
-                }
+            }
+            if let lastDocument = snapshot.documents.last,
+               let lastUpdatedAt = Self.readInt64(lastDocument.data()["updatedAt"]) {
+                lastSeen = SyncDeltaCursor(updatedAt: lastUpdatedAt, documentId: lastDocument.documentID)
+            } else {
+                break
             }
             if snapshot.documents.count < pageSize {
                 break
@@ -159,9 +166,13 @@ struct FirestoreDeltaSyncStore {
         logger.log(
             category: .sync,
             message: "Delta envelopes fetched",
-            details: "count=\(results.count) cursorBefore=\(cursor) cursorAfter=\(lastSeen)"
+            details: "count=\(results.count) cursorBefore=\(cursor.updatedAt) cursorAfter=\(lastSeen.updatedAt)"
         )
         return results
+    }
+
+    func fetchEnvelopes(userId: String, changedSince cursor: Int64) async throws -> [SyncEntityEnvelope] {
+        try await fetchEnvelopes(userId: userId, changedSince: SyncDeltaCursor.fromLegacy(cursor))
     }
 
     /// Reads every envelope under the user. Used during the one-time
@@ -332,7 +343,11 @@ struct FirestoreDeltaSyncStore {
             syncId: syncId,
             updatedAt: updatedAt,
             deletedAt: deletedAt,
-            json: json
+            json: json,
+            revisionId: data["revisionId"] as? String,
+            parentRevisionId: data["parentRevisionId"] as? String,
+            deviceId: data["deviceId"] as? String,
+            contentHash: data["contentHash"] as? String
         )
     }
 

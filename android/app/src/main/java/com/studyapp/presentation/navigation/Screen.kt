@@ -38,6 +38,7 @@ val bottomScreens = listOf(
 )
 
 val moreScreens = listOf(
+    Screen.Subjects,
     Screen.Timetable,
     Screen.Reports,
     Screen.ScreenTime,

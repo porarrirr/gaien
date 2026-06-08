@@ -115,4 +115,6 @@ protocol SyncRepository {
     func importLocalDataToCloud() async throws
     func deleteCloudDataForCurrentUser() async throws
     func clearLocalSyncState() async
+    func pendingConflicts() -> [SyncConflict]
+    func resolveConflicts(_ resolutions: [SyncConflictResolution]) async throws
 }

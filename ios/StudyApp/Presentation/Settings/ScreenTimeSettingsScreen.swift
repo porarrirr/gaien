@@ -7,6 +7,9 @@ struct ScreenTimeSettingsScreen: View {
     @State private var isShowingAllowedAppsPicker = false
     @State private var focusPickerSelection = FamilyActivitySelection()
     @State private var goalProgress: ScreenTimeDailyGoalProgress?
+    @State private var lockMonths = 0
+    @State private var lockDays = 1
+    @State private var isShowingLockConfirmation = false
 
     init(app: StudyAppContainer) {
         _app = ObservedObject(wrappedValue: app)
@@ -18,6 +21,7 @@ struct ScreenTimeSettingsScreen: View {
             VStack(alignment: .leading, spacing: 18) {
                 permissionGroup
                 restrictionGroup
+                strictLockGroup
                 allowedSelectionGroup
                 if focusController.settings.scheduledRestrictionEnabled {
                     scheduleGroup
@@ -37,6 +41,7 @@ struct ScreenTimeSettingsScreen: View {
             selection: $focusPickerSelection
         )
         .onChange(of: focusPickerSelection) { selection in
+            guard canEditSettings else { return }
             applyFocusSettings { settings in
                 settings.activitySelection = selection
             }
@@ -48,6 +53,22 @@ struct ScreenTimeSettingsScreen: View {
             focusController.refresh()
             focusPickerSelection = focusController.settings.activitySelection
         }
+        .confirmationDialog(
+            "厳格ロックを有効にしますか？",
+            isPresented: $isShowingLockConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("ロックする", role: .destructive) {
+                activateStrictLock()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text(strictLockConfirmationMessage)
+        }
+    }
+
+    private var canEditSettings: Bool {
+        !focusController.isSettingsLocked
     }
 
     private var permissionGroup: some View {
@@ -97,6 +118,7 @@ struct ScreenTimeSettingsScreen: View {
                     }
                 )
             )
+            .disabled(!canEditSettings)
 
             Divider()
 
@@ -110,7 +132,7 @@ struct ScreenTimeSettingsScreen: View {
                     }
                 )
             )
-            .disabled(!focusController.settings.isEnabled)
+            .disabled(!canEditSettings || !focusController.settings.isEnabled)
 
             Divider()
 
@@ -124,7 +146,7 @@ struct ScreenTimeSettingsScreen: View {
                     }
                 )
             )
-            .disabled(!focusController.settings.isEnabled)
+            .disabled(!canEditSettings || !focusController.settings.isEnabled)
 
             Divider()
 
@@ -138,7 +160,7 @@ struct ScreenTimeSettingsScreen: View {
                     }
                 )
             )
-            .disabled(!focusController.settings.isEnabled)
+            .disabled(!canEditSettings || !focusController.settings.isEnabled)
 
             if focusController.settings.unlockRestrictionsWhenDailyGoalReached {
                 Divider()
@@ -155,6 +177,69 @@ struct ScreenTimeSettingsScreen: View {
         }
     }
 
+    private var strictLockGroup: some View {
+        settingsGroup(title: "厳格ロック") {
+            if focusController.isSettingsLocked, let expiryDate = focusController.settingsLockExpiryDate {
+                compactInfoRow(
+                    icon: "lock.fill",
+                    title: "ロック中",
+                    value: lockDateText(expiryDate),
+                    color: AppColors.warning,
+                    showsStatusDot: true
+                )
+
+                Divider()
+
+                compactInfoRow(
+                    icon: "clock",
+                    title: "残り期間",
+                    value: lockRemainingText(until: expiryDate),
+                    color: AppColors.textSecondary
+                )
+            } else {
+                lockDurationStepper(
+                    title: "か月",
+                    value: $lockMonths,
+                    range: 0...24
+                )
+
+                Divider()
+
+                lockDurationStepper(
+                    title: "日",
+                    value: $lockDays,
+                    range: 0...31
+                )
+
+                Divider()
+
+                compactInfoRow(
+                    icon: "calendar",
+                    title: "変更可能日",
+                    value: proposedLockExpiryText,
+                    color: proposedLockExpiryDate == nil ? AppColors.danger : AppColors.textSecondary
+                )
+
+                Divider()
+
+                actionLine(
+                    icon: "lock.shield.fill",
+                    title: "厳格ロックを有効にする",
+                    color: proposedLockExpiryDate == nil ? AppColors.textSecondary : AppColors.warning
+                ) {
+                    isShowingLockConfirmation = true
+                }
+                .disabled(proposedLockExpiryDate == nil)
+            }
+        } footer: {
+            if focusController.isSettingsLocked {
+                Text("ロック中はScreen Time設定を変更できません。今日の目標達成による制限解除は、ロック開始時に有効だった場合のみ適用されます。")
+            } else {
+                Text("有効にすると、指定した期間が過ぎるまでScreen Time設定を変更できなくなります。iOSの設定アプリからScreen Time許可を取り消すことは可能です。")
+            }
+        }
+    }
+
     private var allowedSelectionGroup: some View {
         settingsGroup(title: "許可する対象") {
             actionLine(
@@ -165,7 +250,7 @@ struct ScreenTimeSettingsScreen: View {
                 focusPickerSelection = focusController.settings.activitySelection
                 isShowingAllowedAppsPicker = true
             }
-            .disabled(!focusController.settings.isEnabled)
+            .disabled(!canEditSettings || !focusController.settings.isEnabled)
         } footer: {
             Text("選択したアプリとWebサイトだけを制限中も開けるようにします。Safari内のWebサイトも対象です。")
         }
@@ -193,7 +278,35 @@ struct ScreenTimeSettingsScreen: View {
                         app.present(error)
                     }
                 }
+                .disabled(!canEditSettings)
             }
+        }
+    }
+
+    private var proposedLockExpiryDate: Date? {
+        ScreenTimeFocusSettings.lockExpiryDate(from: Date(), months: lockMonths, days: lockDays)
+    }
+
+    private var proposedLockExpiryText: String {
+        guard let proposedLockExpiryDate else { return "1日以上を指定" }
+        return lockDateText(proposedLockExpiryDate)
+    }
+
+    private var strictLockConfirmationMessage: String {
+        guard let proposedLockExpiryDate else {
+            return "ロック期間は1日以上を指定してください。"
+        }
+        return "\(lockDurationSummary)後の\(lockDateText(proposedLockExpiryDate))まで、Screen Time設定を変更できなくなります。"
+    }
+
+    private var lockDurationSummary: String {
+        switch (lockMonths, lockDays) {
+        case (0, let days):
+            return "\(days)日"
+        case (let months, 0):
+            return "\(months)か月"
+        case (let months, let days):
+            return "\(months)か月\(days)日"
         }
     }
 
@@ -242,6 +355,7 @@ struct ScreenTimeSettingsScreen: View {
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
+                .disabled(!canEditSettings)
             }
 
             HStack(spacing: 12) {
@@ -271,9 +385,29 @@ struct ScreenTimeSettingsScreen: View {
                         }
                     )
                 )
+                .disabled(!canEditSettings)
             }
         }
         .padding(.vertical, 8)
+        .disabled(!canEditSettings)
+    }
+
+    private func lockDurationStepper(title: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
+        HStack(spacing: 12) {
+            SettingsIcon(systemName: "calendar")
+            Text(title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AppColors.textPrimary)
+            Spacer()
+            Stepper(value: value, in: range) {
+                Text("\(value.wrappedValue)\(title)")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(minWidth: 72, alignment: .trailing)
+            }
+            .labelsHidden()
+        }
+        .frame(minHeight: 44)
     }
 
     private func focusToggleRow(icon: String, title: String, isOn: Binding<Bool>) -> some View {
@@ -311,12 +445,37 @@ struct ScreenTimeSettingsScreen: View {
     }
 
     private func applyFocusSettings(_ update: (inout ScreenTimeFocusSettings) -> Void) {
+        guard canEditSettings else { return }
         do {
             try focusController.updateSettings(update)
             Task { await refreshGoalProgress(reason: "screen-time-settings") }
         } catch {
             app.present(error)
         }
+    }
+
+    private func activateStrictLock() {
+        do {
+            try focusController.activateSettingsLock(months: lockMonths, days: lockDays)
+            Task { await refreshGoalProgress(reason: "screen-time-strict-lock") }
+        } catch {
+            app.present(error)
+        }
+    }
+
+    private func lockDateText(_ date: Date) -> String {
+        Self.lockDateFormatter.string(from: date)
+    }
+
+    private func lockRemainingText(until expiryDate: Date) -> String {
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfExpiry = calendar.startOfDay(for: expiryDate)
+        let dayCount = calendar.dateComponents([.day], from: startOfToday, to: startOfExpiry).day ?? 0
+        if dayCount <= 0 {
+            return "まもなく解除"
+        }
+        return "約\(dayCount)日"
     }
 
     private func updateScheduleSlot(id: String, update: (inout FocusScheduleSlot) -> Void) {
@@ -428,6 +587,14 @@ struct ScreenTimeSettingsScreen: View {
         let now = Date()
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: now) ?? now
     }
+
+    private static let lockDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter
+    }()
 }
 
 private struct SettingsIcon: View {

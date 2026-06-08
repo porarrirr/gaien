@@ -108,6 +108,10 @@ service cloud.firestore {
       return value == null || isIntInRange(value, 0, 4102444800000);
     }
 
+    function validDeltaRevisionField(value) {
+      return value is string && value.size() > 0 && value.size() <= 128;
+    }
+
     function validDeltaEntity(data, docId) {
       return data.keys().hasOnly([
           "kind",
@@ -115,7 +119,11 @@ service cloud.firestore {
           "updatedAt",
           "deletedAt",
           "serverUpdatedAt",
-          "json"
+          "json",
+          "revisionId",
+          "parentRevisionId",
+          "deviceId",
+          "contentHash"
         ]) &&
         validDeltaKind(data.kind) &&
         data.syncId is string &&
@@ -127,7 +135,11 @@ service cloud.firestore {
         data.serverUpdatedAt == request.time &&
         data.json is string &&
         data.json.size() > 0 &&
-        data.json.size() <= 900000;
+        data.json.size() <= 900000 &&
+        (!("revisionId" in data) || validDeltaRevisionField(data.revisionId)) &&
+        (!("parentRevisionId" in data) || validDeltaRevisionField(data.parentRevisionId)) &&
+        (!("deviceId" in data) || validDeltaRevisionField(data.deviceId)) &&
+        (!("contentHash" in data) || (data.contentHash is string && data.contentHash.size() <= 128));
     }
 
     match /users/{userId} {

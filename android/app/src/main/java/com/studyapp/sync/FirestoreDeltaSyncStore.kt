@@ -2,6 +2,7 @@ package com.studyapp.sync
 
 import android.util.Log
 import com.google.firebase.firestore.CollectionReference
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
@@ -24,6 +25,10 @@ class FirestoreDeltaSyncStore @Inject constructor(
                 put("serverUpdatedAt", FieldValue.serverTimestamp())
                 put("json", envelope.json)
                 envelope.deletedAt?.let { put("deletedAt", it) }
+                envelope.revisionId?.let { put("revisionId", it) }
+                envelope.parentRevisionId?.let { put("parentRevisionId", it) }
+                envelope.deviceId?.let { put("deviceId", it) }
+                envelope.contentHash?.let { put("contentHash", it) }
             }
             ref to data
         }
@@ -40,7 +45,7 @@ class FirestoreDeltaSyncStore @Inject constructor(
         }
     }
 
-    suspend fun fetchEnvelopes(userId: String, changedSince: Long): List<SyncEntityEnvelope> {
+    suspend fun fetchEnvelopes(userId: String, changedSince: SyncDeltaCursor): List<SyncEntityEnvelope> {
         val collection = entitiesCollection(userId)
         val pageSize = 500
         val results = mutableListOf<SyncEntityEnvelope>()
@@ -48,8 +53,9 @@ class FirestoreDeltaSyncStore @Inject constructor(
 
         while (true) {
             val snapshot = collection
-                .whereGreaterThan("updatedAt", lastSeen)
                 .orderBy("updatedAt")
+                .orderBy(FieldPath.documentId())
+                .startAfter(lastSeen.updatedAt, lastSeen.documentId)
                 .limit(pageSize.toLong())
                 .get()
                 .await()
@@ -58,17 +64,23 @@ class FirestoreDeltaSyncStore @Inject constructor(
 
             snapshot.documents.forEach { document ->
                 envelopeFrom(document.data)?.let { envelope ->
-                    results += envelope
-                    if (envelope.updatedAt > lastSeen) {
-                        lastSeen = envelope.updatedAt
+                    if (envelope.cursorPosition > changedSince) {
+                        results += envelope
                     }
                 } ?: Log.w(TAG, "Skipped malformed delta document: ${document.id}")
             }
+            val lastDocument = snapshot.documents.last()
+            val lastUpdatedAt = readInt64(lastDocument.data?.get("updatedAt")) ?: break
+            lastSeen = SyncDeltaCursor(updatedAt = lastUpdatedAt, documentId = lastDocument.id)
 
             if (snapshot.size() < pageSize) break
         }
 
         return results
+    }
+
+    suspend fun fetchEnvelopes(userId: String, changedSince: Long): List<SyncEntityEnvelope> {
+        return fetchEnvelopes(userId, SyncDeltaCursor.fromLegacy(changedSince))
     }
 
     suspend fun purgeTombstonesOlderThan(retentionMillis: Long, now: Long, userId: String) {
@@ -159,7 +171,17 @@ class FirestoreDeltaSyncStore @Inject constructor(
         val updatedAt = readInt64(data["updatedAt"]) ?: return null
         val json = data["json"] as? String ?: return null
         val deletedAt = readInt64(data["deletedAt"])
-        return SyncEntityEnvelope(kind, syncId, updatedAt, deletedAt, json)
+        return SyncEntityEnvelope(
+            kind = kind,
+            syncId = syncId,
+            updatedAt = updatedAt,
+            deletedAt = deletedAt,
+            json = json,
+            revisionId = data["revisionId"] as? String,
+            parentRevisionId = data["parentRevisionId"] as? String,
+            deviceId = data["deviceId"] as? String,
+            contentHash = data["contentHash"] as? String
+        )
     }
 
     private fun readInt64(value: Any?): Long? {

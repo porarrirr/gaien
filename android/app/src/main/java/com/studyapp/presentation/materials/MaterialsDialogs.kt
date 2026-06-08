@@ -139,6 +139,12 @@ fun BookSearchResultDialog(
                         }
                     }
                 }
+
+                TextButton(onClick = onNavigateToSubjects) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("科目を追加")
+                }
             }
         },
         confirmButton = {
@@ -317,6 +323,12 @@ fun AddEditMaterialDialog(
                             )
                         }
                     }
+                }
+
+                TextButton(onClick = onNavigateToSubjects) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("科目を追加")
                 }
                 
                 OutlinedTextField(

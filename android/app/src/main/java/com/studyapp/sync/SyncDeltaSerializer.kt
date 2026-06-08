@@ -49,8 +49,12 @@ object SyncDeltaSerializer {
         return envelopes
     }
 
+    fun changedSince(appData: AppData, cursor: SyncDeltaCursor): List<SyncEntityEnvelope> {
+        return decompose(appData).filter { it.cursorPosition > cursor }
+    }
+
     fun changedSince(appData: AppData, cursor: Long): List<SyncEntityEnvelope> {
-        return decompose(appData).filter { it.updatedAt > cursor }
+        return changedSince(appData, SyncDeltaCursor.fromLegacy(cursor))
     }
 
     fun assemble(envelopes: List<SyncEntityEnvelope>, onto: AppData): AppData {
@@ -119,7 +123,7 @@ object SyncDeltaSerializer {
     private fun envelope(record: ProblemReviewRecord, kind: SyncEntityKind) =
         envelope(record.syncId, record.updatedAt, record.deletedAt, kind, record.toJson().toString())
 
-    private fun partialAppData(envelopes: List<SyncEntityEnvelope>, exportDate: Long): AppData {
+    fun partialAppData(envelopes: List<SyncEntityEnvelope>, exportDate: Long): AppData {
         val subjects = mutableListOf<Subject>()
         val materials = mutableListOf<Material>()
         val sessions = mutableListOf<StudySession>()

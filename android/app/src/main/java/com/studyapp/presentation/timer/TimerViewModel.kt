@@ -51,7 +51,8 @@ data class TimerUiState(
     val pendingSessionEvaluation: PendingSessionEvaluation? = null,
     val problemCount: Int = 0,
     val problemStates: Map<Int, ProblemTileState> = emptyMap(),
-    val landscapeTimerDisplayPreset: LandscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.PROBLEM_PROGRESS
+    val landscapeTimerDisplayPreset: LandscapeTimerDisplayPreset = LandscapeTimerDisplayPreset.PROBLEM_PROGRESS,
+    val shouldNavigateToSubjectsAfterError: Boolean = false
 )
 
 @HiltViewModel
@@ -155,6 +156,7 @@ class TimerViewModel @Inject constructor(
                 state.copy(
                     isLoading = false,
                     error = null,
+                    shouldNavigateToSubjectsAfterError = false,
                     subjects = data.subjects,
                     materialsBySubject = bySubject,
                     recentMaterials = data.recentMaterials,
@@ -170,7 +172,8 @@ class TimerViewModel @Inject constructor(
             _uiState.update { state ->
                 state.copy(
                     isLoading = false,
-                    error = e.message ?: "データの読み込みに失敗しました"
+                    error = e.message ?: "データの読み込みに失敗しました",
+                    shouldNavigateToSubjectsAfterError = false
                 )
             }
         }
@@ -253,7 +256,12 @@ class TimerViewModel @Inject constructor(
         
         val subject = state.selectedSubject
         if (subject == null) {
-            _uiState.update { it.copy(error = "科目を選択してください") }
+            _uiState.update {
+                it.copy(
+                    error = "科目を選択してください",
+                    shouldNavigateToSubjectsAfterError = true
+                )
+            }
             return
         }
         
@@ -359,7 +367,10 @@ class TimerViewModel @Inject constructor(
             saveStudySessionUseCase(session)
                 .onError { error ->
                     _uiState.update { state ->
-                        state.copy(error = error.message ?: "学習記録の保存に失敗しました")
+                        state.copy(
+                            error = error.message ?: "学習記録の保存に失敗しました",
+                            shouldNavigateToSubjectsAfterError = false
+                        )
                     }
                 }
         }
@@ -372,7 +383,10 @@ class TimerViewModel @Inject constructor(
             saveStudySessionUseCase(pending.session)
                 .onError { error ->
                     _uiState.update { state ->
-                        state.copy(error = error.message ?: "学習記録の保存に失敗しました")
+                        state.copy(
+                            error = error.message ?: "学習記録の保存に失敗しました",
+                            shouldNavigateToSubjectsAfterError = false
+                        )
                     }
                 }
         }
@@ -381,7 +395,12 @@ class TimerViewModel @Inject constructor(
     fun saveManualEntry(subjectId: Long, materialId: Long?, startTime: Long, endTime: Long) {
         val duration = endTime - startTime
         if (duration <= 0L) {
-            _uiState.update { it.copy(error = "終了時刻は開始時刻より後にしてください") }
+            _uiState.update {
+                it.copy(
+                    error = "終了時刻は開始時刻より後にしてください",
+                    shouldNavigateToSubjectsAfterError = false
+                )
+            }
             return
         }
         saveSession(
@@ -400,7 +419,12 @@ class TimerViewModel @Inject constructor(
 
     fun setTimerMode(mode: TimerMode) {
         if (_uiState.value.isRunning) {
-            _uiState.update { it.copy(error = "実行中はタイマー種別を変更できません") }
+            _uiState.update {
+                it.copy(
+                    error = "実行中はタイマー種別を変更できません",
+                    shouldNavigateToSubjectsAfterError = false
+                )
+            }
             return
         }
         _uiState.update { it.copy(timerMode = mode) }
@@ -408,7 +432,12 @@ class TimerViewModel @Inject constructor(
 
     fun setCountdownMinutes(minutes: Int) {
         if (_uiState.value.isRunning) {
-            _uiState.update { it.copy(error = "実行中は時間を変更できません") }
+            _uiState.update {
+                it.copy(
+                    error = "実行中は時間を変更できません",
+                    shouldNavigateToSubjectsAfterError = false
+                )
+            }
             return
         }
         _uiState.update { it.copy(countdownMinutes = minutes.coerceAtLeast(1)) }
@@ -431,14 +460,17 @@ class TimerViewModel @Inject constructor(
             )
                 .onError { error ->
                     _uiState.update { state ->
-                        state.copy(error = error.message ?: "学習記録の保存に失敗しました")
+                        state.copy(
+                            error = error.message ?: "学習記録の保存に失敗しました",
+                            shouldNavigateToSubjectsAfterError = false
+                        )
                     }
                 }
         }
     }
     
     fun clearError() {
-        _uiState.update { it.copy(error = null) }
+        _uiState.update { it.copy(error = null, shouldNavigateToSubjectsAfterError = false) }
     }
 
     fun setProblemCount(count: Int) {

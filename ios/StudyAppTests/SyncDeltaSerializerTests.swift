@@ -53,13 +53,24 @@ final class SyncDeltaSerializerTests: XCTestCase {
     }
 
     func test_changedSince_includesExactlyAtCursorBoundary() {
-        // updatedAt == cursor should NOT be included (strictly greater)
         let atBoundary = makeSubject(syncId: "s1", updatedAt: 200)
         let appData = makeAppData(subjects: [atBoundary])
 
-        let changed = SyncDeltaSerializer.changedSince(appData, cursor: 200)
+        let changed = SyncDeltaSerializer.changedSince(appData, cursor: SyncDeltaCursor.fromLegacy(200))
 
-        XCTAssertTrue(changed.isEmpty)
+        XCTAssertEqual(changed.map(\.syncId), ["s1"])
+    }
+
+    func test_changedSince_usesDocumentIdTieBreakAtSameUpdatedAt() {
+        let appData = makeAppData(subjects: [
+            makeSubject(syncId: "a", updatedAt: 200),
+            makeSubject(syncId: "z", updatedAt: 200)
+        ])
+        let cursor = SyncDeltaCursor(updatedAt: 200, documentId: "subject-a")
+
+        let changed = SyncDeltaSerializer.changedSince(appData, cursor: cursor)
+
+        XCTAssertEqual(changed.map(\.syncId), ["z"])
     }
 
     // MARK: - assemble

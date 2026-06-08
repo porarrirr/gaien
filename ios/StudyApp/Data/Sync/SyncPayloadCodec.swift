@@ -80,17 +80,29 @@ enum SyncPayloadCodec {
 enum MergeExecutor {
     struct Outcome {
         let merged: AppData
+        let conflicts: [SyncConflict]
+        let usedLegacyTwoWayFallback: Bool
     }
 
     static func apply(
         envelopes: [SyncEntityEnvelope],
-        onto base: AppData,
+        onto local: AppData,
+        baseShadow: AppData?,
         syncedAt: Int64
     ) async throws -> Outcome {
         try await Task.detached(priority: .userInitiated) {
-            let merged = SyncDeltaSerializer.assemble(envelopes: envelopes, onto: base)
-            let stamped = SyncMergeEngine.markSynced(merged, at: syncedAt)
-            return Outcome(merged: stamped)
+            let outcome = SyncThreeWayMergeEngine.merge(
+                base: baseShadow,
+                local: local,
+                remoteEnvelopes: envelopes,
+                now: syncedAt
+            )
+            let stamped = SyncMergeEngine.markSynced(outcome.merged, at: syncedAt)
+            return Outcome(
+                merged: stamped,
+                conflicts: outcome.conflicts,
+                usedLegacyTwoWayFallback: outcome.usedLegacyTwoWayFallback
+            )
         }.value
     }
 }

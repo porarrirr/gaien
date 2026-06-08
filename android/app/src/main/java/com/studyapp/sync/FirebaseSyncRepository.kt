@@ -22,14 +22,14 @@ class FirebaseSyncRepository @Inject constructor(
     private val exportImportDataUseCase: ExportImportDataUseCase,
     private val writeLock: AppDataWriteLock,
     private val deltaStore: FirestoreDeltaSyncStore,
-    private val syncChangeNotifier: SyncChangeNotifier
+    private val syncChangeNotifier: SyncChangeNotifier,
+    private val baseShadowStore: SyncBaseShadowStore,
+    private val conflictStore: SyncConflictStore,
+    private val revisionStamper: SyncRevisionStamper
 ) : SyncRepository {
+    private var pendingConflictUserId: String? = null
     private val _status = MutableStateFlow(
-        SyncStatus(
-            isAuthenticated = authRepository.session.value != null,
-            email = authRepository.session.value?.email,
-            lastSyncAt = syncPreferences.getLastSyncAt()
-        )
+        initialStatus()
     )
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
 
@@ -41,7 +41,7 @@ class FirebaseSyncRepository @Inject constructor(
                 migrateLegacyChunkedSnapshotIfNeeded(session.localId)
 
                 var lastLocalChangeDuringSync: Throwable? = null
-                repeat(MAX_SYNC_ATTEMPTS) { attempt ->
+                repeat(MAX_SYNC_ATTEMPTS) {
                     val local = exportLocalData()
                     val localBackupTime = System.currentTimeMillis()
                     syncPreferences.saveLocalBackup(local.toJson().toString(), localBackupTime, "before-syncNow")
@@ -49,17 +49,29 @@ class FirebaseSyncRepository @Inject constructor(
 
                     val localChangeToken = syncChangeNotifier.localChangeGeneration
                     val cursor = syncPreferences.getDeltaCursor(session.localId)
+                    baseShadowStore.bootstrapIfNeeded(session.localId, local)
+                    val baseShadow = baseShadowStore.load(session.localId)
                     val remoteEnvelopes = deltaStore.fetchEnvelopes(session.localId, cursor)
-                    val merged = if (remoteEnvelopes.isEmpty()) {
-                        local
-                    } else {
-                        SyncDeltaSerializer.assemble(remoteEnvelopes, onto = local)
-                    }
                     val now = System.currentTimeMillis()
-                    val synced = SyncMergeEngine.markSynced(merged, now)
+                    val mergeOutcome = SyncThreeWayMergeEngine.merge(
+                        base = baseShadow,
+                        local = local,
+                        remoteEnvelopes = remoteEnvelopes,
+                        now = now
+                    )
+                    val synced = SyncMergeEngine.markSynced(mergeOutcome.merged, now)
                     ensureNoProblemProgressLoss(local, synced, "syncNow")
 
-                    val outboundEnvelopes = SyncDeltaSerializer.changedSince(synced, cursor)
+                    val storedConflicts = mergeStoredConflicts(session.localId, mergeOutcome.conflicts)
+                    pendingConflictUserId = session.localId
+
+                    var outboundEnvelopes = SyncDeltaSerializer.changedSince(synced, cursor)
+                    val previousRevisions = baseShadowStore.loadRevisionMap(session.localId)
+                    outboundEnvelopes = revisionStamper.stamp(outboundEnvelopes, baseShadow, previousRevisions)
+                    val unresolvedConflictIds = storedConflicts.map { it.documentId }.toSet()
+                    if (unresolvedConflictIds.isNotEmpty()) {
+                        outboundEnvelopes = outboundEnvelopes.filterNot { it.documentId in unresolvedConflictIds }
+                    }
                     if (syncChangeNotifier.localChangeGeneration != localChangeToken) {
                         lastLocalChangeDuringSync = IllegalStateException(LOCAL_CHANGE_DURING_SYNC_MESSAGE)
                         return@repeat
@@ -74,15 +86,35 @@ class FirebaseSyncRepository @Inject constructor(
                         deltaStore.writeEnvelopes(outboundEnvelopes, session.localId)
                     }
 
-                    val newCursor = maxOf(
-                        synced.exportDate,
-                        SyncDeltaSerializer.decompose(synced).maxOfOrNull { it.updatedAt } ?: cursor
-                    )
+                    val resolvedMergedEnvelopes = SyncDeltaSerializer.decompose(synced)
+                        .filterNot { it.documentId in unresolvedConflictIds }
+                    val resolvedRemoteEnvelopes = remoteEnvelopes
+                        .filterNot { it.documentId in unresolvedConflictIds }
+                    var newCursor = cursor
+                    (resolvedRemoteEnvelopes + resolvedMergedEnvelopes + outboundEnvelopes).forEach { envelope ->
+                        newCursor = newCursor.absorb(envelope)
+                    }
                     syncPreferences.setDeltaCursor(session.localId, newCursor)
+                    baseShadowStore.save(
+                        if (unresolvedConflictIds.isEmpty()) {
+                            synced
+                        } else {
+                            SyncDeltaSerializer.assemble(resolvedMergedEnvelopes, onto = baseShadow ?: local)
+                        },
+                        session.localId
+                    )
+                    baseShadowStore.mergeRevisionMap(session.localId, resolvedRemoteEnvelopes + outboundEnvelopes)
                     syncPreferences.setLastSyncAt(now)
                     syncPreferences.setLocalSyncOwnerUserId(session.localId)
                     syncChangeNotifier.recordManualSyncApplied()
-                    _status.value = SyncStatus(true, session.email, false, now, null)
+                    _status.value = SyncStatus(
+                        isAuthenticated = true,
+                        email = session.email,
+                        isSyncing = false,
+                        lastSyncAt = now,
+                        errorMessage = if (storedConflicts.isEmpty()) null else PENDING_CONFLICTS_MESSAGE,
+                        pendingConflictCount = storedConflicts.size
+                    )
 
                     runCatching {
                         deltaStore.purgeTombstonesOlderThan(TOMBSTONE_RETENTION_MILLIS, now, session.localId)
@@ -107,7 +139,7 @@ class FirebaseSyncRepository @Inject constructor(
                 migrateLegacyChunkedSnapshotIfNeeded(session.localId)
 
                 var lastLocalChangeDuringSync: Throwable? = null
-                repeat(MAX_SYNC_ATTEMPTS) { attempt ->
+                repeat(MAX_SYNC_ATTEMPTS) {
                     val local = exportLocalData()
                     val localBackupTime = System.currentTimeMillis()
                     syncPreferences.saveLocalBackup(local.toJson().toString(), localBackupTime, "before-importLocalDataToCloud")
@@ -122,7 +154,13 @@ class FirebaseSyncRepository @Inject constructor(
 
                     val now = System.currentTimeMillis()
                     val stampedLocal = SyncMergeEngine.markSynced(local, now)
-                    val envelopes = SyncDeltaSerializer.decompose(stampedLocal)
+                    val baseShadow = baseShadowStore.load(session.localId)
+                    var envelopes = SyncDeltaSerializer.decompose(stampedLocal)
+                    envelopes = revisionStamper.stamp(
+                        envelopes,
+                        baseShadow,
+                        baseShadowStore.loadRevisionMap(session.localId)
+                    )
                     val localChangeToken = syncChangeNotifier.localChangeGeneration
 
                     if (syncChangeNotifier.localChangeGeneration != localChangeToken) {
@@ -131,8 +169,11 @@ class FirebaseSyncRepository @Inject constructor(
                     }
 
                     deltaStore.writeEnvelopes(envelopes, session.localId)
-                    val newCursor = envelopes.maxOfOrNull { it.updatedAt } ?: now
+                    var newCursor = cursor
+                    envelopes.forEach { envelope -> newCursor = newCursor.absorb(envelope) }
                     syncPreferences.setDeltaCursor(session.localId, newCursor)
+                    baseShadowStore.save(stampedLocal, session.localId)
+                    baseShadowStore.mergeRevisionMap(session.localId, envelopes)
                     syncPreferences.setLastSyncAt(now)
                     syncPreferences.setLocalSyncOwnerUserId(session.localId)
                     syncChangeNotifier.recordManualSyncApplied()
@@ -165,8 +206,79 @@ class FirebaseSyncRepository @Inject constructor(
     }
 
     override suspend fun clearLocalSyncState() {
+        val userId = authRepository.session.value?.localId
+        if (userId != null) {
+            conflictStore.delete(userId)
+            baseShadowStore.delete(userId)
+        }
+        pendingConflictUserId = null
         syncPreferences.clearLocalSyncState()
-        _status.value = _status.value.copy(lastSyncAt = null, errorMessage = null)
+        _status.value = _status.value.copy(lastSyncAt = null, errorMessage = null, pendingConflictCount = 0)
+    }
+
+    override fun pendingConflicts(): List<SyncConflict> {
+        val userId = authRepository.session.value?.localId ?: return emptyList()
+        pendingConflictUserId = userId
+        return conflictStore.load(userId)
+    }
+
+    override suspend fun resolveConflicts(resolutions: List<SyncConflictResolution>) {
+        val session = requireSession()
+        setSyncing(true)
+        try {
+            writeLock.withLock {
+                val conflicts = conflictStore.load(session.localId)
+                if (conflicts.isEmpty()) return@withLock
+
+                val local = exportLocalData()
+                val resolved = SyncThreeWayMergeEngine.applyResolutions(resolutions, local, conflicts)
+                ensureNoProblemProgressLoss(local, resolved, "resolveConflicts")
+
+                when (val result = exportImportDataUseCase.importFromJsonWithoutWriteLock(resolved.toJson().toString())) {
+                    is Result.Error -> throw result.exception
+                    is Result.Success -> Unit
+                }
+
+                val remaining = conflicts.filter { conflict ->
+                    resolutions.none { it.kind == conflict.kind && it.syncId == conflict.syncId }
+                }
+                conflictStore.save(remaining, session.localId)
+                baseShadowStore.save(resolved, session.localId)
+                pendingConflictUserId = session.localId
+                _status.value = _status.value.copy(
+                    pendingConflictCount = remaining.size,
+                    errorMessage = if (remaining.isEmpty()) null else PENDING_CONFLICTS_MESSAGE
+                )
+            }
+            syncNow()
+        } catch (t: Throwable) {
+            val mapped = mapSyncFailure(t)
+            _status.value = _status.value.copy(isSyncing = false, errorMessage = mapped.message)
+            throw mapped
+        }
+    }
+
+    private fun mergeStoredConflicts(userId: String, newlyDetected: List<SyncConflict>): List<SyncConflict> {
+        val merged = conflictStore.load(userId).associateBy { it.documentId }.toMutableMap()
+        newlyDetected.forEach { conflict ->
+            merged[conflict.documentId] = conflict
+        }
+        return merged.values.toList().also { conflictStore.save(it, userId) }
+    }
+
+    private fun initialStatus(): SyncStatus {
+        val session = authRepository.session.value
+        val conflictCount = session?.localId?.let { userId ->
+            pendingConflictUserId = userId
+            conflictStore.load(userId).size
+        } ?: 0
+        return SyncStatus(
+            isAuthenticated = session != null,
+            email = session?.email,
+            lastSyncAt = syncPreferences.getLastSyncAt(),
+            errorMessage = if (conflictCount > 0) PENDING_CONFLICTS_MESSAGE else null,
+            pendingConflictCount = conflictCount
+        )
     }
 
     private suspend fun migrateLegacyChunkedSnapshotIfNeeded(userId: String) {
@@ -360,5 +472,7 @@ class FirebaseSyncRepository @Inject constructor(
             "同期により問題集の進捗履歴が大きく減少するため停止しました。自動バックアップを確認してください。"
         const val SIGN_IN_REQUIRED_MESSAGE = "同期するには先にサインインしてください。"
         const val LOCAL_CHANGE_DURING_SYNC_MESSAGE = "同期中にローカルデータが更新されました。もう一度お試しください。"
+        const val PENDING_CONFLICTS_MESSAGE =
+            "同期データに解決が必要な競合があります。設定の「競合を解決」から選択してください。"
     }
 }

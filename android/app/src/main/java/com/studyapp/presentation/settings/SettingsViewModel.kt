@@ -18,8 +18,10 @@ import com.studyapp.domain.util.Result
 import com.studyapp.services.ReminderRefreshCoordinator
 import com.studyapp.services.ReminderWorker
 import com.studyapp.sync.AuthRepository
-import com.studyapp.sync.SyncRepository
 import com.studyapp.sync.SyncChangeNotifier
+import com.studyapp.sync.SyncConflict
+import com.studyapp.sync.SyncConflictResolution
+import com.studyapp.sync.SyncRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
@@ -69,6 +71,7 @@ data class SettingsUiState(
     val syncInProgress: Boolean = false,
     val lastSyncAt: Long? = null,
     val syncError: String? = null,
+    val pendingConflictCount: Int = 0,
     val debugLogs: List<DebugLogEntry> = emptyList()
 )
 
@@ -218,9 +221,24 @@ class SettingsViewModel @Inject constructor(
                         syncAccountEmail = status.email,
                         syncInProgress = status.isSyncing,
                         lastSyncAt = status.lastSyncAt,
-                        syncError = status.errorMessage
+                        syncError = status.errorMessage,
+                        pendingConflictCount = status.pendingConflictCount
                     )
                 }
+            }
+        }
+    }
+
+    fun pendingSyncConflicts(): List<SyncConflict> = syncRepository.pendingConflicts()
+
+    fun resolveSyncConflicts(resolutions: List<SyncConflictResolution>) {
+        viewModelScope.launch {
+            runCatching {
+                syncRepository.resolveConflicts(resolutions)
+                syncChangeNotifier.resumeAutoSync()
+                loadStatistics()
+            }.onFailure {
+                _uiState.update { state -> state.copy(syncError = it.message) }
             }
         }
     }

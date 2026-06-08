@@ -96,6 +96,8 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     var unlockRestrictionsWhenDailyGoalReached: Bool
     var scheduleSlots: [FocusScheduleSlot]
     var activitySelection: FamilyActivitySelection
+    /// Epoch milliseconds. While `Date() < expiry`, all Screen Time settings are read-only in-app.
+    var settingsLockedUntilEpochMilliseconds: Int64?
 
     init(
         isEnabled: Bool = false,
@@ -103,7 +105,8 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         scheduledRestrictionEnabled: Bool = false,
         unlockRestrictionsWhenDailyGoalReached: Bool = false,
         scheduleSlots: [FocusScheduleSlot] = [],
-        activitySelection: FamilyActivitySelection = FamilyActivitySelection()
+        activitySelection: FamilyActivitySelection = FamilyActivitySelection(),
+        settingsLockedUntilEpochMilliseconds: Int64? = nil
     ) {
         self.isEnabled = isEnabled
         self.timerRestrictionEnabled = timerRestrictionEnabled
@@ -111,6 +114,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         self.unlockRestrictionsWhenDailyGoalReached = unlockRestrictionsWhenDailyGoalReached
         self.scheduleSlots = scheduleSlots
         self.activitySelection = activitySelection
+        self.settingsLockedUntilEpochMilliseconds = settingsLockedUntilEpochMilliseconds
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -120,6 +124,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         case unlockRestrictionsWhenDailyGoalReached
         case scheduleSlots
         case activitySelection
+        case settingsLockedUntilEpochMilliseconds
     }
 
     init(from decoder: Decoder) throws {
@@ -130,6 +135,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         unlockRestrictionsWhenDailyGoalReached = try container.decodeIfPresent(Bool.self, forKey: .unlockRestrictionsWhenDailyGoalReached) ?? false
         scheduleSlots = try container.decodeIfPresent([FocusScheduleSlot].self, forKey: .scheduleSlots) ?? []
         activitySelection = try container.decodeIfPresent(FamilyActivitySelection.self, forKey: .activitySelection) ?? FamilyActivitySelection()
+        settingsLockedUntilEpochMilliseconds = try container.decodeIfPresent(Int64.self, forKey: .settingsLockedUntilEpochMilliseconds)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -140,6 +146,34 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         try container.encode(unlockRestrictionsWhenDailyGoalReached, forKey: .unlockRestrictionsWhenDailyGoalReached)
         try container.encode(scheduleSlots, forKey: .scheduleSlots)
         try container.encode(activitySelection, forKey: .activitySelection)
+        try container.encodeIfPresent(settingsLockedUntilEpochMilliseconds, forKey: .settingsLockedUntilEpochMilliseconds)
+    }
+
+    var settingsLockExpiryDate: Date? {
+        guard let settingsLockedUntilEpochMilliseconds else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(settingsLockedUntilEpochMilliseconds) / 1_000)
+    }
+
+    var isSettingsLocked: Bool {
+        isSettingsLocked(at: Date())
+    }
+
+    func isSettingsLocked(at date: Date) -> Bool {
+        guard let expiryDate = settingsLockExpiryDate else { return false }
+        return date < expiryDate
+    }
+
+    static func lockExpiryDate(
+        from startDate: Date,
+        months: Int,
+        days: Int,
+        calendar: Calendar = .current
+    ) -> Date? {
+        guard months > 0 || days > 0 else { return nil }
+        var components = DateComponents()
+        components.month = months
+        components.day = days
+        return calendar.date(byAdding: components, to: startDate)
     }
 
     var allowedApplicationTokens: Set<ApplicationToken> {

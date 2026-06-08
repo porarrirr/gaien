@@ -111,6 +111,7 @@ class TimerViewModelTest {
         viewModel.startTimer()
 
         assertEquals("科目を選択してください", viewModel.uiState.value.error)
+        assertTrue(viewModel.uiState.value.shouldNavigateToSubjectsAfterError)
         verify(exactly = 0) { timerServiceManager.startTimer(any(), any(), any(), any(), any(), any()) }
     }
 

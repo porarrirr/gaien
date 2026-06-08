@@ -12,6 +12,9 @@ data class SyncStatus(
     val email: String? = null,
     val isSyncing: Boolean = false,
     val lastSyncAt: Long? = null,
-    val errorMessage: String? = null
-)
+    val errorMessage: String? = null,
+    val pendingConflictCount: Int = 0
+) {
+    val requiresResolution: Boolean get() = pendingConflictCount > 0
+}
 

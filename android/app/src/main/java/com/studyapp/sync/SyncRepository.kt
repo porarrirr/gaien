@@ -12,4 +12,8 @@ interface SyncRepository {
     suspend fun deleteCloudDataForCurrentUser()
 
     suspend fun clearLocalSyncState()
+
+    fun pendingConflicts(): List<SyncConflict>
+
+    suspend fun resolveConflicts(resolutions: List<SyncConflictResolution>)
 }
