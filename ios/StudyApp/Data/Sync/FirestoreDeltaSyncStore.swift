@@ -104,12 +104,16 @@ struct FirestoreDeltaSyncStore {
     /// the last successful sync observed; pass `0` for a full initial load.
     ///
     /// Paginates by `updatedAt` plus document id so documents sharing the same
-    /// millisecond timestamp are not skipped or fetched forever.
+    /// millisecond timestamp are not skipped or fetched forever. Firestore's
+    /// `documentID()` cursor validation is picky for nested collections, so
+    /// page-to-page progress uses document snapshots instead of raw document id
+    /// cursor values.
     func fetchEnvelopes(userId: String, changedSince cursor: SyncDeltaCursor) async throws -> [SyncEntityEnvelope] {
         let collection = entitiesCollection(userId: userId)
         let pageSize = 500
         var results: [SyncEntityEnvelope] = []
         var lastSeen = cursor
+        var lastPageDocument: DocumentSnapshot?
 
         logger.log(
             category: .sync,
@@ -120,17 +124,19 @@ struct FirestoreDeltaSyncStore {
         while true {
             let snapshot: QuerySnapshot
             do {
-                snapshot = try await collection
+                var query: Query = collection
+                    .whereField("updatedAt", isGreaterThanOrEqualTo: cursor.updatedAt)
                     .order(by: "updatedAt")
                     .order(by: FieldPath.documentID())
-                    .start(after: [lastSeen.updatedAt, lastSeen.documentId])
-                    .limit(to: pageSize)
-                    .getDocuments()
+                if let lastPageDocument {
+                    query = query.start(afterDocument: lastPageDocument)
+                }
+                snapshot = try await query.limit(to: pageSize).getDocuments()
             } catch {
                 logFirestoreFailure(
                     operation: "fetchDeltaEnvelopes",
                     userId: userId,
-                    details: "path=users/<uid>/sync_entities cursorUpdatedAt=\(cursor.updatedAt) lastSeen=\(lastSeen.updatedAt) lastDoc=\(lastSeen.documentId) pageSize=\(pageSize)",
+                    details: "path=users/<uid>/sync_entities cursorUpdatedAt=\(cursor.updatedAt) lastSeen=\(lastSeen.updatedAt) lastDoc=\(lastSeen.documentId) hasPageCursor=\(lastPageDocument != nil) pageSize=\(pageSize)",
                     error: error
                 )
                 throw error
@@ -155,6 +161,7 @@ struct FirestoreDeltaSyncStore {
             if let lastDocument = snapshot.documents.last,
                let lastUpdatedAt = Self.readInt64(lastDocument.data()["updatedAt"]) {
                 lastSeen = SyncDeltaCursor(updatedAt: lastUpdatedAt, documentId: lastDocument.documentID)
+                lastPageDocument = lastDocument
             } else {
                 break
             }
