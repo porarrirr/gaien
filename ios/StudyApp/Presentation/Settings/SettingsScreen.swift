@@ -12,6 +12,8 @@ struct SettingsScreen: View {
     @State private var isShowingAccountDeletionConfirmation = false
     @State private var isShowingAuthSheet = false
     @State private var isShowingDebugLogs = false
+    @State private var isShowingDataBackups = false
+    @State private var selectedDataBackup: DataBackupDescriptor?
     @State private var versionTapCount = 0
     @State private var isDebugLogUnlocked = false
     @State private var copyConfirmationMessage: String?
@@ -33,6 +35,53 @@ struct SettingsScreen: View {
             .sheet(isPresented: $isShowingDebugLogs) {
                 NavigationStack {
                     DebugLogSheet(viewModel: viewModel, isClearUnlocked: true)
+                }
+            }
+            .sheet(isPresented: $isShowingDataBackups) {
+                NavigationStack {
+                    List(viewModel.dataBackups) { backup in
+                        Button {
+                            selectedDataBackup = backup
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(backup.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.body.weight(.semibold))
+                                Text(backup.reason)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .navigationTitle("バックアップから復元")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("閉じる") {
+                                isShowingDataBackups = false
+                            }
+                        }
+                    }
+                }
+                .confirmationDialog(
+                    "このバックアップに復元しますか？",
+                    isPresented: Binding(
+                        get: { selectedDataBackup != nil },
+                        set: { if !$0 { selectedDataBackup = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    Button("復元する", role: .destructive) {
+                        if let backup = selectedDataBackup {
+                            viewModel.restoreDataBackup(backup)
+                        }
+                        selectedDataBackup = nil
+                        isShowingDataBackups = false
+                    }
+                    Button("キャンセル", role: .cancel) {
+                        selectedDataBackup = nil
+                    }
+                } message: {
+                    Text("現在のデータは復元前に自動バックアップされます。")
                 }
             }
             .alert("デバッグログ", isPresented: Binding(get: { copyConfirmationMessage != nil }, set: { if !$0 { copyConfirmationMessage = nil } })) {
@@ -331,6 +380,16 @@ struct SettingsScreen: View {
             Divider()
             actionLine(icon: "square.and.arrow.up", title: "インポート", color: AppColors.success) {
                 isImporting = true
+            }
+            if !viewModel.dataBackups.isEmpty {
+                Divider()
+                actionLine(
+                    icon: "clock.arrow.circlepath",
+                    title: "自動バックアップから復元",
+                    color: AppColors.success
+                ) {
+                    isShowingDataBackups = true
+                }
             }
             if let url = viewModel.exportURL {
                 Divider()

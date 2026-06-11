@@ -28,7 +28,7 @@ enum SyncPayloadCodec {
             let remote: AppData?
             let merged: AppData
             if let remotePayload {
-                let decoded = try JSONDecoder().decode(AppData.self, from: Data(remotePayload.utf8))
+                let decoded = try AppDataUpgrader.decode(Data(remotePayload.utf8))
                 remote = decoded
                 merged = SyncMergeEngine.merge(local: local, remote: decoded)
             } else {
@@ -57,7 +57,7 @@ enum SyncPayloadCodec {
     /// Decodes a remote payload off the main actor.
     static func decode(_ payload: String) async throws -> AppData {
         try await Task.detached(priority: .userInitiated) {
-            try JSONDecoder().decode(AppData.self, from: Data(payload.utf8))
+            try AppDataUpgrader.decode(Data(payload.utf8))
         }.value
     }
 

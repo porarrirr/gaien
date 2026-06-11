@@ -1,0 +1,35 @@
+{
+  "subjects": [
+    {
+      "id": 1,
+      "name": "Legacy Subject",
+      "color": 1,
+      "icon": "BOOK"
+    }
+  ],
+  "materials": [
+    {
+      "id": 2,
+      "name": "Legacy Material",
+      "subjectId": 1,
+      "totalPages": 100,
+      "currentPage": 20
+    }
+  ],
+  "sessions": [
+    {
+      "id": 3,
+      "materialId": 2,
+      "materialName": "Legacy Material",
+      "subjectId": 1,
+      "subjectName": "Legacy Subject",
+      "startTime": 1700000000000,
+      "endTime": 1700003600000
+    }
+  ],
+  "goals": [],
+  "exams": [],
+  "plans": [],
+  "planItems": [],
+  "onboardingCompleted": true
+}

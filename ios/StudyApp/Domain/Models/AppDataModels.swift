@@ -126,7 +126,14 @@ struct AppData: Codable, Hashable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        guard schemaVersion == AppData.currentSchemaVersion else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .schemaVersion,
+                in: container,
+                debugDescription: "AppData must be upgraded before decoding"
+            )
+        }
         supportsProblemRecords = try container.decodeIfPresent(Bool.self, forKey: .supportsProblemRecords) ?? false
         subjects = try container.decodeIfPresent([Subject].self, forKey: .subjects) ?? []
         materials = try container.decodeIfPresent([Material].self, forKey: .materials) ?? []

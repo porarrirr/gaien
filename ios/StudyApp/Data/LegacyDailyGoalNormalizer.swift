@@ -9,8 +9,8 @@ import Foundation
 /// small home and does not leak into the repository CRUD.
 enum LegacyDailyGoalNormalizer {
 
-    /// Replaces each active `daily` goal with no `dayOfWeek` by seven per-day
-    /// copies. Caller is responsible for saving the context.
+    /// Tombstones each active `daily` goal with no `dayOfWeek` and creates
+    /// seven per-day copies. Caller is responsible for saving the context.
     /// - Returns: `true` if any mutation occurred.
     @discardableResult
     static func normalize(in context: NSManagedObjectContext) throws -> Bool {
@@ -33,7 +33,9 @@ enum LegacyDailyGoalNormalizer {
 
         for record in legacyRecords {
             let baseGoal = PersistenceMappers.goal(record)
-            context.delete(record)
+            let tombstoneAt = Date().epochMilliseconds
+            record.setValue(tombstoneAt, forKey: "deletedAt")
+            record.setValue(tombstoneAt, forKey: "updatedAt")
 
             for day in StudyWeekday.allCases {
                 let newRecord = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: context)
@@ -45,8 +47,8 @@ enum LegacyDailyGoalNormalizer {
                 newRecord.setValue(baseGoal.weekStartDay.rawValue, forKey: "weekStartDay")
                 newRecord.setValue(baseGoal.isActive, forKey: "isActive")
                 newRecord.setValue(baseGoal.createdAt, forKey: "createdAt")
-                newRecord.setValue(baseGoal.updatedAt, forKey: "updatedAt")
-                newRecord.setValue(baseGoal.deletedAt, forKey: "deletedAt")
+                newRecord.setValue(max(baseGoal.updatedAt, tombstoneAt), forKey: "updatedAt")
+                newRecord.setValue(nil, forKey: "deletedAt")
                 newRecord.setValue(baseGoal.lastSyncedAt, forKey: "lastSyncedAt")
                 nextGoalId += 1
             }

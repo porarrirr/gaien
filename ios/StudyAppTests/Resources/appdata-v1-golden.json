@@ -1,0 +1,18 @@
+{
+  "exportDate": 1700000000000,
+  "subjects": [
+    {
+      "id": 1,
+      "syncId": "v1-subject",
+      "name": "Legacy Subject",
+      "color": 1,
+      "createdAt": 1700000000000,
+      "updatedAt": 1700000000000
+    }
+  ],
+  "materials": [],
+  "sessions": [],
+  "goals": [],
+  "exams": [],
+  "plans": []
+}

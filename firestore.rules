@@ -142,9 +142,32 @@ service cloud.firestore {
         (!("contentHash" in data) || (data.contentHash is string && data.contentHash.size() <= 128));
     }
 
+    function validClientFlags(flags) {
+      return flags is map &&
+        flags.keys().hasOnly([
+          "usedLegacyTwoWayFallback",
+          "migratedLegacyChunkedSnapshot",
+          "backfilledSyncMetadata",
+          "lastSeenAt",
+          "appDataSchemaVersion"
+        ]) &&
+        (!("usedLegacyTwoWayFallback" in flags) || flags.usedLegacyTwoWayFallback is bool) &&
+        (!("migratedLegacyChunkedSnapshot" in flags) || flags.migratedLegacyChunkedSnapshot is bool) &&
+        (!("backfilledSyncMetadata" in flags) || flags.backfilledSyncMetadata is bool) &&
+        isIntInRange(flags.lastSeenAt, 0, 4102444800000) &&
+        isIntInRange(flags.appDataSchemaVersion, 1, 20);
+    }
+
+    function validUserRoot(data) {
+      return data.keys().hasOnly(["clientFlags", "clientFlagsUpdatedAt"]) &&
+        validClientFlags(data.clientFlags) &&
+        data.clientFlagsUpdatedAt == request.time;
+    }
+
     match /users/{userId} {
       allow read: if isSignedInOwner(userId);
-      allow write: if false;
+      allow create, update: if isSignedInOwner(userId) && validUserRoot(request.resource.data);
+      allow delete: if isSignedInOwner(userId);
 
       match /sync/{docId} {
         allow read, delete: if isSignedInOwner(userId);

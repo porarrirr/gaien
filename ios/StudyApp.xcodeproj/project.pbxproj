@@ -78,6 +78,10 @@
 		A1000000000000000000008C /* SyncConflictStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000008C /* SyncConflictStore.swift */; };
 		A1000000000000000000008D /* SyncThreeWayMergeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000008D /* SyncThreeWayMergeEngine.swift */; };
 		A1000000000000000000008E /* SyncRevisionStamper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000008E /* SyncRevisionStamper.swift */; };
+		A10000000000000000000090 /* DataBackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000090 /* DataBackupStore.swift */; };
+		A10000000000000000000091 /* DataMigrationLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000091 /* DataMigrationLedger.swift */; };
+		A10000000000000000000092 /* AppDataUpgrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000092 /* AppDataUpgrader.swift */; };
+		A10000000000000000000093 /* SyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000093 /* SyncStateStore.swift */; };
 		A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StudyAppWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A20000000000000000000002 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
 		A20000000000000000000003 /* WidgetSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* WidgetSnapshotSync.swift */; };
@@ -146,6 +150,10 @@
 		A30000000000000000000095 /* ManagePlansUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000095 /* ManagePlansUseCaseTests.swift */; };
 		A30000000000000000000096 /* ScreenTimeSettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000096 /* ScreenTimeSettingsScreen.swift */; };
 		A30000000000000000000097 /* SyncConflictResolutionScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000097 /* SyncConflictResolutionScreen.swift */; };
+		A30000000000000000000098 /* DataLayerMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000098 /* DataLayerMigrationTests.swift */; };
+		A30000000000000000000099 /* appdata-v2-golden.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000099 /* appdata-v2-golden.json */; };
+		A3000000000000000000009A /* appdata-v1-golden.json in Resources */ = {isa = PBXBuildFile; fileRef = B3000000000000000000009A /* appdata-v1-golden.json */; };
+		A3000000000000000000009B /* legacy-snapshot-golden.json in Resources */ = {isa = PBXBuildFile; fileRef = B3000000000000000000009B /* legacy-snapshot-golden.json */; };
 		A40000000000000000000001 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
 		A40000000000000000000002 /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* Subject.swift */; };
 		A40000000000000000000003 /* SupportingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000003 /* SupportingModels.swift */; };
@@ -291,6 +299,10 @@
 		B1000000000000000000008C /* SyncConflictStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncConflictStore.swift; path = Sync/SyncConflictStore.swift; sourceTree = "<group>"; };
 		B1000000000000000000008D /* SyncThreeWayMergeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncThreeWayMergeEngine.swift; path = Sync/SyncThreeWayMergeEngine.swift; sourceTree = "<group>"; };
 		B1000000000000000000008E /* SyncRevisionStamper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncRevisionStamper.swift; path = Sync/SyncRevisionStamper.swift; sourceTree = "<group>"; };
+		B10000000000000000000090 /* DataBackupStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataBackupStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000091 /* DataMigrationLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataMigrationLedger.swift; sourceTree = "<group>"; };
+		B10000000000000000000092 /* AppDataUpgrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataUpgrader.swift; sourceTree = "<group>"; };
+		B10000000000000000000093 /* SyncStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncStateStore.swift; path = Sync/SyncStateStore.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* StudyAppWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000002 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* WidgetSnapshotSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotSync.swift; sourceTree = "<group>"; };
@@ -362,6 +374,10 @@
 		B30000000000000000000095 /* ManagePlansUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePlansUseCaseTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000096 /* ScreenTimeSettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeSettingsScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000097 /* SyncConflictResolutionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncConflictResolutionScreen.swift; sourceTree = "<group>"; };
+		B30000000000000000000098 /* DataLayerMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataLayerMigrationTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000099 /* appdata-v2-golden.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "appdata-v2-golden.json"; sourceTree = "<group>"; };
+		B3000000000000000000009A /* appdata-v1-golden.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "appdata-v1-golden.json"; sourceTree = "<group>"; };
+		B3000000000000000000009B /* legacy-snapshot-golden.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "legacy-snapshot-golden.json"; sourceTree = "<group>"; };
 		B40000000000000000000001 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
 		B40000000000000000000002 /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		B40000000000000000000003 /* SupportingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportingModels.swift; sourceTree = "<group>"; };
@@ -492,6 +508,9 @@
 				B10000000000000000000074 /* SyncMetadataBackfiller.swift */,
 				B10000000000000000000075 /* LegacyDailyGoalNormalizer.swift */,
 				B10000000000000000000076 /* AppDataArchiver.swift */,
+				B10000000000000000000090 /* DataBackupStore.swift */,
+				B10000000000000000000091 /* DataMigrationLedger.swift */,
+				B10000000000000000000092 /* AppDataUpgrader.swift */,
 				B10000000000000000000078 /* SyncMergeEngine.swift */,
 				B10000000000000000000079 /* SyncPayloadCodec.swift */,
 				B10000000000000000000080 /* SyncDeltaSerializer.swift */,
@@ -503,6 +522,7 @@
 				B1000000000000000000008C /* SyncConflictStore.swift */,
 				B1000000000000000000008D /* SyncThreeWayMergeEngine.swift */,
 				B1000000000000000000008E /* SyncRevisionStamper.swift */,
+				B10000000000000000000093 /* SyncStateStore.swift */,
 				B10000000000000000000023 /* LegacySnapshotModels.swift */,
 				B10000000000000000000005 /* GoogleBooksService.swift */,
 				B10000000000000000000016 /* FirebaseBootstrap.swift */,
@@ -842,6 +862,8 @@
 		D50000000000000000000001 /* StudyAppTests */ = {
 			isa = PBXGroup;
 			children = (
+				D50000000000000000000002 /* Resources */,
+				B30000000000000000000098 /* DataLayerMigrationTests.swift */,
 				B30000000000000000000051 /* ProblemReviewSchedulerTests.swift */,
 				B30000000000000000000052 /* AutoSyncCoordinatorTests.swift */,
 				B30000000000000000000053 /* SyncMergeEngineTests.swift */,
@@ -860,6 +882,16 @@
 				B30000000000000000000095 /* ManagePlansUseCaseTests.swift */,
 			);
 			path = StudyAppTests;
+			sourceTree = "<group>";
+		};
+		D50000000000000000000002 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B30000000000000000000099 /* appdata-v2-golden.json */,
+				B3000000000000000000009A /* appdata-v1-golden.json */,
+				B3000000000000000000009B /* legacy-snapshot-golden.json */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		D60000000000000000000001 /* StudyAppDeviceActivityMonitor */ = {
@@ -1030,6 +1062,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A30000000000000000000099 /* appdata-v2-golden.json in Resources */,
+				A3000000000000000000009A /* appdata-v1-golden.json in Resources */,
+				A3000000000000000000009B /* legacy-snapshot-golden.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1085,6 +1120,9 @@
 				A10000000000000000000074 /* SyncMetadataBackfiller.swift in Sources */,
 				A10000000000000000000075 /* LegacyDailyGoalNormalizer.swift in Sources */,
 				A10000000000000000000076 /* AppDataArchiver.swift in Sources */,
+				A10000000000000000000090 /* DataBackupStore.swift in Sources */,
+				A10000000000000000000091 /* DataMigrationLedger.swift in Sources */,
+				A10000000000000000000092 /* AppDataUpgrader.swift in Sources */,
 				A10000000000000000000078 /* SyncMergeEngine.swift in Sources */,
 				A10000000000000000000079 /* SyncPayloadCodec.swift in Sources */,
 				A10000000000000000000080 /* SyncDeltaSerializer.swift in Sources */,
@@ -1096,6 +1134,7 @@
 				A1000000000000000000008C /* SyncConflictStore.swift in Sources */,
 				A1000000000000000000008D /* SyncThreeWayMergeEngine.swift in Sources */,
 				A1000000000000000000008E /* SyncRevisionStamper.swift in Sources */,
+				A10000000000000000000093 /* SyncStateStore.swift in Sources */,
 				A20000000000000000000011 /* StudyWidgetSnapshotComputer.swift in Sources */,
 				A30000000000000000000080 /* TimerProblemValidation.swift in Sources */,
 				A30000000000000000000081 /* TimerAmbientModels.swift in Sources */,
@@ -1222,6 +1261,7 @@
 				A30000000000000000000093 /* SaveStudySessionUseCaseTests.swift in Sources */,
 				A30000000000000000000094 /* ManageGoalsUseCaseTests.swift in Sources */,
 				A30000000000000000000095 /* ManagePlansUseCaseTests.swift in Sources */,
+				A30000000000000000000098 /* DataLayerMigrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

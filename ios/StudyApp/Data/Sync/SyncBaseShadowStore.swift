@@ -5,41 +5,45 @@ import Foundation
 enum SyncBaseShadowStore {
     private static let directoryName = "StudyApp/SyncBases"
 
-    static func load(userId: String) -> AppData? {
-        guard let url = fileURL(userId: userId),
-              let data = try? Data(contentsOf: url) else {
+    static func load(userId: String) throws -> AppData? {
+        guard let url = try fileURL(userId: userId),
+              FileManager.default.fileExists(atPath: url.path) else {
             return nil
         }
-        return try? JSONDecoder().decode(AppData.self, from: data)
+        return try AppDataUpgrader.decode(Data(contentsOf: url))
     }
 
     static func save(_ appData: AppData, userId: String) throws {
-        guard let url = fileURL(userId: userId, createDirectory: true) else {
+        guard let url = try fileURL(userId: userId, createDirectory: true) else {
             throw CocoaError(.fileNoSuchFile)
         }
         let data = try JSONEncoder().encode(appData)
         try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
-    static func delete(userId: String) {
-        guard let url = fileURL(userId: userId) else { return }
-        try? FileManager.default.removeItem(at: url)
-        if let revisionURL = revisionFileURL(userId: userId) {
-            try? FileManager.default.removeItem(at: revisionURL)
+    static func delete(userId: String) throws {
+        if let url = try fileURL(userId: userId), FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+        if let revisionURL = try revisionFileURL(userId: userId),
+           FileManager.default.fileExists(atPath: revisionURL.path) {
+            try FileManager.default.removeItem(at: revisionURL)
         }
     }
 
-    static func clearAll() {
-        guard let directory = baseDirectory() else { return }
-        try? FileManager.default.removeItem(at: directory)
-        if let revisionDirectory = revisionBaseDirectory() {
-            try? FileManager.default.removeItem(at: revisionDirectory)
+    static func clearAll() throws {
+        if let directory = baseDirectory(), FileManager.default.fileExists(atPath: directory.path) {
+            try FileManager.default.removeItem(at: directory)
+        }
+        if let revisionDirectory = revisionBaseDirectory(),
+           FileManager.default.fileExists(atPath: revisionDirectory.path) {
+            try FileManager.default.removeItem(at: revisionDirectory)
         }
     }
 
     /// First sync after upgrade: treat current local state as base when none exists.
     static func bootstrapIfNeeded(userId: String, local: AppData) throws {
-        guard load(userId: userId) == nil else { return }
+        guard try load(userId: userId) == nil else { return }
         try save(local, userId: userId)
     }
 
@@ -48,26 +52,25 @@ enum SyncBaseShadowStore {
             .appendingPathComponent(directoryName, isDirectory: true)
     }
 
-    private static func fileURL(userId: String, createDirectory: Bool = false) -> URL? {
+    private static func fileURL(userId: String, createDirectory: Bool = false) throws -> URL? {
         guard let directory = baseDirectory() else { return nil }
         if createDirectory {
-            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         let safeUserId = userId.replacingOccurrences(of: "/", with: "_")
         return directory.appendingPathComponent("\(safeUserId).json")
     }
 
-    static func loadRevisionMap(userId: String) -> [String: String] {
-        guard let url = revisionFileURL(userId: userId),
-              let data = try? Data(contentsOf: url),
-              let revisions = try? JSONDecoder().decode([String: String].self, from: data) else {
+    static func loadRevisionMap(userId: String) throws -> [String: String] {
+        guard let url = try revisionFileURL(userId: userId),
+              FileManager.default.fileExists(atPath: url.path) else {
             return [:]
         }
-        return revisions
+        return try JSONDecoder().decode([String: String].self, from: Data(contentsOf: url))
     }
 
     static func saveRevisionMap(_ revisions: [String: String], userId: String) throws {
-        guard let url = revisionFileURL(userId: userId, createDirectory: true) else {
+        guard let url = try revisionFileURL(userId: userId, createDirectory: true) else {
             throw CocoaError(.fileNoSuchFile)
         }
         let data = try JSONEncoder().encode(revisions)
@@ -75,7 +78,7 @@ enum SyncBaseShadowStore {
     }
 
     static func mergeRevisionMap(envelopes: [SyncEntityEnvelope], userId: String) throws {
-        var revisions = loadRevisionMap(userId: userId)
+        var revisions = try loadRevisionMap(userId: userId)
         for envelope in envelopes {
             if let revision = envelope.revisionId ?? envelope.contentHash, !revision.isEmpty {
                 revisions[envelope.documentId] = revision
@@ -84,12 +87,12 @@ enum SyncBaseShadowStore {
         try saveRevisionMap(revisions, userId: userId)
     }
 
-    private static func revisionFileURL(userId: String, createDirectory: Bool = false) -> URL? {
+    private static func revisionFileURL(userId: String, createDirectory: Bool = false) throws -> URL? {
         guard let directory = revisionBaseDirectory() else {
             return nil
         }
         if createDirectory {
-            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         let safeUserId = userId.replacingOccurrences(of: "/", with: "_")
         return directory.appendingPathComponent("\(safeUserId).json")

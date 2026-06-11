@@ -12,21 +12,11 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     private let preferencesRepository: UserDefaultsPreferencesRepository
     private let logger: AppLogger
     private let currentFirebaseUserId: () -> String?
-    private let lastSyncKey = "studyapp.sync.lastSyncAt"
-    private let localSyncOwnerKey = "studyapp.sync.localOwnerUserId"
-    /// Per-user delta cursor. Stored under
-    /// `studyapp.sync.deltaCursor.<uid>` so switching accounts does not mix
-    /// cursors. Measured in client-clock milliseconds.
-    private let deltaCursorKeyPrefix = "studyapp.sync.deltaCursor."
-    /// Set to true once we have migrated a user away from the legacy
-    /// chunked-v2 snapshot and cleaned up those documents. Stored per user.
-    private let deltaMigrationDoneKeyPrefix = "studyapp.sync.deltaMigrationDone."
     private var lastLoadedVersion: Int64 = 0
     private var cancellables = Set<AnyCancellable>()
 
     private static let maxSyncRetries = 3
     private static let syncSchemaVersion = AppData.currentSchemaVersion
-    private static let backupRetentionDays = 30
     /// Delta tombstones are kept for at least this long so offline devices
     /// can still see deletions on their next sync. 90 days is comfortably
     /// longer than typical offline usage while bounding storage.
@@ -67,7 +57,6 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         self.status = SyncStatus(
             isAuthenticated: authRepository.session != nil,
             email: authRepository.session?.email,
-            lastSyncAt: UserDefaults.standard.object(forKey: lastSyncKey) as? Int64,
             errorMessage: initialConflictCount > 0 ? Self.pendingConflictsMessage : nil,
             pendingConflictCount: initialConflictCount
         )
@@ -84,8 +73,20 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 if session == nil {
                     self.status.isSyncing = false
                 }
+                var stateError: String?
+                if let userId = session?.localId {
+                    do {
+                        self.status.lastSyncAt = try self.loadSyncState(userId: userId).user.lastSyncAt
+                    } catch {
+                        self.status.lastSyncAt = nil
+                        stateError = error.localizedDescription
+                        self.logger.log(category: .sync, level: .error, message: "Failed to load sync state", error: error)
+                    }
+                } else {
+                    self.status.lastSyncAt = nil
+                }
                 self.status.pendingConflictCount = conflictCount
-                self.status.errorMessage = conflictCount > 0 ? Self.pendingConflictsMessage : nil
+                self.status.errorMessage = conflictCount > 0 ? Self.pendingConflictsMessage : stateError
                 self.logger.log(
                     category: .sync,
                     message: "Sync auth session updated",
@@ -128,13 +129,25 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             for attempt in 0..<Self.maxSyncRetries {
                 logger.log(category: .sync, message: "syncNow attempt started", details: "attempt=\(attempt + 1)")
                 let local = try await persistence.exportData()
-                try await saveLocalBackup(local, reason: "before-syncNow")
-                try ensureLocalSyncOwnership(session: session, local: local)
+                _ = try await persistence.createDataBackup(reason: "before-syncNow")
+
+                var stateResult = try loadSyncState(userId: session.localId)
+                try ensureLocalSyncOwnership(
+                    session: session,
+                    local: local,
+                    ownerUserId: stateResult.root.ownerUserId
+                )
+                if stateResult.user.baseShadow == nil {
+                    stateResult.user.cursor = .zero
+                    stateResult.user.revisions = [:]
+                    stateResult.user.baseShadow = local
+                    stateResult.root.users[session.localId] = stateResult.user
+                    try SyncStateStore.save(stateResult.root)
+                }
 
                 let localChangeToken = persistence.changeToken
-                let cursor = loadCompositeDeltaCursor(userId: session.localId)
-                try SyncBaseShadowStore.bootstrapIfNeeded(userId: session.localId, local: local)
-                let baseShadow = SyncBaseShadowStore.load(userId: session.localId)
+                let cursor = stateResult.user.cursor
+                let baseShadow = stateResult.user.baseShadow
 
                 let remoteEnvelopes = try await deltaStore.fetchEnvelopes(
                     userId: session.localId,
@@ -151,14 +164,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 let merged = mergeOutcome.merged
                 try ensureNoProblemProgressLoss(from: local, to: merged, operation: "syncNow")
 
-                let storedConflicts = mergeStoredConflicts(
+                let storedConflicts = try mergeStoredConflicts(
                     userId: session.localId,
                     newlyDetected: mergeOutcome.conflicts
                 )
                 pendingConflictUserId = session.localId
 
                 var outboundEnvelopes = SyncDeltaSerializer.changedSince(merged, cursor: cursor)
-                let previousRevisions = SyncBaseShadowStore.loadRevisionMap(userId: session.localId)
+                let previousRevisions = stateResult.user.revisions
                 outboundEnvelopes = SyncRevisionStamper.stamp(
                     outboundEnvelopes,
                     previousBase: baseShadow,
@@ -200,22 +213,25 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 for envelope in resolvedRemoteEnvelopes + resolvedMergedEnvelopes + outboundEnvelopes {
                     newCursor.absorb(envelope)
                 }
-                saveCompositeDeltaCursor(userId: session.localId, cursor: newCursor)
+                let nextBase: AppData
                 if unresolvedConflictIds.isEmpty {
-                    try? SyncBaseShadowStore.save(merged, userId: session.localId)
+                    nextBase = merged
                 } else {
-                    let nextBase = SyncDeltaSerializer.assemble(
+                    nextBase = SyncDeltaSerializer.assemble(
                         envelopes: resolvedMergedEnvelopes,
                         onto: baseShadow ?? local
                     )
-                    try? SyncBaseShadowStore.save(nextBase, userId: session.localId)
                 }
-                try? SyncBaseShadowStore.mergeRevisionMap(
-                    envelopes: resolvedRemoteEnvelopes + outboundEnvelopes,
-                    userId: session.localId
+                stateResult.user.cursor = newCursor
+                stateResult.user.baseShadow = nextBase
+                stateResult.user.revisions = SyncStateStore.mergedRevisions(
+                    current: stateResult.user.revisions,
+                    envelopes: resolvedRemoteEnvelopes + outboundEnvelopes
                 )
-                UserDefaults.standard.set(merged.exportDate, forKey: lastSyncKey)
-                UserDefaults.standard.set(session.localId, forKey: localSyncOwnerKey)
+                stateResult.user.lastSyncAt = merged.exportDate
+                stateResult.root.ownerUserId = session.localId
+                stateResult.root.users[session.localId] = stateResult.user
+                try SyncStateStore.save(stateResult.root)
                 status = SyncStatus(
                     isAuthenticated: true,
                     email: session.email,
@@ -250,6 +266,18 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     message: "syncNow succeeded",
                     details: "attempt=\(attempt + 1) lastSyncAt=\(merged.exportDate) cursorUpdatedAt=\(newCursor.updatedAt) cursorDoc=\(newCursor.documentId)"
                 )
+                if mergeOutcome.usedLegacyTwoWayFallback {
+                    recordClientFlags(
+                        ["usedLegacyTwoWayFallback": true],
+                        userId: session.localId
+                    )
+                }
+                if persistence.didBackfillSyncMetadataDuringPreparation {
+                    recordClientFlags(
+                        ["backfilledSyncMetadata": true],
+                        userId: session.localId
+                    )
+                }
                 return
             }
             throw ValidationError(message: "同期中にローカルデータが更新されました。もう一度お試しください。")
@@ -278,13 +306,18 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
             for attempt in 0..<Self.maxSyncRetries {
                 let localData = try await persistence.exportData()
-                try await saveLocalBackup(localData, reason: "before-importLocalDataToCloud")
-                try ensureLocalSyncOwnership(session: session, local: localData)
+                _ = try await persistence.createDataBackup(reason: "before-importLocalDataToCloud")
+                var stateResult = try loadSyncState(userId: session.localId)
+                try ensureLocalSyncOwnership(
+                    session: session,
+                    local: localData,
+                    ownerUserId: stateResult.root.ownerUserId
+                )
 
                 // Defend against destructive uploads: if the cloud already
                 // has progress we don't, bail out and force the user to
                 // pull first.
-                let cursor = loadCompositeDeltaCursor(userId: session.localId)
+                let cursor = stateResult.user.cursor
                 let remoteEnvelopes = try await deltaStore.fetchEnvelopes(userId: session.localId, changedSince: cursor)
                 if !remoteEnvelopes.isEmpty {
                     let remoteApp = SyncDeltaSerializer.assemble(envelopes: remoteEnvelopes, onto: localData)
@@ -293,12 +326,12 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
                 let nowMs = Date().epochMilliseconds
                 let stampedLocal = SyncMergeEngine.markSynced(localData, at: nowMs)
-                let baseShadow = SyncBaseShadowStore.load(userId: session.localId)
+                let baseShadow = stateResult.user.baseShadow
                 var envelopes = SyncDeltaSerializer.decompose(stampedLocal)
                 envelopes = SyncRevisionStamper.stamp(
                     envelopes,
                     previousBase: baseShadow,
-                    previousRevisions: SyncBaseShadowStore.loadRevisionMap(userId: session.localId)
+                    previousRevisions: stateResult.user.revisions
                 )
                 let localChangeToken = persistence.changeToken
 
@@ -315,11 +348,16 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 try await deltaStore.writeEnvelopes(envelopes, userId: session.localId)
                 var newCursor = cursor
                 envelopes.forEach { newCursor.absorb($0) }
-                saveCompositeDeltaCursor(userId: session.localId, cursor: newCursor)
-                try? SyncBaseShadowStore.save(stampedLocal, userId: session.localId)
-                try? SyncBaseShadowStore.mergeRevisionMap(envelopes: envelopes, userId: session.localId)
-                UserDefaults.standard.set(nowMs, forKey: lastSyncKey)
-                UserDefaults.standard.set(session.localId, forKey: localSyncOwnerKey)
+                stateResult.user.cursor = newCursor
+                stateResult.user.baseShadow = stampedLocal
+                stateResult.user.revisions = SyncStateStore.mergedRevisions(
+                    current: stateResult.user.revisions,
+                    envelopes: envelopes
+                )
+                stateResult.user.lastSyncAt = nowMs
+                stateResult.root.ownerUserId = session.localId
+                stateResult.root.users[session.localId] = stateResult.user
+                try SyncStateStore.save(stateResult.root)
                 status = SyncStatus(isAuthenticated: true, email: session.email, isSyncing: false, lastSyncAt: nowMs)
                 logger.log(category: .sync, message: "importLocalDataToCloud succeeded", details: "attempt=\(attempt + 1) lastSyncAt=\(nowMs) envelopes=\(envelopes.count)")
                 return
@@ -336,21 +374,16 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     func clearLocalSyncState() async {
         if let userId = authRepository.session?.localId {
             SyncConflictStore.delete(userId: userId)
-            SyncBaseShadowStore.delete(userId: userId)
         }
         pendingConflictUserId = nil
-        UserDefaults.standard.removeObject(forKey: lastSyncKey)
-        UserDefaults.standard.removeObject(forKey: localSyncOwnerKey)
-        // Scrub every per-user delta cursor / migration marker so a later
-        // sign-in starts from a clean slate (mirrors the pre-delta
-        // behaviour where there was no per-user state to leak).
-        for key in UserDefaults.standard.dictionaryRepresentation().keys {
-            if key.hasPrefix(deltaCursorKeyPrefix) || key.hasPrefix(deltaMigrationDoneKeyPrefix) {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
+        do {
+            try SyncStateStore.clear()
+            status.errorMessage = nil
+        } catch {
+            status.errorMessage = error.localizedDescription
+            logger.log(category: .sync, level: .error, message: "Failed to clear local sync state", error: error)
         }
         status.lastSyncAt = nil
-        status.errorMessage = nil
         status.pendingConflictCount = 0
     }
 
@@ -374,7 +407,10 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             !resolutions.contains { $0.kind == conflict.kind && $0.syncId == conflict.syncId }
         }
         try SyncConflictStore.save(remaining, userId: session.localId)
-        try? SyncBaseShadowStore.save(resolved, userId: session.localId)
+        var stateResult = try loadSyncState(userId: session.localId)
+        stateResult.user.baseShadow = resolved
+        stateResult.root.users[session.localId] = stateResult.user
+        try SyncStateStore.save(stateResult.root)
 
         status.pendingConflictCount = remaining.count
         status.errorMessage = remaining.isEmpty ? nil : Self.pendingConflictsMessage
@@ -405,44 +441,13 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
     // MARK: - Delta helpers
 
-    private func deltaCursorKey(for userId: String) -> String {
-        deltaCursorKeyPrefix + userId
-    }
-
-    private func deltaMigrationDoneKey(for userId: String) -> String {
-        deltaMigrationDoneKeyPrefix + userId
-    }
-
-    private func loadCompositeDeltaCursor(userId: String) -> SyncDeltaCursor {
-        let key = deltaCursorKey(for: userId)
-        if let data = UserDefaults.standard.data(forKey: key),
-           let cursor = try? JSONDecoder().decode(SyncDeltaCursor.self, from: data) {
-            return cursor
-        }
-        let raw = UserDefaults.standard.object(forKey: key)
-        if let number = raw as? NSNumber {
-            return SyncDeltaCursor.fromLegacy(number.int64Value)
-        }
-        if let int64 = raw as? Int64 {
-            return SyncDeltaCursor.fromLegacy(int64)
-        }
-        return .zero
-    }
-
-    private func saveCompositeDeltaCursor(userId: String, cursor: SyncDeltaCursor) {
-        let key = deltaCursorKey(for: userId)
-        if let data = try? JSONEncoder().encode(cursor) {
-            UserDefaults.standard.set(data, forKey: key)
-        }
-    }
-
-    private func mergeStoredConflicts(userId: String, newlyDetected: [SyncConflict]) -> [SyncConflict] {
+    private func mergeStoredConflicts(userId: String, newlyDetected: [SyncConflict]) throws -> [SyncConflict] {
         var merged = Dictionary(uniqueKeysWithValues: SyncConflictStore.load(userId: userId).map { ($0.documentId, $0) })
         for conflict in newlyDetected {
             merged[conflict.documentId] = conflict
         }
         let conflicts = Array(merged.values)
-        try? SyncConflictStore.save(conflicts, userId: userId)
+        try SyncConflictStore.save(conflicts, userId: userId)
         return conflicts
     }
 
@@ -451,14 +456,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     /// the legacy manifest + chunks. After this migration runs exactly
     /// once, all subsequent syncs use the delta collection only.
     private func migrateLegacyChunkedSnapshotIfNeeded(session: AuthSession) async throws {
-        let doneKey = deltaMigrationDoneKey(for: session.localId)
-        if UserDefaults.standard.bool(forKey: doneKey) {
+        var stateResult = try loadSyncState(userId: session.localId)
+        if stateResult.user.legacyMigrationDone {
             return
         }
         guard let legacyPayload = try await loadSnapshot(userId: session.localId) else {
-            // Nothing to migrate; record that we looked so we don't
-            // repeat this round-trip every sync.
-            UserDefaults.standard.set(true, forKey: doneKey)
+            stateResult.user.legacyMigrationDone = true
+            stateResult.root.users[session.localId] = stateResult.user
+            try SyncStateStore.save(stateResult.root)
             return
         }
         logger.log(
@@ -473,26 +478,76 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             try await deltaStore.writeEnvelopes(envelopes, userId: session.localId)
         }
         try await deltaStore.clearLegacyChunkedSnapshot(userId: session.localId)
-        // Keep cursor at zero so the very next sync still fetches the
-        // envelopes we just wrote and merges them locally as well.
-        saveCompositeDeltaCursor(userId: session.localId, cursor: .zero)
-        UserDefaults.standard.set(true, forKey: doneKey)
+        stateResult.user.cursor = .zero
+        stateResult.user.legacyMigrationDone = true
+        stateResult.root.users[session.localId] = stateResult.user
+        try SyncStateStore.save(stateResult.root)
         logger.log(
             category: .sync,
             message: "Legacy chunked snapshot migrated",
             details: "envelopes=\(envelopes.count)"
         )
+        recordClientFlags(
+            ["migratedLegacyChunkedSnapshot": true],
+            userId: session.localId
+        )
     }
 
-    /// Persists the merged snapshot into Core Data. We intentionally reuse
-    /// the existing `importJSON` path so all of the import-time coherence
-    /// logic (ID remapping, plan actual-minute recompute, problem progress
-    /// preservation) runs exactly as in a manual import.
+    /// Keeps the existing replace path as the production default while
+    /// comparing it with the new upsert path. Enable upserts explicitly after
+    /// rollout telemetry confirms equivalent summaries.
     private func applyMergedSnapshotLocally(_ merged: AppData) async throws {
+        if ProcessInfo.processInfo.environment["STUDYAPP_SYNC_ENABLE_UPSERT"] == "1" {
+            logger.log(
+                category: .sync,
+                message: "Using syncId upsert apply",
+                details: "reason=STUDYAPP_SYNC_ENABLE_UPSERT"
+            )
+            try await persistence.applySyncedData(merged)
+            return
+        }
+
+        await compareSyncApplyPaths(merged)
         let payload = try await SyncPayloadCodec.encode(merged)
-        let json = String(data: payload, encoding: .utf8) ?? "{}"
+        guard let json = String(data: payload, encoding: .utf8) else {
+            throw CocoaError(.coderInvalidValue)
+        }
         let useCase = ExportImportDataUseCase(repository: persistence)
         _ = try await useCase.importJSON(json, currentPreferences: preferencesRepository.loadPreferences())
+    }
+
+    private func compareSyncApplyPaths(_ merged: AppData) async {
+        do {
+            let current = try await persistence.exportData()
+            let results = try await Task.detached(priority: .utility) {
+                let legacy = try AppDataArchiver.previewSyncApply(
+                    current: current,
+                    incoming: merged,
+                    useUpsert: false
+                )
+                let upsert = try AppDataArchiver.previewSyncApply(
+                    current: current,
+                    incoming: merged,
+                    useUpsert: true
+                )
+                return (SyncDataSummary(appData: legacy), SyncDataSummary(appData: upsert))
+            }.value
+
+            let matches = results.0 == results.1
+            logger.log(
+                category: .sync,
+                level: matches ? .info : .error,
+                message: matches ? "Sync apply shadow comparison matched" : "Sync apply shadow comparison differed",
+                details: "legacy={\(results.0.logDescription)} upsert={\(results.1.logDescription)}"
+            )
+        } catch {
+            logger.log(
+                category: .sync,
+                level: .warning,
+                message: "Sync apply shadow comparison failed",
+                error: error
+            )
+        }
     }
 
     private func beginSyncOperation(named operation: String, session: AuthSession) throws {
@@ -564,9 +619,44 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             description.localizedCaseInsensitiveContains("unauthenticated")
     }
 
-    private func ensureLocalSyncOwnership(session: AuthSession, local: AppData) throws {
-        let localSyncOwnerUserId = UserDefaults.standard.string(forKey: localSyncOwnerKey)
-        if localSyncOwnerUserId == nil || localSyncOwnerUserId == session.localId || local.isEmpty {
+    private func loadSyncState(userId: String) throws -> SyncStateLoadResult {
+        let result = try SyncStateStore.load(userId: userId)
+        if result.migratedLegacyState {
+            logger.log(category: .sync, message: "Migrated legacy local sync state")
+        }
+        if result.repairedInconsistentState {
+            logger.log(
+                category: .sync,
+                level: .warning,
+                message: "Reset inconsistent sync state",
+                details: "action=full-resync"
+            )
+        }
+        return result
+    }
+
+    private func recordClientFlags(_ flags: [String: Any], userId: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.deltaStore.recordClientFlags(flags, userId: userId)
+            } catch {
+                self.logger.log(
+                    category: .sync,
+                    level: .warning,
+                    message: "Failed to record sync client flags",
+                    error: error
+                )
+            }
+        }
+    }
+
+    private func ensureLocalSyncOwnership(
+        session: AuthSession,
+        local: AppData,
+        ownerUserId: String?
+    ) throws {
+        if ownerUserId == nil || ownerUserId == session.localId || local.isEmpty {
             return
         }
         logger.log(category: .sync, level: .warning, message: "Sync blocked due to account mismatch")
@@ -602,60 +692,6 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             details: "operation=\(operation) before=\(sourceSummary.logDescription) after=\(destinationSummary.logDescription)"
         )
         throw ValidationError(message: Self.destructiveSyncMessage)
-    }
-
-    private func saveLocalBackup(_ appData: AppData, reason: String) async throws {
-        let backupRoot = try localBackupDirectory()
-        let timestamp = Date().epochMilliseconds
-        let formatter = StudyFormatters.fileSafeTimestamp
-        let fileName = "sync-\(reason)-\(formatter.string(from: Date(epochMilliseconds: timestamp))).json"
-        let url = backupRoot.appendingPathComponent(fileName)
-        // Encode off the main actor so the UI stays responsive with large data sets.
-        let data = try await SyncPayloadCodec.encode(appData, prettyPrinted: true)
-        try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-        try protectLocalBackupItem(at: url)
-        try pruneLocalBackups(in: backupRoot, now: timestamp)
-        logger.log(
-            category: .sync,
-            message: "Local sync backup saved",
-            details: "file=\(fileName) bytes=\(data.count) \(SyncDataSummary(appData: appData).logDescription)"
-        )
-    }
-
-    private func localBackupDirectory() throws -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let directory = base.appendingPathComponent("StudyApp/SyncBackups", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try protectLocalBackupItem(at: directory)
-        return directory
-    }
-
-    private func protectLocalBackupItem(at url: URL) throws {
-        var mutableURL = url
-        var resourceValues = URLResourceValues()
-        resourceValues.isExcludedFromBackup = true
-        try mutableURL.setResourceValues(resourceValues)
-        try FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: url.path
-        )
-    }
-
-    private func pruneLocalBackups(in directory: URL, now: Int64) throws {
-        let cutoff = now - Int64(Self.backupRetentionDays) * 24 * 60 * 60 * 1000
-        let files = try FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        )
-        for file in files where file.pathExtension == "json" {
-            let values = try file.resourceValues(forKeys: [.contentModificationDateKey])
-            guard let modified = values.contentModificationDate else { continue }
-            if modified.epochMilliseconds < cutoff {
-                try? FileManager.default.removeItem(at: file)
-            }
-        }
     }
 
     // MARK: - Chunked snapshot I/O (backward-compatible with legacy payload format)
@@ -709,15 +745,6 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         return parts.joined()
     }
 
-    // MARK: - Merge helpers (delegated to SyncMergeEngine for testability)
-
-    private func merge(local: AppData, remote: AppData) -> AppData {
-        SyncMergeEngine.merge(local: local, remote: remote)
-    }
-
-    private func markSynced(_ appData: AppData, at timestamp: Int64) -> AppData {
-        SyncMergeEngine.markSynced(appData, at: timestamp)
-    }
 }
 
 private func readFirestoreInteger(_ value: Any?) -> Int64? {
@@ -735,11 +762,7 @@ private func readFirestoreInteger(_ value: Any?) -> Int64? {
     }
 }
 
-private func makeSyncChunkId(for index: Int) -> String {
-    String(format: "%06d", index)
-}
-
-private extension AppData {
+extension AppData {
     var isEmpty: Bool {
         subjects.isEmpty &&
         materials.isEmpty &&
@@ -755,7 +778,7 @@ private extension AppData {
     }
 }
 
-private struct SyncDataSummary {
+private struct SyncDataSummary: Equatable {
     let subjects: Int
     let materials: Int
     let sessions: Int
@@ -798,42 +821,11 @@ private struct SyncDataSummary {
         )
     }
 
-    init(payload: String) {
-        if let data = payload.data(using: .utf8),
-           let appData = try? JSONDecoder().decode(AppData.self, from: data) {
-            self.init(appData: appData)
-        } else {
-            self.init(
-                subjects: 0,
-                materials: 0,
-                sessions: 0,
-                sessionProblemRecords: 0,
-                materialProblemRecords: 0,
-                materialsWithProblemTotals: 0,
-                problemReviewRecords: 0,
-                activeProblemReviewRecords: 0
-            )
-        }
-    }
-
     var hasProblemProgress: Bool {
         sessionProblemRecords > 0 ||
         materialProblemRecords > 0 ||
         activeProblemReviewRecords > 0 ||
         materialsWithProblemTotals > 0
-    }
-
-    var firestoreData: [String: Any] {
-        [
-            "subjects": subjects,
-            "materials": materials,
-            "sessions": sessions,
-            "sessionProblemRecords": sessionProblemRecords,
-            "materialProblemRecords": materialProblemRecords,
-            "materialsWithProblemTotals": materialsWithProblemTotals,
-            "problemReviewRecords": problemReviewRecords,
-            "activeProblemReviewRecords": activeProblemReviewRecords
-        ]
     }
 
     var logDescription: String {

@@ -92,8 +92,10 @@ protocol AppDataRepository {
     func exportJSON() async throws -> String
     func exportCSV() async throws -> String
     func importJSON(_ json: String, currentPreferences: AppPreferences) async throws -> AppPreferences
+    func createDataBackup(reason: String) async throws -> DataBackupDescriptor
+    func listDataBackups() async throws -> [DataBackupDescriptor]
     func deleteAllData() async throws
-    func migrateLegacySnapshotIfNeeded(preferencesRepository: AppPreferencesRepository) async throws
+    func prepareDataStore(preferencesRepository: AppPreferencesRepository) async throws
 }
 
 @MainActor

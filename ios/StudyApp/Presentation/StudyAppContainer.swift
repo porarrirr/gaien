@@ -112,7 +112,7 @@ final class StudyAppContainer: ObservableObject {
 
     func load() async {
         do {
-            try await persistence.migrateLegacySnapshotIfNeeded(preferencesRepository: preferencesRepository)
+            try await persistence.prepareDataStore(preferencesRepository: preferencesRepository)
             preferences = preferencesRepository.loadPreferences()
             syncStatus = syncRepository.status
             isLoaded = true

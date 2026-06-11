@@ -24,7 +24,8 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     private let loadTask: Task<Void, Error>
     private let legacyURL: URL
     private(set) var changeToken: Int64 = 0
-    private var didNormalizeLegacyDailyGoals = false
+    private(set) var didBackfillSyncMetadataDuringPreparation = false
+    private var isDataStorePrepared = false
 
     /// Main-queue context used for short repository CRUD that drives the UI.
     private var viewContext: NSManagedObjectContext { container.viewContext }
@@ -85,12 +86,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func getSubjectById(_ id: Int64) async throws -> Subject? {
         try await ensureLoaded()
-        return try CoreDataQuery.fetchOne("SubjectRecord", id: id, in: viewContext).map(PersistenceMappers.subject)
+        return try CoreDataQuery.fetchOne("SubjectRecord", id: id, in: viewContext)
+            .map(PersistenceMappers.subject)
+            .flatMap { $0.deletedAt == nil ? $0 : nil }
     }
 
     func insertSubject(_ subject: Subject) async throws -> Int64 {
         try await ensureLoaded()
-        let id = try nextIdentifier(ifNeeded: subject.id)
+        let id = try nextIdentifier(ifNeeded: subject.id, entity: "SubjectRecord")
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "SubjectRecord", into: viewContext)
         PersistenceMappers.apply(subject, assignedId: id, now: now, to: record)
@@ -208,7 +211,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func insertMaterial(_ material: Material) async throws -> Int64 {
         try await ensureLoaded()
-        let id = try nextIdentifier(ifNeeded: material.id)
+        let id = try nextIdentifier(ifNeeded: material.id, entity: "MaterialRecord")
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "MaterialRecord", into: viewContext)
         PersistenceMappers.apply(
@@ -331,7 +334,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func insertSession(_ session: StudySession) async throws -> Int64 {
         try await ensureLoaded()
-        let id = try nextIdentifier(ifNeeded: session.id)
+        let id = try nextIdentifier(ifNeeded: session.id, entity: "StudySessionRecord")
         let record = NSEntityDescription.insertNewObject(forEntityName: "StudySessionRecord", into: viewContext)
         let sanitized = sanitize(session: session, assignedId: id)
         applySession(sanitized, to: record)
@@ -343,7 +346,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     func insertSessionWithProblemReviews(_ session: StudySession) async throws -> Int64 {
         try await ensureLoaded()
         let now = Date().epochMilliseconds
-        var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: CoreDataSchema.entityNames) + 1
+        var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: ["ProblemReviewRecord"]) + 1
 
         func allocateId(_ requested: Int64) -> Int64 {
             if requested > 0 {
@@ -378,7 +381,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try await ensureLoaded()
         guard let record = try CoreDataQuery.fetchOne("StudySessionRecord", id: session.id, in: viewContext) else { return }
         let oldMaterialId = record.value(forKey: "materialId") as? Int64
-        var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: CoreDataSchema.entityNames) + 1
+        var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: ["ProblemReviewRecord"]) + 1
         let now = Date().epochMilliseconds
         let sanitized = sanitize(
             session: session,
@@ -407,7 +410,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         if let record = try CoreDataQuery.fetchOne("StudySessionRecord", id: session.id, in: viewContext) {
             let now = Date().epochMilliseconds
             let materialId = record.value(forKey: "materialId") as? Int64
-            var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: CoreDataSchema.entityNames) + 1
+            var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: ["ProblemReviewRecord"]) + 1
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
             if let materialId {
@@ -442,7 +445,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func insertGoal(_ goal: Goal) async throws -> Int64 {
         try await ensureLoaded()
-        let id = try nextIdentifier(ifNeeded: goal.id)
+        let id = try nextIdentifier(ifNeeded: goal.id, entity: "GoalRecord")
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: viewContext)
         PersistenceMappers.apply(goal, assignedId: id, now: now, to: record)
@@ -498,7 +501,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func insertExam(_ exam: Exam) async throws -> Int64 {
         try await ensureLoaded()
-        let id = try nextIdentifier(ifNeeded: exam.id)
+        let id = try nextIdentifier(ifNeeded: exam.id, entity: "ExamRecord")
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "ExamRecord", into: viewContext)
         PersistenceMappers.apply(exam, assignedId: id, now: now, to: record)
@@ -560,18 +563,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             record.setValue(false, forKey: "isActive")
         }
 
-        let planId = try nextIdentifier(ifNeeded: plan.id)
-        var nextLocalId = planId + 1
+        let planId = try nextIdentifier(ifNeeded: plan.id, entity: "StudyPlanRecord")
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "StudyPlanRecord", into: viewContext)
         PersistenceMappers.apply(plan, assignedId: planId, now: now, to: record)
 
         for item in items {
             let itemRecord = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: viewContext)
-            let itemId = item.id > 0 ? item.id : nextLocalId
-            if item.id == 0 {
-                nextLocalId += 1
-            }
+            let itemId = try nextIdentifier(ifNeeded: item.id, entity: "PlanItemRecord")
             PersistenceMappers.apply(
                 item,
                 assignedId: itemId,
@@ -590,7 +589,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     func insertPlanItem(_ item: PlanItem) async throws -> Int64 {
         try await ensureLoaded()
-        let itemId = try nextIdentifier(ifNeeded: item.id)
+        let itemId = try nextIdentifier(ifNeeded: item.id, entity: "PlanItemRecord")
         let now = Date().epochMilliseconds
         let record = NSEntityDescription.insertNewObject(forEntityName: "PlanItemRecord", into: viewContext)
         PersistenceMappers.apply(
@@ -684,7 +683,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             return period.id
         }
 
-        let id = try nextIdentifier(ifNeeded: period.id)
+        let id = try nextIdentifier(ifNeeded: period.id, entity: "TimetablePeriodRecord")
         let record = NSEntityDescription.insertNewObject(forEntityName: "TimetablePeriodRecord", into: viewContext)
         PersistenceMappers.apply(period, assignedId: id, now: now, to: record)
         try saveViewContext()
@@ -743,7 +742,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
         var inserted = term
         inserted.name = name
-        let id = try nextIdentifier(ifNeeded: term.id)
+        let id = try nextIdentifier(ifNeeded: term.id, entity: "TimetableTermRecord")
         let record = NSEntityDescription.insertNewObject(forEntityName: "TimetableTermRecord", into: viewContext)
         PersistenceMappers.apply(inserted, assignedId: id, now: now, to: record)
         try saveViewContext()
@@ -849,7 +848,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         inserted.roomName = entry.roomName?.nilIfBlank
         inserted.periodSyncId = period.syncId
         inserted.termSyncId = resolvedTermSyncId
-        let id = try nextIdentifier(ifNeeded: entry.id)
+        let id = try nextIdentifier(ifNeeded: entry.id, entity: "TimetableEntryRecord")
         let record = NSEntityDescription.insertNewObject(forEntityName: "TimetableEntryRecord", into: viewContext)
         PersistenceMappers.apply(inserted, assignedId: id, termId: entry.termId, termSyncId: inserted.termSyncId, periodId: period.id, periodSyncId: period.syncId, now: now, to: record)
         try saveViewContext()
@@ -903,7 +902,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             return assignedId
         }
 
-        let id = try nextIdentifier(ifNeeded: record.id)
+        let id = try nextIdentifier(ifNeeded: record.id, entity: "TimetableReviewRecord")
         let object = NSEntityDescription.insertNewObject(forEntityName: "TimetableReviewRecord", into: viewContext)
         PersistenceMappers.apply(record, assignedId: id, now: now, to: object)
         try saveViewContext()
@@ -987,14 +986,11 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     // MARK: - AppDataRepository
 
-    /// Builds the full export on a background context. The backfill step may
-    /// mutate records to populate missing sync metadata; the export itself is
-    /// read-only.
+    /// Builds the full export on a background context. Sync metadata is
+    /// populated once by the migration ledger rather than rescanned here.
     func exportData() async throws -> AppData {
         try await ensureLoaded()
-        try await backgroundWrite { ctx in
-            _ = try SyncMetadataBackfiller.backfill(in: ctx)
-        }
+        try requirePreparedDataStore()
         return try await backgroundRead { ctx in
             try AppDataArchiver.buildExport(in: ctx)
         }
@@ -1003,9 +999,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     /// Encodes the export as pretty-printed JSON entirely off the main thread.
     func exportJSON() async throws -> String {
         try await ensureLoaded()
-        try await backgroundWrite { ctx in
-            _ = try SyncMetadataBackfiller.backfill(in: ctx)
-        }
+        try requirePreparedDataStore()
         return try await backgroundContext.perform { [backgroundContext] in
             let appData = try AppDataArchiver.buildExport(in: backgroundContext)
             let encoder = JSONEncoder()
@@ -1028,10 +1022,11 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     /// saved data is immediately coherent.
     func importJSON(_ json: String, currentPreferences: AppPreferences) async throws -> AppPreferences {
         try await ensureLoaded()
+        try requirePreparedDataStore()
         let jsonData = Data(json.utf8)
         try await backgroundContext.perform { [backgroundContext] in
             do {
-                let appData = try JSONDecoder().decode(AppData.self, from: jsonData)
+                let appData = try AppDataUpgrader.decode(jsonData)
                 try AppDataArchiver.replaceData(with: appData, in: backgroundContext)
                 try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
                 try backgroundContext.save()
@@ -1042,6 +1037,38 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
         changeToken += 1
         return currentPreferences
+    }
+
+    func applySyncedData(_ appData: AppData) async throws {
+        try await ensureLoaded()
+        try requirePreparedDataStore()
+        try await backgroundContext.perform { [backgroundContext] in
+            do {
+                try AppDataArchiver.applySyncedData(appData, in: backgroundContext)
+                try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
+                if backgroundContext.hasChanges {
+                    try backgroundContext.save()
+                }
+            } catch {
+                backgroundContext.rollback()
+                throw error
+            }
+        }
+        changeToken += 1
+    }
+
+    func createDataBackup(reason: String) async throws -> DataBackupDescriptor {
+        try await ensureLoaded()
+        let appData = try await backgroundRead { ctx in
+            try AppDataArchiver.buildExport(in: ctx)
+        }
+        let data = try await SyncPayloadCodec.encode(appData, prettyPrinted: true)
+        return try DataBackupStore.save(data: data, reason: reason, fileManager: fileManager)
+    }
+
+    func listDataBackups() async throws -> [DataBackupDescriptor] {
+        try await ensureLoaded()
+        return try DataBackupStore.list(fileManager: fileManager)
     }
 
     /// Wipes every entity using batch deletes on the background context.
@@ -1067,46 +1094,68 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         changeToken += 1
     }
 
-    /// One-time migration from the legacy ``studyapp-store.json`` flat file.
-    /// Decoding and the wholesale replace both happen on the background
-    /// context.
-    func migrateLegacySnapshotIfNeeded(preferencesRepository: AppPreferencesRepository) async throws {
+    /// Runs one-time, forward-only data migrations recorded in persistent
+    /// store metadata. A full local backup is created before any store
+    /// mutation.
+    func prepareDataStore(preferencesRepository: AppPreferencesRepository) async throws {
         try await ensureLoaded()
-        let alreadyPopulated = try await backgroundRead { ctx in
-            !(try CoreDataQuery.isEmpty(in: ctx, entities: CoreDataSchema.entityNames))
-        }
-        guard !alreadyPopulated, fileManager.fileExists(atPath: legacyURL.path) else {
-            return
+        guard let store = container.persistentStoreCoordinator.persistentStores.first else {
+            throw CocoaError(.persistentStoreOpen)
         }
 
-        let data = try Data(contentsOf: legacyURL)
-        let capturedPreferences: AppPreferences = try await backgroundContext.perform { [backgroundContext] in
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .millisecondsSince1970
-            let snapshot = try decoder.decode(LegacySnapshot.self, from: data)
-            let appData = AppDataArchiver.convert(legacy: snapshot)
-            do {
-                try AppDataArchiver.replaceData(with: appData, in: backgroundContext)
-                try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
-                try backgroundContext.save()
-            } catch {
-                backgroundContext.rollback()
-                throw error
-            }
-            return snapshot.preferences
-        }
-        preferencesRepository.savePreferences(capturedPreferences)
-        changeToken += 1
+        var ledger = DataMigrationLedger.load(
+            coordinator: container.persistentStoreCoordinator,
+            store: store
+        )
 
-        let migratedURL = legacyURL.deletingPathExtension().appendingPathExtension("json.migrated")
-        do {
-            if fileManager.fileExists(atPath: migratedURL.path) {
-                try fileManager.removeItem(at: migratedURL)
-            }
-            try fileManager.moveItem(at: legacyURL, to: migratedURL)
-        } catch {
-            print("[StudyApp] Failed to move legacy file after migration: \(error.localizedDescription)")
+        if !ledger.completedMigrations.contains("legacy-json-import") {
+            try await migrateLegacySnapshotIfPresent(preferencesRepository: preferencesRepository)
+            ledger.completedMigrations.insert("legacy-json-import")
+            try ledger.save(coordinator: container.persistentStoreCoordinator, store: store)
         }
+
+        let migrations = [
+            DataMigration(id: "2024-09-daily-goal-expansion") { context in
+                _ = try LegacyDailyGoalNormalizer.normalize(in: context)
+            },
+            DataMigration(id: "2026-06-sync-metadata-backfill") { context in
+                _ = try SyncMetadataBackfiller.backfill(in: context)
+            }
+        ]
+        let pending = migrations.filter { !ledger.completedMigrations.contains($0.id) }
+        let hasData = try await backgroundRead { context in
+            !(try CoreDataQuery.isEmpty(in: context, entities: CoreDataSchema.entityNames))
+        }
+
+        if hasData, !pending.isEmpty {
+            _ = try await createDataBackup(reason: "before-migrations")
+        } else if hasData, try DataBackupStore.shouldCreateAutomaticBackup(fileManager: fileManager) {
+            _ = try await createDataBackup(reason: "automatic")
+        }
+
+        for migration in pending {
+            try await backgroundContext.perform { [backgroundContext] in
+                do {
+                    try migration.run(backgroundContext)
+                    if backgroundContext.hasChanges {
+                        try backgroundContext.save()
+                    }
+                } catch {
+                    backgroundContext.rollback()
+                    throw error
+                }
+            }
+            ledger.completedMigrations.insert(migration.id)
+            if migration.id == "2026-06-sync-metadata-backfill" {
+                didBackfillSyncMetadataDuringPreparation = true
+            }
+            try ledger.save(coordinator: container.persistentStoreCoordinator, store: store)
+            changeToken += 1
+        }
+
+        ledger.dataSchemaVersion = DataMigrationLedger.currentSchemaVersion
+        try ledger.save(coordinator: container.persistentStoreCoordinator, store: store)
+        isDataStorePrepared = true
     }
 
     // MARK: - Private helpers
@@ -1175,20 +1224,63 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
 
     private func ensureLoaded() async throws {
         try await loadTask.value
-        if !didNormalizeLegacyDailyGoals {
-            let mutated = try LegacyDailyGoalNormalizer.normalize(in: viewContext)
-            if mutated {
-                try saveViewContext()
-            }
-            didNormalizeLegacyDailyGoals = true
+    }
+
+    private func requirePreparedDataStore() throws {
+        guard isDataStorePrepared else {
+            throw ValidationError(message: "データ移行が完了していないため、この操作は実行できません")
         }
     }
 
-    private func nextIdentifier(ifNeeded requested: Int64) throws -> Int64 {
-        if requested > 0 {
-            return requested
+    private func migrateLegacySnapshotIfPresent(
+        preferencesRepository: AppPreferencesRepository
+    ) async throws {
+        let alreadyPopulated = try await backgroundRead { context in
+            !(try CoreDataQuery.isEmpty(in: context, entities: CoreDataSchema.entityNames))
         }
-        return try CoreDataQuery.maxIdentifier(in: viewContext, entities: CoreDataSchema.entityNames) + 1
+        guard !alreadyPopulated, fileManager.fileExists(atPath: legacyURL.path) else {
+            return
+        }
+
+        let data = try Data(contentsOf: legacyURL)
+        let capturedPreferences: AppPreferences = try await backgroundContext.perform { [backgroundContext] in
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .millisecondsSince1970
+            let snapshot = try decoder.decode(LegacySnapshot.self, from: data)
+            let appData = AppDataArchiver.convert(legacy: snapshot)
+            do {
+                try AppDataArchiver.replaceData(with: appData, in: backgroundContext)
+                try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
+                try backgroundContext.save()
+            } catch {
+                backgroundContext.rollback()
+                throw error
+            }
+            return snapshot.preferences
+        }
+        preferencesRepository.savePreferences(capturedPreferences)
+        changeToken += 1
+
+        let migratedURL = legacyURL.deletingPathExtension().appendingPathExtension("json.migrated")
+        if fileManager.fileExists(atPath: migratedURL.path) {
+            try fileManager.removeItem(at: migratedURL)
+        }
+        try fileManager.moveItem(at: legacyURL, to: migratedURL)
+    }
+
+    private func nextIdentifier(ifNeeded requested: Int64, entity: String) throws -> Int64 {
+        guard let store = container.persistentStoreCoordinator.persistentStores.first else {
+            throw CocoaError(.persistentStoreOpen)
+        }
+        var metadata = container.persistentStoreCoordinator.metadata(for: store)
+        let key = DataMigrationLedger.identifierSequencePrefix + entity
+        let storedNext = (metadata[key] as? NSNumber)?.int64Value
+        let initialNext = try CoreDataQuery.maxIdentifier(in: viewContext, entities: [entity]) + 1
+        let next = max(storedNext ?? initialNext, initialNext, 1)
+        let assigned = requested > 0 ? requested : next
+        metadata[key] = max(next, assigned + 1)
+        container.persistentStoreCoordinator.setMetadata(metadata, for: store)
+        return assigned
     }
 
     private func saveViewContext() throws {

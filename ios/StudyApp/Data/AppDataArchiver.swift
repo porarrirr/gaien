@@ -411,6 +411,293 @@ enum AppDataArchiver {
         }
     }
 
+    // MARK: - Incremental sync apply
+
+    /// Applies a complete merged sync snapshot without deleting local rows.
+    /// Existing records keep their local IDs; only previously unseen sync IDs
+    /// receive a new entity-local identifier.
+    static func applySyncedData(
+        _ appData: AppData,
+        in context: NSManagedObjectContext
+    ) throws {
+        let now = Date().epochMilliseconds
+        var recordsByEntity = [String: [String: NSManagedObject]]()
+        var nextIds = [String: Int64]()
+        var seenIncoming = [String: Set<String>]()
+
+        for entity in CoreDataSchema.entityNames {
+            let records = try CoreDataQuery.fetch(entity, in: context)
+            var map = [String: NSManagedObject]()
+            for record in records {
+                guard let syncId = record.value(forKey: "syncId") as? String, !syncId.isEmpty else {
+                    continue
+                }
+                guard map[syncId] == nil else {
+                    throw ValidationError(message: "\(entity)に重複したsyncIdがあります: \(syncId)")
+                }
+                map[syncId] = record
+            }
+            recordsByEntity[entity] = map
+            nextIds[entity] = (records.compactMap { $0.value(forKey: "id") as? Int64 }.max() ?? 0) + 1
+        }
+
+        func validateIncoming(_ syncId: String, entity: String) throws {
+            guard !syncId.isEmpty else {
+                throw ValidationError(message: "\(entity)のsyncIdが空です")
+            }
+            var seen = seenIncoming[entity] ?? []
+            guard seen.insert(syncId).inserted else {
+                throw ValidationError(message: "\(entity)に重複したsyncIdがあります: \(syncId)")
+            }
+            seenIncoming[entity] = seen
+        }
+
+        func upsertRecord(entity: String, syncId: String) throws -> (NSManagedObject, Int64) {
+            try validateIncoming(syncId, entity: entity)
+            if let existing = recordsByEntity[entity]?[syncId] {
+                return (existing, existing.value(forKey: "id") as? Int64 ?? 0)
+            }
+
+            let nextId = max(nextIds[entity] ?? 1, 1)
+            let record = NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
+            nextIds[entity] = nextId + 1
+            var map = recordsByEntity[entity] ?? [:]
+            map[syncId] = record
+            recordsByEntity[entity] = map
+            return (record, nextId)
+        }
+
+        func existingIdMap(_ entity: String) -> [String: Int64] {
+            (recordsByEntity[entity] ?? [:]).reduce(into: [String: Int64]()) { result, item in
+                if let id = item.value.value(forKey: "id") as? Int64, id > 0 {
+                    result[item.key] = id
+                }
+            }
+        }
+
+        let existingMaterialsBySyncId = try CoreDataQuery.fetch("MaterialRecord", in: context)
+            .map(PersistenceMappers.material)
+            .reduce(into: [String: Material]()) { $0[$1.syncId] = $1 }
+        let existingSessionsBySyncId = try CoreDataQuery.fetch("StudySessionRecord", in: context)
+            .map(PersistenceMappers.session)
+            .reduce(into: [String: StudySession]()) { $0[$1.syncId] = $1 }
+
+        var subjectSyncMap = existingIdMap("SubjectRecord")
+        var subjectOldMap = [Int64: Int64]()
+        for subject in appData.subjects {
+            let (record, localId) = try upsertRecord(entity: "SubjectRecord", syncId: subject.syncId)
+            subjectSyncMap[subject.syncId] = localId
+            if subject.id > 0 { subjectOldMap[subject.id] = localId }
+            PersistenceMappers.apply(subject, assignedId: localId, now: now, to: record)
+        }
+
+        var materialSyncMap = existingIdMap("MaterialRecord")
+        var materialOldMap = [Int64: Int64]()
+        for material in appData.materials {
+            let (record, localId) = try upsertRecord(entity: "MaterialRecord", syncId: material.syncId)
+            let imported = preserveProblemProgress(in: material, existing: existingMaterialsBySyncId[material.syncId])
+            materialSyncMap[material.syncId] = localId
+            if material.id > 0 { materialOldMap[material.id] = localId }
+            let subjectId = resolveFK(
+                syncId: imported.subjectSyncId,
+                syncMap: subjectSyncMap,
+                oldId: imported.subjectId,
+                oldMap: subjectOldMap
+            )
+            PersistenceMappers.apply(
+                imported,
+                assignedId: localId,
+                subjectId: subjectId,
+                subjectSyncId: imported.subjectSyncId,
+                now: now,
+                to: record
+            )
+        }
+
+        for session in appData.sessions {
+            let (record, localId) = try upsertRecord(entity: "StudySessionRecord", syncId: session.syncId)
+            let imported = preserveProblemProgress(in: session, existing: existingSessionsBySyncId[session.syncId])
+            let subjectId = resolveFK(
+                syncId: imported.subjectSyncId,
+                syncMap: subjectSyncMap,
+                oldId: imported.subjectId,
+                oldMap: subjectOldMap
+            )
+            let materialId = resolveOptFK(
+                syncId: imported.materialSyncId,
+                syncMap: materialSyncMap,
+                oldId: imported.materialId,
+                oldMap: materialOldMap
+            )
+            PersistenceMappers.apply(
+                imported,
+                assignedId: localId,
+                subjectId: subjectId,
+                materialId: materialId,
+                now: now,
+                to: record
+            )
+        }
+
+        for goal in appData.goals {
+            let (record, localId) = try upsertRecord(entity: "GoalRecord", syncId: goal.syncId)
+            PersistenceMappers.apply(goal, assignedId: localId, now: now, to: record)
+        }
+
+        for exam in appData.exams {
+            let (record, localId) = try upsertRecord(entity: "ExamRecord", syncId: exam.syncId)
+            PersistenceMappers.apply(exam, assignedId: localId, now: now, to: record)
+        }
+
+        var planSyncMap = existingIdMap("StudyPlanRecord")
+        var planOldMap = [Int64: Int64]()
+        for planData in appData.plans {
+            let plan = planData.plan
+            let (record, localId) = try upsertRecord(entity: "StudyPlanRecord", syncId: plan.syncId)
+            planSyncMap[plan.syncId] = localId
+            if plan.id > 0 { planOldMap[plan.id] = localId }
+            PersistenceMappers.apply(plan, assignedId: localId, now: now, to: record)
+        }
+        for planData in appData.plans {
+            let localPlanId = planSyncMap[planData.plan.syncId]
+                ?? planOldMap[planData.plan.id]
+                ?? planData.plan.id
+            for item in planData.items {
+                let (record, localId) = try upsertRecord(entity: "PlanItemRecord", syncId: item.syncId)
+                let subjectId = resolveFK(
+                    syncId: item.subjectSyncId,
+                    syncMap: subjectSyncMap,
+                    oldId: item.subjectId,
+                    oldMap: subjectOldMap
+                )
+                PersistenceMappers.apply(
+                    item,
+                    assignedId: localId,
+                    planId: localPlanId,
+                    planSyncId: item.planSyncId ?? planData.plan.syncId,
+                    subjectId: subjectId,
+                    now: now,
+                    to: record
+                )
+            }
+        }
+
+        var timetablePeriodSyncMap = existingIdMap("TimetablePeriodRecord")
+        var timetablePeriodOldMap = [Int64: Int64]()
+        for period in appData.timetablePeriods {
+            let (record, localId) = try upsertRecord(entity: "TimetablePeriodRecord", syncId: period.syncId)
+            timetablePeriodSyncMap[period.syncId] = localId
+            if period.id > 0 { timetablePeriodOldMap[period.id] = localId }
+            PersistenceMappers.apply(period, assignedId: localId, now: now, to: record)
+        }
+
+        var timetableTermSyncMap = existingIdMap("TimetableTermRecord")
+        var timetableTermOldMap = [Int64: Int64]()
+        for term in appData.timetableTerms {
+            let (record, localId) = try upsertRecord(entity: "TimetableTermRecord", syncId: term.syncId)
+            timetableTermSyncMap[term.syncId] = localId
+            if term.id > 0 { timetableTermOldMap[term.id] = localId }
+            PersistenceMappers.apply(term, assignedId: localId, now: now, to: record)
+        }
+
+        var timetableEntrySyncMap = existingIdMap("TimetableEntryRecord")
+        var timetableEntryOldMap = [Int64: Int64]()
+        for entry in appData.timetableEntries {
+            let (record, localId) = try upsertRecord(entity: "TimetableEntryRecord", syncId: entry.syncId)
+            timetableEntrySyncMap[entry.syncId] = localId
+            if entry.id > 0 { timetableEntryOldMap[entry.id] = localId }
+            let periodId = resolveFK(
+                syncId: entry.periodSyncId,
+                syncMap: timetablePeriodSyncMap,
+                oldId: entry.periodId,
+                oldMap: timetablePeriodOldMap
+            )
+            let termId = resolveOptFK(
+                syncId: entry.termSyncId,
+                syncMap: timetableTermSyncMap,
+                oldId: entry.termId,
+                oldMap: timetableTermOldMap
+            )
+            PersistenceMappers.apply(
+                entry,
+                assignedId: localId,
+                termId: termId,
+                termSyncId: entry.termSyncId,
+                periodId: periodId,
+                periodSyncId: entry.periodSyncId,
+                now: now,
+                to: record
+            )
+        }
+
+        for review in appData.timetableReviewRecords {
+            let (record, localId) = try upsertRecord(entity: "TimetableReviewRecord", syncId: review.syncId)
+            var remapped = review
+            remapped.termId = resolveFK(
+                syncId: review.termSyncId,
+                syncMap: timetableTermSyncMap,
+                oldId: review.termId,
+                oldMap: timetableTermOldMap
+            )
+            remapped.entryId = resolveFK(
+                syncId: review.entrySyncId,
+                syncMap: timetableEntrySyncMap,
+                oldId: review.entryId,
+                oldMap: timetableEntryOldMap
+            )
+            remapped.periodId = resolveFK(
+                syncId: review.periodSyncId,
+                syncMap: timetablePeriodSyncMap,
+                oldId: review.periodId,
+                oldMap: timetablePeriodOldMap
+            )
+            PersistenceMappers.apply(remapped, assignedId: localId, now: now, to: record)
+        }
+
+        for review in appData.problemReviewRecords {
+            let (record, localId) = try upsertRecord(entity: "ProblemReviewRecord", syncId: review.syncId)
+            var remapped = review
+            remapped.materialId = resolveFK(
+                syncId: review.materialSyncId,
+                syncMap: materialSyncMap,
+                oldId: review.materialId,
+                oldMap: materialOldMap
+            )
+            remapped.problemId = ProblemReviewRecord.problemId(
+                materialId: remapped.materialId,
+                problemNumber: remapped.problemNumber
+            )
+            PersistenceMappers.apply(remapped, assignedId: localId, now: now, to: record)
+        }
+    }
+
+    static func previewSyncApply(
+        current: AppData,
+        incoming: AppData,
+        useUpsert: Bool
+    ) throws -> AppData {
+        let coordinator = NSPersistentStoreCoordinator(managedObjectModel: CoreDataSchema.makeModel())
+        try coordinator.addPersistentStore(
+            ofType: NSInMemoryStoreType,
+            configurationName: nil,
+            at: nil
+        )
+        let context = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+        context.persistentStoreCoordinator = coordinator
+
+        return try context.performAndWait {
+            try replaceData(with: current, in: context)
+            try context.save()
+            if useUpsert {
+                try applySyncedData(incoming, in: context)
+            } else {
+                try replaceData(with: incoming, in: context)
+            }
+            try context.save()
+            return try buildExport(in: context)
+        }
+    }
+
     // MARK: - Legacy snapshot mapping
 
     /// Converts a `LegacySnapshot` decoded from the old JSON file into the

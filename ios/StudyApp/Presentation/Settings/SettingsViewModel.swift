@@ -9,6 +9,7 @@ final class SettingsViewModel: ScreenViewModel {
     @Published private(set) var exportURL: URL?
     @Published private(set) var summary = SettingsSummary(totalSessions: 0, totalStudyMinutes: 0)
     @Published private(set) var debugLogEntries: [DebugLogEntry] = []
+    @Published private(set) var dataBackups: [DataBackupDescriptor] = []
     @Published var syncEmail = ""
     @Published var syncPassword = ""
     @Published var accountDeletionPassword = ""
@@ -19,6 +20,7 @@ final class SettingsViewModel: ScreenViewModel {
             summary = try await useCase.execute()
             app.refreshSyncStatus()
             debugLogEntries = app.logger.recentEntries()
+            dataBackups = try await app.appDataRepo.listDataBackups()
         } catch {
             app.present(error)
         }
@@ -43,12 +45,13 @@ final class SettingsViewModel: ScreenViewModel {
                     url.stopAccessingSecurityScopedResource()
                 }
             }
-            let contents = try String(contentsOf: url, encoding: .utf8)
-            let useCase = ExportImportDataUseCase(repository: self.app.appDataRepo)
-            let preferences = try await useCase.importJSON(contents, currentPreferences: self.app.preferences)
-            self.app.savePreferences { $0 = preferences }
-            self.app.logger.log(category: .app, message: "Backup import completed", details: "file=\(url.lastPathComponent)")
-            self.app.bumpDataVersion()
+            try await self.restoreBackup(at: url, source: "manual-import")
+        }
+    }
+
+    func restoreDataBackup(_ backup: DataBackupDescriptor) {
+        perform {
+            try await self.restoreBackup(at: backup.url, source: "automatic-backup")
         }
     }
 
@@ -249,6 +252,21 @@ final class SettingsViewModel: ScreenViewModel {
         exportURL = url
         app.logger.log(category: .app, level: .warning, message: "Deletion backup created", details: "file=\(url.lastPathComponent)")
         return url
+    }
+
+    private func restoreBackup(at url: URL, source: String) async throws {
+        _ = try await app.appDataRepo.createDataBackup(reason: "before-restore")
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        let useCase = ExportImportDataUseCase(repository: app.appDataRepo)
+        let preferences = try await useCase.importJSON(contents, currentPreferences: app.preferences)
+        app.savePreferences { $0 = preferences }
+        dataBackups = try await app.appDataRepo.listDataBackups()
+        app.logger.log(
+            category: .app,
+            message: "Backup restore completed",
+            details: "source=\(source) file=\(url.lastPathComponent)"
+        )
+        app.bumpDataVersion()
     }
 
     private func normalizedAuthEmail(_ value: String) -> String {

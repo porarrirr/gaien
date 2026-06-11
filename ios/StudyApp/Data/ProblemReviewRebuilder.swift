@@ -15,7 +15,7 @@ enum ProblemReviewRebuilder {
     ///   - materialId: Material whose reviews should be rebuilt.
     ///   - now: Epoch milliseconds to stamp onto soft-deletes and new rows.
     ///   - nextLocalId: Running identifier counter. Callers typically seed
-    ///     this with `CoreDataQuery.maxIdentifier(...) + 1`.
+    ///     this with the maximum `ProblemReviewRecord` identifier plus one.
     ///   - context: Managed object context to mutate. Caller is responsible
     ///     for saving.
     static func rebuild(

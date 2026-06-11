@@ -261,6 +261,24 @@ struct FirestoreDeltaSyncStore {
         try await batch.commit()
     }
 
+    func recordClientFlags(_ flags: [String: Any], userId: String) async throws {
+        let document = firestore.collection("users").document(userId)
+        let snapshot = try await document.getDocument()
+        var payload = snapshot.data()?["clientFlags"] as? [String: Any] ?? [:]
+        for (key, value) in flags {
+            payload[key] = value
+        }
+        payload["lastSeenAt"] = Date().epochMilliseconds
+        payload["appDataSchemaVersion"] = AppData.currentSchemaVersion
+        try await document.setData(
+            [
+                "clientFlags": payload,
+                "clientFlagsUpdatedAt": FieldValue.serverTimestamp()
+            ],
+            merge: true
+        )
+    }
+
     /// Permanently deletes all cloud sync data owned by the user.
     func deleteAllUserData(userId: String) async throws {
         try await deleteDocuments(in: entitiesCollection(userId: userId), userId: userId, operation: "deleteDeltaUserData")

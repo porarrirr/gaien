@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 2,
+  "supportsProblemRecords": true,
+  "exportDate": 1781177619001,
+  "subjects": [
+    {
+      "id": 2,
+      "syncId": "subject-deleted",
+      "name": "Deleted Subject",
+      "color": 15277666,
+      "icon": "BOOK",
+      "createdAt": 1776255271944,
+      "updatedAt": 1776255465243,
+      "deletedAt": 1776255465243,
+      "lastSyncedAt": 1781177615019
+    },
+    {
+      "id": 20,
+      "syncId": "subject-active",
+      "name": "Active Subject",
+      "color": 43775,
+      "icon": "BOOK",
+      "createdAt": 1776255271944,
+      "updatedAt": 1781138185473,
+      "lastSyncedAt": 1781177615019
+    }
+  ],
+  "materials": [
+    {
+      "id": 6686,
+      "syncId": "material-active",
+      "name": "Problem Book",
+      "subjectId": 20,
+      "subjectSyncId": "subject-active",
+      "sortOrder": 14,
+      "totalPages": 0,
+      "currentPage": 0,
+      "totalProblems": 24,
+      "problemChapters": [
+        {
+          "id": "chapter-1",
+          "title": "Chapter 1",
+          "problemCount": 24
+        }
+      ],
+      "problemRecords": [],
+      "createdAt": 1777953024025,
+      "updatedAt": 1778199412940,
+      "lastSyncedAt": 1781177615019
+    }
+  ],
+  "sessions": [
+    {
+      "id": 35001,
+      "syncId": "session-active",
+      "materialId": 6686,
+      "materialSyncId": "material-active",
+      "materialName": "Problem Book",
+      "subjectId": 20,
+      "subjectSyncId": "subject-active",
+      "subjectName": "Active Subject",
+      "sessionType": "MANUAL",
+      "startTime": 1781104285412,
+      "endTime": 1781138185412,
+      "intervals": [
+        {
+          "startTime": 1781104285412,
+          "endTime": 1781138185412
+        }
+      ],
+      "problemRecords": [
+        {
+          "number": 1,
+          "result": "wrong"
+        }
+      ],
+      "createdAt": 1781138185472,
+      "updatedAt": 1781138185473,
+      "lastSyncedAt": 1781177615019
+    }
+  ],
+  "goals": [
+    {
+      "id": 34738,
+      "syncId": "goal-monday",
+      "type": "DAILY",
+      "targetMinutes": 360,
+      "dayOfWeek": "MONDAY",
+      "weekStartDay": "MONDAY",
+      "isActive": true,
+      "createdAt": 1774092960027,
+      "updatedAt": 1776826062194,
+      "lastSyncedAt": 1781177615019
+    }
+  ],
+  "exams": [],
+  "plans": [],
+  "timetablePeriods": [
+    {
+      "id": 7253,
+      "syncId": "period-1",
+      "name": "Period 1",
+      "startMinute": 540,
+      "endMinute": 630,
+      "sortOrder": 1,
+      "isActive": true,
+      "createdAt": 1777996464138,
+      "updatedAt": 1777996464138,
+      "lastSyncedAt": 1781177615019
+    }
+  ],
+  "timetableEntries": [],
+  "timetableTerms": [
+    {
+      "id": 7260,
+      "syncId": "term-current",
+      "name": "Current Term",
+      "startDate": 20579,
+      "endDate": 20763,
+      "isActive": true,
+      "createdAt": 1777996464148,
+      "updatedAt": 1777996464148,
+      "lastSyncedAt": 1781177615019
+    }
+  ],
+  "timetableReviewRecords": [],
+  "problemReviewRecords": [
+    {
+      "id": 34992,
+      "syncId": "review-1",
+      "problemId": "6686-1",
+      "materialId": 6686,
+      "materialSyncId": "material-active",
+      "problemNumber": 1,
+      "reviewedAt": 1780907861235,
+      "rating": "again",
+      "nextReviewDate": 1780930800000,
+      "consecutiveCorrectCount": 0,
+      "wrongCount": 2,
+      "createdAt": 1780907861235,
+      "updatedAt": 1780907861235,
+      "lastSyncedAt": 1781177615019
+    }
+  ]
+}
