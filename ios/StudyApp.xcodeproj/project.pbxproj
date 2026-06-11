@@ -70,6 +70,7 @@
 		A10000000000000000000079 /* SyncPayloadCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000079 /* SyncPayloadCodec.swift */; };
 		A10000000000000000000080 /* SyncDeltaSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000080 /* SyncDeltaSerializer.swift */; };
 		A10000000000000000000081 /* FirestoreDeltaSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */; };
+		A10000000000000000000085 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000085 /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000088 /* SyncDeltaCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000088 /* SyncDeltaCursor.swift */; };
 		A10000000000000000000089 /* SyncConflictModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000089 /* SyncConflictModels.swift */; };
 		A1000000000000000000008A /* SyncDeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000008A /* SyncDeviceIdentity.swift */; };
@@ -77,7 +78,6 @@
 		A1000000000000000000008C /* SyncConflictStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000008C /* SyncConflictStore.swift */; };
 		A1000000000000000000008D /* SyncThreeWayMergeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000008D /* SyncThreeWayMergeEngine.swift */; };
 		A1000000000000000000008E /* SyncRevisionStamper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000008E /* SyncRevisionStamper.swift */; };
-		A10000000000000000000085 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000085 /* PrivacyInfo.xcprivacy */; };
 		A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StudyAppWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A20000000000000000000002 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetSnapshotModels.swift */; };
 		A20000000000000000000003 /* WidgetSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* WidgetSnapshotSync.swift */; };
@@ -133,6 +133,7 @@
 		A30000000000000000000055 /* TimerProblemValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000055 /* TimerProblemValidationTests.swift */; };
 		A30000000000000000000056 /* GoalCollectionExtensionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */; };
 		A30000000000000000000057 /* SyncDeltaSerializerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000057 /* SyncDeltaSerializerTests.swift */; };
+		A30000000000000000000058 /* SyncThreeWayMergeEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000058 /* SyncThreeWayMergeEngineTests.swift */; };
 		A30000000000000000000080 /* TimerProblemValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000080 /* TimerProblemValidation.swift */; };
 		A30000000000000000000081 /* TimerAmbientModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000081 /* TimerAmbientModels.swift */; };
 		A30000000000000000000082 /* AppPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000082 /* AppPreferencesTests.swift */; };
@@ -145,7 +146,6 @@
 		A30000000000000000000095 /* ManagePlansUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000095 /* ManagePlansUseCaseTests.swift */; };
 		A30000000000000000000096 /* ScreenTimeSettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000096 /* ScreenTimeSettingsScreen.swift */; };
 		A30000000000000000000097 /* SyncConflictResolutionScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000097 /* SyncConflictResolutionScreen.swift */; };
-		A30000000000000000000058 /* SyncThreeWayMergeEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000058 /* SyncThreeWayMergeEngineTests.swift */; };
 		A40000000000000000000001 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* DomainEnums.swift */; };
 		A40000000000000000000002 /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* Subject.swift */; };
 		A40000000000000000000003 /* SupportingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000003 /* SupportingModels.swift */; };
@@ -281,6 +281,9 @@
 		B10000000000000000000079 /* SyncPayloadCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncPayloadCodec.swift; path = Sync/SyncPayloadCodec.swift; sourceTree = "<group>"; };
 		B10000000000000000000080 /* SyncDeltaSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaSerializer.swift; path = Sync/SyncDeltaSerializer.swift; sourceTree = "<group>"; };
 		B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FirestoreDeltaSyncStore.swift; path = Sync/FirestoreDeltaSyncStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000085 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B10000000000000000000086 /* ScreenTimeFocusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000087 /* ScreenTimeFocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusController.swift; sourceTree = "<group>"; };
 		B10000000000000000000088 /* SyncDeltaCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaCursor.swift; path = Sync/SyncDeltaCursor.swift; sourceTree = "<group>"; };
 		B10000000000000000000089 /* SyncConflictModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncConflictModels.swift; path = Sync/SyncConflictModels.swift; sourceTree = "<group>"; };
 		B1000000000000000000008A /* SyncDeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeviceIdentity.swift; path = Sync/SyncDeviceIdentity.swift; sourceTree = "<group>"; };
@@ -288,9 +291,6 @@
 		B1000000000000000000008C /* SyncConflictStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncConflictStore.swift; path = Sync/SyncConflictStore.swift; sourceTree = "<group>"; };
 		B1000000000000000000008D /* SyncThreeWayMergeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncThreeWayMergeEngine.swift; path = Sync/SyncThreeWayMergeEngine.swift; sourceTree = "<group>"; };
 		B1000000000000000000008E /* SyncRevisionStamper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncRevisionStamper.swift; path = Sync/SyncRevisionStamper.swift; sourceTree = "<group>"; };
-		B10000000000000000000085 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		B10000000000000000000086 /* ScreenTimeFocusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusModels.swift; sourceTree = "<group>"; };
-		B10000000000000000000087 /* ScreenTimeFocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusController.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* StudyAppWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000002 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* WidgetSnapshotSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotSync.swift; sourceTree = "<group>"; };
@@ -349,6 +349,7 @@
 		B30000000000000000000055 /* TimerProblemValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidationTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000056 /* GoalCollectionExtensionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalCollectionExtensionsTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000057 /* SyncDeltaSerializerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeltaSerializerTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000058 /* SyncThreeWayMergeEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncThreeWayMergeEngineTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000080 /* TimerProblemValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProblemValidation.swift; sourceTree = "<group>"; };
 		B30000000000000000000081 /* TimerAmbientModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerAmbientModels.swift; sourceTree = "<group>"; };
 		B30000000000000000000082 /* AppPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesTests.swift; sourceTree = "<group>"; };
@@ -361,7 +362,6 @@
 		B30000000000000000000095 /* ManagePlansUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePlansUseCaseTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000096 /* ScreenTimeSettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeSettingsScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000097 /* SyncConflictResolutionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncConflictResolutionScreen.swift; sourceTree = "<group>"; };
-		B30000000000000000000058 /* SyncThreeWayMergeEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncThreeWayMergeEngineTests.swift; sourceTree = "<group>"; };
 		B40000000000000000000001 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
 		B40000000000000000000002 /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		B40000000000000000000003 /* SupportingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportingModels.swift; sourceTree = "<group>"; };
@@ -1302,7 +1302,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 2026.06.11;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1336,7 +1336,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 2026.06.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1363,7 +1363,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 2026.06.11;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1392,7 +1392,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 2026.06.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1461,7 +1461,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 2026.06.11;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.deviceactivitymonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1490,7 +1490,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 2026.06.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.deviceactivitymonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
