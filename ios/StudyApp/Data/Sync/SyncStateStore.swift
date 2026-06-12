@@ -2,10 +2,51 @@ import Foundation
 
 struct PersistedSyncUserState: Codable, Equatable {
     var cursor: SyncDeltaCursor = .zero
+    var serverCursor: SyncServerCursor = .zero
+    var serverCursorMigrationDone = false
     var baseShadow: AppData?
     var revisions: [String: String] = [:]
     var legacyMigrationDone = false
     var lastSyncAt: Int64?
+
+    private enum CodingKeys: String, CodingKey {
+        case cursor
+        case serverCursor
+        case serverCursorMigrationDone
+        case baseShadow
+        case revisions
+        case legacyMigrationDone
+        case lastSyncAt
+    }
+
+    init(
+        cursor: SyncDeltaCursor = .zero,
+        serverCursor: SyncServerCursor = .zero,
+        serverCursorMigrationDone: Bool = false,
+        baseShadow: AppData? = nil,
+        revisions: [String: String] = [:],
+        legacyMigrationDone: Bool = false,
+        lastSyncAt: Int64? = nil
+    ) {
+        self.cursor = cursor
+        self.serverCursor = serverCursor
+        self.serverCursorMigrationDone = serverCursorMigrationDone
+        self.baseShadow = baseShadow
+        self.revisions = revisions
+        self.legacyMigrationDone = legacyMigrationDone
+        self.lastSyncAt = lastSyncAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cursor = try container.decodeIfPresent(SyncDeltaCursor.self, forKey: .cursor) ?? .zero
+        serverCursor = try container.decodeIfPresent(SyncServerCursor.self, forKey: .serverCursor) ?? .zero
+        serverCursorMigrationDone = try container.decodeIfPresent(Bool.self, forKey: .serverCursorMigrationDone) ?? false
+        baseShadow = try container.decodeIfPresent(AppData.self, forKey: .baseShadow)
+        revisions = try container.decodeIfPresent([String: String].self, forKey: .revisions) ?? [:]
+        legacyMigrationDone = try container.decodeIfPresent(Bool.self, forKey: .legacyMigrationDone) ?? false
+        lastSyncAt = try container.decodeIfPresent(Int64.self, forKey: .lastSyncAt)
+    }
 }
 
 struct PersistedSyncState: Codable, Equatable {
@@ -142,6 +183,7 @@ enum SyncStateStore {
 
         var repaired = state
         repaired.cursor = .zero
+        repaired.serverCursor = .zero
         repaired.baseShadow = nil
         repaired.revisions = [:]
         return (repaired, true)

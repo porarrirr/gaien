@@ -148,12 +148,14 @@ service cloud.firestore {
           "usedLegacyTwoWayFallback",
           "migratedLegacyChunkedSnapshot",
           "backfilledSyncMetadata",
+          "serverUpdatedAtCursorMigrated",
           "lastSeenAt",
           "appDataSchemaVersion"
         ]) &&
         (!("usedLegacyTwoWayFallback" in flags) || flags.usedLegacyTwoWayFallback is bool) &&
         (!("migratedLegacyChunkedSnapshot" in flags) || flags.migratedLegacyChunkedSnapshot is bool) &&
         (!("backfilledSyncMetadata" in flags) || flags.backfilledSyncMetadata is bool) &&
+        (!("serverUpdatedAtCursorMigrated" in flags) || flags.serverUpdatedAtCursorMigrated is bool) &&
         isIntInRange(flags.lastSeenAt, 0, 4102444800000) &&
         isIntInRange(flags.appDataSchemaVersion, 1, 20);
     }

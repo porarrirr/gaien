@@ -5,6 +5,8 @@ import Foundation
 final class StudyAppContainer: ObservableObject {
     @Published private(set) var preferences: AppPreferences
     @Published private(set) var isLoaded = false
+    @Published private(set) var isPreparingDataStore = false
+    @Published private(set) var dataStorePreparationError: String?
     @Published var errorMessage: String?
     @Published private(set) var dataVersion = 0
     @Published private(set) var syncStatus = SyncStatus()
@@ -111,6 +113,10 @@ final class StudyAppContainer: ObservableObject {
     }
 
     func load() async {
+        guard !isPreparingDataStore else { return }
+        isPreparingDataStore = true
+        dataStorePreparationError = nil
+        defer { isPreparingDataStore = false }
         do {
             try await persistence.prepareDataStore(preferencesRepository: preferencesRepository)
             preferences = preferencesRepository.loadPreferences()
@@ -122,9 +128,14 @@ final class StudyAppContainer: ObservableObject {
             syncLiveActivity(reason: "app-load")
             await refreshScreenTimeFocusState(reason: "app-load")
         } catch {
-            isLoaded = true
-            present(error)
+            isLoaded = false
+            dataStorePreparationError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            logger.log(category: .app, level: .error, message: "Initial app load failed", error: error)
         }
+    }
+
+    func retryDataStorePreparation() {
+        Task { await load() }
     }
 
     func savePreferences(_ update: (inout AppPreferences) -> Void) {

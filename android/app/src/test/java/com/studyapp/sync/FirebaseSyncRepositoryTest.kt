@@ -79,6 +79,8 @@ class FirebaseSyncRepositoryTest {
                 every { setLocalSyncOwnerUserId(any()) } just runs
                 every { clearLocalSyncState() } just runs
                 every { getDeltaCursor(any()) } returns SyncDeltaCursor.ZERO
+                every { getServerCursor(any()) } returns SyncServerCursor.ZERO
+                every { isServerCursorMigrationDone(any()) } returns true
                 every { isDeltaMigrationDone(any()) } returns false
             every { saveLocalBackup(any(), any(), any()) } just runs
             },
@@ -147,16 +149,19 @@ class FirebaseSyncRepositoryTest {
             every { setLocalSyncOwnerUserId(any()) } just runs
             every { clearLocalSyncState() } just runs
             every { getDeltaCursor(any()) } returns SyncDeltaCursor.ZERO
+            every { getServerCursor(any()) } returns SyncServerCursor.ZERO
             every { setDeltaCursor(any(), any<SyncDeltaCursor>()) } just runs
             every { setDeltaCursor(any(), any<Long>()) } just runs
             every { isDeltaMigrationDone(any()) } returns false
+            every { isServerCursorMigrationDone(any()) } returns true
             every { saveLocalBackup(any(), any(), any()) } just runs
             every { setDeltaMigrationDone(any(), any()) } just runs
             every { getLastLifecycleAutoSyncAt() } returns 0L
             every { setLastLifecycleAutoSyncAt(any()) } just runs
         }
         val deltaStore = mockk<FirestoreDeltaSyncStore> {
-            coEvery { fetchEnvelopes(any(), any<SyncDeltaCursor>()) } returns emptyList()
+            coEvery { fetchEnvelopes(any(), any<SyncServerCursor>()) } returns
+                FirestoreDeltaSyncStore.FetchResult(emptyList(), SyncServerCursor.ZERO)
             coEvery { writeEnvelopes(any(), any()) } returns Unit
             coEvery { purgeTombstonesOlderThan(any(), any(), any()) } returns Unit
         }

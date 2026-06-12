@@ -143,7 +143,7 @@ final class FirebaseAuthRepository: ObservableObject, AuthRepository {
         case .emailAlreadyInUse:
             message = "このメールアドレスはすでに使用されています"
         case .weakPassword:
-            message = "パスワードは8文字以上で入力してください"
+            message = "パスワードは6文字以上で入力してください"
         case .networkError:
             message = "ネットワーク接続を確認して、もう一度お試しください"
         case .operationNotAllowed:

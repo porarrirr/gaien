@@ -26,22 +26,22 @@ enum PlanActualMinutesRecalculator {
             in: context,
             predicate: NSPredicate(format: "planId == %lld AND deletedAt == NIL", activePlan.id)
         )
-        let sessions = try CoreDataQuery.fetch(
-            "StudySessionRecord",
-            in: context,
-            predicate: NSPredicate(format: "deletedAt == NIL")
-        ).map(PersistenceMappers.session)
-
         for itemRecord in planItems {
             let item = PersistenceMappers.planItem(itemRecord)
+            let sessions = try CoreDataQuery.fetch(
+                "StudySessionRecord",
+                in: context,
+                predicate: NSPredicate(
+                    format: "subjectId == %lld AND startTime >= %lld AND startTime <= %lld AND deletedAt == NIL",
+                    item.subjectId,
+                    activePlan.startDate,
+                    activePlan.endDate
+                )
+            ).map(PersistenceMappers.session)
             let actualMinutes = sessions
-                .filter { session in
-                    session.subjectId == item.subjectId &&
-                    session.dayOfWeek == item.dayOfWeek &&
-                    session.startTime >= activePlan.startDate &&
-                    session.startTime <= activePlan.endDate
-                }
+                .filter { $0.dayOfWeek == item.dayOfWeek }
                 .reduce(0) { $0 + $1.durationMinutes }
+            guard actualMinutes != item.actualMinutes else { continue }
             itemRecord.setValue(Int64(actualMinutes), forKey: "actualMinutes")
             itemRecord.setValue(Date().epochMilliseconds, forKey: "updatedAt")
         }

@@ -1,6 +1,33 @@
 import CoreData
 import Foundation
 
+private final class PersistenceMutationGate: @unchecked Sendable {
+    private let lock = NSRecursiveLock()
+    private var generation: Int64 = 0
+
+    var currentGeneration: Int64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return generation
+    }
+
+    func mutate<T>(
+        expectedGeneration: Int64? = nil,
+        _ operation: () throws -> (value: T, changed: Bool)
+    ) throws -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        if let expectedGeneration, generation != expectedGeneration {
+            throw PersistenceController.SyncApplyError.localDataChanged
+        }
+        let result = try operation()
+        if result.changed {
+            generation += 1
+        }
+        return result.value
+    }
+}
+
 /// Core Data-backed implementation of every repository protocol the app uses.
 ///
 /// This class focuses on two concerns now:
@@ -17,13 +44,22 @@ import Foundation
 /// not blocked on JSON encode/decode or full-store scans.
 @MainActor
 final class PersistenceController: SubjectRepository, MaterialRepository, StudySessionRepository, GoalRepository, ExamRepository, PlanRepository, TimetableRepository, ProblemReviewRepository, AppDataRepository {
+    enum SyncApplyError: LocalizedError {
+        case localDataChanged
+
+        var errorDescription: String? {
+            "同期適用中にローカルデータが更新されました"
+        }
+    }
+
     static let shared = PersistenceController()
 
     private let container: NSPersistentContainer
     private let fileManager: FileManager
     private let loadTask: Task<Void, Error>
     private let legacyURL: URL
-    private(set) var changeToken: Int64 = 0
+    private let mutationGate = PersistenceMutationGate()
+    var changeToken: Int64 { mutationGate.currentGeneration }
     private(set) var didBackfillSyncMetadataDuringPreparation = false
     private var isDataStorePrepared = false
 
@@ -302,8 +338,9 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return try CoreDataQuery.fetch(
             "StudySessionRecord",
             in: viewContext,
+            predicate: NSPredicate(format: "deletedAt == NIL"),
             sort: [NSSortDescriptor(key: "startTime", ascending: false)]
-        ).map(PersistenceMappers.session).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.session)
     }
 
     func getSessionsBetweenDates(start: Int64, end: Int64) async throws -> [StudySession] {
@@ -311,9 +348,13 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         return try CoreDataQuery.fetch(
             "StudySessionRecord",
             in: viewContext,
-            predicate: NSPredicate(format: "startTime >= %lld AND startTime < %lld", start, end),
+            predicate: NSPredicate(
+                format: "startTime >= %lld AND startTime < %lld AND deletedAt == NIL",
+                start,
+                end
+            ),
             sort: [NSSortDescriptor(key: "startTime", ascending: false)]
-        ).map(PersistenceMappers.session).filter { $0.deletedAt == nil }
+        ).map(PersistenceMappers.session)
     }
 
     /// Returns the distinct `epochDay` values on which the user has studied
@@ -339,7 +380,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         let sanitized = sanitize(session: session, assignedId: id)
         applySession(sanitized, to: record)
         try saveViewContext()
-        try recalculatePlanActualMinutesOnViewContext()
+        try await recalculatePlanActualMinutesOnViewContext()
         return id
     }
 
@@ -373,7 +414,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             throw error
         }
 
-        try recalculatePlanActualMinutesOnViewContext()
+        try await recalculatePlanActualMinutesOnViewContext()
         return sessionId
     }
 
@@ -402,7 +443,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             try ProblemReviewRebuilder.rebuild(for: materialId, now: now, startingId: &nextLocalId, in: viewContext)
         }
         try saveViewContext()
-        try recalculatePlanActualMinutesOnViewContext()
+        try await recalculatePlanActualMinutesOnViewContext()
     }
 
     func deleteSession(_ session: StudySession) async throws {
@@ -417,7 +458,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 try ProblemReviewRebuilder.rebuild(for: materialId, now: now, startingId: &nextLocalId, in: viewContext)
             }
             try saveViewContext()
-            try recalculatePlanActualMinutesOnViewContext()
+            try await recalculatePlanActualMinutesOnViewContext()
         }
     }
 
@@ -583,7 +624,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
 
         try saveViewContext()
-        try recalculatePlanActualMinutesOnViewContext()
+        try await recalculatePlanActualMinutesOnViewContext()
         return planId
     }
 
@@ -602,7 +643,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             to: record
         )
         try saveViewContext()
-        try recalculatePlanActualMinutesOnViewContext()
+        try await recalculatePlanActualMinutesOnViewContext()
         return itemId
     }
 
@@ -622,7 +663,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         record.setValue(item.lastSyncedAt, forKey: "lastSyncedAt")
         record.setValue(Date().epochMilliseconds, forKey: "updatedAt")
         try saveViewContext()
-        try recalculatePlanActualMinutesOnViewContext()
+        try await recalculatePlanActualMinutesOnViewContext()
     }
 
     func deletePlanItem(_ item: PlanItem) async throws {
@@ -632,7 +673,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             record.setValue(now, forKey: "deletedAt")
             record.setValue(now, forKey: "updatedAt")
             try saveViewContext()
-            try recalculatePlanActualMinutesOnViewContext()
+            try await recalculatePlanActualMinutesOnViewContext()
         }
     }
 
@@ -1024,37 +1065,51 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try await ensureLoaded()
         try requirePreparedDataStore()
         let jsonData = Data(json.utf8)
+        let gate = mutationGate
         try await backgroundContext.perform { [backgroundContext] in
-            do {
-                let appData = try AppDataUpgrader.decode(jsonData)
-                try AppDataArchiver.replaceData(with: appData, in: backgroundContext)
-                try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
-                try backgroundContext.save()
-            } catch {
-                backgroundContext.rollback()
-                throw error
+            try gate.mutate {
+                do {
+                    let appData = try AppDataUpgrader.decode(jsonData)
+                    try AppDataArchiver.replaceData(with: appData, in: backgroundContext)
+                    try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
+                    let changed = backgroundContext.hasChanges
+                    if changed {
+                        try backgroundContext.save()
+                    }
+                    return ((), changed)
+                } catch {
+                    backgroundContext.rollback()
+                    throw error
+                }
             }
         }
-        changeToken += 1
         return currentPreferences
     }
 
     func applySyncedData(_ appData: AppData) async throws {
+        try await applySyncedData(appData, expectedChangeToken: nil)
+    }
+
+    func applySyncedData(_ appData: AppData, expectedChangeToken: Int64?) async throws {
         try await ensureLoaded()
         try requirePreparedDataStore()
+        let gate = mutationGate
         try await backgroundContext.perform { [backgroundContext] in
-            do {
-                try AppDataArchiver.applySyncedData(appData, in: backgroundContext)
-                try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
-                if backgroundContext.hasChanges {
-                    try backgroundContext.save()
+            try gate.mutate(expectedGeneration: expectedChangeToken) {
+                do {
+                    try AppDataArchiver.applySyncedData(appData, in: backgroundContext)
+                    try PlanActualMinutesRecalculator.recalculate(in: backgroundContext)
+                    let changed = backgroundContext.hasChanges
+                    if changed {
+                        try backgroundContext.save()
+                    }
+                    return ((), changed)
+                } catch {
+                    backgroundContext.rollback()
+                    throw error
                 }
-            } catch {
-                backgroundContext.rollback()
-                throw error
             }
         }
-        changeToken += 1
     }
 
     func createDataBackup(reason: String) async throws -> DataBackupDescriptor {
@@ -1064,6 +1119,21 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
         let data = try await SyncPayloadCodec.encode(appData, prettyPrinted: true)
         return try DataBackupStore.save(data: data, reason: reason, fileManager: fileManager)
+    }
+
+    func createDataBackupIfNeeded(
+        reason: String,
+        minimumInterval: TimeInterval
+    ) async throws -> DataBackupDescriptor? {
+        try await ensureLoaded()
+        guard try DataBackupStore.shouldCreateBackup(
+            reason: reason,
+            minimumInterval: minimumInterval,
+            fileManager: fileManager
+        ) else {
+            return nil
+        }
+        return try await createDataBackup(reason: reason)
     }
 
     func listDataBackups() async throws -> [DataBackupDescriptor] {
@@ -1091,7 +1161,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             fromRemoteContextSave: [NSDeletedObjectsKey: deletedObjectIDs],
             into: [viewContext]
         )
-        changeToken += 1
+        _ = try mutationGate.mutate { ((), true) }
     }
 
     /// Runs one-time, forward-only data migrations recorded in persistent
@@ -1150,7 +1220,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 didBackfillSyncMetadataDuringPreparation = true
             }
             try ledger.save(coordinator: container.persistentStoreCoordinator, store: store)
-            changeToken += 1
+            _ = try mutationGate.mutate { ((), true) }
         }
 
         ledger.dataSchemaVersion = DataMigrationLedger.currentSchemaVersion
@@ -1171,9 +1241,10 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         }
     }
 
-    private func recalculatePlanActualMinutesOnViewContext() throws {
-        try PlanActualMinutesRecalculator.recalculate(in: viewContext)
-        try saveViewContext()
+    private func recalculatePlanActualMinutesOnViewContext() async throws {
+        try await backgroundWrite { context in
+            try PlanActualMinutesRecalculator.recalculate(in: context)
+        }
     }
 
     private func sanitize(
@@ -1259,7 +1330,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             return snapshot.preferences
         }
         preferencesRepository.savePreferences(capturedPreferences)
-        changeToken += 1
+        _ = try mutationGate.mutate { ((), true) }
 
         let migratedURL = legacyURL.deletingPathExtension().appendingPathExtension("json.migrated")
         if fileManager.fileExists(atPath: migratedURL.path) {
@@ -1284,9 +1355,13 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     }
 
     private func saveViewContext() throws {
-        if viewContext.hasChanges {
-            try viewContext.save()
-            changeToken += 1
+        let context = viewContext
+        try mutationGate.mutate {
+            let changed = context.hasChanges
+            if changed {
+                try context.save()
+            }
+            return ((), changed)
         }
     }
 
@@ -1302,15 +1377,17 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     /// changes. The view context picks up the merge automatically.
     private func backgroundWrite<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
         let ctx = backgroundContext
-        let result = try await ctx.perform {
-            let value = try block(ctx)
-            if ctx.hasChanges {
-                try ctx.save()
+        let gate = mutationGate
+        return try await ctx.perform {
+            try gate.mutate {
+                let value = try block(ctx)
+                let changed = ctx.hasChanges
+                if changed {
+                    try ctx.save()
+                }
+                return (value, changed)
             }
-            return value
         }
-        changeToken += 1
-        return result
     }
 }
 

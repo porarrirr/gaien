@@ -17,17 +17,16 @@ import Foundation
 /// }
 /// ```
 ///
-/// We key the delta cursor off `updatedAt` (client clock) rather than
-/// `serverUpdatedAt` so that two devices that are briefly offline still
-/// converge without leaning on Firestore clock skew. `serverUpdatedAt` is
-/// retained only for diagnostics and secondary indexing.
-///
 /// The store is deliberately small: it owns the raw I/O (writes, reads,
 /// batch commits) and nothing about domain-level merge. Higher layers
 /// (`FirebaseSyncRepository`) do the merge through `SyncMergeEngine` and
 /// decide *what* to push.
 @MainActor
 struct FirestoreDeltaSyncStore {
+    struct FetchResult {
+        var envelopes: [SyncEntityEnvelope]
+        var cursor: SyncServerCursor
+    }
     private let firestore: Firestore
     private let logger: AppLogger
 
@@ -99,16 +98,14 @@ struct FirestoreDeltaSyncStore {
         )
     }
 
-    /// Fetches entities that changed (either `updatedAt > cursor` or a fresh
-    /// tombstone) since the previous sync. `cursor` is the `updatedAt` that
-    /// the last successful sync observed; pass `0` for a full initial load.
+    /// Fetches entities committed after the previous Firestore server cursor.
     ///
-    /// Paginates by `updatedAt` plus document id so documents sharing the same
+    /// Paginates by `serverUpdatedAt` plus document id so documents sharing the same
     /// millisecond timestamp are not skipped or fetched forever. Firestore's
     /// `documentID()` cursor validation is picky for nested collections, so
     /// page-to-page progress uses document snapshots instead of raw document id
     /// cursor values.
-    func fetchEnvelopes(userId: String, changedSince cursor: SyncDeltaCursor) async throws -> [SyncEntityEnvelope] {
+    func fetchEnvelopes(userId: String, changedSince cursor: SyncServerCursor) async throws -> FetchResult {
         let collection = entitiesCollection(userId: userId)
         let pageSize = 500
         var results: [SyncEntityEnvelope] = []
@@ -118,15 +115,21 @@ struct FirestoreDeltaSyncStore {
         logger.log(
             category: .sync,
             message: "Delta envelope fetch started",
-            details: "path=users/<uid>/sync_entities cursorUpdatedAt=\(cursor.updatedAt) cursorDoc=\(cursor.documentId) pageSize=\(pageSize)"
+            details: "path=users/<uid>/sync_entities serverCursor=\(cursor.seconds).\(cursor.nanoseconds) cursorDoc=\(cursor.documentId) pageSize=\(pageSize)"
         )
 
         while true {
             let snapshot: QuerySnapshot
             do {
                 var query: Query = collection
-                    .whereField("updatedAt", isGreaterThanOrEqualTo: cursor.updatedAt)
-                    .order(by: "updatedAt")
+                    .whereField(
+                        "serverUpdatedAt",
+                        isGreaterThanOrEqualTo: Timestamp(
+                            seconds: cursor.seconds,
+                            nanoseconds: cursor.nanoseconds
+                        )
+                    )
+                    .order(by: "serverUpdatedAt")
                     .order(by: FieldPath.documentID())
                 if let lastPageDocument {
                     query = query.start(afterDocument: lastPageDocument)
@@ -136,7 +139,7 @@ struct FirestoreDeltaSyncStore {
                 logFirestoreFailure(
                     operation: "fetchDeltaEnvelopes",
                     userId: userId,
-                    details: "path=users/<uid>/sync_entities cursorUpdatedAt=\(cursor.updatedAt) lastSeen=\(lastSeen.updatedAt) lastDoc=\(lastSeen.documentId) hasPageCursor=\(lastPageDocument != nil) pageSize=\(pageSize)",
+                    details: "path=users/<uid>/sync_entities serverCursor=\(cursor.seconds).\(cursor.nanoseconds) lastSeen=\(lastSeen.seconds).\(lastSeen.nanoseconds) lastDoc=\(lastSeen.documentId) hasPageCursor=\(lastPageDocument != nil) pageSize=\(pageSize)",
                     error: error
                 )
                 throw error
@@ -146,6 +149,21 @@ struct FirestoreDeltaSyncStore {
                 break
             }
             for document in snapshot.documents {
+                guard let serverUpdatedAt = document.data()["serverUpdatedAt"] as? Timestamp else {
+                    logger.log(
+                        category: .sync,
+                        level: .warning,
+                        message: "Skipped delta document without server timestamp",
+                        details: "docId=\(document.documentID)"
+                    )
+                    continue
+                }
+                let position = SyncServerCursor(
+                    seconds: serverUpdatedAt.seconds,
+                    nanoseconds: serverUpdatedAt.nanoseconds,
+                    documentId: document.documentID
+                )
+                guard position > cursor else { continue }
                 guard let envelope = Self.envelope(from: document.data()) else {
                     logger.log(
                         category: .sync,
@@ -155,12 +173,15 @@ struct FirestoreDeltaSyncStore {
                     )
                     continue
                 }
-                guard envelope.cursorPosition > cursor else { continue }
                 results.append(envelope)
             }
             if let lastDocument = snapshot.documents.last,
-               let lastUpdatedAt = Self.readInt64(lastDocument.data()["updatedAt"]) {
-                lastSeen = SyncDeltaCursor(updatedAt: lastUpdatedAt, documentId: lastDocument.documentID)
+               let serverUpdatedAt = lastDocument.data()["serverUpdatedAt"] as? Timestamp {
+                lastSeen = SyncServerCursor(
+                    seconds: serverUpdatedAt.seconds,
+                    nanoseconds: serverUpdatedAt.nanoseconds,
+                    documentId: lastDocument.documentID
+                )
                 lastPageDocument = lastDocument
             } else {
                 break
@@ -173,20 +194,17 @@ struct FirestoreDeltaSyncStore {
         logger.log(
             category: .sync,
             message: "Delta envelopes fetched",
-            details: "count=\(results.count) cursorBefore=\(cursor.updatedAt) cursorAfter=\(lastSeen.updatedAt)"
+            details: "count=\(results.count) cursorBefore=\(cursor.seconds).\(cursor.nanoseconds) cursorAfter=\(lastSeen.seconds).\(lastSeen.nanoseconds)"
         )
-        return results
-    }
-
-    func fetchEnvelopes(userId: String, changedSince cursor: Int64) async throws -> [SyncEntityEnvelope] {
-        try await fetchEnvelopes(userId: userId, changedSince: SyncDeltaCursor.fromLegacy(cursor))
+        return FetchResult(envelopes: results, cursor: lastSeen)
     }
 
     /// Reads every envelope under the user. Used during the one-time
     /// migration from legacy chunked-v2 snapshots so we can seed the local
     /// side even though we don't have a cursor.
     func fetchAllEnvelopes(userId: String) async throws -> [SyncEntityEnvelope] {
-        try await fetchEnvelopes(userId: userId, changedSince: -1)
+        let result = try await fetchEnvelopes(userId: userId, changedSince: .zero)
+        return result.envelopes
     }
 
     /// Permanently removes tombstones older than `retentionMillis`. Running

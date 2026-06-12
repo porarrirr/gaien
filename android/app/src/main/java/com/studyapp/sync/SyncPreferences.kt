@@ -72,6 +72,39 @@ class SyncPreferences @Inject constructor(
         setDeltaCursor(userId, SyncDeltaCursor.fromLegacy(cursor))
     }
 
+    fun getServerCursor(userId: String): SyncServerCursor {
+        val json = preferences.getString(serverCursorKey(userId), null) ?: return SyncServerCursor.ZERO
+        return runCatching {
+            val objectJson = JSONObject(json)
+            SyncServerCursor(
+                seconds = objectJson.getLong("seconds"),
+                nanoseconds = objectJson.getInt("nanoseconds"),
+                documentId = objectJson.optString("documentId")
+            )
+        }.getOrDefault(SyncServerCursor.ZERO)
+    }
+
+    fun setServerCursor(userId: String, cursor: SyncServerCursor) {
+        preferences.edit()
+            .putString(
+                serverCursorKey(userId),
+                JSONObject()
+                    .put("seconds", cursor.seconds)
+                    .put("nanoseconds", cursor.nanoseconds)
+                    .put("documentId", cursor.documentId)
+                    .toString()
+            )
+            .apply()
+    }
+
+    fun isServerCursorMigrationDone(userId: String): Boolean {
+        return preferences.getBoolean(serverCursorMigrationKey(userId), false)
+    }
+
+    fun setServerCursorMigrationDone(userId: String, done: Boolean) {
+        preferences.edit().putBoolean(serverCursorMigrationKey(userId), done).apply()
+    }
+
     fun isDeltaMigrationDone(userId: String): Boolean {
         return preferences.getBoolean(deltaMigrationDoneKey(userId), false)
     }
@@ -97,7 +130,9 @@ class SyncPreferences @Inject constructor(
             if (
                 key.startsWith(DELTA_CURSOR_KEY_PREFIX) ||
                 key.startsWith(COMPOSITE_CURSOR_KEY_PREFIX) ||
-                key.startsWith(DELTA_MIGRATION_DONE_KEY_PREFIX)
+                key.startsWith(DELTA_MIGRATION_DONE_KEY_PREFIX) ||
+                key.startsWith(SERVER_CURSOR_KEY_PREFIX) ||
+                key.startsWith(SERVER_CURSOR_MIGRATION_KEY_PREFIX)
             ) {
                 editor.remove(key)
             }
@@ -134,6 +169,8 @@ class SyncPreferences @Inject constructor(
     private fun compositeCursorKey(userId: String) = COMPOSITE_CURSOR_KEY_PREFIX + userId
 
     private fun deltaMigrationDoneKey(userId: String) = DELTA_MIGRATION_DONE_KEY_PREFIX + userId
+    private fun serverCursorKey(userId: String) = SERVER_CURSOR_KEY_PREFIX + userId
+    private fun serverCursorMigrationKey(userId: String) = SERVER_CURSOR_MIGRATION_KEY_PREFIX + userId
 
     companion object {
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
@@ -143,6 +180,8 @@ class SyncPreferences @Inject constructor(
         private const val DELTA_CURSOR_KEY_PREFIX = "delta_cursor_"
         private const val COMPOSITE_CURSOR_KEY_PREFIX = "composite_delta_cursor_"
         private const val DELTA_MIGRATION_DONE_KEY_PREFIX = "delta_migration_done_"
+        private const val SERVER_CURSOR_KEY_PREFIX = "server_delta_cursor_"
+        private const val SERVER_CURSOR_MIGRATION_KEY_PREFIX = "server_delta_cursor_migrated_"
         private const val BACKUP_RETENTION_MILLIS = 30L * 24L * 60L * 60L * 1000L
     }
 }

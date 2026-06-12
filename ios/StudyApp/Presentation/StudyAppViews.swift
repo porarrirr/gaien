@@ -16,7 +16,14 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if !app.isLoaded {
+            if let message = app.dataStorePreparationError {
+                DataStorePreparationErrorView(
+                    message: message,
+                    isRetrying: app.isPreparingDataStore,
+                    logger: app.logger,
+                    retry: app.retryDataStorePreparation
+                )
+            } else if !app.isLoaded {
                 LoadingSplash(logger: app.logger)
             } else {
                 MainTabView(app: app)
@@ -38,6 +45,41 @@ struct RootView: View {
         }
     }
 }
+
+private struct DataStorePreparationErrorView: View {
+    let message: String
+    let isRetrying: Bool
+    let logger: AppLogger
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: AppSpacing.lg) {
+            Image(systemName: "externaldrive.badge.exclamationmark")
+                .font(.system(size: 52))
+                .foregroundStyle(.red)
+            Text("データを準備できませんでした")
+                .font(.title3.bold())
+            Text(message)
+                .font(.body)
+                .foregroundStyle(AppColors.textSecondary)
+                .multilineTextAlignment(.center)
+            Button(action: retry) {
+                if isRetrying {
+                    ProgressView()
+                } else {
+                    Text("再試行")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isRetrying)
+            DiagnosticLogCopyButton(logger: logger)
+        }
+        .padding(AppSpacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppColors.subtleBackground)
+    }
+}
+
 private struct LoadingSplash: View {
     let logger: AppLogger
     @State private var pulse = false

@@ -236,6 +236,15 @@ final class DataLayerMigrationTests: XCTestCase {
         XCTAssertTrue(result.state.revisions.isEmpty)
     }
 
+    func testLegacySyncStateDecodingDefaultsServerCursorMigrationFields() throws {
+        let data = Data(#"{"cursor":{"updatedAt":123,"documentId":"subject-a"},"revisions":{},"legacyMigrationDone":true}"#.utf8)
+
+        let state = try JSONDecoder().decode(PersistedSyncUserState.self, from: data)
+
+        XCTAssertEqual(state.serverCursor, .zero)
+        XCTAssertFalse(state.serverCursorMigrationDone)
+    }
+
     func testSyncMetadataBackfillIsIdempotent() throws {
         let context = try makeContext()
         let subject = NSEntityDescription.insertNewObject(forEntityName: "SubjectRecord", into: context)

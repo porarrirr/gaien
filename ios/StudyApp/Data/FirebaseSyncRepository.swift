@@ -129,14 +129,29 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             for attempt in 0..<Self.maxSyncRetries {
                 logger.log(category: .sync, message: "syncNow attempt started", details: "attempt=\(attempt + 1)")
                 let local = try await persistence.exportData()
-                _ = try await persistence.createDataBackup(reason: "before-syncNow")
+                _ = try await persistence.createDataBackupIfNeeded(
+                    reason: "before-syncNow",
+                    minimumInterval: DataBackupStore.syncBackupInterval
+                )
 
                 var stateResult = try loadSyncState(userId: session.localId)
+                if !stateResult.user.serverCursorMigrationDone {
+                    stateResult.user.cursor = .zero
+                    stateResult.user.serverCursor = .zero
+                    stateResult.user.serverCursorMigrationDone = true
+                    stateResult.root.users[session.localId] = stateResult.user
+                    try SyncStateStore.save(stateResult.root)
+                    recordClientFlags(
+                        ["serverUpdatedAtCursorMigrated": true],
+                        userId: session.localId
+                    )
+                }
                 try ensureLocalSyncOwnership(
                     session: session,
                     local: local,
                     ownerUserId: stateResult.root.ownerUserId
                 )
+                let outboundComparisonBase = stateResult.user.baseShadow
                 if stateResult.user.baseShadow == nil {
                     stateResult.user.cursor = .zero
                     stateResult.user.revisions = [:]
@@ -147,12 +162,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
                 let localChangeToken = persistence.changeToken
                 let cursor = stateResult.user.cursor
+                let serverCursor = stateResult.user.serverCursor
                 let baseShadow = stateResult.user.baseShadow
 
-                let remoteEnvelopes = try await deltaStore.fetchEnvelopes(
+                let fetchResult = try await deltaStore.fetchEnvelopes(
                     userId: session.localId,
-                    changedSince: cursor
+                    changedSince: serverCursor
                 )
+                let remoteEnvelopes = fetchResult.envelopes
 
                 let syncedAt = Date().epochMilliseconds
                 let mergeOutcome = try await MergeExecutor.apply(
@@ -170,7 +187,11 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 )
                 pendingConflictUserId = session.localId
 
-                var outboundEnvelopes = SyncDeltaSerializer.changedSince(merged, cursor: cursor)
+                let locallyChangedIds = Set(
+                    SyncDeltaSerializer.changedComparedTo(local, base: outboundComparisonBase).map(\.documentId)
+                )
+                var outboundEnvelopes = SyncDeltaSerializer.decompose(merged)
+                    .filter { locallyChangedIds.contains($0.documentId) }
                 let previousRevisions = stateResult.user.revisions
                 outboundEnvelopes = SyncRevisionStamper.stamp(
                     outboundEnvelopes,
@@ -184,7 +205,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 logger.log(
                     category: .sync,
                     message: "Prepared delta sync",
-                    details: "attempt=\(attempt + 1) cursorUpdatedAt=\(cursor.updatedAt) cursorDoc=\(cursor.documentId) inbound=\(remoteEnvelopes.count) outbound=\(outboundEnvelopes.count) conflicts=\(storedConflicts.count) legacyFallback=\(mergeOutcome.usedLegacyTwoWayFallback)"
+                    details: "attempt=\(attempt + 1) serverCursor=\(serverCursor.seconds).\(serverCursor.nanoseconds) cursorDoc=\(serverCursor.documentId) inbound=\(remoteEnvelopes.count) outbound=\(outboundEnvelopes.count) conflicts=\(storedConflicts.count) legacyFallback=\(mergeOutcome.usedLegacyTwoWayFallback)"
                 )
 
                 guard persistence.changeToken == localChangeToken else {
@@ -199,7 +220,20 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
                 // Apply merge locally first so a Firestore write failure
                 // doesn't leave us out of sync with what we intend to push.
-                try await applyMergedSnapshotLocally(merged)
+                do {
+                    try await applyMergedSnapshotLocally(
+                        merged,
+                        expectedChangeToken: localChangeToken
+                    )
+                } catch PersistenceController.SyncApplyError.localDataChanged {
+                    logger.log(
+                        category: .sync,
+                        level: .warning,
+                        message: "Local change detected at sync apply boundary",
+                        details: "attempt=\(attempt + 1)"
+                    )
+                    continue
+                }
 
                 if !outboundEnvelopes.isEmpty {
                     try await deltaStore.writeEnvelopes(outboundEnvelopes, userId: session.localId)
@@ -210,7 +244,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 let resolvedRemoteEnvelopes = remoteEnvelopes
                     .filter { !unresolvedConflictIds.contains($0.documentId) }
                 var newCursor = cursor
-                for envelope in resolvedRemoteEnvelopes + resolvedMergedEnvelopes + outboundEnvelopes {
+                for envelope in outboundEnvelopes {
                     newCursor.absorb(envelope)
                 }
                 let nextBase: AppData
@@ -223,6 +257,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     )
                 }
                 stateResult.user.cursor = newCursor
+                stateResult.user.serverCursor = fetchResult.cursor
                 stateResult.user.baseShadow = nextBase
                 stateResult.user.revisions = SyncStateStore.mergedRevisions(
                     current: stateResult.user.revisions,
@@ -264,7 +299,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 logger.log(
                     category: .sync,
                     message: "syncNow succeeded",
-                    details: "attempt=\(attempt + 1) lastSyncAt=\(merged.exportDate) cursorUpdatedAt=\(newCursor.updatedAt) cursorDoc=\(newCursor.documentId)"
+                    details: "attempt=\(attempt + 1) lastSyncAt=\(merged.exportDate) serverCursor=\(fetchResult.cursor.seconds).\(fetchResult.cursor.nanoseconds) cursorDoc=\(fetchResult.cursor.documentId)"
                 )
                 if mergeOutcome.usedLegacyTwoWayFallback {
                     recordClientFlags(
@@ -308,6 +343,13 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 let localData = try await persistence.exportData()
                 _ = try await persistence.createDataBackup(reason: "before-importLocalDataToCloud")
                 var stateResult = try loadSyncState(userId: session.localId)
+                if !stateResult.user.serverCursorMigrationDone {
+                    stateResult.user.cursor = .zero
+                    stateResult.user.serverCursor = .zero
+                    stateResult.user.serverCursorMigrationDone = true
+                    stateResult.root.users[session.localId] = stateResult.user
+                    try SyncStateStore.save(stateResult.root)
+                }
                 try ensureLocalSyncOwnership(
                     session: session,
                     local: localData,
@@ -318,7 +360,11 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 // has progress we don't, bail out and force the user to
                 // pull first.
                 let cursor = stateResult.user.cursor
-                let remoteEnvelopes = try await deltaStore.fetchEnvelopes(userId: session.localId, changedSince: cursor)
+                let fetchResult = try await deltaStore.fetchEnvelopes(
+                    userId: session.localId,
+                    changedSince: stateResult.user.serverCursor
+                )
+                let remoteEnvelopes = fetchResult.envelopes
                 if !remoteEnvelopes.isEmpty {
                     let remoteApp = SyncDeltaSerializer.assemble(envelopes: remoteEnvelopes, onto: localData)
                     try ensureNoProblemProgressLoss(from: remoteApp, to: localData, operation: "importLocalDataToCloud")
@@ -349,6 +395,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                 var newCursor = cursor
                 envelopes.forEach { newCursor.absorb($0) }
                 stateResult.user.cursor = newCursor
+                stateResult.user.serverCursor = fetchResult.cursor
                 stateResult.user.baseShadow = stampedLocal
                 stateResult.user.revisions = SyncStateStore.mergedRevisions(
                     current: stateResult.user.revisions,
@@ -401,7 +448,10 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         let local = try await persistence.exportData()
         let resolved = SyncThreeWayMergeEngine.applyResolutions(resolutions, to: local, conflicts: conflicts)
         try ensureNoProblemProgressLoss(from: local, to: resolved, operation: "resolveConflicts")
-        try await applyMergedSnapshotLocally(resolved)
+        try await applyMergedSnapshotLocally(
+            resolved,
+            expectedChangeToken: persistence.changeToken
+        )
 
         let remaining = conflicts.filter { conflict in
             !resolutions.contains { $0.kind == conflict.kind && $0.syncId == conflict.syncId }
@@ -493,61 +543,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         )
     }
 
-    /// Keeps the existing replace path as the production default while
-    /// comparing it with the new upsert path. Enable upserts explicitly after
-    /// rollout telemetry confirms equivalent summaries.
-    private func applyMergedSnapshotLocally(_ merged: AppData) async throws {
-        if ProcessInfo.processInfo.environment["STUDYAPP_SYNC_ENABLE_UPSERT"] == "1" {
-            logger.log(
-                category: .sync,
-                message: "Using syncId upsert apply",
-                details: "reason=STUDYAPP_SYNC_ENABLE_UPSERT"
-            )
-            try await persistence.applySyncedData(merged)
-            return
-        }
-
-        await compareSyncApplyPaths(merged)
-        let payload = try await SyncPayloadCodec.encode(merged)
-        guard let json = String(data: payload, encoding: .utf8) else {
-            throw CocoaError(.coderInvalidValue)
-        }
-        let useCase = ExportImportDataUseCase(repository: persistence)
-        _ = try await useCase.importJSON(json, currentPreferences: preferencesRepository.loadPreferences())
-    }
-
-    private func compareSyncApplyPaths(_ merged: AppData) async {
-        do {
-            let current = try await persistence.exportData()
-            let results = try await Task.detached(priority: .utility) {
-                let legacy = try AppDataArchiver.previewSyncApply(
-                    current: current,
-                    incoming: merged,
-                    useUpsert: false
-                )
-                let upsert = try AppDataArchiver.previewSyncApply(
-                    current: current,
-                    incoming: merged,
-                    useUpsert: true
-                )
-                return (SyncDataSummary(appData: legacy), SyncDataSummary(appData: upsert))
-            }.value
-
-            let matches = results.0 == results.1
-            logger.log(
-                category: .sync,
-                level: matches ? .info : .error,
-                message: matches ? "Sync apply shadow comparison matched" : "Sync apply shadow comparison differed",
-                details: "legacy={\(results.0.logDescription)} upsert={\(results.1.logDescription)}"
-            )
-        } catch {
-            logger.log(
-                category: .sync,
-                level: .warning,
-                message: "Sync apply shadow comparison failed",
-                error: error
-            )
-        }
+    private func applyMergedSnapshotLocally(
+        _ merged: AppData,
+        expectedChangeToken: Int64
+    ) async throws {
+        try await persistence.applySyncedData(
+            merged,
+            expectedChangeToken: expectedChangeToken
+        )
     }
 
     private func beginSyncOperation(named operation: String, session: AuthSession) throws {

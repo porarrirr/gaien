@@ -244,13 +244,19 @@ final class SettingsViewModel: ScreenViewModel {
     }
 
     private func writeDeletionBackup(reason: String) async throws -> URL {
+        let persistentBackup = try await app.appDataRepo.createDataBackup(reason: reason)
         let contents = try await ExportImportDataUseCase(repository: app.appDataRepo).exportJSON()
         let formatter = StudyFormatters.fileSafeTimestamp
         let fileName = "studyapp_backup_\(reason)_\(formatter.string(from: Date())).json"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         try contents.write(to: url, atomically: true, encoding: .utf8)
         exportURL = url
-        app.logger.log(category: .app, level: .warning, message: "Deletion backup created", details: "file=\(url.lastPathComponent)")
+        app.logger.log(
+            category: .app,
+            level: .warning,
+            message: "Deletion backup created",
+            details: "shareFile=\(url.lastPathComponent) persistentFile=\(persistentBackup.fileName)"
+        )
         return url
     }
 

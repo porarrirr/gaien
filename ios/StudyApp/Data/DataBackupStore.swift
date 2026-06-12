@@ -12,6 +12,8 @@ struct DataBackupDescriptor: Identifiable, Hashable {
 enum DataBackupStore {
     static let automaticBackupInterval: TimeInterval = 24 * 60 * 60
     static let retentionInterval: TimeInterval = 30 * 24 * 60 * 60
+    static let syncBackupInterval: TimeInterval = 60 * 60
+    static let maximumBackupsPerReason = 24
 
     static func shouldCreateAutomaticBackup(
         fileManager: FileManager = .default,
@@ -21,6 +23,18 @@ enum DataBackupStore {
             return true
         }
         return now.timeIntervalSince(newest.createdAt) >= automaticBackupInterval
+    }
+
+    static func shouldCreateBackup(
+        reason: String,
+        minimumInterval: TimeInterval,
+        fileManager: FileManager = .default,
+        now: Date = Date()
+    ) throws -> Bool {
+        guard let newest = try list(fileManager: fileManager).first(where: { $0.reason == reason }) else {
+            return true
+        }
+        return now.timeIntervalSince(newest.createdAt) >= minimumInterval
     }
 
     static func save(
@@ -87,8 +101,17 @@ enum DataBackupStore {
 
     private static func prune(fileManager: FileManager, now: Date) throws {
         let cutoff = now.addingTimeInterval(-retentionInterval)
-        for backup in try listWithoutPruning(fileManager: fileManager) where backup.createdAt < cutoff {
-            try fileManager.removeItem(at: backup.url)
+        let backups = try listWithoutPruning(fileManager: fileManager)
+        var removals = Set<URL>(backups.filter { $0.createdAt < cutoff }.map(\.url))
+        for reasonBackups in Dictionary(grouping: backups, by: \.reason).values {
+            for backup in reasonBackups
+                .sorted(by: { $0.createdAt > $1.createdAt })
+                .dropFirst(maximumBackupsPerReason) {
+                removals.insert(backup.url)
+            }
+        }
+        for url in removals {
+            try fileManager.removeItem(at: url)
         }
     }
 

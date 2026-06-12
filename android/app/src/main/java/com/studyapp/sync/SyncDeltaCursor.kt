@@ -30,3 +30,21 @@ data class SyncDeltaCursor(
 
 val SyncEntityEnvelope.cursorPosition: SyncDeltaCursor
     get() = SyncDeltaCursor(updatedAt = updatedAt, documentId = documentId)
+
+data class SyncServerCursor(
+    val seconds: Long = 0L,
+    val nanoseconds: Int = 0,
+    val documentId: String = ""
+) : Comparable<SyncServerCursor> {
+    override fun compareTo(other: SyncServerCursor): Int {
+        val timeCompare = seconds.compareTo(other.seconds)
+        if (timeCompare != 0) return timeCompare
+        val nanosCompare = nanoseconds.compareTo(other.nanoseconds)
+        if (nanosCompare != 0) return nanosCompare
+        return documentId.compareTo(other.documentId)
+    }
+
+    companion object {
+        val ZERO = SyncServerCursor()
+    }
+}

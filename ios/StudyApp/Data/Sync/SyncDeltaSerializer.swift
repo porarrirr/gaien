@@ -119,6 +119,18 @@ enum SyncDeltaSerializer {
         changedSince(appData, cursor: SyncDeltaCursor.fromLegacy(cursor))
     }
 
+    static func changedComparedTo(_ appData: AppData, base: AppData?) -> [SyncEntityEnvelope] {
+        let current = decompose(appData)
+        guard let base else { return current }
+        let baseById = Dictionary(uniqueKeysWithValues: decompose(base).map { ($0.documentId, $0) })
+        return current.filter { envelope in
+            guard let previous = baseById[envelope.documentId] else { return true }
+            return envelope.updatedAt != previous.updatedAt ||
+                envelope.deletedAt != previous.deletedAt ||
+                envelope.json != previous.json
+        }
+    }
+
     // MARK: - Reassembly (envelopes + base -> AppData)
 
     /// Merges the given envelopes onto `base` using `SyncMergeEngine`

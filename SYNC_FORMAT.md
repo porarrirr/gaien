@@ -39,21 +39,26 @@ Renaming or removing a kind is a breaking change.
 
 ## Local Apply Rollout
 
-iOS currently keeps the full-replace local apply path as the production
-default and runs an in-memory summary comparison against the syncId upsert
-path. Set `STUDYAPP_SYNC_ENABLE_UPSERT=1` only for staged validation. Make
-upsert the default after comparison logs remain equivalent for one release.
+iOS applies merged snapshots with syncId upserts. The former full-replace and
+shadow-comparison path has been removed so a sync cannot replace unrelated
+local edits made while the merge was being prepared.
 
 ## Cursor
 
-Clients persist a composite cursor:
+Clients persist two independent positions:
 
-1. `updatedAt`
-2. `documentId` as a tie-breaker
+1. A Firestore fetch cursor: `serverUpdatedAt` plus `documentId`.
+2. A legacy client cursor retained for local state compatibility.
 
-An envelope is newer when its pair is lexicographically greater than the
-stored pair. A missing base shadow, revision map, or cursor component resets
-all three and triggers a full delta fetch.
+Only the server cursor controls remote fetches. Entity `updatedAt` remains a
+client timestamp used for merge ordering and never advances the fetch cursor.
+Uploads are selected by comparing the current local snapshot with the saved
+base shadow, so a clock-skewed remote entity cannot suppress later local
+edits.
+
+Clients migrating from the old `updatedAt` fetch cursor reset the server
+cursor once, perform a full fetch, and persist a migration flag. A missing
+base shadow or revision map still resets the associated local sync state.
 
 ## Deletion
 

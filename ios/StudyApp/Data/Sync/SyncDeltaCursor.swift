@@ -38,3 +38,23 @@ extension SyncEntityEnvelope {
         SyncDeltaCursor(updatedAt: updatedAt, documentId: documentId)
     }
 }
+
+/// Firestore read position. This cursor is intentionally independent from
+/// entity `updatedAt`, which remains a client timestamp used only for merges.
+struct SyncServerCursor: Codable, Equatable, Comparable {
+    var seconds: Int64
+    var nanoseconds: Int32
+    var documentId: String
+
+    static let zero = SyncServerCursor(seconds: 0, nanoseconds: 0, documentId: "")
+
+    static func < (lhs: SyncServerCursor, rhs: SyncServerCursor) -> Bool {
+        if lhs.seconds != rhs.seconds {
+            return lhs.seconds < rhs.seconds
+        }
+        if lhs.nanoseconds != rhs.nanoseconds {
+            return lhs.nanoseconds < rhs.nanoseconds
+        }
+        return lhs.documentId < rhs.documentId
+    }
+}

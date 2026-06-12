@@ -88,6 +88,16 @@ class SyncDeltaSerializerTest {
     }
 
     @Test
+    fun `changedComparedTo finds local content change despite older client clock`() {
+        val base = appData(subjects = listOf(subject("s1", updatedAt = 9_000, color = 1)))
+        val local = appData(subjects = listOf(subject("s1", updatedAt = 1_000, color = 7)))
+
+        val changed = SyncDeltaSerializer.changedComparedTo(local, base)
+
+        assertEquals(listOf("s1"), changed.map { it.syncId })
+    }
+
+    @Test
     fun `assemble merges envelopes onto base data`() {
         val base = appData(subjects = listOf(subject("s1", updatedAt = 100, color = 1)))
         val newer = SyncDeltaSerializer.decompose(appData(subjects = listOf(subject("s1", updatedAt = 300, color = 9))))

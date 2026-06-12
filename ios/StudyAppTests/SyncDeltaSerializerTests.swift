@@ -73,6 +73,15 @@ final class SyncDeltaSerializerTests: XCTestCase {
         XCTAssertEqual(changed.map(\.syncId), ["z"])
     }
 
+    func test_changedComparedTo_ignoresRemoteClockAndFindsLocalContentChange() {
+        let base = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 9_000, color: 1)])
+        let local = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 1_000, color: 7)])
+
+        let changed = SyncDeltaSerializer.changedComparedTo(local, base: base)
+
+        XCTAssertEqual(changed.map(\.syncId), ["s1"])
+    }
+
     // MARK: - assemble
 
     func test_assemble_mergesEnvelopesOntoBase() {

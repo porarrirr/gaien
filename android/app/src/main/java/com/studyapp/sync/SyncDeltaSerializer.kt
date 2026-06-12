@@ -57,6 +57,18 @@ object SyncDeltaSerializer {
         return changedSince(appData, SyncDeltaCursor.fromLegacy(cursor))
     }
 
+    fun changedComparedTo(appData: AppData, base: AppData?): List<SyncEntityEnvelope> {
+        val current = decompose(appData)
+        if (base == null) return current
+        val baseById = decompose(base).associateBy { it.documentId }
+        return current.filter { envelope ->
+            val previous = baseById[envelope.documentId] ?: return@filter true
+            envelope.updatedAt != previous.updatedAt ||
+                envelope.deletedAt != previous.deletedAt ||
+                envelope.json != previous.json
+        }
+    }
+
     fun assemble(envelopes: List<SyncEntityEnvelope>, onto: AppData): AppData {
         val partial = partialAppData(envelopes, onto.exportDate)
         return SyncMergeEngine.merge(local = onto, remote = partial)

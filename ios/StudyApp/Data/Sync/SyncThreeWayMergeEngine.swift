@@ -210,7 +210,6 @@ enum SyncThreeWayMergeEngine {
                 return localValue.updatedAt >= remoteValue.updatedAt ? localValue : remoteValue
             }
             let winner = localValue.reviewedAt >= remoteValue.reviewedAt ? localValue : remoteValue
-            let loser = winner.syncId == localValue.syncId ? remoteValue : localValue
             if let baseValue = baseMap[syncId],
                localValue.reviewedAt != baseValue.reviewedAt,
                remoteValue.reviewedAt != baseValue.reviewedAt,
@@ -228,7 +227,6 @@ enum SyncThreeWayMergeEngine {
                 ))
                 return localValue
             }
-            _ = loser
             return winner
         }
     }

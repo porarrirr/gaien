@@ -1,5 +1,6 @@
 package com.studyapp.sync
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.studyapp.domain.usecase.AppData
@@ -48,10 +49,26 @@ class FirebaseSyncRepository @Inject constructor(
                     ensureLocalSyncOwnership(session, local)
 
                     val localChangeToken = syncChangeNotifier.localChangeGeneration
+                    if (!syncPreferences.isServerCursorMigrationDone(session.localId)) {
+                        syncPreferences.setDeltaCursor(session.localId, SyncDeltaCursor.ZERO)
+                        syncPreferences.setServerCursor(session.localId, SyncServerCursor.ZERO)
+                        syncPreferences.setServerCursorMigrationDone(session.localId, true)
+                        runCatching {
+                            deltaStore.recordClientFlags(
+                                mapOf("serverUpdatedAtCursorMigrated" to true),
+                                session.localId
+                            )
+                        }.onFailure {
+                            Log.w(TAG, "Failed to record server cursor migration flag", it)
+                        }
+                    }
                     val cursor = syncPreferences.getDeltaCursor(session.localId)
+                    val serverCursor = syncPreferences.getServerCursor(session.localId)
+                    val outboundComparisonBase = baseShadowStore.load(session.localId)
                     baseShadowStore.bootstrapIfNeeded(session.localId, local)
                     val baseShadow = baseShadowStore.load(session.localId)
-                    val remoteEnvelopes = deltaStore.fetchEnvelopes(session.localId, cursor)
+                    val fetchResult = deltaStore.fetchEnvelopes(session.localId, serverCursor)
+                    val remoteEnvelopes = fetchResult.envelopes
                     val now = System.currentTimeMillis()
                     val mergeOutcome = SyncThreeWayMergeEngine.merge(
                         base = baseShadow,
@@ -65,7 +82,12 @@ class FirebaseSyncRepository @Inject constructor(
                     val storedConflicts = mergeStoredConflicts(session.localId, mergeOutcome.conflicts)
                     pendingConflictUserId = session.localId
 
-                    var outboundEnvelopes = SyncDeltaSerializer.changedSince(synced, cursor)
+                    val locallyChangedIds = SyncDeltaSerializer
+                        .changedComparedTo(local, outboundComparisonBase)
+                        .map { it.documentId }
+                        .toSet()
+                    var outboundEnvelopes = SyncDeltaSerializer.decompose(synced)
+                        .filter { it.documentId in locallyChangedIds }
                     val previousRevisions = baseShadowStore.loadRevisionMap(session.localId)
                     outboundEnvelopes = revisionStamper.stamp(outboundEnvelopes, baseShadow, previousRevisions)
                     val unresolvedConflictIds = storedConflicts.map { it.documentId }.toSet()
@@ -91,10 +113,11 @@ class FirebaseSyncRepository @Inject constructor(
                     val resolvedRemoteEnvelopes = remoteEnvelopes
                         .filterNot { it.documentId in unresolvedConflictIds }
                     var newCursor = cursor
-                    (resolvedRemoteEnvelopes + resolvedMergedEnvelopes + outboundEnvelopes).forEach { envelope ->
+                    outboundEnvelopes.forEach { envelope ->
                         newCursor = newCursor.absorb(envelope)
                     }
                     syncPreferences.setDeltaCursor(session.localId, newCursor)
+                    syncPreferences.setServerCursor(session.localId, fetchResult.cursor)
                     baseShadowStore.save(
                         if (unresolvedConflictIds.isEmpty()) {
                             synced
@@ -145,8 +168,25 @@ class FirebaseSyncRepository @Inject constructor(
                     syncPreferences.saveLocalBackup(local.toJson().toString(), localBackupTime, "before-importLocalDataToCloud")
                     ensureLocalSyncOwnership(session, local)
 
+                    if (!syncPreferences.isServerCursorMigrationDone(session.localId)) {
+                        syncPreferences.setDeltaCursor(session.localId, SyncDeltaCursor.ZERO)
+                        syncPreferences.setServerCursor(session.localId, SyncServerCursor.ZERO)
+                        syncPreferences.setServerCursorMigrationDone(session.localId, true)
+                        runCatching {
+                            deltaStore.recordClientFlags(
+                                mapOf("serverUpdatedAtCursorMigrated" to true),
+                                session.localId
+                            )
+                        }.onFailure {
+                            Log.w(TAG, "Failed to record server cursor migration flag", it)
+                        }
+                    }
                     val cursor = syncPreferences.getDeltaCursor(session.localId)
-                    val remoteEnvelopes = deltaStore.fetchEnvelopes(session.localId, cursor)
+                    val fetchResult = deltaStore.fetchEnvelopes(
+                        session.localId,
+                        syncPreferences.getServerCursor(session.localId)
+                    )
+                    val remoteEnvelopes = fetchResult.envelopes
                     if (remoteEnvelopes.isNotEmpty()) {
                         val remoteApp = SyncDeltaSerializer.assemble(remoteEnvelopes, onto = local)
                         ensureNoProblemProgressLoss(remoteApp, local, "importLocalDataToCloud")
@@ -172,6 +212,7 @@ class FirebaseSyncRepository @Inject constructor(
                     var newCursor = cursor
                     envelopes.forEach { envelope -> newCursor = newCursor.absorb(envelope) }
                     syncPreferences.setDeltaCursor(session.localId, newCursor)
+                    syncPreferences.setServerCursor(session.localId, fetchResult.cursor)
                     baseShadowStore.save(stampedLocal, session.localId)
                     baseShadowStore.mergeRevisionMap(session.localId, envelopes)
                     syncPreferences.setLastSyncAt(now)
@@ -463,6 +504,7 @@ class FirebaseSyncRepository @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "FirebaseSyncRepository"
         const val DELETE_BATCH_SIZE = 450L
         const val MAX_SYNC_ATTEMPTS = 3
         const val TOMBSTONE_RETENTION_MILLIS = 90L * 24L * 60L * 60L * 1000L
