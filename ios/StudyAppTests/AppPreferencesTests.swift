@@ -113,4 +113,74 @@ final class ScreenTimeFocusSettingsTests: XCTestCase {
 
         XCTAssertFalse(settings.shouldUnlockRestrictionsForDailyGoal(progress: progress, referenceDate: reference))
     }
+
+    func testDailyGoalUnlockEligibleStudyMinutesExcludeManualSessions() {
+        let reference = testDate(2026, 6, 1, hour: 12)
+        let manual = testSession(id: 1, day: reference.startOfDay, hour: 8, minutes: 60, sessionType: .manual)
+        let stopwatch = testSession(id: 2, day: reference.startOfDay, hour: 10, minutes: 25, sessionType: .stopwatch)
+
+        let minutes = StudySession.screenTimeDailyGoalUnlockStudyMinutes(
+            from: [manual, stopwatch],
+            activeTimerMinutes: 10
+        )
+
+        XCTAssertEqual(minutes, 35)
+    }
+
+    func testDailyGoalUnlockDoesNotReachTargetWithManualSessionOnly() {
+        let reference = testDate(2026, 6, 1, hour: 12)
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            unlockRestrictionsWhenDailyGoalReached: true
+        )
+        let manual = testSession(id: 1, day: reference.startOfDay, hour: 8, minutes: 90, sessionType: .manual)
+        let progress = ScreenTimeDailyGoalProgress(
+            dayStart: reference.startOfDay.epochMilliseconds,
+            studyMinutes: StudySession.screenTimeDailyGoalUnlockStudyMinutes(from: [manual]),
+            targetMinutes: 60,
+            updatedAt: reference.epochMilliseconds
+        )
+
+        XCTAssertFalse(settings.shouldUnlockRestrictionsForDailyGoal(progress: progress, referenceDate: reference))
+    }
+
+    func testDailyGoalUnlockEligibleStudyMinutesExcludeEditedTimerSessions() {
+        let reference = testDate(2026, 6, 1, hour: 12)
+        let editedTimer = testSession(
+            id: 1,
+            day: reference.startOfDay,
+            hour: 8,
+            minutes: 60,
+            sessionType: .timer,
+            screenTimeUnlockExcluded: true
+        )
+        let stopwatch = testSession(id: 2, day: reference.startOfDay, hour: 10, minutes: 25, sessionType: .stopwatch)
+
+        let minutes = StudySession.screenTimeDailyGoalUnlockStudyMinutes(from: [editedTimer, stopwatch])
+
+        XCTAssertEqual(minutes, 25)
+    }
+
+    func testStudySessionDecodeDefaultsScreenTimeUnlockExcludedToFalse() throws {
+        let json = """
+        {
+          "id": 1,
+          "syncId": "session-1",
+          "subjectId": 1,
+          "subjectName": "数学",
+          "sessionType": "STOPWATCH",
+          "startTime": 1000,
+          "endTime": 61000,
+          "intervals": [],
+          "problemRecords": [],
+          "createdAt": 1000,
+          "updatedAt": 1000
+        }
+        """
+
+        let session = try JSONDecoder().decode(StudySession.self, from: Data(json.utf8))
+
+        XCTAssertFalse(session.screenTimeUnlockExcluded)
+        XCTAssertTrue(session.countsTowardScreenTimeDailyGoalUnlock)
+    }
 }

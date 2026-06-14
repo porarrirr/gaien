@@ -277,13 +277,16 @@ final class StudyAppContainer: ObservableObject {
 
         let sessions = try await sessionsTask
         let goals = try await goalsTask
-        let storedStudyMinutes = sessions.reduce(0) { $0 + $1.durationMinutes }
         let activeTimerMinutes = activeTimerStudyMinutesForToday(reference: now, dayStart: todayStart)
+        let eligibleStudyMinutes = StudySession.screenTimeDailyGoalUnlockStudyMinutes(
+            from: sessions,
+            activeTimerMinutes: activeTimerMinutes
+        )
         let targetMinutes = goals.latestActiveDailyGoal(for: todayWeekday)?.targetMinutes ?? 0
 
         return ScreenTimeDailyGoalProgress(
             dayStart: todayStart,
-            studyMinutes: storedStudyMinutes + activeTimerMinutes,
+            studyMinutes: eligibleStudyMinutes,
             targetMinutes: targetMinutes,
             updatedAt: now.epochMilliseconds
         )

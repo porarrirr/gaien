@@ -83,6 +83,7 @@ enum PersistenceMappers {
         record.setValue(session.problemEnd.map { Int64($0) }, forKey: "problemEnd")
         record.setValue(session.wrongProblemCount.map { Int64($0) }, forKey: "wrongProblemCount")
         record.setValue(encodeProblemRecords(session.problemRecords), forKey: "problemRecordsData")
+        record.setValue(session.screenTimeUnlockExcluded, forKey: "screenTimeUnlockExcluded")
         record.setValue(session.createdAt == 0 ? now : session.createdAt, forKey: "createdAt")
         record.setValue(session.updatedAt == 0 ? now : session.updatedAt, forKey: "updatedAt")
         record.setValue(session.deletedAt, forKey: "deletedAt")
@@ -311,6 +312,7 @@ enum PersistenceMappers {
             problemEnd: (record.value(forKey: "problemEnd") as? Int64).map(Int.init),
             wrongProblemCount: (record.value(forKey: "wrongProblemCount") as? Int64).map(Int.init),
             problemRecords: decodeProblemRecords(record.value(forKey: "problemRecordsData") as? String),
+            screenTimeUnlockExcluded: (record.value(forKey: "screenTimeUnlockExcluded") as? Bool) ?? false,
             createdAt: record.value(forKey: "createdAt") as? Int64 ?? 0,
             updatedAt: record.value(forKey: "updatedAt") as? Int64 ?? 0,
             deletedAt: record.value(forKey: "deletedAt") as? Int64,

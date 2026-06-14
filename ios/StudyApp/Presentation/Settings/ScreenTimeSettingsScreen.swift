@@ -173,7 +173,7 @@ struct ScreenTimeSettingsScreen: View {
                 )
             }
         } footer: {
-            Text("今日の1日目標に到達した日は、タイマー中と時間指定のScreen Time制限を解除します。翌日は再び制限対象になります。")
+            Text("今日の1日目標に到達した日は、タイマー中と時間指定のScreen Time制限を解除します。手動記録は解除判定に含めません。")
         }
     }
 

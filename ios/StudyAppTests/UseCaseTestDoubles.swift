@@ -14,6 +14,8 @@ func testSession(
     subjectName: String = "数学",
     materialId: Int64? = nil,
     materialName: String = "",
+    sessionType: StudySessionType = .stopwatch,
+    screenTimeUnlockExcluded: Bool = false,
     rating: Int? = nil
 ) -> StudySession {
     let start = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: day)!.epochMilliseconds
@@ -25,9 +27,11 @@ func testSession(
         subjectId: subjectId,
         subjectSyncId: "subject-\(subjectId)",
         subjectName: subjectName,
+        sessionType: sessionType,
         startTime: start,
         endTime: start + Int64(minutes * 60_000),
         rating: rating,
+        screenTimeUnlockExcluded: screenTimeUnlockExcluded,
         createdAt: start,
         updatedAt: start
     )

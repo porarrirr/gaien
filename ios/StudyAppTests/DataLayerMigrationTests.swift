@@ -272,6 +272,44 @@ final class DataLayerMigrationTests: XCTestCase {
         XCTAssertEqual(material.value(forKey: "syncId") as? String, firstMaterialSyncId)
     }
 
+    @MainActor
+    func testUpdateSessionPersistsScreenTimeUnlockExclusionForEditedTimerSession() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PersistenceControllerTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+
+        let repository = PersistenceController(fileManager: TestFileManager(rootURL: rootURL))
+        let start = Date(timeIntervalSince1970: 1_780_300_800).epochMilliseconds
+        let session = StudySession(
+            syncId: "session-1",
+            materialId: nil,
+            subjectId: 1,
+            subjectName: "数学",
+            sessionType: .timer,
+            startTime: start,
+            endTime: start + 30 * 60_000,
+            intervals: [
+                StudySessionInterval(startTime: start, endTime: start + 30 * 60_000)
+            ],
+            createdAt: start,
+            updatedAt: start
+        )
+        let id = try await repository.insertSession(session)
+
+        var edited = session
+        edited.id = id
+        edited.endTime = start + 45 * 60_000
+        edited.intervals = [
+            StudySessionInterval(startTime: start, endTime: start + 45 * 60_000)
+        ]
+        try await repository.updateSession(edited)
+
+        let sessions = try await repository.getAllSessions()
+        let saved = try XCTUnwrap(sessions.first)
+        XCTAssertTrue(saved.screenTimeUnlockExcluded)
+        XCTAssertFalse(saved.countsTowardScreenTimeDailyGoalUnlock)
+    }
+
     func testRealDeviceBackupWhenProvided() throws {
         guard let path = ProcessInfo.processInfo.environment["STUDYAPP_REAL_BACKUP_PATH"] else {
             throw XCTSkip("Set STUDYAPP_REAL_BACKUP_PATH to validate a private device backup.")
@@ -315,5 +353,26 @@ final class DataLayerMigrationTests: XCTestCase {
             throw loadError
         }
         return container.viewContext
+    }
+}
+
+private final class TestFileManager: FileManager {
+    private let rootURL: URL
+
+    init(rootURL: URL) {
+        self.rootURL = rootURL
+        super.init()
+    }
+
+    override func urls(
+        for directory: FileManager.SearchPathDirectory,
+        in domainMask: FileManager.SearchPathDomainMask
+    ) -> [URL] {
+        switch directory {
+        case .applicationSupportDirectory, .documentDirectory:
+            [rootURL]
+        default:
+            super.urls(for: directory, in: domainMask)
+        }
     }
 }

@@ -421,11 +421,16 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     func updateSession(_ session: StudySession) async throws {
         try await ensureLoaded()
         guard let record = try CoreDataQuery.fetchOne("StudySessionRecord", id: session.id, in: viewContext) else { return }
+        let persistedSession = PersistenceMappers.session(record)
+        var sessionToPersist = session
+        if persistedSession.screenTimeUnlockExcluded || persistedSession.hasDifferentEffectiveIntervals(than: session) {
+            sessionToPersist.screenTimeUnlockExcluded = true
+        }
         let oldMaterialId = record.value(forKey: "materialId") as? Int64
         var nextLocalId = try CoreDataQuery.maxIdentifier(in: viewContext, entities: ["ProblemReviewRecord"]) + 1
         let now = Date().epochMilliseconds
         let sanitized = sanitize(
-            session: session,
+            session: sessionToPersist,
             assignedId: session.id,
             persistedSyncId: record.value(forKey: "syncId") as? String,
             persistedCreatedAt: record.value(forKey: "createdAt") as? Int64,
@@ -1274,6 +1279,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
             problemEnd: session.problemEnd,
             wrongProblemCount: session.wrongProblemCount,
             problemRecords: session.problemRecords,
+            screenTimeUnlockExcluded: session.screenTimeUnlockExcluded,
             createdAt: persistedCreatedAt ?? (session.createdAt == 0 ? Date().epochMilliseconds : session.createdAt),
             updatedAt: Date().epochMilliseconds,
             deletedAt: session.deletedAt,

@@ -85,6 +85,7 @@ enum CoreDataSchema {
                     attribute(name: "problemEnd", type: .integer64AttributeType, optional: true),
                     attribute(name: "wrongProblemCount", type: .integer64AttributeType, optional: true),
                     attribute(name: "problemRecordsData", type: .stringAttributeType, optional: true),
+                    attribute(name: "screenTimeUnlockExcluded", type: .booleanAttributeType, defaultValue: false),
                     attribute(name: "createdAt", type: .integer64AttributeType),
                     attribute(name: "updatedAt", type: .integer64AttributeType),
                     attribute(name: "deletedAt", type: .integer64AttributeType, optional: true),

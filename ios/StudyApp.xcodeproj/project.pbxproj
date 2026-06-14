@@ -1342,7 +1342,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2026.06.11;
+				MARKETING_VERSION = 2026.06.12;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1376,7 +1376,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2026.06.11;
+				MARKETING_VERSION = 2026.06.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1403,7 +1403,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2026.06.11;
+				MARKETING_VERSION = 2026.06.12;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1432,7 +1432,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2026.06.11;
+				MARKETING_VERSION = 2026.06.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1501,7 +1501,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2026.06.11;
+				MARKETING_VERSION = 2026.06.12;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.deviceactivitymonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1530,7 +1530,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2026.06.11;
+				MARKETING_VERSION = 2026.06.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.deviceactivitymonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

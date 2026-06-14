@@ -9,6 +9,9 @@ struct IconImage {
 }
 
 let outputDirectory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
+let masterImageURL = CommandLine.arguments.count > 2
+    ? URL(fileURLWithPath: CommandLine.arguments[2])
+    : nil
 
 let images: [IconImage] = [
     .init(filename: "iphone-notification-20@2x.png", size: 40),
@@ -107,7 +110,6 @@ func drawIcon(in context: CGContext, size: CGFloat) {
 
 func makeImage(size: Int) -> CGImage {
     let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
-    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
     guard let context = CGContext(
         data: nil,
         width: size,
@@ -115,7 +117,7 @@ func makeImage(size: Int) -> CGImage {
         bitsPerComponent: 8,
         bytesPerRow: size * 4,
         space: colorSpace,
-        bitmapInfo: bitmapInfo
+        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
     ) else {
         fatalError("Could not create bitmap context")
     }
@@ -146,4 +148,8 @@ try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDir
 for image in images {
     let rendered = makeImage(size: image.size)
     writePNG(rendered, to: outputDirectory.appendingPathComponent(image.filename))
+}
+
+if let masterImageURL {
+    writePNG(makeImage(size: 1024), to: masterImageURL)
 }

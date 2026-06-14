@@ -3,6 +3,16 @@ import Foundation
 struct StudySession: Identifiable, Codable, Hashable {
     static let allowedRatings = 1...5
 
+    static func screenTimeDailyGoalUnlockStudyMinutes(
+        from sessions: [StudySession],
+        activeTimerMinutes: Int = 0
+    ) -> Int {
+        sessions.reduce(activeTimerMinutes) { total, session in
+            guard session.countsTowardScreenTimeDailyGoalUnlock else { return total }
+            return total + session.durationMinutes
+        }
+    }
+
     var id: Int64 = 0
     var syncId: String = UUID().uuidString.lowercased()
     var materialId: Int64?
@@ -21,6 +31,7 @@ struct StudySession: Identifiable, Codable, Hashable {
     var problemEnd: Int?
     var wrongProblemCount: Int?
     var problemRecords: [ProblemSessionRecord] = []
+    var screenTimeUnlockExcluded: Bool = false
     var createdAt: Int64 = Date().epochMilliseconds
     var updatedAt: Int64 = Date().epochMilliseconds
     var deletedAt: Int64?
@@ -45,6 +56,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         case problemEnd
         case wrongProblemCount
         case problemRecords
+        case screenTimeUnlockExcluded
         case createdAt
         case updatedAt
         case deletedAt
@@ -83,6 +95,15 @@ struct StudySession: Identifiable, Codable, Hashable {
 
     var durationHours: Double {
         Double(duration) / 3_600_000
+    }
+
+    var countsTowardScreenTimeDailyGoalUnlock: Bool {
+        sessionType != .manual && !screenTimeUnlockExcluded
+    }
+
+    func hasDifferentEffectiveIntervals(than other: StudySession) -> Bool {
+        guard sessionType != .manual else { return false }
+        return effectiveIntervals != other.effectiveIntervals
     }
 
     var durationFormatted: String {
@@ -161,6 +182,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         problemEnd: Int? = nil,
         wrongProblemCount: Int? = nil,
         problemRecords: [ProblemSessionRecord] = [],
+        screenTimeUnlockExcluded: Bool = false,
         createdAt: Int64 = Date().epochMilliseconds,
         updatedAt: Int64 = Date().epochMilliseconds,
         deletedAt: Int64? = nil,
@@ -184,6 +206,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         self.problemEnd = problemEnd
         self.wrongProblemCount = wrongProblemCount
         self.problemRecords = problemRecords
+        self.screenTimeUnlockExcluded = screenTimeUnlockExcluded
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.deletedAt = deletedAt
@@ -217,6 +240,7 @@ struct StudySession: Identifiable, Codable, Hashable {
         problemEnd = try container.decodeIfPresent(Int.self, forKey: .problemEnd)
         wrongProblemCount = try container.decodeIfPresent(Int.self, forKey: .wrongProblemCount)
         problemRecords = try container.decodeIfPresent([ProblemSessionRecord].self, forKey: .problemRecords) ?? []
+        screenTimeUnlockExcluded = try container.decodeIfPresent(Bool.self, forKey: .screenTimeUnlockExcluded) ?? false
         createdAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? Date().epochMilliseconds
         updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? createdAt
         deletedAt = try container.decodeIfPresent(Int64.self, forKey: .deletedAt)
@@ -251,6 +275,9 @@ struct StudySession: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(problemEnd, forKey: .problemEnd)
         try container.encodeIfPresent(wrongProblemCount, forKey: .wrongProblemCount)
         try container.encode(problemRecords, forKey: .problemRecords)
+        if screenTimeUnlockExcluded {
+            try container.encode(screenTimeUnlockExcluded, forKey: .screenTimeUnlockExcluded)
+        }
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
