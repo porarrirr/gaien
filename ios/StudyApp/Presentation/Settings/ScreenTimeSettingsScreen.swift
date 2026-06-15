@@ -387,9 +387,76 @@ struct ScreenTimeSettingsScreen: View {
                 )
                 .disabled(!canEditSettings)
             }
+
+            weekdaySelector(slot)
         }
         .padding(.vertical, 8)
         .disabled(!canEditSettings)
+    }
+
+    private func weekdaySelector(_ slot: FocusScheduleSlot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("曜日")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                Spacer()
+                Text(weekdaysSummary(slot))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(slot.hasSelectedWeekday ? AppColors.textSecondary : AppColors.danger)
+            }
+
+            HStack(spacing: 6) {
+                ForEach(Self.orderedWeekdays, id: \.self) { weekday in
+                    weekdayChip(slot: slot, weekday: weekday)
+                }
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func weekdayChip(slot: FocusScheduleSlot, weekday: Int) -> some View {
+        let isOn = slot.weekdays.contains(weekday)
+        return Button {
+            updateScheduleSlot(id: slot.id) { current in
+                if current.weekdays.contains(weekday) {
+                    current.weekdays.remove(weekday)
+                } else {
+                    current.weekdays.insert(weekday)
+                }
+            }
+        } label: {
+            Text(Self.weekdayShortTitle(weekday))
+                .font(.caption.weight(.bold))
+                .foregroundStyle(isOn ? Color.white : Self.weekdayColor(weekday))
+                .frame(maxWidth: .infinity, minHeight: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(isOn ? Self.weekdayColor(weekday) : AppColors.cardBorder.opacity(0.16))
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canEditSettings)
+    }
+
+    private func weekdaysSummary(_ slot: FocusScheduleSlot) -> String {
+        let selected = slot.weekdays
+        if selected.isEmpty {
+            return "曜日を選択"
+        }
+        if selected == FocusScheduleSlot.allWeekdays {
+            return "毎日"
+        }
+        if selected == [2, 3, 4, 5, 6] {
+            return "平日"
+        }
+        if selected == [1, 7] {
+            return "週末"
+        }
+        return Self.orderedWeekdays
+            .filter { selected.contains($0) }
+            .map { Self.weekdayShortTitle($0) }
+            .joined(separator: "・")
     }
 
     private func lockDurationStepper(title: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
@@ -586,6 +653,31 @@ struct ScreenTimeSettingsScreen: View {
     private func scheduleDate(hour: Int, minute: Int) -> Date {
         let now = Date()
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: now) ?? now
+    }
+
+    /// Calendar weekday order shown in the picker: Sunday first, matching the app's other
+    /// weekday views.
+    private static let orderedWeekdays: [Int] = [1, 2, 3, 4, 5, 6, 7]
+
+    private static func weekdayShortTitle(_ weekday: Int) -> String {
+        switch weekday {
+        case 1: return "日"
+        case 2: return "月"
+        case 3: return "火"
+        case 4: return "水"
+        case 5: return "木"
+        case 6: return "金"
+        case 7: return "土"
+        default: return ""
+        }
+    }
+
+    private static func weekdayColor(_ weekday: Int) -> Color {
+        switch weekday {
+        case 1: return AppColors.danger
+        case 7: return AppColors.blue
+        default: return AppColors.textPrimary
+        }
     }
 
     private static let lockDateFormatter: DateFormatter = {
