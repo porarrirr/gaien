@@ -161,6 +161,91 @@ final class ScreenTimeFocusSettingsTests: XCTestCase {
         XCTAssertEqual(minutes, 25)
     }
 
+    func testLegacyScheduleSlotDecodeDefaultsToAllWeekdays() throws {
+        let json = """
+        {
+          "id": "slot-1",
+          "title": "集中時間",
+          "isEnabled": true,
+          "startHour": 19,
+          "startMinute": 0,
+          "endHour": 21,
+          "endMinute": 0
+        }
+        """
+
+        let slot = try JSONDecoder().decode(FocusScheduleSlot.self, from: Data(json.utf8))
+
+        XCTAssertEqual(slot.weekdays, FocusScheduleSlot.allWeekdays)
+        XCTAssertTrue(slot.hasSelectedWeekday)
+    }
+
+    func testScheduleSlotContainsRespectsSelectedWeekdays() {
+        let monday = testDate(2026, 6, 15, hour: 20)
+        let tuesday = testDate(2026, 6, 16, hour: 20)
+        let mondayWeekday = Calendar.current.component(.weekday, from: monday)
+
+        let slot = FocusScheduleSlot(
+            startHour: 19,
+            startMinute: 0,
+            endHour: 21,
+            endMinute: 0,
+            weekdays: [mondayWeekday]
+        )
+
+        XCTAssertTrue(slot.contains(monday))
+        XCTAssertFalse(slot.contains(tuesday))
+    }
+
+    func testScheduleSlotCrossMidnightAttributesEarlyMorningToStartWeekday() {
+        let mondayNight = testDate(2026, 6, 15, hour: 23)
+        let tuesdayMorning = testDate(2026, 6, 16, hour: 1)
+        let mondayWeekday = Calendar.current.component(.weekday, from: mondayNight)
+        let tuesdayWeekday = Calendar.current.component(.weekday, from: tuesdayMorning)
+
+        let mondayOnly = FocusScheduleSlot(
+            startHour: 22,
+            startMinute: 0,
+            endHour: 2,
+            endMinute: 0,
+            weekdays: [mondayWeekday]
+        )
+        XCTAssertTrue(mondayOnly.contains(mondayNight))
+        XCTAssertTrue(mondayOnly.contains(tuesdayMorning))
+
+        let tuesdayOnly = FocusScheduleSlot(
+            startHour: 22,
+            startMinute: 0,
+            endHour: 2,
+            endMinute: 0,
+            weekdays: [tuesdayWeekday]
+        )
+        XCTAssertFalse(tuesdayOnly.contains(tuesdayMorning))
+        XCTAssertTrue(tuesdayOnly.contains(testDate(2026, 6, 16, hour: 23)))
+    }
+
+    func testScheduleSlotWithoutWeekdaysNeverApplies() {
+        let monday = testDate(2026, 6, 15, hour: 20)
+        let slot = FocusScheduleSlot(
+            startHour: 19,
+            startMinute: 0,
+            endHour: 21,
+            endMinute: 0,
+            weekdays: []
+        )
+
+        XCTAssertFalse(slot.hasSelectedWeekday)
+        XCTAssertFalse(slot.contains(monday))
+
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            scheduledRestrictionEnabled: true,
+            scheduleSlots: [slot]
+        )
+        XCTAssertTrue(settings.enabledScheduleSlots.isEmpty)
+        XCTAssertFalse(settings.hasActiveScheduleSlot(at: monday))
+    }
+
     func testStudySessionDecodeDefaultsScreenTimeUnlockExcludedToFalse() throws {
         let json = """
         {

@@ -31,7 +31,6 @@ struct TimerScreen: View {
     var body: some View {
         GeometryReader { geometry in
             let isLandscapeFocus = shouldShowLandscapeFocus(size: geometry.size)
-            let ambientTheme = TimerAmbientTheme.make(colorScheme: colorScheme)
             Group {
                 if isLandscapeFocus {
                     switch viewModel.app.preferences.landscapeTimerDisplayPreset {
@@ -58,7 +57,7 @@ struct TimerScreen: View {
                         }
                     }
                 } else {
-                    portraitTimerContent(theme: ambientTheme, size: geometry.size)
+                    portraitTimerContent(size: geometry.size)
                 }
             }
             .toolbar(isLandscapeFocus ? .hidden : .visible, for: .navigationBar)
@@ -192,52 +191,37 @@ struct TimerScreen: View {
         return min(Double(viewModel.elapsedMilliseconds) / targetMs, 1.0)
     }
 
-    private func portraitTimerContent(theme: TimerAmbientTheme, size: CGSize) -> some View {
-        ZStack {
-            TimerAmbientBackgroundView(theme: theme, isRunning: viewModel.isRunning)
+    // MARK: - Portrait layout
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 22) {
-                    targetLauncher(theme: theme)
-
-                    VStack(spacing: 16) {
-                        focusStatusRow(theme: theme)
-                        focusTimeField(size: size)
-                        focusProgressRail(theme: theme)
-                    }
-                    .padding(.top, 18)
-
-                    VStack(spacing: 12) {
-                        controlButtonsSection(theme: theme, size: size)
-                        focusModeControls(theme: theme)
-                    }
-                    .timerGlassPanel(theme: theme, padding: 12)
-
-                    timerProblemProgressSection(theme: theme)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 14)
-                .padding(.top, 16)
-                .padding(.bottom, 92)
+    private func portraitTimerContent(size: CGSize) -> some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: AppSpacing.md) {
+                targetLauncher()
+                timerDisplayCard(size: size)
+                controlsCard(size: size)
+                timerProblemProgressSection()
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 0) {
-                    manualEntryButton(theme: theme)
-                        .padding(.horizontal, 12)
-                        .padding(.top, 10)
-                        .padding(.bottom, 10)
-                    Divider()
-                }
-                .background(theme.bottomBarBackground)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.md)
+            .padding(.bottom, 92)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                Divider()
+                manualEntryButton()
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.vertical, 10)
             }
+            .background(.bar)
         }
     }
 
-    private func targetLauncher(theme: TimerAmbientTheme) -> some View {
+    private func targetLauncher() -> some View {
         Button {
             showTargetSelection = true
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: AppSpacing.md) {
                 ZStack {
                     Circle()
                         .fill(subjectColor.opacity(0.14))
@@ -245,18 +229,18 @@ struct TimerScreen: View {
                         .fill(subjectColor)
                         .frame(width: 14, height: 14)
                 }
-                .frame(width: 42, height: 42)
+                .frame(width: 40, height: 40)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("学習対象")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(AppColors.textSecondary)
                     Text(selectedSubjectText)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(AppColors.textPrimary)
                         .lineLimit(1)
                     Text(selectedMaterialText == "なし" ? "教材なしで記録" : selectedMaterialText)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.subheadline)
                         .foregroundStyle(AppColors.textSecondary)
                         .lineLimit(1)
                 }
@@ -264,180 +248,130 @@ struct TimerScreen: View {
                 Spacer(minLength: 8)
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 15, weight: .heavy))
-                    .foregroundStyle(theme.accent)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.textSecondary)
             }
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity)
-            .frame(height: 72)
-            .background(theme.panelOverlay, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(theme.panelStroke, lineWidth: 1)
-            }
+            .cardStyle(padding: AppSpacing.md)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("学習対象を選択")
     }
 
-    private func focusStatusRow(theme: TimerAmbientTheme) -> some View {
-        HStack {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(viewModel.isRunning ? theme.accent : AppColors.textSecondary.opacity(0.42))
-                    .frame(width: 10, height: 10)
-                Text(viewModel.isRunning ? "記録中" : "待機中")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(viewModel.isRunning ? theme.accent : AppColors.textSecondary)
+    private func timerDisplayCard(size: CGSize) -> some View {
+        VStack(spacing: 14) {
+            HStack {
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(viewModel.isRunning ? AppColors.success : AppColors.textSecondary.opacity(0.4))
+                        .frame(width: 9, height: 9)
+                    Text(viewModel.isRunning ? "記録中" : "待機中")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(viewModel.isRunning ? AppColors.success : AppColors.textSecondary)
+                }
+
+                Spacer()
+
+                Text(targetEndText)
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
-            Spacer()
+            VStack(spacing: 2) {
+                Text(durationString(milliseconds: viewModel.displayMilliseconds))
+                    .font(.system(size: focusTimerTextSize(for: size), weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(AppColors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .frame(maxWidth: .infinity)
 
-            Text(targetEndText)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(AppColors.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-        }
-    }
+                Text(viewModel.isRunning ? "集中していきましょう" : "学習対象を選んで開始")
+                    .font(.footnote)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+            .padding(.vertical, 2)
 
-    private func focusTimeField(size: CGSize) -> some View {
-        VStack(spacing: 8) {
-            Text(durationString(milliseconds: viewModel.displayMilliseconds))
-                .font(.system(size: focusTimerTextSize(for: size), weight: .light, design: .rounded))
+            VStack(spacing: 6) {
+                AnimatedProgressBar(
+                    value: timerProgress,
+                    total: 1.0,
+                    height: 6,
+                    barColor: AppColors.success,
+                    trackColor: AppColors.cardBorder.opacity(0.65)
+                )
+
+                HStack {
+                    Text("0")
+                    Spacer()
+                    Text(progressMidLabel)
+                    Spacer()
+                    Text(progressEndLabel)
+                }
+                .font(.caption2.weight(.medium))
                 .monospacedDigit()
-                .foregroundStyle(AppColors.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.58)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            Text(viewModel.isRunning ? "集中していきましょう" : "学習対象を選んで開始")
-                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(AppColors.textSecondary)
+            }
         }
-        .padding(.vertical, 4)
+        .cardStyle(padding: AppSpacing.lg)
     }
 
-    private func focusProgressRail(theme: TimerAmbientTheme) -> some View {
-        VStack(spacing: 8) {
-            GeometryReader { proxy in
-                let width = proxy.size.width
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(theme.ringTrack)
-                        .frame(height: 7)
-                    Capsule()
-                        .fill(theme.accent)
-                        .frame(width: max(8, width * timerProgress), height: 7)
+    private func controlsCard(size: CGSize) -> some View {
+        VStack(spacing: AppSpacing.md) {
+            HStack(spacing: AppSpacing.sm) {
+                primaryTimerButton()
+                stopTimerButton {
+                    viewModel.stop()
                 }
             }
-            .frame(height: 7)
 
-            HStack {
-                Text("0")
-                Spacer()
-                Text(progressMidLabel)
-                Spacer()
-                Text(progressEndLabel)
+            if shouldShowManualClockOnlyFocusButton(size: size) {
+                clockOnlyFocusButton()
             }
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundStyle(AppColors.textSecondary)
-        }
-    }
 
-    private func focusModeControls(theme: TimerAmbientTheme) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                timerModeButton(title: "ストップウォッチ", mode: .stopwatch, theme: theme)
-                timerModeButton(title: "タイマー", mode: .timer, theme: theme)
+            Picker("計測モード", selection: modeBinding) {
+                Text("ストップウォッチ").tag(TimerSnapshot.Mode.stopwatch)
+                Text("タイマー").tag(TimerSnapshot.Mode.timer)
             }
+            .pickerStyle(.segmented)
+            .disabled(viewModel.isRunning)
 
             if viewModel.mode == .timer {
-                HStack(spacing: 8) {
+                HStack(spacing: AppSpacing.sm) {
                     ForEach([15, 25, 45, 60], id: \.self) { minutes in
-                        Button {
-                            viewModel.setCountdownMinutes(minutes)
-                        } label: {
-                            Text("\(minutes)分")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : theme.accent)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 34)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(viewModel.countdownMinutes == minutes ? theme.accent : theme.accent.opacity(0.12))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(viewModel.isRunning)
+                        durationChip(minutes)
                     }
                 }
             }
         }
+        .cardStyle(padding: AppSpacing.md)
     }
 
-    private func selectorSection(theme: TimerAmbientTheme) -> some View {
-        VStack(spacing: 0) {
-            selectionRow(icon: "circle.fill", title: "科目", tint: AppColors.blue) {
-                Menu {
-                    if viewModel.subjects.isEmpty {
-                        Text("科目を追加してください")
-                    } else {
-                        ForEach(viewModel.subjects) { subject in
-                            Button {
-                                viewModel.selectedSubjectId = subject.id
-                            } label: {
-                                if viewModel.effectiveSelectedSubjectId == subject.id {
-                                    Label(subject.name, systemImage: "checkmark")
-                                } else {
-                                    Text(subject.name)
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    selectionMenuLabel(
-                        text: selectedSubjectText,
-                        isPlaceholder: viewModel.subjects.isEmpty
-                    )
-                }
-                .disabled(viewModel.subjects.isEmpty)
-            }
-            Divider()
+    private var modeBinding: Binding<TimerSnapshot.Mode> {
+        Binding(
+            get: { viewModel.mode },
+            set: { viewModel.setMode($0) }
+        )
+    }
 
-            selectionRow(icon: "book.closed", title: "教材", tint: theme.accent) {
-                Menu {
-                    Button {
-                        viewModel.selectedMaterialId = nil
-                    } label: {
-                        if viewModel.selectedMaterialId == nil {
-                            Label("なし", systemImage: "checkmark")
-                        } else {
-                            Text("なし")
-                        }
-                    }
-
-                    ForEach(viewModel.materialsForSelectedSubject()) { material in
-                        Button {
-                            viewModel.selectedMaterialId = material.id
-                        } label: {
-                            if viewModel.selectedMaterialId == material.id {
-                                Label(material.name, systemImage: "checkmark")
-                            } else {
-                                Text(material.name)
-                            }
-                        }
-                    }
-                } label: {
-                    selectionMenuLabel(
-                        text: selectedMaterialText,
-                        isPlaceholder: viewModel.effectiveSelectedSubjectId == nil
-                    )
-                }
-                .disabled(viewModel.effectiveSelectedSubjectId == nil)
-            }
+    private func durationChip(_ minutes: Int) -> some View {
+        let selected = viewModel.countdownMinutes == minutes
+        return Button {
+            viewModel.setCountdownMinutes(minutes)
+        } label: {
+            Text("\(minutes)分")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(selected ? Color.white : AppColors.success)
+                .frame(maxWidth: .infinity)
+                .frame(height: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                        .fill(selected ? AppColors.success : AppColors.greenSoft)
+                )
         }
-        .timerGlassPanel(theme: theme, padding: 0)
+        .buttonStyle(.plain)
+        .disabled(viewModel.isRunning)
     }
 
     private var primaryTimerButtonLabel: String {
@@ -454,217 +388,94 @@ struct TimerScreen: View {
         return "開始してシンプル表示"
     }
 
-    private func controlButtonsSection(theme: TimerAmbientTheme, size: CGSize) -> some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                primaryTimerButton(theme: theme)
-
-                stopTimerButton(
-                    systemImage: "stop.fill",
-                    title: "停止",
-                    color: viewModel.displayMilliseconds > 0 ? AppColors.danger : Color.secondary.opacity(0.3),
-                    action: {
-                        viewModel.stop()
-                    }
-                )
-                .disabled(viewModel.displayMilliseconds == 0)
-            }
-
-            if shouldShowManualClockOnlyFocusButton(size: size) {
-                clockOnlyFocusButton(theme: theme)
-            }
-        }
-    }
-
-    private func primaryTimerButton(theme: TimerAmbientTheme) -> some View {
+    private func primaryTimerButton() -> some View {
         Button {
             viewModel.isRunning ? viewModel.pause() : viewModel.startOrResume()
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
-                    .font(.system(size: 20, weight: .bold))
                 Text(primaryTimerButtonLabel)
-                    .font(.system(size: 20, weight: .bold))
             }
+            .font(.headline)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
-            .background(theme.accent, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .shadow(color: theme.accent.opacity(0.26), radius: 10, x: 0, y: 6)
+            .frame(height: 50)
+            .background(AppColors.success, in: RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
         }
         .buttonStyle(.plain)
     }
 
-    private func clockOnlyFocusButton(theme: TimerAmbientTheme) -> some View {
+    private func stopTimerButton(action: @escaping () -> Void) -> some View {
+        let enabled = viewModel.displayMilliseconds > 0
+        return Button(action: action) {
+            Image(systemName: "stop.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(enabled ? AppColors.danger : AppColors.textSecondary.opacity(0.5))
+                .frame(width: 50, height: 50)
+                .background(
+                    RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
+                        .fill(enabled ? AppColors.redSoft : Color(.tertiarySystemFill))
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
+                        .stroke(enabled ? AppColors.danger.opacity(0.3) : Color.clear, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel("停止")
+    }
+
+    private func clockOnlyFocusButton() -> some View {
         Button {
             presentClockOnlyFocus()
         } label: {
-            HStack(spacing: 9) {
+            HStack(spacing: 8) {
                 Image(systemName: "timer")
-                    .font(.system(size: 16, weight: .bold))
                 Text(clockOnlyFocusButtonTitle)
-                    .font(.system(size: 15, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
                 Spacer(minLength: 8)
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 13, weight: .heavy))
+                    .font(.caption.weight(.bold))
             }
-            .foregroundStyle(theme.accent)
-            .padding(.horizontal, 14)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppColors.success)
+            .padding(.horizontal, AppSpacing.md)
             .frame(maxWidth: .infinity)
-            .frame(height: 46)
-            .background(theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(theme.accent.opacity(0.28), lineWidth: 1)
-            }
+            .frame(height: 44)
+            .background(AppColors.greenSoft, in: RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(clockOnlyFocusButtonTitle)
     }
 
-    private func timerModeSection(theme: TimerAmbientTheme) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack(spacing: AppSpacing.sm) {
-                timerModeButton(title: "ストップウォッチ", mode: .stopwatch, theme: theme)
-                timerModeButton(title: "タイマー", mode: .timer, theme: theme)
-            }
-            if viewModel.mode == .timer {
-                HStack(spacing: AppSpacing.sm) {
-                    ForEach([15, 25, 45, 60], id: \.self) { minutes in
-                        Button {
-                            viewModel.setCountdownMinutes(minutes)
-                        } label: {
-                            Text("\(minutes)分")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(viewModel.countdownMinutes == minutes ? Color.white : theme.accent)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(viewModel.countdownMinutes == minutes ? theme.accent : theme.accent.opacity(0.14))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(viewModel.isRunning)
-                    }
-                }
-            }
-        }
-        .padding(.bottom, 2)
-    }
-
-    private func timerModeButton(title: String, mode: TimerSnapshot.Mode, theme: TimerAmbientTheme) -> some View {
-        Button {
-            viewModel.setMode(mode)
-        } label: {
-            Text(title)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(viewModel.mode == mode ? Color.white : theme.secondaryForeground)
-                .frame(maxWidth: .infinity)
-                .frame(height: 42)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(viewModel.mode == mode ? theme.accent : Color.white.opacity(theme.colorScheme == .dark ? 0.08 : 0.64))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(viewModel.mode == mode ? Color.white.opacity(0.22) : theme.panelStroke, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .disabled(viewModel.isRunning)
-    }
-
-    private func manualEntryButton(theme: TimerAmbientTheme) -> some View {
+    private func manualEntryButton() -> some View {
         Button {
             showManualEntry = true
         } label: {
-            HStack {
+            HStack(spacing: 8) {
                 Image(systemName: "pencil.line")
                 Text("手動入力")
             }
-            .font(.system(size: 17, weight: .bold))
-            .foregroundStyle(.white)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppColors.success)
             .frame(maxWidth: .infinity)
-            .frame(height: 54)
-            .background(Color(hex: 0x2563EB), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .shadow(color: Color.black.opacity(theme.colorScheme == .dark ? 0.28 : 0.12), radius: 12, x: 0, y: 6)
-        }
-    }
-
-    @ViewBuilder
-    private func quickSelectionSection(theme: TimerAmbientTheme) -> some View {
-        if !viewModel.subjects.isEmpty || !viewModel.recentMaterialPairs.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                if !viewModel.subjects.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(viewModel.subjects.prefix(5)) { subject in
-                                quickChip(
-                                    title: subject.name,
-                                    systemImage: "circle.fill",
-                                    isSelected: viewModel.effectiveSelectedSubjectId == subject.id
-                                ) {
-                                    viewModel.selectedSubjectId = subject.id
-                                }
-                            }
-                        }
-                        .padding(.vertical, 1)
-                    }
-                }
-
-                if !viewModel.recentMaterialPairs.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        let pairs = Array(viewModel.recentMaterialPairs.prefix(4))
-                        HStack(spacing: 8) {
-                            ForEach(pairs.indices, id: \.self) { index in
-                                let pair = pairs[index]
-                                quickChip(
-                                    title: pair.0.name,
-                                    systemImage: "book.closed",
-                                    isSelected: viewModel.selectedMaterialId == pair.0.id
-                                ) {
-                                    viewModel.selectedSubjectId = pair.1.id
-                                    viewModel.selectedMaterialId = pair.0.id
-                                }
-                            }
-                        }
-                        .padding(.vertical, 1)
-                    }
-                }
-            }
-        }
-    }
-
-    private func quickChip(title: String, systemImage: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        let theme = TimerAmbientTheme.make(colorScheme: colorScheme)
-        return Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 12, weight: .bold))
-                Text(title)
-                    .font(.caption.weight(.bold))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(isSelected ? Color.white : theme.accent)
-            .padding(.horizontal, 11)
-            .frame(height: 32)
-            .background(isSelected ? theme.accent : theme.panelOverlay, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(height: 46)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(theme.accent.opacity(isSelected ? 0 : 0.30), lineWidth: 1)
+                RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
     }
 
-    private func timerProblemProgressSection(theme: TimerAmbientTheme) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
+    private func timerProblemProgressSection() -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(spacing: AppSpacing.sm) {
                 Text("問題進捗（仮）")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.headline)
                 Spacer()
                 problemLegend
             }
@@ -694,7 +505,7 @@ struct TimerScreen: View {
                     .padding(.vertical, AppSpacing.sm)
             }
         }
-        .timerGlassPanel(theme: theme, padding: 12)
+        .cardStyle(padding: AppSpacing.md)
     }
 
     private var problemLegend: some View {
@@ -712,36 +523,13 @@ struct TimerScreen: View {
                 .fill(color)
                 .frame(width: 9, height: 9)
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(AppColors.textPrimary)
                 .lineLimit(1)
         }
     }
 
-    private func selectionRow<Content: View>(icon: String, title: String, tint: Color, @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundStyle(tint)
-                .font(.system(size: title == "科目" ? 18 : 20, weight: .semibold))
-                .frame(width: 36, height: 36)
-                .background(tint.opacity(0.13), in: Circle())
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(AppColors.textSecondary)
-                Text(title == "科目" ? selectedSubjectText : selectedMaterialText)
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(AppColors.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-            }
-            content()
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 62)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(title)
-    }
+    // MARK: - Selection helpers
 
     private var selectedSubjectText: String {
         if let subjectId = viewModel.effectiveSelectedSubjectId,
@@ -820,6 +608,8 @@ struct TimerScreen: View {
         return formatter
     }()
 
+    // MARK: - Clock-only focus
+
     private var clockOnlyFocusCover: some View {
         ZStack(alignment: .topTrailing) {
             clockOnlyFocusView {
@@ -831,13 +621,13 @@ struct TimerScreen: View {
                 isShowingClockOnlyFocus = false
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 52, height: 52)
-                    .background(Color.white.opacity(0.12), in: Circle())
+                    .frame(width: 48, height: 48)
+                    .background(Color.white.opacity(0.1), in: Circle())
                     .overlay {
                         Circle()
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
                     }
             }
             .buttonStyle(.plain)
@@ -874,6 +664,8 @@ struct TimerScreen: View {
         isShowingClockOnlyFocus = true
     }
 
+    // MARK: - Layout metrics
+
     private func shouldShowManualClockOnlyFocusButton(size: CGSize) -> Bool {
         !shouldShowLandscapeFocus(size: size) && min(size.width, size.height) >= 520
     }
@@ -882,51 +674,9 @@ struct TimerScreen: View {
         viewModel.isRunning && size.width > size.height && size.height < 520
     }
 
-    private func selectionMenuLabel(text: String, isPlaceholder: Bool) -> some View {
-        HStack(spacing: 6) {
-            Spacer(minLength: 4)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(AppColors.textSecondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .trailing)
-        .contentShape(Rectangle())
-    }
-
-    private func timerRingSize(for size: CGSize) -> CGFloat {
-        let widthLimited = min(size.width - 92, 262)
-        let heightLimited = min(max(size.height * 0.24, 188), 238)
-        return max(188, min(widthLimited, heightLimited))
-    }
-
-    private func timerTextWidth(for size: CGSize) -> CGFloat {
-        max(timerRingSize(for: size) - 36, 132)
-    }
-
-    private func timerTextFontSize(for size: CGSize) -> CGFloat {
-        let ringSize = timerRingSize(for: size)
-        return min(max(ringSize * 0.22, 38), 46)
-    }
-
     private func focusTimerTextSize(for size: CGSize) -> CGFloat {
-        let compactHeight = size.height < 720
-        let widthDriven = size.width * 0.24
-        return min(max(widthDriven, compactHeight ? 64 : 72), compactHeight ? 88 : 104)
-    }
-
-    private func stopTimerButton(systemImage: String, title: String, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 17, weight: .bold))
-                Text(title)
-                    .font(.system(size: 12, weight: .bold))
-            }
-            .foregroundStyle(.white)
-            .frame(width: 66, height: 56)
-            .background(color, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .buttonStyle(.plain)
+        let widthDriven = size.width * 0.2
+        return min(max(widthDriven, 56), 76)
     }
 }
 
@@ -1192,29 +942,5 @@ private extension Text {
         font(.system(size: 13, weight: .bold))
             .foregroundStyle(AppColors.textSecondary)
             .textCase(.uppercase)
-    }
-}
-
-private struct TimerGlassPanelModifier: ViewModifier {
-    let theme: TimerAmbientTheme
-    let padding: CGFloat
-
-    func body(content: Content) -> some View {
-        content
-            .padding(padding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.panelOverlay, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(theme.panelStroke, lineWidth: 1)
-            }
-            .shadow(color: Color.black.opacity(theme.colorScheme == .dark ? 0.18 : 0.08), radius: 14, x: 0, y: 8)
-    }
-}
-
-private extension View {
-    func timerGlassPanel(theme: TimerAmbientTheme, padding: CGFloat) -> some View {
-        modifier(TimerGlassPanelModifier(theme: theme, padding: padding))
     }
 }

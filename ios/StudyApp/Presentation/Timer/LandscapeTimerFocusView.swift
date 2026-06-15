@@ -13,18 +13,12 @@ struct LandscapeTimerFocusView: View {
     let onPauseToggle: () -> Void
     let onStop: () -> Void
 
+    // 暗背景に映える落ち着いたアクセント（蛍光色を避けた抑えめのグリーン）。
+    private let accent = Color(hex: 0x4CAF6E)
+    private let stopColor = Color(hex: 0xD9534F)
+
     private var effectiveTotalProblems: Int {
         materialProblemCount > 0 ? materialProblemCount : totalProblems
-    }
-
-    private var completionText: String {
-        let done = viewModel.timerProblemRecords.count
-        let wrong = viewModel.timerProblemRecords.filter(\.isWrong).count
-        let review = viewModel.timerProblemRecords.filter { $0.result == .reviewCorrect }.count
-        if review > 0 {
-            return "\(done)問 / 不正解 \(wrong) / 復習 \(review)"
-        }
-        return "\(done)問 / 不正解 \(wrong)"
     }
 
     var body: some View {
@@ -51,7 +45,7 @@ struct LandscapeTimerFocusView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 14) {
                 Text("問題進捗（仮）")
-                    .font(.system(size: 19, weight: .heavy, design: .rounded))
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                 Spacer(minLength: 10)
                 progressLegend
@@ -59,7 +53,7 @@ struct LandscapeTimerFocusView: View {
             .padding(.bottom, 2)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(.white.opacity(0.16))
+                    .fill(.white.opacity(0.12))
                     .frame(height: 1)
                     .offset(y: 9)
             }
@@ -99,17 +93,16 @@ struct LandscapeTimerFocusView: View {
                 .padding(.bottom, max(18, size.height * 0.08))
 
             Text(timerText)
-                .font(.system(size: timerFontSize(for: size), weight: .black, design: .rounded))
+                .font(.system(size: timerFontSize(for: size), weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(timerTextGradient)
-                .shadow(color: .white.opacity(0.22), radius: 2, x: 0, y: 1)
+                .foregroundStyle(.white)
                 .minimumScaleFactor(0.58)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(modeText)
-                .font(.system(size: 20, weight: .heavy, design: .rounded))
-                .foregroundStyle(Color(hex: 0x36E255))
+                .font(.system(size: 19, weight: .semibold, design: .rounded))
+                .foregroundStyle(accent)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 2)
                 .padding(.bottom, 18)
@@ -118,9 +111,9 @@ struct LandscapeTimerFocusView: View {
                 .frame(maxWidth: .infinity)
 
             Text(progressText)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(.system(size: 16, weight: .medium, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.86))
+                .foregroundStyle(.white.opacity(0.78))
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 14)
 
@@ -129,22 +122,20 @@ struct LandscapeTimerFocusView: View {
             HStack(alignment: .center, spacing: 38) {
                 focusIconButton(
                     systemImage: viewModel.isRunning ? "pause.fill" : "play.fill",
-                    label: "一時停止",
-                    tint: Color(hex: 0x43D648),
-                    foreground: .white,
+                    label: viewModel.isRunning ? "一時停止" : "再開",
+                    tint: accent,
                     size: controlButtonSize(for: size),
                     action: onPauseToggle
                 )
 
                 Rectangle()
-                    .fill(.white.opacity(0.18))
-                    .frame(width: 1, height: min(88, size.height * 0.24))
+                    .fill(.white.opacity(0.14))
+                    .frame(width: 1, height: min(72, size.height * 0.2))
 
                 focusIconButton(
                     systemImage: "stop.fill",
                     label: "停止",
-                    tint: Color(hex: 0x2C2C2E),
-                    foreground: .white,
+                    tint: stopColor,
                     size: controlButtonSize(for: size),
                     action: onStop
                 )
@@ -159,44 +150,34 @@ struct LandscapeTimerFocusView: View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(.white.opacity(0.16))
+                    .fill(.white.opacity(0.12))
                 Capsule()
-                    .fill(progressGradient)
-                    .frame(width: max(geometry.size.width * min(max(progress, 0), 1), 10))
+                    .fill(accent)
+                    .frame(width: max(geometry.size.width * min(max(progress, 0), 1), 8))
             }
         }
-        .frame(height: 13)
-    }
-
-    private var materialProgressSubtitle: String {
-        if materialProblemCount > 0 {
-            if materialProblemChapters.isEmpty {
-                return "全\(materialProblemCount)問"
-            }
-            return "全\(materialProblemCount)問 ・ \(materialProblemChapters.count)章"
-        }
-        return "タップで正解、すばやく2回タップで不正解、長押しで詳細"
+        .frame(height: 10)
     }
 
     private var landscapeBackground: some View {
-        Color.black
-        .ignoresSafeArea()
+        Color(hex: 0x101216)
+            .ignoresSafeArea()
     }
 
     private var subjectCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 Circle()
-                    .fill(Color(hex: 0x40DB4E))
-                    .frame(width: 22, height: 22)
+                    .fill(accent)
+                    .frame(width: 16, height: 16)
                 Text(selectedSubjectName)
-                    .font(.system(size: 24, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x45EA57))
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
                     .lineLimit(1)
             }
             Text(material?.name ?? "教材なし")
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.86))
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.7))
                 .lineLimit(1)
         }
         .padding(.horizontal, 14)
@@ -204,11 +185,11 @@ struct LandscapeTimerFocusView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(hex: 0x111113).opacity(0.74))
+                .fill(Color.white.opacity(0.05))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(.white.opacity(0.08), lineWidth: 1)
+                .stroke(.white.opacity(0.1), lineWidth: 1)
         )
     }
 
@@ -240,14 +221,10 @@ struct LandscapeTimerFocusView: View {
         HStack(spacing: 7) {
             RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(color)
-                .frame(width: 18, height: 18)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .stroke(.white.opacity(0.22), lineWidth: 1)
-                )
+                .frame(width: 16, height: 16)
             Text(title)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(1)
         }
     }
@@ -255,14 +232,14 @@ struct LandscapeTimerFocusView: View {
     private func chapterProgressSection(_ section: LandscapeProblemSection, availableWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(section.title)
-                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .padding(.horizontal, 14)
                 .frame(height: 28)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(chapterLabelGradient)
+                        .fill(accent.opacity(0.16))
                 )
 
             LazyVGrid(columns: gridColumns(for: availableWidth), spacing: 8) {
@@ -282,8 +259,8 @@ struct LandscapeTimerFocusView: View {
             accessibilityLabel: "\(chapterTitle) \(label)問目 \(record?.result.title ?? "未解答")",
             fill: tileFill(for: record),
             border: tileBorder(for: record),
-            shadow: tileShadow(for: record),
-            borderWidth: record == nil ? 1.5 : 2,
+            borderWidth: record == nil ? 1 : 1.5,
+            textColor: record == nil ? .white.opacity(0.55) : .white,
             onCorrectTap: { toggleCorrect(globalNumber) },
             onWrongTap: { setResult(.wrong, for: globalNumber) },
             onLongPress: { removeResult(for: globalNumber) }
@@ -364,99 +341,61 @@ struct LandscapeTimerFocusView: View {
     }
 
     private func timerFontSize(for size: CGSize) -> CGFloat {
-        min(max(size.width * 0.105, 72), 120)
+        min(max(size.width * 0.095, 64), 104)
     }
 
     private func controlButtonSize(for size: CGSize) -> CGFloat {
-        min(max(size.height * 0.22, 86), 112)
+        min(max(size.height * 0.16, 56), 72)
     }
 
     private func focusIconButton(
         systemImage: String,
         label: String,
         tint: Color,
-        foreground: Color,
         size: CGFloat,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 ZStack {
                     Circle()
-                        .fill(tint)
+                        .fill(tint.opacity(0.14))
                     Circle()
-                        .stroke(.white.opacity(0.22), lineWidth: 2)
+                        .stroke(tint.opacity(0.4), lineWidth: 1.5)
                     Image(systemName: systemImage)
-                        .font(.system(size: size * 0.36, weight: .black))
-                        .foregroundStyle(foreground)
+                        .font(.system(size: size * 0.34, weight: .semibold))
+                        .foregroundStyle(tint)
                 }
                 .frame(width: size, height: size)
-                .shadow(color: tint.opacity(0.44), radius: 7, x: 0, y: 0)
 
                 Text(label)
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.85))
             }
         }
         .buttonStyle(.plain)
     }
 
-    private var timerTextGradient: LinearGradient {
-        LinearGradient(
-            colors: [.white, Color(hex: 0xE9E9EA), .white],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    private var progressGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color(hex: 0x58D957), Color(hex: 0x45C949)],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    private var chapterLabelGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color(hex: 0x148918), Color(hex: 0x0A4C12)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    private func tileFill(for record: ProblemSessionRecord?) -> LinearGradient {
-        let baseColor = record.map { resultColor($0.result) } ?? unansweredColor
-        return LinearGradient(
-            colors: [
-                baseColor.opacity(record == nil ? 0.70 : 0.92),
-                baseColor.opacity(record == nil ? 0.42 : 0.70)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
+    private func tileFill(for record: ProblemSessionRecord?) -> Color {
+        guard let record else { return Color.white.opacity(0.06) }
+        return resultColor(record.result)
     }
 
     private func tileBorder(for record: ProblemSessionRecord?) -> Color {
-        guard let record else { return .white.opacity(0.22) }
-        return resultColor(record.result).opacity(0.95)
-    }
-
-    private func tileShadow(for record: ProblemSessionRecord?) -> Color {
-        guard let record else { return .clear }
-        return resultColor(record.result).opacity(0.30)
+        guard let record else { return .white.opacity(0.18) }
+        return resultColor(record.result)
     }
 
     private func resultColor(_ result: ProblemResult) -> Color {
         switch result {
-        case .correct: return Color(hex: 0x22B52B)
-        case .wrong: return Color(hex: 0xEF493D)
-        case .reviewCorrect: return Color(hex: 0x2D83E6)
+        case .correct: return AppColors.success
+        case .wrong: return AppColors.danger
+        case .reviewCorrect: return AppColors.blue
         }
     }
 
     private var unansweredColor: Color {
-        Color(hex: 0x3A3A3C)
+        Color(.systemGray)
     }
 }
 
@@ -469,10 +408,10 @@ private struct LandscapeProblemSection {
 private struct LandscapeProblemProgressTile: View {
     let label: String
     let accessibilityLabel: String
-    let fill: LinearGradient
+    let fill: Color
     let border: Color
-    let shadow: Color
     let borderWidth: CGFloat
+    let textColor: Color
     let onCorrectTap: () -> Void
     let onWrongTap: () -> Void
     let onLongPress: () -> Void
@@ -481,9 +420,9 @@ private struct LandscapeProblemProgressTile: View {
 
     var body: some View {
         Text(label)
-            .font(.system(size: 18, weight: .heavy, design: .rounded))
+            .font(.system(size: 18, weight: .semibold, design: .rounded))
             .monospacedDigit()
-            .foregroundStyle(.white)
+            .foregroundStyle(textColor)
             .lineLimit(1)
             .minimumScaleFactor(0.68)
             .frame(maxWidth: .infinity)
@@ -496,7 +435,6 @@ private struct LandscapeProblemProgressTile: View {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .stroke(border, lineWidth: borderWidth)
             )
-            .shadow(color: shadow, radius: 4, x: 0, y: 0)
             .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .onTapGesture(perform: handleTap)
             .onLongPressGesture(minimumDuration: 0.45, perform: onLongPress)

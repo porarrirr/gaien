@@ -11,6 +11,12 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
     var startMinute: Int
     var endHour: Int
     var endMinute: Int
+    /// Calendar weekday values (1 = Sunday … 7 = Saturday) the slot applies to.
+    var weekdays: Set<Int>
+
+    /// All seven calendar weekdays. Used as the default for slots created or decoded
+    /// before per-weekday scheduling existed, so their behaviour is unchanged.
+    static let allWeekdays: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
 
     init(
         id: String = UUID().uuidString,
@@ -19,7 +25,8 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
         startHour: Int = 19,
         startMinute: Int = 0,
         endHour: Int = 21,
-        endMinute: Int = 0
+        endMinute: Int = 0,
+        weekdays: Set<Int> = FocusScheduleSlot.allWeekdays
     ) {
         self.id = id
         self.title = title
@@ -28,6 +35,46 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
         self.startMinute = startMinute
         self.endHour = endHour
         self.endMinute = endMinute
+        self.weekdays = weekdays.intersection(FocusScheduleSlot.allWeekdays)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case isEnabled
+        case startHour
+        case startMinute
+        case endHour
+        case endMinute
+        case weekdays
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        startHour = try container.decode(Int.self, forKey: .startHour)
+        startMinute = try container.decode(Int.self, forKey: .startMinute)
+        endHour = try container.decode(Int.self, forKey: .endHour)
+        endMinute = try container.decode(Int.self, forKey: .endMinute)
+        if let decodedWeekdays = try container.decodeIfPresent(Set<Int>.self, forKey: .weekdays) {
+            weekdays = decodedWeekdays.intersection(FocusScheduleSlot.allWeekdays)
+        } else {
+            weekdays = FocusScheduleSlot.allWeekdays
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(startHour, forKey: .startHour)
+        try container.encode(startMinute, forKey: .startMinute)
+        try container.encode(endHour, forKey: .endHour)
+        try container.encode(endMinute, forKey: .endMinute)
+        try container.encode(weekdays, forKey: .weekdays)
     }
 
     var activityName: DeviceActivityName {
@@ -42,16 +89,40 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
         DateComponents(hour: endHour, minute: endMinute)
     }
 
+    /// Whether any weekday is selected. An empty selection means the slot never applies.
+    var hasSelectedWeekday: Bool {
+        !weekdays.isEmpty
+    }
+
+    func isActive(onWeekday weekday: Int) -> Bool {
+        weekdays.contains(weekday)
+    }
+
     func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
         let currentMinute = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
         let startMinuteOfDay = startHour * 60 + startMinute
         let endMinuteOfDay = endHour * 60 + endMinute
+        let weekday = calendar.component(.weekday, from: date)
 
         guard startMinuteOfDay != endMinuteOfDay else { return false }
         if startMinuteOfDay < endMinuteOfDay {
+            guard isActive(onWeekday: weekday) else { return false }
             return currentMinute >= startMinuteOfDay && currentMinute < endMinuteOfDay
         }
-        return currentMinute >= startMinuteOfDay || currentMinute < endMinuteOfDay
+
+        // Crosses midnight: the evening portion belongs to today's weekday, while the
+        // early-morning portion belongs to the weekday the slot started on.
+        if currentMinute >= startMinuteOfDay {
+            return isActive(onWeekday: weekday)
+        }
+        if currentMinute < endMinuteOfDay {
+            return isActive(onWeekday: Self.previousWeekday(weekday))
+        }
+        return false
+    }
+
+    static func previousWeekday(_ weekday: Int) -> Int {
+        weekday == 1 ? 7 : weekday - 1
     }
 }
 
@@ -186,7 +257,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
 
     var enabledScheduleSlots: [FocusScheduleSlot] {
         guard isEnabled, scheduledRestrictionEnabled else { return [] }
-        return scheduleSlots.filter(\.isEnabled)
+        return scheduleSlots.filter { $0.isEnabled && $0.hasSelectedWeekday }
     }
 
     var canApplyRestrictions: Bool {

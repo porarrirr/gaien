@@ -11,34 +11,14 @@ struct LandscapeClockOnlyTimerView: View {
     let onPauseToggle: () -> Void
     let onStop: () -> Void
 
+    // 暗背景に映える落ち着いたアクセント（蛍光色を避けた抑えめのグリーン）。
+    private let accent = Color(hex: 0x4CAF6E)
+    private let stopColor = Color(hex: 0xD9534F)
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 clockOnlyBackground
-
-                LandscapeClockArc(side: .left)
-                    .stroke(
-                        Color(hex: 0x47C96A),
-                        style: StrokeStyle(lineWidth: arcLineWidth(for: geometry.size), lineCap: .round)
-                    )
-                    .shadow(color: Color(hex: 0x47C96A).opacity(0.18), radius: 10, y: 4)
-                    .frame(
-                        width: geometry.size.width * 0.42,
-                        height: geometry.size.height * 0.88
-                    )
-                    .offset(x: -geometry.size.width * 0.28, y: geometry.size.height * 0.02)
-
-                LandscapeClockArc(side: .right)
-                    .stroke(
-                        Color(hex: 0x47C96A),
-                        style: StrokeStyle(lineWidth: arcLineWidth(for: geometry.size), lineCap: .round)
-                    )
-                    .shadow(color: Color(hex: 0x47C96A).opacity(0.18), radius: 10, y: 4)
-                    .frame(
-                        width: geometry.size.width * 0.42,
-                        height: geometry.size.height * 0.88
-                    )
-                    .offset(x: geometry.size.width * 0.28, y: geometry.size.height * 0.02)
 
                 VStack(spacing: 0) {
                     materialPill
@@ -47,20 +27,19 @@ struct LandscapeClockOnlyTimerView: View {
                     Spacer(minLength: 0)
 
                     VStack(spacing: max(14, geometry.size.height * 0.032)) {
-                        HStack(spacing: 14) {
+                        HStack(spacing: 12) {
                             Circle()
-                                .fill(Color(hex: 0x47C96A))
-                                .frame(width: 12, height: 12)
+                                .fill(accent)
+                                .frame(width: 10, height: 10)
                             Text(modeText)
-                                .font(.system(size: statusFontSize(for: geometry.size), weight: .bold, design: .rounded))
-                                .foregroundStyle(Color(hex: 0x47C96A))
+                                .font(.system(size: statusFontSize(for: geometry.size), weight: .semibold, design: .rounded))
+                                .foregroundStyle(accent)
                         }
 
                         Text(timerText)
-                            .font(.system(size: clockFontSize(for: geometry.size), weight: .heavy, design: .rounded))
+                            .font(.system(size: clockFontSize(for: geometry.size), weight: .semibold, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(.white)
-                            .shadow(color: .white.opacity(0.16), radius: 14, y: 4)
                             .minimumScaleFactor(0.62)
                             .lineLimit(1)
 
@@ -71,13 +50,13 @@ struct LandscapeClockOnlyTimerView: View {
                             clockOnlyButton(
                                 systemImage: viewModel.isRunning ? "pause.fill" : "play.fill",
                                 title: viewModel.isRunning ? "一時停止" : "再開",
-                                tint: Color(hex: 0x47C96A),
+                                tint: accent,
                                 action: onPauseToggle
                             )
                             clockOnlyButton(
                                 systemImage: "stop.fill",
                                 title: "停止",
-                                tint: Color(hex: 0xFF3B30),
+                                tint: stopColor,
                                 action: onStop
                             )
                         }
@@ -93,35 +72,33 @@ struct LandscapeClockOnlyTimerView: View {
     }
 
     private var materialPill: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 16) {
             Circle()
-                .fill(Color(hex: 0x47C96A))
-                .frame(width: 19, height: 19)
-                .shadow(color: Color(hex: 0x47C96A).opacity(0.26), radius: 8, y: 2)
+                .fill(accent)
+                .frame(width: 14, height: 14)
 
             Text(subjectText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
 
             Text("/")
-                .foregroundStyle(.white.opacity(0.84))
+                .foregroundStyle(.white.opacity(0.5))
 
             Text(materialText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
         }
-        .font(.system(size: 20, weight: .semibold, design: .rounded))
-        .foregroundStyle(.white.opacity(0.94))
-        .padding(.horizontal, 26)
-        .frame(height: 54)
+        .font(.system(size: 18, weight: .medium, design: .rounded))
+        .foregroundStyle(.white.opacity(0.9))
+        .padding(.horizontal, 22)
+        .frame(height: 50)
         .background(
-            RoundedRectangle(cornerRadius: 27, style: .continuous)
-                .fill(Color.white.opacity(0.035))
-                .shadow(color: .black.opacity(0.42), radius: 18, y: 12)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.05))
         )
-        .overlay(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 27, style: .continuous)
-                .stroke(.white.opacity(0.07), lineWidth: 1)
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.white.opacity(0.1), lineWidth: 1)
         }
         .frame(maxWidth: 420)
     }
@@ -130,112 +107,52 @@ struct LandscapeClockOnlyTimerView: View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(.white.opacity(0.08))
+                    .fill(.white.opacity(0.1))
                 Capsule()
-                    .fill(Color(hex: 0x47C96A))
-                    .frame(width: max(geometry.size.width * min(max(progress, 0), 1), 10))
+                    .fill(accent)
+                    .frame(width: max(geometry.size.width * min(max(progress, 0), 1), 8))
             }
         }
     }
 
     private var clockOnlyBackground: some View {
-        ZStack {
-            Color(hex: 0x07090C)
-            RadialGradient(
-                colors: [
-                    Color.white.opacity(0.08),
-                    Color(hex: 0x101419).opacity(0.68),
-                    Color.black.opacity(0.92)
-                ],
-                center: .center,
-                startRadius: 20,
-                endRadius: 620
-            )
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(0.04),
-                    Color.clear,
-                    Color.black.opacity(0.24)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .ignoresSafeArea()
+        Color(hex: 0x101216)
+            .ignoresSafeArea()
     }
 
     private func clockOnlyButton(systemImage: String, title: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 10) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 78, height: 78)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 60, height: 60)
                     .background(
                         Circle()
-                            .fill(tint)
-                            .shadow(color: tint.opacity(0.26), radius: 18, y: 8)
+                            .fill(tint.opacity(0.14))
                     )
+                    .overlay {
+                        Circle()
+                            .stroke(tint.opacity(0.4), lineWidth: 1.5)
+                    }
                 Text(title)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(tint)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.85))
             }
-            .frame(width: 116)
+            .frame(width: 104)
         }
         .buttonStyle(.plain)
     }
 
     private func clockFontSize(for size: CGSize) -> CGFloat {
-        min(max(size.height * 0.34, 112), 178)
+        min(max(size.height * 0.3, 100), 156)
     }
 
     private func statusFontSize(for size: CGSize) -> CGFloat {
-        min(max(size.height * 0.082, 24), 36)
+        min(max(size.height * 0.072, 22), 32)
     }
 
     private func progressWidth(for size: CGSize) -> CGFloat {
-        min(max(size.width * 0.52, 520), 700)
-    }
-
-    private func arcLineWidth(for size: CGSize) -> CGFloat {
-        min(max(size.height * 0.024, 10), 18)
+        min(max(size.width * 0.52, 480), 660)
     }
 }
-
-private enum LandscapeClockArcSide {
-    case left
-    case right
-}
-
-private struct LandscapeClockArc: Shape {
-    let side: LandscapeClockArcSide
-
-    func path(in rect: CGRect) -> Path {
-        let angles: StrideThrough<Double>
-        if side == .left {
-            angles = stride(from: 220.0, through: 140.0, by: -1.0)
-        } else {
-            angles = stride(from: -40.0, through: 40.0, by: 1.0)
-        }
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let radiusX = rect.width * 0.48
-        let radiusY = rect.height * 0.47
-        var path = Path()
-
-        for (index, degrees) in angles.enumerated() {
-            let radians = degrees * .pi / 180
-            let point = CGPoint(
-                x: center.x + CGFloat(cos(radians)) * radiusX,
-                y: center.y + CGFloat(sin(radians)) * radiusY
-            )
-            if index == 0 {
-                path.move(to: point)
-            } else {
-                path.addLine(to: point)
-            }
-        }
-
-        return path
-    }
-}
-

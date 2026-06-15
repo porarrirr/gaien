@@ -6,12 +6,18 @@ final class StudyAppDeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     override func intervalDidStart(for activity: DeviceActivityName) {
         super.intervalDidStart(for: activity)
-        let settings = ScreenTimeFocusShared.loadSettings()
-        _ = ScreenTimeFocusShared.applyRestrictions(using: scheduleStore, settings: settings)
+        refreshScheduleRestrictions()
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
         super.intervalDidEnd(for: activity)
+        refreshScheduleRestrictions()
+    }
+
+    /// Schedules repeat daily, so an interval also fires on weekdays a slot is not meant to
+    /// apply to. Re-evaluate the currently active slots (which are weekday-aware) and only
+    /// shield when at least one slot applies right now.
+    private func refreshScheduleRestrictions() {
         let settings = ScreenTimeFocusShared.loadSettings()
         if settings.hasActiveScheduleSlot() {
             _ = ScreenTimeFocusShared.applyRestrictions(using: scheduleStore, settings: settings)
