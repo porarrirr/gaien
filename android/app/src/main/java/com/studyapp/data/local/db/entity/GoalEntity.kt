@@ -8,7 +8,8 @@ import com.studyapp.domain.model.GoalType
 @Entity(
     tableName = "goals",
     indices = [
-        Index(value = ["type", "dayOfWeek", "isActive"], unique = true)
+        Index(value = ["syncId"]),
+        Index(value = ["type", "dayOfWeek", "isActive"])
     ]
 )
 data class GoalEntity(

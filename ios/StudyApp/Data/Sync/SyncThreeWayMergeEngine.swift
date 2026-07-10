@@ -57,7 +57,8 @@ enum SyncThreeWayMergeEngine {
         _ resolutions: [SyncConflictResolution],
         to local: AppData,
         conflicts: [SyncConflict],
-        resolvedAt: Int64 = Date().epochMilliseconds
+        resolvedAt: Int64 = Date().epochMilliseconds,
+        bumpUpdatedAt: Bool = true
     ) -> AppData {
         var result = local
         let conflictMap = Dictionary(uniqueKeysWithValues: conflicts.map { ($0.documentId, $0) })
@@ -75,7 +76,7 @@ enum SyncThreeWayMergeEngine {
                 in: result,
                 kind: resolution.kind,
                 syncId: resolution.syncId,
-                json: jsonWithUpdatedAt(json, resolvedAt)
+                json: bumpUpdatedAt ? jsonWithUpdatedAt(json, resolvedAt) : json
             )
         }
         return result
@@ -131,9 +132,21 @@ enum SyncThreeWayMergeEngine {
             conflictFields.append(.note)
         }
 
-        merged.currentPage = max(local.currentPage, remote.currentPage, baseValue.currentPage)
-        merged.totalPages = max(local.totalPages, remote.totalPages, baseValue.totalPages)
-        merged.totalProblems = max(local.totalProblems, remote.totalProblems, baseValue.totalProblems)
+        merged.currentPage = mergeCorrectableValue(
+            base: base?.currentPage,
+            local: local.currentPage,
+            remote: remote.currentPage
+        )
+        merged.totalPages = mergeCorrectableValue(
+            base: base?.totalPages,
+            local: local.totalPages,
+            remote: remote.totalPages
+        )
+        merged.totalProblems = mergeCorrectableValue(
+            base: base?.totalProblems,
+            local: local.totalProblems,
+            remote: remote.totalProblems
+        )
         merged.problemChapters = unionChapters(base: baseValue.problemChapters, local: local.problemChapters, remote: remote.problemChapters)
         merged.problemRecords = unionProblemRecords(base: baseValue.problemRecords, local: local.problemRecords, remote: remote.problemRecords)
 
@@ -180,7 +193,12 @@ enum SyncThreeWayMergeEngine {
             merged.problemRecords = unionProblemRecords(base: baseValue.problemRecords, local: localValue.problemRecords, remote: remoteValue.problemRecords)
             merged.problemStart = merged.problemStart ?? localValue.problemStart ?? remoteValue.problemStart ?? baseValue.problemStart
             merged.problemEnd = merged.problemEnd ?? localValue.problemEnd ?? remoteValue.problemEnd ?? baseValue.problemEnd
-            merged.wrongProblemCount = maxOptional(localValue.wrongProblemCount, remoteValue.wrongProblemCount, baseValue.wrongProblemCount)
+            merged.wrongProblemCount = mergeCorrectableValue(
+                base: baseMap[syncId]?.wrongProblemCount,
+                local: localValue.wrongProblemCount,
+                remote: remoteValue.wrongProblemCount,
+                hasBase: baseMap[syncId] != nil
+            )
             return merged
         }
     }
@@ -359,6 +377,33 @@ enum SyncThreeWayMergeEngine {
 
     private static func maxOptional(_ values: Int?...) -> Int? {
         values.compactMap { $0 }.max()
+    }
+
+    /// Ordinary three-way semantics for values that users can correct
+    /// downward. With no base, retain the legacy monotonic fallback.
+    private static func mergeCorrectableValue<T: Equatable & Comparable>(
+        base: T?,
+        local: T,
+        remote: T
+    ) -> T {
+        guard let base else { return max(local, remote) }
+        if local == remote { return local }
+        if local == base { return remote }
+        if remote == base { return local }
+        return max(local, remote)
+    }
+
+    private static func mergeCorrectableValue(
+        base: Int?,
+        local: Int?,
+        remote: Int?,
+        hasBase: Bool
+    ) -> Int? {
+        guard hasBase else { return maxOptional(local, remote) }
+        if local == remote { return local }
+        if local == base { return remote }
+        if remote == base { return local }
+        return maxOptional(local, remote)
     }
 
     private static func deletionConflict<T: Codable & SyncDeltaEntity>(

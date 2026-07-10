@@ -9,6 +9,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.WeekFields
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -94,7 +95,7 @@ class GetReportsDataUseCaseTest {
 
     private fun weekStartMillis(date: LocalDate): Long {
         val firstDay = WeekFields.of(Locale.getDefault()).firstDayOfWeek
-        return date.with(firstDay).toEpochDay() * DAY_MS
+        return date.with(TemporalAdjusters.previousOrSame(firstDay)).toEpochDay() * DAY_MS
     }
 
     private fun monthStartMillis(date: LocalDate): Long =

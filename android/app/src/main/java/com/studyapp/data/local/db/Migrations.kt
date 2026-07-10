@@ -394,8 +394,20 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
     }
 }
 
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Multiple devices can legitimately expose both historic iOS
+        // (base-monday) and Android (base-1) IDs for the same weekday. Keep
+        // both sync entities observable until tombstones converge instead of
+        // silently deleting one through a UNIQUE + REPLACE collision.
+        db.execSQL("DROP INDEX IF EXISTS index_goals_type_dayOfWeek_isActive")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_goals_syncId ON goals(syncId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_goals_type_dayOfWeek_isActive ON goals(type, dayOfWeek, isActive)")
+    }
+}
+
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
     MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
-    MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12
+    MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13
 )

@@ -39,15 +39,6 @@ data class BookInfo(
 class GoogleBooksService @Inject constructor(
     private val okHttpClient: OkHttpClient
 ) {
-    private val apiKey: String? = try {
-        System.getenv("GOOGLE_BOOKS_API_KEY")
-    } catch (e: Exception) {
-        if (BuildConfig.DEBUG) {
-            Log.w(TAG, "Failed to access Google Books API key", e)
-        }
-        null
-    }
-    
     suspend fun searchByIsbn(isbn: String): Result<BookInfo> = withContext(Dispatchers.IO) {
         try {
             val url = buildUrl("isbn:$isbn")
@@ -148,9 +139,6 @@ class GoogleBooksService @Inject constructor(
         builder.addQueryParameter("q", query)
         maxResults?.let {
             builder.addQueryParameter("maxResults", it.toString())
-        }
-        apiKey?.let {
-            builder.addQueryParameter("key", it)
         }
         return builder.build().toString()
     }

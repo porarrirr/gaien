@@ -23,7 +23,9 @@ import com.studyapp.domain.repository.TimetableRepository
 import com.studyapp.domain.util.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.time.LocalDate
 import java.time.LocalTime
 import javax.inject.Inject
@@ -58,10 +60,10 @@ class GetHomeDataUseCase @Inject constructor(
     private val timetableRepository: TimetableRepository,
     private val clock: Clock
 ) {
+    @OptIn(ExperimentalCoroutinesApi::class)
     operator fun invoke(): Flow<HomeData> {
         val todayStart = clock.startOfToday()
         val reviewAgeThreshold = clock.currentTimeMillis() - DAY_MS
-        val weekStart = clock.startOfWeek()
         val todayStudyWeekday = StudyWeekday.fromDayOfWeek(clock.currentLocalDate().dayOfWeek)
 
         val todaySessionsFlow: Flow<List<StudySession>> = studySessionRepository
@@ -95,12 +97,11 @@ class GetHomeDataUseCase @Inject constructor(
             goals.latestActiveWeeklyGoal()
         }
 
-        val weeklyStudyMinutesFlow: Flow<Long> = studySessionRepository
-            .getSessionsBetweenDates(weekStart, weekStart + WEEK_MS)
-            .map { result -> result.getOrNull() ?: emptyList() }
-            .map { sessions ->
-                sessions.sumOf { it.duration / 60000 }
-            }
+        val weeklyStudyMinutesFlow: Flow<Long> = weeklyGoalFlow.flatMapLatest { goal ->
+            val weekStart = clock.startOfWeek(goal?.weekStartDay ?: StudyWeekday.MONDAY)
+            studySessionRepository.getSessionsBetweenDates(weekStart, weekStart + WEEK_MS)
+                .map { result -> result.getOrNull().orEmpty().sumOf { it.duration / 60000 } }
+        }
 
         val upcomingExamsFlow: Flow<List<Exam>> = examRepository.getUpcomingExams()
             .map { result -> result.getOrNull() ?: emptyList() }

@@ -12,20 +12,20 @@ final class GoalsViewModel: ScreenViewModel {
     func load() async {
         do {
             let todayStart = app.clock.startOfToday()
-            let weekStart = app.clock.startOfWeek()
             let dayMs: Int64 = 86_400_000
             let weekMs = dayMs * 7
 
-            async let goalsTask = app.goalRepo.getAllGoals()
+            let goals = try await app.goalRepo.getAllGoals()
+            let activeWeeklyGoal = goals.latestActiveWeeklyGoal()
+            let weekStart = app.clock.startOfWeek(weekStartDay: activeWeeklyGoal?.weekStartDay ?? .monday)
             async let todaySessionsTask = app.sessionRepo.getSessionsBetweenDates(start: todayStart, end: todayStart + dayMs)
             async let weeklySessionsTask = app.sessionRepo.getSessionsBetweenDates(start: weekStart, end: weekStart + weekMs)
 
-            let goals = try await goalsTask
             let todaySessions = try await todaySessionsTask
             let weeklySessions = try await weeklySessionsTask
 
             dailyGoals = goals.latestActiveDailyGoalsByWeekday()
-            weeklyGoal = goals.latestActiveWeeklyGoal()
+            weeklyGoal = activeWeeklyGoal
             todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: Date()))
             todayStudyMinutes = todaySessions.reduce(0) { $0 + $1.durationMinutes }
             weeklyStudyMinutes = weeklySessions.reduce(0) { $0 + $1.durationMinutes }

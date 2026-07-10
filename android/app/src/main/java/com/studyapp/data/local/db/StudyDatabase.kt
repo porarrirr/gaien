@@ -20,7 +20,7 @@ import com.studyapp.data.local.db.entity.*
         TimetableReviewRecordEntity::class,
         ProblemReviewRecordEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 abstract class StudyDatabase : RoomDatabase() {

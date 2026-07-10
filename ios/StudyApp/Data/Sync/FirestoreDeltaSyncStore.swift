@@ -281,25 +281,36 @@ struct FirestoreDeltaSyncStore {
 
     func recordClientFlags(_ flags: [String: Any], userId: String) async throws {
         let document = firestore.collection("users").document(userId)
-        let snapshot = try await document.getDocument()
-        var payload = snapshot.data()?["clientFlags"] as? [String: Any] ?? [:]
-        for (key, value) in flags {
-            payload[key] = value
+        _ = try await firestore.runTransaction { transaction, errorPointer -> Any? in
+            do {
+                let snapshot = try transaction.getDocument(document)
+                var payload = snapshot.data()?["clientFlags"] as? [String: Any] ?? [:]
+                for (key, value) in flags { payload[key] = value }
+                payload["lastSeenAt"] = Date().epochMilliseconds
+                payload["appDataSchemaVersion"] = AppData.currentSchemaVersion
+                transaction.setData(
+                    ["clientFlags": payload, "clientFlagsUpdatedAt": FieldValue.serverTimestamp()],
+                    forDocument: document,
+                    merge: true
+                )
+                return nil
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
+            }
         }
-        payload["lastSeenAt"] = Date().epochMilliseconds
-        payload["appDataSchemaVersion"] = AppData.currentSchemaVersion
-        try await document.setData(
-            [
-                "clientFlags": payload,
-                "clientFlagsUpdatedAt": FieldValue.serverTimestamp()
-            ],
-            merge: true
-        )
     }
 
     /// Permanently deletes all cloud sync data owned by the user.
     func deleteAllUserData(userId: String) async throws {
         try await deleteDocuments(in: entitiesCollection(userId: userId), userId: userId, operation: "deleteDeltaUserData")
+
+        let snapshots = firestore.collection("users").document(userId).collection("sync_snapshots")
+        let legacySnapshots = try await snapshots.getDocuments()
+        for snapshot in legacySnapshots.documents {
+            try await deleteDocuments(in: snapshot.reference.collection("chunks"), userId: userId, operation: "deleteLegacySnapshotChunks")
+            try await snapshot.reference.delete()
+        }
 
         let manifest = firestore
             .collection("users").document(userId)

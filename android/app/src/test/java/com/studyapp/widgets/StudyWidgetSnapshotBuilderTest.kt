@@ -83,7 +83,7 @@ class StudyWidgetSnapshotBuilderTest {
 
         every { clock.currentTimeMillis() } returns now
         every { clock.startOfToday() } returns todayStart
-        every { clock.startOfWeek() } returns weekStart
+        every { clock.startOfWeek(any()) } returns weekStart
         every { studySessionRepository.getAllSessions() } returns flowOf(
             Result.Success(listOf(todaySession, yesterdaySession, olderSession))
         )
@@ -129,7 +129,7 @@ class StudyWidgetSnapshotBuilderTest {
 
         every { clock.currentTimeMillis() } returns todayStart + 8 * 60 * 60 * 1000L
         every { clock.startOfToday() } returns todayStart
-        every { clock.startOfWeek() } returns weekStart
+        every { clock.startOfWeek(any()) } returns weekStart
         every { studySessionRepository.getAllSessions() } returns flowOf(Result.Success(emptyList()))
         every { goalRepository.getActiveGoals() } returns flowOf(Result.Success(emptyList()))
         every { goalRepository.getActiveGoalByType(GoalType.WEEKLY) } returns flowOf(Result.Success(null))

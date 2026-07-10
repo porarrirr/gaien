@@ -38,6 +38,23 @@ final class SyncThreeWayMergeEngineTests: XCTestCase {
         XCTAssertEqual(outcome.merged.materials.first?.currentPage, 8)
     }
 
+    func test_mergeAcceptsRemoteDownwardCorrectionWhenLocalIsUnchanged() {
+        let base = makeAppData(materials: [makeMaterial(syncId: "m1", updatedAt: 500, currentPage: 500)])
+        let local = makeAppData(materials: [makeMaterial(syncId: "m1", updatedAt: 500, currentPage: 500)])
+        let remote = [
+            makeEnvelope(
+                kind: .material,
+                syncId: "m1",
+                updatedAt: 1_100,
+                json: encode(makeMaterial(syncId: "m1", updatedAt: 1_100, currentPage: 50))
+            )
+        ]
+
+        let outcome = SyncThreeWayMergeEngine.merge(base: base, local: local, remoteEnvelopes: remote)
+
+        XCTAssertEqual(outcome.merged.materials.first?.currentPage, 50)
+    }
+
     func test_mergeDetectsDeletionConflict() {
         let base = makeAppData(materials: [makeMaterial(syncId: "m1", updatedAt: 100, currentPage: 3)])
         let local = makeAppData(materials: [makeMaterial(syncId: "m1", updatedAt: 200, currentPage: 4)])
@@ -96,6 +113,54 @@ final class SyncThreeWayMergeEngineTests: XCTestCase {
         XCTAssertEqual(resolved.subjects.first?.color, 2)
         XCTAssertEqual(resolved.subjects.first?.updatedAt, 2_000)
         XCTAssertEqual(SyncDeltaSerializer.changedSince(resolved, cursor: SyncDeltaCursor(updatedAt: 1_100, documentId: "subject-s1")).map(\.syncId), ["s1"])
+    }
+
+    func test_localConflictResolutionDiffersFromRemoteComparisonBase() {
+        let local = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 1_000, color: 1)])
+        let remote = makeSubject(syncId: "s1", updatedAt: 1_100, color: 2)
+        let conflict = SyncConflict(
+            kind: .subject,
+            syncId: "s1",
+            title: "subject conflict",
+            summary: "subject conflict",
+            conflictFields: [.other],
+            baseJson: nil,
+            localJson: encode(local.subjects[0]),
+            remoteJson: encode(remote),
+            suggestedMergedJson: encode(remote),
+            detectedAt: 1_100
+        )
+        let resolvedAt: Int64 = 2_000
+        let resolved = SyncThreeWayMergeEngine.applyResolutions(
+            [SyncConflictResolution(kind: .subject, syncId: "s1", strategy: .keepLocal)],
+            to: local,
+            conflicts: [conflict],
+            resolvedAt: resolvedAt
+        )
+        let remoteComparisonBase = SyncThreeWayMergeEngine.applyResolutions(
+            [SyncConflictResolution(kind: .subject, syncId: "s1", strategy: .keepRemote)],
+            to: local,
+            conflicts: [conflict],
+            resolvedAt: resolvedAt,
+            bumpUpdatedAt: false
+        )
+
+        XCTAssertEqual(
+            SyncDeltaSerializer.changedComparedTo(resolved, base: remoteComparisonBase).map(\.documentId),
+            ["subject-s1"]
+        )
+        let remoteEnvelope = makeEnvelope(
+            kind: .subject,
+            syncId: "s1",
+            updatedAt: remote.updatedAt,
+            json: encode(remote)
+        )
+        let outcome = SyncThreeWayMergeEngine.merge(
+            base: remoteComparisonBase,
+            local: resolved,
+            remoteEnvelopes: [remoteEnvelope]
+        )
+        XCTAssertTrue(outcome.conflicts.isEmpty)
     }
 
     func test_revisionStamperOmitsEmptyParentRevisionFromLegacyBase() {

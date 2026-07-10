@@ -6,7 +6,10 @@ import com.studyapp.domain.util.Clock
 import com.studyapp.domain.util.Result
 import kotlinx.coroutines.flow.first
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 import java.time.temporal.WeekFields
 import java.util.Locale
 import javax.inject.Inject
@@ -49,8 +52,8 @@ class GetReportsDataUseCase @Inject constructor(
         val dailyData = getDailyData(now)
         val weeklyData = getWeeklyData(now)
         val monthlyData = getMonthlyData(now)
-        val streak = calculateStreak(now)
-        val bestStreak = calculateBestStreak(now)
+        val streak = calculateStreak()
+        val bestStreak = calculateBestStreak()
         
         Log.i(TAG, "Reports data generated: daily=${dailyData.size}, weekly=${weeklyData.size}, monthly=${monthlyData.size}, streak=$streak, bestStreak=$bestStreak")
         
@@ -85,16 +88,20 @@ class GetReportsDataUseCase @Inject constructor(
     }
     
     private suspend fun getWeeklyData(now: Long): List<WeeklyStudyData> {
+        val firstDayOfWeek = WeekFields.of(Locale.getDefault()).firstDayOfWeek
+        val currentDate = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
+        val oldestWeekStart = currentDate
+            .with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
+            .minusWeeks((WEEKS_TO_ANALYZE - 1).toLong())
         val sessions = getSessionsBetween(
-            now - (WEEKS_TO_ANALYZE * WEEK_MS),
+            oldestWeekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             now
         )
         
         return sessions
             .groupBy { session ->
                 val localDate = LocalDate.ofEpochDay(session.date)
-                val weekFields = WeekFields.of(Locale.getDefault()).firstDayOfWeek
-                val startOfWeek = localDate.with(weekFields)
+                val startOfWeek = localDate.with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
                 startOfWeek.toEpochDay() * DAY_MS
             }
             .map { (weekStart, weekSessions) ->
@@ -109,8 +116,10 @@ class GetReportsDataUseCase @Inject constructor(
     }
     
     private suspend fun getMonthlyData(now: Long): List<MonthlyStudyData> {
+        val currentDate = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
+        val oldestMonthStart = currentDate.withDayOfMonth(1).minusMonths((MONTHS_TO_ANALYZE - 1).toLong())
         val sessions = getSessionsBetween(
-            now - (MONTHS_TO_ANALYZE * MONTH_MS),
+            oldestMonthStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             now
         )
         
@@ -129,9 +138,12 @@ class GetReportsDataUseCase @Inject constructor(
             .sortedBy { it.monthStart }
     }
     
-    private suspend fun calculateStreak(now: Long): Int {
+    private suspend fun calculateStreak(): Int {
         var streak = 0
         var currentDate = clock.startOfToday()
+        if (getSessionsBetween(currentDate, currentDate + DAY_MS).isEmpty()) {
+            currentDate -= DAY_MS
+        }
         
         for (i in 0 until MAX_STREAK_DAYS) {
             val sessions = getSessionsBetween(currentDate, currentDate + DAY_MS)
@@ -147,7 +159,7 @@ class GetReportsDataUseCase @Inject constructor(
         return streak
     }
     
-    private suspend fun calculateBestStreak(now: Long): Int {
+    private suspend fun calculateBestStreak(): Int {
         val sessions = studySessionRepository.getAllSessions().first()
             .getOrNull() ?: return 0
         
@@ -177,7 +189,6 @@ class GetReportsDataUseCase @Inject constructor(
         private const val TAG = "GetReportsDataUseCase"
         private const val DAY_MS = 24 * 60 * 60 * 1000L
         private const val WEEK_MS = 7 * DAY_MS
-        private const val MONTH_MS = 30 * DAY_MS
         private const val DAYS_TO_ANALYZE = 30
         private const val WEEKS_TO_ANALYZE = 12
         private const val MONTHS_TO_ANALYZE = 6

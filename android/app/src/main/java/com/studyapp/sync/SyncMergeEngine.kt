@@ -189,12 +189,26 @@ data class SyncProgressSummary(
 
 object SyncProgressGuard {
     fun wouldLoseProgress(from: AppData, to: AppData): Boolean {
-        val before = SyncProgressSummary(from)
-        val after = SyncProgressSummary(to)
-        if (!before.hasProblemProgress) return false
-        return after.sessionProblemRecords < before.sessionProblemRecords ||
-            after.materialProblemRecords < before.materialProblemRecords ||
-            after.activeProblemReviewRecords < before.activeProblemReviewRecords ||
-            after.materialsWithProblemTotals < before.materialsWithProblemTotals
+        val destinationSessions = to.sessions.associateBy { it.syncId }
+        from.sessions.filter { it.problemRecords.isNotEmpty() }.forEach { session ->
+            val target = destinationSessions[session.syncId] ?: return true
+            if (target.deletedAt == null && target.problemRecords.size < session.problemRecords.size) return true
+        }
+
+        val destinationMaterials = to.materials.associateBy { it.syncId }
+        from.materials.filter { it.problemRecords.isNotEmpty() || it.effectiveTotalProblems > 0 }.forEach { material ->
+            val target = destinationMaterials[material.syncId] ?: return true
+            if (target.deletedAt == null) {
+                if (target.problemRecords.size < material.problemRecords.size) return true
+                if (material.effectiveTotalProblems > 0 && target.effectiveTotalProblems == 0) return true
+            }
+        }
+
+        val destinationReviews = to.problemReviewRecords.associateBy { it.syncId }
+        from.problemReviewRecords.filter { it.deletedAt == null }.forEach { review ->
+            destinationReviews[review.syncId] ?: return true
+            // A matching tombstone is an intentional cross-device deletion.
+        }
+        return false
     }
 }

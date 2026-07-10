@@ -1,8 +1,10 @@
 package com.studyapp.domain.util
 
+import com.studyapp.domain.model.StudyWeekday
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,7 +14,7 @@ interface Clock {
     fun currentLocalDateTime(): LocalDateTime
     fun startOfDay(timestamp: Long): Long
     fun startOfToday(): Long
-    fun startOfWeek(): Long
+    fun startOfWeek(weekStartDay: StudyWeekday = StudyWeekday.MONDAY): Long
     fun startOfMonth(): Long
 }
 
@@ -38,14 +40,12 @@ class SystemClock @Inject constructor() : Clock {
     
     override fun startOfToday(): Long = startOfDay(currentTimeMillis())
     
-    override fun startOfWeek(): Long {
-        return java.util.Calendar.getInstance().apply {
-            set(java.util.Calendar.DAY_OF_WEEK, firstDayOfWeek)
-            set(java.util.Calendar.HOUR_OF_DAY, 0)
-            set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
-        }.timeInMillis
+    override fun startOfWeek(weekStartDay: StudyWeekday): Long {
+        return currentLocalDate()
+            .with(TemporalAdjusters.previousOrSame(weekStartDay.toDayOfWeek()))
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
     }
     
     override fun startOfMonth(): Long {

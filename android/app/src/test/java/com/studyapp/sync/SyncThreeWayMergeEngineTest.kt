@@ -50,6 +50,64 @@ class SyncThreeWayMergeEngineTest {
     }
 
     @Test
+    fun `merge accepts remote downward correction when local is unchanged`() {
+        val base = appData(materials = listOf(material("m1", currentPage = 500, updatedAt = 500)))
+        val local = appData(materials = listOf(material("m1", currentPage = 500, updatedAt = 500)))
+        val remote = listOf(
+            envelope(
+                kind = SyncEntityKind.MATERIAL,
+                syncId = "m1",
+                updatedAt = 1_100,
+                json = material("m1", currentPage = 50, updatedAt = 1_100).toJson().toString()
+            )
+        )
+
+        val outcome = SyncThreeWayMergeEngine.merge(base = base, local = local, remoteEnvelopes = remote)
+
+        assertEquals(50, outcome.merged.materials.single().currentPage)
+    }
+
+    @Test
+    fun `local conflict resolution differs from remote comparison base`() {
+        val local = appData(subjects = listOf(subject("s1", updatedAt = 1_000, color = 1)))
+        val remote = subject("s1", updatedAt = 1_100, color = 2)
+        val conflict = SyncConflict(
+            kind = SyncEntityKind.SUBJECT,
+            syncId = "s1",
+            title = "subject conflict",
+            summary = "subject conflict",
+            conflictFields = listOf(SyncConflictField.OTHER),
+            baseJson = null,
+            localJson = local.subjects.single().toJson().toString(),
+            remoteJson = remote.toJson().toString(),
+            suggestedMergedJson = remote.toJson().toString(),
+            detectedAt = 1_100
+        )
+        val resolvedAt = 2_000L
+        val resolved = SyncThreeWayMergeEngine.applyResolutions(
+            listOf(SyncConflictResolution(SyncEntityKind.SUBJECT, "s1", SyncConflictResolutionStrategy.KEEP_LOCAL)),
+            local,
+            listOf(conflict),
+            resolvedAt
+        )
+        val remoteComparisonBase = SyncThreeWayMergeEngine.applyResolutions(
+            listOf(SyncConflictResolution(SyncEntityKind.SUBJECT, "s1", SyncConflictResolutionStrategy.KEEP_REMOTE)),
+            local,
+            listOf(conflict),
+            resolvedAt,
+            false
+        )
+
+        assertEquals(listOf("subject-s1"), SyncDeltaSerializer.changedComparedTo(resolved, remoteComparisonBase).map { it.documentId })
+        val outcome = SyncThreeWayMergeEngine.merge(
+            remoteComparisonBase,
+            resolved,
+            listOf(envelope(SyncEntityKind.SUBJECT, "s1", remote.updatedAt, json = remote.toJson().toString()))
+        )
+        assertTrue(outcome.conflicts.isEmpty())
+    }
+
+    @Test
     fun `merge detects deletion conflict when one side deletes and other updates`() {
         val baseMaterial = material("m1", currentPage = 3, updatedAt = 100)
         val base = appData(materials = listOf(baseMaterial))

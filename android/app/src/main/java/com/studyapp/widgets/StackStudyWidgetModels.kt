@@ -122,7 +122,7 @@ class StackStudyWidgetSnapshotMapper @Inject constructor() {
             type = StudyWidgetCardType.STREAK,
             title = "連続学習",
             value = "${streakDays}日",
-            body = if (streakDays > 0) "今日も継続中" else "今日の学習でスタート",
+            body = if (streakDays > 0) "連続記録を維持中" else "今日の学習でスタート",
             caption = "最長 ${bestStreak}日",
             valueStyle = StackStudyWidgetCard.ValueStyle.HERO,
             valueColor = WIDGET_TEXT_PRIMARY_COLOR

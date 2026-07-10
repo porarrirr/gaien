@@ -1,5 +1,12 @@
+import FirebaseAppCheck
 import FirebaseCore
 import Foundation
+
+private final class StudyAppCheckProviderFactory: NSObject, AppCheckProviderFactory {
+    func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
+        AppAttestProvider(app: app)
+    }
+}
 
 enum FirebaseConfigurationStatus: Equatable {
     case configured
@@ -62,6 +69,11 @@ enum FirebaseBootstrap {
             return
         }
 
+        #if DEBUG && targetEnvironment(simulator)
+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        #else
+        AppCheck.setAppCheckProviderFactory(StudyAppCheckProviderFactory())
+        #endif
         FirebaseApp.configure()
         status = .configured
     }

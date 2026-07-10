@@ -508,8 +508,8 @@ private fun SettingsCloudSyncGroup(
         if (syncAuthenticated) {
             SettingsInfoRow(
                 icon = Icons.Default.Public,
-                title = "接続中",
-                value = "接続中",
+                title = "アカウント",
+                value = "サインイン済み",
                 valueColor = MaterialTheme.colorScheme.primary,
                 showsStatusDot = true
             )

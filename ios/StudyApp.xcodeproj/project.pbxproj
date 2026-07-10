@@ -23,6 +23,7 @@
 		A10000000000000000000015 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000002 /* FirebaseCore */; };
 		A10000000000000000000016 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000003 /* FirebaseAuth */; };
 		A10000000000000000000017 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000004 /* FirebaseFirestore */; };
+		A10000000000000000000024 /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = Q10000000000000000000005 /* FirebaseAppCheck */; };
 		A10000000000000000000018 /* FirebaseBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* FirebaseBootstrap.swift */; };
 		A10000000000000000000019 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* AppLogger.swift */; };
 		A10000000000000000000020 /* StudyLiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* StudyLiveActivityController.swift */; };
@@ -416,6 +417,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000024 /* FirebaseAppCheck in Frameworks */,
 				A10000000000000000000015 /* FirebaseCore in Frameworks */,
 				A10000000000000000000016 /* FirebaseAuth in Frameworks */,
 				A10000000000000000000017 /* FirebaseFirestore in Frameworks */,
@@ -924,6 +926,7 @@
 			);
 			name = StudyApp;
 			packageProductDependencies = (
+				Q10000000000000000000005 /* FirebaseAppCheck */,
 				Q10000000000000000000002 /* FirebaseCore */,
 				Q10000000000000000000003 /* FirebaseAuth */,
 				Q10000000000000000000004 /* FirebaseFirestore */,
@@ -1618,6 +1621,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		Q10000000000000000000005 /* FirebaseAppCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = P10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAppCheck;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

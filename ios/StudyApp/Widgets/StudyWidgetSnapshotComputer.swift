@@ -53,13 +53,17 @@ struct StudyWidgetSnapshotComputer {
         let now = inputs.referenceDate
         let today = calendar.startOfDay(for: now)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
-        let weekInterval = calendar.dateInterval(of: .weekOfYear, for: now)
-        let weekStart = (weekInterval?.start ?? today).epochMilliseconds
-        let weekEnd = (weekInterval?.end ?? tomorrow).epochMilliseconds
         let todayWeekday = StudyWeekday.from(calendarWeekday: calendar.component(.weekday, from: now))
 
         let dailyGoal = inputs.goals.latestActiveDailyGoal(for: todayWeekday)
         let weeklyGoal = inputs.goals.latestActiveWeeklyGoal()
+        let currentWeekday = calendar.component(.weekday, from: today)
+        let configuredWeekday = (weeklyGoal?.weekStartDay ?? .monday).calendarWeekday
+        let daysSinceWeekStart = (currentWeekday - configuredWeekday + 7) % 7
+        let weekStartDate = calendar.date(byAdding: .day, value: -daysSinceWeekStart, to: today) ?? today
+        let weekEndDate = calendar.date(byAdding: .day, value: 7, to: weekStartDate) ?? tomorrow
+        let weekStart = weekStartDate.epochMilliseconds
+        let weekEnd = weekEndDate.epochMilliseconds
 
         let todayStartMs = today.epochMilliseconds
         let tomorrowMs = tomorrow.epochMilliseconds
@@ -125,7 +129,9 @@ struct StudyWidgetSnapshotComputer {
 
     static func streakDays(from studyDays: Set<Int64>, referenceDay: Int64) -> Int {
         var streak = 0
-        var currentDay = referenceDay
+        // The current streak remains alive until the end of today even if the
+        // user has not studied yet, matching the in-app report definition.
+        var currentDay = studyDays.contains(referenceDay) ? referenceDay : referenceDay - 1
         while studyDays.contains(currentDay) {
             streak += 1
             currentDay -= 1

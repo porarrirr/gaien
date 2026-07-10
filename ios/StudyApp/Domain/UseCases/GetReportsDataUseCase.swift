@@ -52,9 +52,9 @@ struct GetReportsDataUseCase {
         let formatter = StudyFormatters.shortDate
         return (0..<4).compactMap { offset in
             guard let date = Calendar.current.date(byAdding: .weekOfYear, value: -offset, to: reference) else { return nil }
-            let interval = Calendar.current.dateInterval(of: .weekOfYear, for: date)
-            let start = (interval?.start ?? date).epochMilliseconds
-            let end = Int64((interval?.end ?? date).epochMilliseconds)
+            let start = clock.startOfWeek(reference: date)
+            let startDate = Date(epochMilliseconds: start)
+            let end = (Calendar.current.date(byAdding: .day, value: 7, to: startDate) ?? startDate).epochMilliseconds
             let periodSessions = sessions.filter { $0.startTime >= start && $0.startTime < end }
             let segments = subjectSegments(subjects: subjects, sessions: periodSessions)
             let minutes = segments.reduce(0) { $0 + $1.minutes }
@@ -92,7 +92,7 @@ struct GetReportsDataUseCase {
                 return nil
             }
             let minutes = sessions.filter {
-                $0.startTime >= interval.start.epochMilliseconds && $0.startTime <= interval.end.epochMilliseconds
+                $0.startTime >= interval.start.epochMilliseconds && $0.startTime < interval.end.epochMilliseconds
             }
             .reduce(0) { $0 + $1.durationMinutes }
             return MonthlyStudyData(
@@ -126,7 +126,8 @@ struct GetReportsDataUseCase {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: reference)
         let todayEnd = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? reference
-        let weekInterval = calendar.dateInterval(of: .weekOfYear, for: reference)
+        let weekStart = Date(epochMilliseconds: clock.startOfWeek(reference: reference))
+        let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? todayEnd
         let monthInterval = calendar.dateInterval(of: .month, for: reference)
 
         return RatingAveragesData(
@@ -137,8 +138,8 @@ struct GetReportsDataUseCase {
             ),
             week: weightedAverageRating(
                 sessions: sessions,
-                start: (weekInterval?.start ?? todayStart).epochMilliseconds,
-                end: (weekInterval?.end ?? todayEnd).epochMilliseconds
+                start: weekStart.epochMilliseconds,
+                end: weekEnd.epochMilliseconds
             ),
             month: weightedAverageRating(
                 sessions: sessions,

@@ -15,10 +15,13 @@ struct Clock {
         Calendar.current.startOfDay(for: reference ?? now()).epochMilliseconds
     }
 
-    func startOfWeek(reference: Date? = nil) -> Int64 {
+    func startOfWeek(reference: Date? = nil, weekStartDay: StudyWeekday = .monday) -> Int64 {
         let value = reference ?? now()
-        let interval = Calendar.current.dateInterval(of: .weekOfYear, for: value)
-        return (interval?.start ?? Calendar.current.startOfDay(for: value)).epochMilliseconds
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: value)
+        let weekday = calendar.component(.weekday, from: today)
+        let daysSinceStart = (weekday - weekStartDay.calendarWeekday + 7) % 7
+        return (calendar.date(byAdding: .day, value: -daysSinceStart, to: today) ?? today).epochMilliseconds
     }
 }
 

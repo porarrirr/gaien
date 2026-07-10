@@ -31,13 +31,12 @@ class StudyWidgetSnapshotBuilder @Inject constructor(
         val zoneId = ZoneId.systemDefault()
         val today = Instant.ofEpochMilli(nowMillis).atZone(zoneId).toLocalDate()
         val todayStart = clock.startOfToday()
-        val weekStart = clock.startOfWeek()
-
         val sessions = studySessionRepository.getAllSessions().first().getOrNull().orEmpty()
-        val dailyGoal = goalRepository.getActiveGoals().first().getOrNull()
-            .orEmpty()
+        val activeGoals = goalRepository.getActiveGoals().first().getOrNull().orEmpty()
+        val dailyGoal = activeGoals
             .firstOrNull { it.type == GoalType.DAILY && it.dayOfWeek == StudyWeekday.fromDayOfWeek(today.dayOfWeek) }
         val weeklyGoal = goalRepository.getActiveGoalByType(GoalType.WEEKLY).first().getOrNull()
+        val weekStart = clock.startOfWeek(weeklyGoal?.weekStartDay ?: StudyWeekday.MONDAY)
         val upcomingExams = examRepository.getUpcomingExams().first().getOrNull().orEmpty()
 
         val todaySessions = sessions.filter { session ->
@@ -92,7 +91,7 @@ class StudyWidgetSnapshotBuilder @Inject constructor(
         if (studyDates.isEmpty()) return 0
         val studyDateSet = studyDates.toSet()
         var streak = 0
-        var cursor = today
+        var cursor = if (studyDateSet.contains(today)) today else today.minusDays(1)
         while (studyDateSet.contains(cursor)) {
             streak++
             cursor = cursor.minusDays(1)

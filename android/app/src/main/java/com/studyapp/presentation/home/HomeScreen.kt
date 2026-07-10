@@ -1136,7 +1136,7 @@ private fun MaterialMiniCard(
 private fun reviewDueRelativeText(nextReviewDate: Long): String {
     val today = LocalDate.now()
     val dueDate = java.time.Instant.ofEpochMilli(nextReviewDate)
-        .atZone(java.time.ZoneId.systemDefault())
+        .atZone(java.time.ZoneOffset.UTC)
         .toLocalDate()
     val days = java.time.temporal.ChronoUnit.DAYS.between(today, dueDate)
     return when {

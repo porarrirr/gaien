@@ -62,6 +62,44 @@ struct StudyWidgetSnapshot: Codable, Hashable {
         weekActivity.reduce(0) { $0 + $1.minutes }
     }
 
+    func adjustedForDisplay(at date: Date, calendar: Calendar = .current) -> StudyWidgetSnapshot {
+        var adjusted = self
+        let generatedDate = Date(timeIntervalSince1970: TimeInterval(generatedAt) / 1_000)
+        let epochStart = calendar.startOfDay(for: Date(timeIntervalSince1970: 0))
+        let currentEpochDay = Int64(calendar.dateComponents(
+            [.day],
+            from: epochStart,
+            to: calendar.startOfDay(for: date)
+        ).day ?? 0)
+        if !calendar.isDate(generatedDate, inSameDayAs: date) {
+            adjusted.todayStudyMinutes = 0
+            adjusted.todaySessionCount = 0
+            adjusted.dailyGoalMinutes = nil
+            let generatedEpochDay = Int64(calendar.dateComponents(
+                [.day],
+                from: epochStart,
+                to: calendar.startOfDay(for: generatedDate)
+            ).day ?? 0)
+            adjusted.streakDays = currentEpochDay - generatedEpochDay <= 1 ? streakDays : 0
+            adjusted.weekActivity = adjusted.weekActivity.map {
+                StudyWidgetActivitySummary(dayLabel: $0.dayLabel, minutes: 0, isToday: $0.isToday)
+            }
+        }
+        let generatedWeek = calendar.dateInterval(of: .weekOfYear, for: generatedDate)?.start
+        let currentWeek = calendar.dateInterval(of: .weekOfYear, for: date)?.start
+        if generatedWeek != currentWeek {
+            adjusted.weeklyStudyMinutes = 0
+        }
+        adjusted.upcomingExams = adjusted.upcomingExams.map {
+            StudyWidgetExamSummary(
+                name: $0.name,
+                epochDay: $0.epochDay,
+                daysRemaining: Int($0.epochDay - currentEpochDay)
+            )
+        }
+        return adjusted
+    }
+
     static func empty(referenceDate: Date = Date()) -> StudyWidgetSnapshot {
         StudyWidgetSnapshot(
             generatedAt: referenceDate.timeIntervalSince1970Milliseconds,

@@ -446,8 +446,33 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         guard !conflicts.isEmpty else { return }
 
         let local = try await persistence.exportData()
-        let resolved = SyncThreeWayMergeEngine.applyResolutions(resolutions, to: local, conflicts: conflicts)
+        let resolvedAt = Date().epochMilliseconds
+        let resolved = SyncThreeWayMergeEngine.applyResolutions(
+            resolutions,
+            to: local,
+            conflicts: conflicts,
+            resolvedAt: resolvedAt
+        )
         try ensureNoProblemProgressLoss(from: local, to: resolved, operation: "resolveConflicts")
+
+        // Keep the cloud side of each resolved conflict as the comparison
+        // base. This makes keepLocal/keepMerged a real outbound change while
+        // keepRemote correctly produces no upload. Saving `resolved` itself
+        // as the base would make every resolution look unchanged.
+        var stateResult = try loadSyncState(userId: session.localId)
+        let matchedResolutions = resolutions.filter { resolution in
+            conflicts.contains { $0.kind == resolution.kind && $0.syncId == resolution.syncId }
+        }
+        let remoteBaselines = matchedResolutions.map {
+            SyncConflictResolution(kind: $0.kind, syncId: $0.syncId, strategy: .keepRemote)
+        }
+        let comparisonBase = SyncThreeWayMergeEngine.applyResolutions(
+            remoteBaselines,
+            to: stateResult.user.baseShadow ?? local,
+            conflicts: conflicts,
+            resolvedAt: resolvedAt,
+            bumpUpdatedAt: false
+        )
         try await applyMergedSnapshotLocally(
             resolved,
             expectedChangeToken: persistence.changeToken
@@ -457,8 +482,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             !resolutions.contains { $0.kind == conflict.kind && $0.syncId == conflict.syncId }
         }
         try SyncConflictStore.save(remaining, userId: session.localId)
-        var stateResult = try loadSyncState(userId: session.localId)
-        stateResult.user.baseShadow = resolved
+        stateResult.user.baseShadow = comparisonBase
         stateResult.root.users[session.localId] = stateResult.user
         try SyncStateStore.save(stateResult.root)
 
@@ -678,16 +702,9 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     }
 
     private func ensureNoProblemProgressLoss(from source: AppData, to destination: AppData, operation: String) throws {
+        guard SyncProgressGuard.wouldLoseProgress(from: source, to: destination) else { return }
         let sourceSummary = SyncDataSummary(appData: source)
         let destinationSummary = SyncDataSummary(appData: destination)
-        guard sourceSummary.hasProblemProgress else { return }
-
-        let lostSessionRecords = destinationSummary.sessionProblemRecords < sourceSummary.sessionProblemRecords
-        let lostMaterialRecords = destinationSummary.materialProblemRecords < sourceSummary.materialProblemRecords
-        let lostReviewRecords = destinationSummary.activeProblemReviewRecords < sourceSummary.activeProblemReviewRecords
-        let lostProblemTotal = destinationSummary.materialsWithProblemTotals < sourceSummary.materialsWithProblemTotals
-
-        guard lostSessionRecords || lostMaterialRecords || lostReviewRecords || lostProblemTotal else { return }
         logger.log(
             category: .sync,
             level: .error,

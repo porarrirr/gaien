@@ -46,7 +46,7 @@ final class ReminderScheduler {
 
         let content = UNMutableNotificationContent()
         content.title = "授業の復習が残っています"
-        content.body = "48時間を超えた未復習の授業が\(overdueCount)件あります。時間割で確認しましょう。"
+        content.body = "48時間を超えた未復習の授業があります。最新の件数を時間割で確認しましょう。"
         content.sound = .default
 
         var components = DateComponents()

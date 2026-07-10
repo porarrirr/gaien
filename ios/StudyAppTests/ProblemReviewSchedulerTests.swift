@@ -137,7 +137,9 @@ final class ProblemReviewSchedulerTests: XCTestCase {
         )
 
         let nextReviewDate = Date(epochMilliseconds: record.nextReviewDate)
-        let components = calendar.dateComponents([.hour, .minute, .second], from: nextReviewDate)
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let components = utcCalendar.dateComponents([.hour, .minute, .second], from: nextReviewDate)
         XCTAssertEqual(components.hour, 0)
         XCTAssertEqual(components.minute, 0)
         XCTAssertEqual(components.second, 0)
@@ -167,6 +169,6 @@ final class ProblemReviewSchedulerTests: XCTestCase {
             value: intervalDays,
             to: calendar.startOfDay(for: reviewDate)
         ) ?? reviewDate
-        return calendar.startOfDay(for: nextDay).epochMilliseconds
+        return nextDay.epochDay * 86_400_000
     }
 }

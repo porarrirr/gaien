@@ -343,9 +343,7 @@ class StudySessionRepositoryImpl @Inject constructor(
             .atZone(zone)
             .toLocalDate()
             .plusDays(intervalDays)
-            .atStartOfDay(zone)
-            .toInstant()
-            .toEpochMilli()
+            .toEpochDay() * 86_400_000L
 
         return ProblemReviewRecord(
             problemId = ProblemReviewRecord.problemId(materialId, problemNumber),

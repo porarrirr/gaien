@@ -197,6 +197,22 @@ final class SyncMergeEngineTests: XCTestCase {
         XCTAssertFalse(SyncProgressGuard.wouldLoseProgress(from: source, to: destination))
     }
 
+    func test_progressGuard_allowsIntentionalMaterialTombstone() {
+        let source = makeAppData(materials: [
+            makeMaterial(
+                syncId: "m1",
+                updatedAt: 100,
+                problemRecords: [ProblemSessionRecord(number: 1, isWrong: true)],
+                totalProblems: 10
+            )
+        ])
+        let destination = makeAppData(materials: [
+            makeMaterial(syncId: "m1", updatedAt: 200, deletedAt: 200)
+        ])
+
+        XCTAssertFalse(SyncProgressGuard.wouldLoseProgress(from: source, to: destination))
+    }
+
     // MARK: - Helpers
 
     private func makeAppData(

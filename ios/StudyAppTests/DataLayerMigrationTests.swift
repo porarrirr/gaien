@@ -88,6 +88,37 @@ final class DataLayerMigrationTests: XCTestCase {
         XCTAssertEqual(goals.count, 8)
         XCTAssertNotNil(goals.first(where: { $0.syncId == "legacy-goal" })?.deletedAt)
         XCTAssertEqual(goals.filter { $0.deletedAt == nil && $0.dayOfWeek != nil }.count, 7)
+        XCTAssertEqual(
+            Set(goals.filter { $0.deletedAt == nil }.map(\.syncId)),
+            Set((1...7).map { "legacy-goal-\($0)" })
+        )
+    }
+
+    func testDailyGoalMigrationCanonicalizesHistoricIOSWeekdaySuffix() throws {
+        let context = try makeContext()
+        let record = NSEntityDescription.insertNewObject(forEntityName: "GoalRecord", into: context)
+        PersistenceMappers.apply(
+            Goal(
+                id: 10,
+                syncId: "legacy-goal-monday",
+                type: .daily,
+                targetMinutes: 60,
+                dayOfWeek: .monday,
+                isActive: true,
+                createdAt: 100,
+                updatedAt: 100
+            ),
+            assignedId: 10,
+            now: 100,
+            to: record
+        )
+
+        XCTAssertTrue(try LegacyDailyGoalNormalizer.normalize(in: context))
+        XCTAssertFalse(try LegacyDailyGoalNormalizer.normalize(in: context))
+
+        let goals = try CoreDataQuery.fetch("GoalRecord", in: context).map(PersistenceMappers.goal)
+        XCTAssertNotNil(goals.first(where: { $0.syncId == "legacy-goal-monday" })?.deletedAt)
+        XCTAssertNotNil(goals.first(where: { $0.syncId == "legacy-goal-1" && $0.deletedAt == nil }))
     }
 
     func testSyncUpsertPreservesExistingIdsAndDoesNotDuplicateRows() throws {

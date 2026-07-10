@@ -11,6 +11,7 @@ import com.studyapp.domain.model.StudyWeekday
 import java.time.DayOfWeek
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -39,6 +40,7 @@ class GoalsViewModel @Inject constructor(
         observeData()
     }
     
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeData() {
         viewModelScope.launch {
             combine(
@@ -69,10 +71,12 @@ class GoalsViewModel @Inject constructor(
             }
             .launchIn(viewModelScope)
         
-        val weekStart = clock.startOfWeek()
-        studySessionRepository.getSessionsBetweenDates(weekStart, weekStart + WEEK_MS)
-            .map { result -> result.getOrNull() ?: emptyList() }
-            .map { sessions -> sessions.sumOf { it.duration / 60000 } }
+        manageGoalsUseCase.getActiveWeeklyGoal()
+            .flatMapLatest { weeklyGoal ->
+                val weekStart = clock.startOfWeek(weeklyGoal?.weekStartDay ?: StudyWeekday.MONDAY)
+                studySessionRepository.getSessionsBetweenDates(weekStart, weekStart + WEEK_MS)
+            }
+            .map { result -> result.getOrNull().orEmpty().sumOf { it.duration / 60000 } }
             .onEach { weekMinutes ->
                 _uiState.update { state -> state.copy(weekMinutes = weekMinutes) }
             }

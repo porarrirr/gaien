@@ -14,8 +14,6 @@ struct SettingsScreen: View {
     @State private var isShowingDebugLogs = false
     @State private var isShowingDataBackups = false
     @State private var selectedDataBackup: DataBackupDescriptor?
-    @State private var versionTapCount = 0
-    @State private var isDebugLogUnlocked = false
     @State private var copyConfirmationMessage: String?
 
     init(app: StudyAppContainer) {
@@ -293,7 +291,7 @@ struct SettingsScreen: View {
     private var cloudSyncCard: some View {
         settingsGroup(title: "クラウド同期") {
             if viewModel.app.syncStatus.isAuthenticated {
-                compactInfoRow(icon: "cloud", title: "接続中", value: "接続中", color: AppColors.success, showsStatusDot: true)
+                compactInfoRow(icon: "cloud", title: "アカウント", value: "サインイン済み", color: AppColors.success, showsStatusDot: true)
                 Divider()
                 compactInfoRow(icon: "person", title: "メールアドレス", value: viewModel.app.syncStatus.email ?? "-")
                 Divider()

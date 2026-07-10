@@ -45,10 +45,6 @@ struct DebugLogEntry: Identifiable, Codable, Equatable {
 
 @MainActor
 final class AppLogger: ObservableObject {
-    static var isDebugToolsEnabled: Bool {
-        true
-    }
-
     private let fileManager: FileManager
     private let fileURL: URL
     private let encoder = JSONEncoder()

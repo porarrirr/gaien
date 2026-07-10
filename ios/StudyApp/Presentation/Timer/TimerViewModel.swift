@@ -123,14 +123,7 @@ final class TimerViewModel: ScreenViewModel {
     func pause() {
         guard var timer = app.preferences.activeTimer else { return }
         let now = Date().epochMilliseconds
-        if timer.isRunning, let startedAt = timer.startedAt {
-            timer.completedIntervals.append(
-                StudySessionInterval(
-                    startTime: startedAt,
-                    endTime: now
-                )
-            )
-        }
+        timer.completedIntervals = timer.finalizedIntervals(at: Date(epochMilliseconds: now))
         timer.accumulatedMilliseconds = timer.completedIntervals.reduce(0) { $0 + $1.duration }
         timer.startedAt = nil
         timer.isRunning = false
@@ -409,14 +402,7 @@ final class TimerViewModel: ScreenViewModel {
     private func finalizeTimerForEvaluation() -> TimerSnapshot? {
         guard var timer = app.preferences.activeTimer else { return nil }
         let now = Date().epochMilliseconds
-        if timer.isRunning, let startedAt = timer.startedAt {
-            timer.completedIntervals.append(
-                StudySessionInterval(
-                    startTime: startedAt,
-                    endTime: now
-                )
-            )
-        }
+        timer.completedIntervals = timer.finalizedIntervals(at: Date(epochMilliseconds: now))
         timer.accumulatedMilliseconds = timer.completedIntervals.reduce(0) { $0 + $1.duration }
         timer.startedAt = nil
         timer.isRunning = false

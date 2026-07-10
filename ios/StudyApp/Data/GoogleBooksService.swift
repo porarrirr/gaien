@@ -103,12 +103,10 @@ final class GoogleBooksService: BookSearchRepository {
     private static let fallbackRateLimitCooldown: TimeInterval = 15
 
     private let session: URLSession
-    private let apiKey: String?
     private let lookupStore = GoogleBooksLookupStore()
 
-    init(session: URLSession = .shared, apiKey: String? = ProcessInfo.processInfo.environment["GOOGLE_BOOKS_API_KEY"]) {
+    init(session: URLSession = .shared) {
         self.session = session
-        self.apiKey = apiKey
     }
 
     func searchByIsbn(_ isbn: String) async throws -> BookInfo {
@@ -132,7 +130,7 @@ final class GoogleBooksService: BookSearchRepository {
         let task = Task<BookInfo, Error> {
             defer { Task { await self.lookupStore.clearIsbnTask(for: normalizedIsbn) } }
 
-            let query = "isbn:\(normalizedIsbn.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? normalizedIsbn)"
+            let query = "isbn:\(normalizedIsbn)"
             let request = try self.makeRequest(query: query)
             let (data, response) = try await self.session.data(for: request)
             try await self.validate(response: response)
@@ -156,7 +154,7 @@ final class GoogleBooksService: BookSearchRepository {
     }
 
     func searchByTitle(_ title: String) async throws -> [BookInfo] {
-        let normalizedTitle = normalizeLookupToken(title)
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedTitle.isEmpty else {
             return []
         }
@@ -176,7 +174,7 @@ final class GoogleBooksService: BookSearchRepository {
         let task = Task<[BookInfo], Error> {
             defer { Task { await self.lookupStore.clearTitleTask(for: normalizedTitle) } }
 
-            let query = "intitle:\(normalizedTitle.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? normalizedTitle)"
+            let query = "intitle:\(normalizedTitle)"
             let request = try self.makeRequest(query: query, maxResults: 10)
             let (data, response) = try await self.session.data(for: request)
             try await self.validate(response: response)
@@ -209,9 +207,6 @@ final class GoogleBooksService: BookSearchRepository {
     private func makeRequest(query: String, maxResults: Int? = nil) throws -> URLRequest {
         var components = URLComponents(string: "https://www.googleapis.com/books/v1/volumes")
         var items = [URLQueryItem(name: "q", value: query)]
-        if let apiKey {
-            items.append(URLQueryItem(name: "key", value: apiKey))
-        }
         if let maxResults {
             items.append(URLQueryItem(name: "maxResults", value: "\(maxResults)"))
         }

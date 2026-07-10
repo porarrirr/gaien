@@ -23,7 +23,8 @@ private struct StudyWidgetProvider: TimelineProvider {
     }
 
     private func loadEntry(for date: Date) -> StudyWidgetEntry {
-        let snapshot = (try? StudyWidgetSnapshotStore.read()) ?? .placeholder
+        let snapshot = ((try? StudyWidgetSnapshotStore.read()) ?? .placeholder)
+            .adjustedForDisplay(at: date)
         return StudyWidgetEntry(date: date, snapshot: snapshot)
     }
 }

@@ -10,13 +10,14 @@ struct GetHomeDataUseCase {
 
     func execute() async throws -> HomeData {
         let todayStart = clock.startOfToday()
-        let weekStart = clock.startOfWeek()
         let todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: clock.now()))
         let dayMs: Int64 = 86_400_000
         let weekMs = dayMs * 7
 
         async let todaySessionsTask = studySessionRepository.getSessionsBetweenDates(start: todayStart, end: todayStart + dayMs)
-        async let goalsTask = goalRepository.getAllGoals()
+        let goals = try await goalRepository.getAllGoals()
+        let weeklyGoal = goals.latestActiveWeeklyGoal()
+        let weekStart = clock.startOfWeek(weekStartDay: weeklyGoal?.weekStartDay ?? .monday)
         async let weeklySessionsTask = studySessionRepository.getSessionsBetweenDates(start: weekStart, end: weekStart + weekMs)
         async let upcomingExamsTask = examRepository.getUpcomingExams(now: clock.now())
         async let timetablePeriodsTask = timetableRepository.getAllTimetablePeriods()
@@ -25,7 +26,6 @@ struct GetHomeDataUseCase {
         async let todayReviewProblemsTask = problemReviewRepository.getTodayReviewProblems(reference: clock.now())
 
         let todaySessions = try await todaySessionsTask
-        let goals = try await goalsTask
         let weeklySessions = try await weeklySessionsTask
         let upcomingExams = try await upcomingExamsTask
         let timetablePeriods = try await timetablePeriodsTask
@@ -33,7 +33,6 @@ struct GetHomeDataUseCase {
         let timetableTerms = try await timetableTermsTask
         let todayReviewProblems = try await todayReviewProblemsTask
         let todayGoal = goals.latestActiveDailyGoal(for: todayWeekday)
-        let weeklyGoal = goals.latestActiveWeeklyGoal()
 
         let timetableLessons = nextTimetableLessons(
             periods: timetablePeriods,

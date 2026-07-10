@@ -40,13 +40,17 @@ enum TimetableOverdueCalculator {
         let calendar = Calendar.current
         var overdue = 0
 
+        let termForUnassignedEntries = terms.max { lhs, rhs in
+            if lhs.startDate == rhs.startDate { return lhs.updatedAt < rhs.updatedAt }
+            return lhs.startDate < rhs.startDate
+        }?.id
         for term in terms {
             var date = term.startDateValue
             let lastDate = min(term.endDateValue, reference.startOfDay)
             while date <= lastDate {
                 let occurrenceDate = date.epochDay
                 let weekday = StudyWeekday.from(calendarWeekday: calendar.component(.weekday, from: date))
-                for entry in entries where (entry.termId == term.id || entry.termId == nil) && entry.dayOfWeek == weekday {
+                for entry in entries where (entry.termId == term.id || (entry.termId == nil && term.id == termForUnassignedEntries)) && entry.dayOfWeek == weekday {
                     if let validFromDate = entry.validFromDate, occurrenceDate < validFromDate { continue }
                     if let validToDate = entry.validToDate, occurrenceDate > validToDate { continue }
                     guard let period = periodMap[entry.periodId] else { continue }

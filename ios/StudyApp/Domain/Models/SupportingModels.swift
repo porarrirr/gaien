@@ -131,7 +131,17 @@ struct TimerSnapshot: Codable, Equatable {
 
     func finalizedIntervals(at now: Date = Date()) -> [StudySessionInterval] {
         if isRunning, let startedAt {
-            return completedIntervals + [StudySessionInterval(startTime: startedAt, endTime: now.epochMilliseconds)]
+            let nowMilliseconds = now.epochMilliseconds
+            let intervalEnd: Int64
+            if mode == .timer, let targetDurationMilliseconds {
+                intervalEnd = min(
+                    nowMilliseconds,
+                    startedAt + max(targetDurationMilliseconds - accumulatedMilliseconds, 0)
+                )
+            } else {
+                intervalEnd = nowMilliseconds
+            }
+            return completedIntervals + [StudySessionInterval(startTime: startedAt, endTime: intervalEnd)]
         }
         return completedIntervals
     }

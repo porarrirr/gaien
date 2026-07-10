@@ -201,13 +201,6 @@ class FirebaseSyncRepository @Inject constructor(
                         baseShadow,
                         baseShadowStore.loadRevisionMap(session.localId)
                     )
-                    val localChangeToken = syncChangeNotifier.localChangeGeneration
-
-                    if (syncChangeNotifier.localChangeGeneration != localChangeToken) {
-                        lastLocalChangeDuringSync = IllegalStateException(LOCAL_CHANGE_DURING_SYNC_MESSAGE)
-                        return@repeat
-                    }
-
                     deltaStore.writeEnvelopes(envelopes, session.localId)
                     var newCursor = cursor
                     envelopes.forEach { envelope -> newCursor = newCursor.absorb(envelope) }
@@ -272,8 +265,23 @@ class FirebaseSyncRepository @Inject constructor(
                 if (conflicts.isEmpty()) return@withLock
 
                 val local = exportLocalData()
-                val resolved = SyncThreeWayMergeEngine.applyResolutions(resolutions, local, conflicts)
+                val resolvedAt = System.currentTimeMillis()
+                val resolved = SyncThreeWayMergeEngine.applyResolutions(resolutions, local, conflicts, resolvedAt)
                 ensureNoProblemProgressLoss(local, resolved, "resolveConflicts")
+
+                val matchedResolutions = resolutions.filter { resolution ->
+                    conflicts.any { it.kind == resolution.kind && it.syncId == resolution.syncId }
+                }
+                val remoteBaselines = matchedResolutions.map {
+                    SyncConflictResolution(it.kind, it.syncId, SyncConflictResolutionStrategy.KEEP_REMOTE)
+                }
+                val comparisonBase = SyncThreeWayMergeEngine.applyResolutions(
+                    remoteBaselines,
+                    baseShadowStore.load(session.localId) ?: local,
+                    conflicts,
+                    resolvedAt,
+                    false
+                )
 
                 when (val result = exportImportDataUseCase.importFromJsonWithoutWriteLock(resolved.toJson().toString())) {
                     is Result.Error -> throw result.exception
@@ -284,7 +292,7 @@ class FirebaseSyncRepository @Inject constructor(
                     resolutions.none { it.kind == conflict.kind && it.syncId == conflict.syncId }
                 }
                 conflictStore.save(remaining, session.localId)
-                baseShadowStore.save(resolved, session.localId)
+                baseShadowStore.save(comparisonBase, session.localId)
                 pendingConflictUserId = session.localId
                 _status.value = _status.value.copy(
                     pendingConflictCount = remaining.size,

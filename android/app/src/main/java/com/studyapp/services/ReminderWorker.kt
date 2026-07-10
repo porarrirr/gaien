@@ -12,10 +12,8 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.Data
-import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.studyapp.domain.repository.TimetableRepository
@@ -36,6 +34,17 @@ class ReminderWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
+        val workType = inputData.getString(KEY_WORK_TYPE)
+        if (workType == null && reminderPreferences.isReminderEnabled().first()) {
+            scheduleReminderInternal(
+                applicationContext,
+                inputData.getInt(KEY_REMINDER_HOUR, 20),
+                inputData.getInt(KEY_REMINDER_MINUTE, 0),
+                cancelExisting = false
+            )
+        } else if (workType == WORK_TYPE_TIMETABLE_REVIEW) {
+            scheduleTimetableReviewInternal(applicationContext, cancelExisting = false)
+        }
         val notificationManager = NotificationManagerCompat.from(applicationContext)
         if (!hasNotificationPermission() || !notificationManager.areNotificationsEnabled()) {
             Log.i(TAG, "Skipping reminder notification because notifications are unavailable")
@@ -62,7 +71,6 @@ class ReminderWorker @AssistedInject constructor(
                 .setAutoCancel(true)
                 .build()
             notificationManager.notify(STUDY_NOTIFICATION_ID, notification)
-            refreshTimetableReviewNotification(notificationManager)
             Result.success()
         } catch (e: SecurityException) {
             Log.w(TAG, "Reminder notification could not be shown due to missing permission", e)
@@ -76,11 +84,10 @@ class ReminderWorker @AssistedInject constructor(
     private suspend fun showTimetableReviewNotification(
         notificationManager: NotificationManagerCompat
     ): Result {
-        val overdueCount = inputData.getInt(KEY_OVERDUE_COUNT, -1).takeIf { it >= 0 }
-            ?: when (val result = timetableRepository.getOverdueReviewCount()) {
-                is com.studyapp.domain.util.Result.Success -> result.data
-                is com.studyapp.domain.util.Result.Error -> return Result.failure()
-            }
+        val overdueCount = when (val result = timetableRepository.getOverdueReviewCount()) {
+            is com.studyapp.domain.util.Result.Success -> result.data
+            is com.studyapp.domain.util.Result.Error -> return Result.failure()
+        }
         if (overdueCount <= 0) {
             notificationManager.cancel(TIMETABLE_REVIEW_NOTIFICATION_ID)
             return Result.success()
@@ -104,20 +111,6 @@ class ReminderWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun refreshTimetableReviewNotification(
-        notificationManager: NotificationManagerCompat
-    ) {
-        val overdueCount = when (val result = timetableRepository.getOverdueReviewCount()) {
-            is com.studyapp.domain.util.Result.Success -> result.data
-            is com.studyapp.domain.util.Result.Error -> return
-        }
-        if (overdueCount <= 0) {
-            notificationManager.cancel(TIMETABLE_REVIEW_NOTIFICATION_ID)
-            return
-        }
-        showTimetableReviewNotification(notificationManager)
-    }
-
     private fun hasNotificationPermission(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(
@@ -135,10 +128,17 @@ class ReminderWorker @AssistedInject constructor(
         private const val STUDY_NOTIFICATION_ID = 2001
         private const val TIMETABLE_REVIEW_NOTIFICATION_ID = 2002
         private const val KEY_WORK_TYPE = "work_type"
-        private const val KEY_OVERDUE_COUNT = "overdue_count"
+        private const val KEY_REMINDER_HOUR = "reminder_hour"
+        private const val KEY_REMINDER_MINUTE = "reminder_minute"
         private const val WORK_TYPE_TIMETABLE_REVIEW = "timetable_review"
+        private const val DAILY_REMINDER_TAG = "study_daily_reminder"
+        private const val TIMETABLE_REVIEW_TAG = "timetable_review_reminder"
 
         fun scheduleReminder(context: Context, hour: Int, minute: Int) {
+            scheduleReminderInternal(context, hour, minute, cancelExisting = true)
+        }
+
+        private fun scheduleReminderInternal(context: Context, hour: Int, minute: Int, cancelExisting: Boolean) {
             try {
                 val now = Calendar.getInstance()
                 val target = Calendar.getInstance().apply {
@@ -153,15 +153,22 @@ class ReminderWorker @AssistedInject constructor(
 
                 val initialDelay = target.timeInMillis - now.timeInMillis
 
-                val workRequest = PeriodicWorkRequestBuilder<ReminderWorker>(
-                    1, TimeUnit.DAYS
-                )
+                val workManager = WorkManager.getInstance(context)
+                if (cancelExisting) workManager.cancelAllWorkByTag(DAILY_REMINDER_TAG)
+                val workRequest = OneTimeWorkRequestBuilder<ReminderWorker>()
                     .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+                    .setInputData(
+                        Data.Builder()
+                            .putInt(KEY_REMINDER_HOUR, hour)
+                            .putInt(KEY_REMINDER_MINUTE, minute)
+                            .build()
+                    )
+                    .addTag(DAILY_REMINDER_TAG)
                     .build()
 
-                WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                    WORK_NAME,
-                    ExistingPeriodicWorkPolicy.UPDATE,
+                workManager.enqueueUniqueWork(
+                    "$WORK_NAME-${target.timeInMillis}",
+                    ExistingWorkPolicy.KEEP,
                     workRequest
                 )
             } catch (e: Exception) {
@@ -174,18 +181,33 @@ class ReminderWorker @AssistedInject constructor(
                 cancelTimetableReviewReminder(context)
                 return
             }
+            scheduleTimetableReviewInternal(context, cancelExisting = true)
+        }
+
+        private fun scheduleTimetableReviewInternal(context: Context, cancelExisting: Boolean) {
             try {
+                val now = Calendar.getInstance()
+                val target = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 20)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                    if (before(now)) add(Calendar.DAY_OF_MONTH, 1)
+                }
+                val workManager = WorkManager.getInstance(context)
+                if (cancelExisting) workManager.cancelAllWorkByTag(TIMETABLE_REVIEW_TAG)
                 val request = OneTimeWorkRequestBuilder<ReminderWorker>()
+                    .setInitialDelay(target.timeInMillis - now.timeInMillis, TimeUnit.MILLISECONDS)
                     .setInputData(
                         Data.Builder()
                             .putString(KEY_WORK_TYPE, WORK_TYPE_TIMETABLE_REVIEW)
-                            .putInt(KEY_OVERDUE_COUNT, overdueCount)
                             .build()
                     )
+                    .addTag(TIMETABLE_REVIEW_TAG)
                     .build()
-                WorkManager.getInstance(context).enqueueUniqueWork(
-                    TIMETABLE_REVIEW_WORK_NAME,
-                    ExistingWorkPolicy.REPLACE,
+                workManager.enqueueUniqueWork(
+                    "$TIMETABLE_REVIEW_WORK_NAME-${target.timeInMillis}",
+                    ExistingWorkPolicy.KEEP,
                     request
                 )
             } catch (e: Exception) {
@@ -195,7 +217,7 @@ class ReminderWorker @AssistedInject constructor(
 
         fun cancelReminder(context: Context) {
             try {
-                WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+                WorkManager.getInstance(context).cancelAllWorkByTag(DAILY_REMINDER_TAG)
                 cancelTimetableReviewReminder(context)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to cancel reminder", e)
@@ -204,7 +226,7 @@ class ReminderWorker @AssistedInject constructor(
 
         fun cancelTimetableReviewReminder(context: Context) {
             try {
-                WorkManager.getInstance(context).cancelUniqueWork(TIMETABLE_REVIEW_WORK_NAME)
+                WorkManager.getInstance(context).cancelAllWorkByTag(TIMETABLE_REVIEW_TAG)
                 NotificationManagerCompat.from(context).cancel(TIMETABLE_REVIEW_NOTIFICATION_ID)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to cancel timetable review reminder", e)

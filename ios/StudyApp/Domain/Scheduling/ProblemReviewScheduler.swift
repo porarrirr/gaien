@@ -48,7 +48,9 @@ struct ProblemReviewScheduler {
             problemNumber: problemNumber,
             reviewedAt: reviewedAt,
             rating: rating,
-            nextReviewDate: calendar.startOfDay(for: nextReviewDay).epochMilliseconds,
+            // Persist the calendar day as UTC midnight so another timezone
+            // does not reinterpret the intended due date as the day before.
+            nextReviewDate: nextReviewDay.epochDay * 86_400_000,
             consecutiveCorrectCount: consecutiveCorrect,
             wrongCount: wrongCount,
             createdAt: reviewedAt,

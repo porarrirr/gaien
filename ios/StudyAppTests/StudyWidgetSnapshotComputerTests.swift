@@ -38,12 +38,37 @@ final class StudyWidgetSnapshotComputerTests: XCTestCase {
         )
     }
 
-    func test_streakDays_isZeroWhenReferenceDayIsNotStudied() {
+    func test_streakDays_keepsYesterdayStreakWhenTodayIsNotStudiedYet() {
         let days: Set<Int64> = [98, 99]
         XCTAssertEqual(
             StudyWidgetSnapshotComputer.streakDays(from: days, referenceDay: 100),
-            0
+            2
         )
+    }
+
+    func test_adjustedSnapshotClearsStaleTodayAndRecomputesExamDays() {
+        let generated = try! XCTUnwrap(makeUTCDate(year: 2024, month: 6, day: 15, hour: 23))
+        let displayed = try! XCTUnwrap(makeUTCDate(year: 2024, month: 6, day: 16, hour: 1))
+        let snapshot = StudyWidgetSnapshot(
+            generatedAt: generated.epochMilliseconds,
+            todayStudyMinutes: 120,
+            todaySessionCount: 2,
+            dailyGoalMinutes: 60,
+            weeklyGoalMinutes: 300,
+            weeklyStudyMinutes: 120,
+            streakDays: 4,
+            bestStreak: 6,
+            upcomingExams: [StudyWidgetExamSummary(name: "試験", epochDay: displayed.epochDay + 2, daysRemaining: 3)],
+            weekActivity: []
+        )
+
+        let adjusted = snapshot.adjustedForDisplay(at: displayed, calendar: calendar)
+
+        XCTAssertEqual(adjusted.todayStudyMinutes, 0)
+        XCTAssertEqual(adjusted.todaySessionCount, 0)
+        XCTAssertNil(adjusted.dailyGoalMinutes)
+        XCTAssertEqual(adjusted.streakDays, 4)
+        XCTAssertEqual(adjusted.upcomingExams.first?.daysRemaining, 2)
     }
 
     func test_bestStreak_findsLongestConsecutiveRun() {

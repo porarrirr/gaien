@@ -148,6 +148,22 @@ class SyncMergeEngineTest {
         assertFalse(SyncProgressGuard.wouldLoseProgress(from = appData(), to = appData()))
     }
 
+    @Test
+    fun `syncProgressGuard allows intentional material tombstone`() {
+        val source = appData(
+            materials = listOf(
+                material(
+                    syncId = "m1",
+                    totalProblems = 10,
+                    problemRecords = listOf(ProblemSessionRecord(1, ProblemResult.CORRECT))
+                )
+            )
+        )
+        val destination = appData(materials = listOf(material(syncId = "m1", deletedAt = 200)))
+
+        assertFalse(SyncProgressGuard.wouldLoseProgress(source, destination))
+    }
+
     private fun appData(
         subjects: List<Subject> = emptyList(),
         materials: List<Material> = emptyList(),

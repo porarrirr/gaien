@@ -190,13 +190,27 @@ struct SyncProgressGuard {
     /// Returns true when `destination` drops problem-progress data that
     /// `source` still has, which is the condition the sync path must abort on.
     static func wouldLoseProgress(from source: AppData, to destination: AppData) -> Bool {
-        let before = Summary(appData: source)
-        let after = Summary(appData: destination)
-        guard before.hasProblemProgress else { return false }
+        let destinationSessions = Dictionary(uniqueKeysWithValues: destination.sessions.map { ($0.syncId, $0) })
+        for session in source.sessions where !session.problemRecords.isEmpty {
+            guard let target = destinationSessions[session.syncId] else { return true }
+            if target.deletedAt == nil && target.problemRecords.count < session.problemRecords.count { return true }
+        }
 
-        return after.sessionProblemRecords < before.sessionProblemRecords
-            || after.materialProblemRecords < before.materialProblemRecords
-            || after.activeProblemReviewRecords < before.activeProblemReviewRecords
-            || after.materialsWithProblemTotals < before.materialsWithProblemTotals
+        let destinationMaterials = Dictionary(uniqueKeysWithValues: destination.materials.map { ($0.syncId, $0) })
+        for material in source.materials where !material.problemRecords.isEmpty || material.effectiveTotalProblems > 0 {
+            guard let target = destinationMaterials[material.syncId] else { return true }
+            guard target.deletedAt == nil else { continue }
+            if target.problemRecords.count < material.problemRecords.count { return true }
+            if material.effectiveTotalProblems > 0 && target.effectiveTotalProblems == 0 { return true }
+        }
+
+        let destinationReviews = Dictionary(uniqueKeysWithValues: destination.problemReviewRecords.map { ($0.syncId, $0) })
+        for review in source.problemReviewRecords where review.deletedAt == nil {
+            guard let target = destinationReviews[review.syncId] else { return true }
+            // A matching tombstone is an intentional cross-device deletion,
+            // not a decode/payload loss.
+            if target.deletedAt != nil { continue }
+        }
+        return false
     }
 }

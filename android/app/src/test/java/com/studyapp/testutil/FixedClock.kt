@@ -1,7 +1,7 @@
 package com.studyapp.testutil
 
+import com.studyapp.domain.model.StudyWeekday
 import com.studyapp.domain.util.Clock
-import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -29,9 +29,9 @@ class FixedClock(
 
     override fun startOfToday(): Long = startOfDay(nowMillis)
 
-    override fun startOfWeek(): Long {
+    override fun startOfWeek(weekStartDay: StudyWeekday): Long {
         val today = currentLocalDate()
-        val start = today.minusDays((today.dayOfWeek.value - DayOfWeek.MONDAY.value).toLong())
+        val start = today.minusDays(((today.dayOfWeek.value - weekStartDay.toDayOfWeek().value + 7) % 7).toLong())
         return start.atStartOfDay(zoneId).toInstant().toEpochMilli()
     }
 

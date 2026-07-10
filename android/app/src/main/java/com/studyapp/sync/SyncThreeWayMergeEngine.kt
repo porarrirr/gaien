@@ -83,7 +83,8 @@ object SyncThreeWayMergeEngine {
         resolutions: List<SyncConflictResolution>,
         local: AppData,
         conflicts: List<SyncConflict>,
-        resolvedAt: Long = System.currentTimeMillis()
+        resolvedAt: Long = System.currentTimeMillis(),
+        bumpUpdatedAt: Boolean = true
     ): AppData {
         var result = local
         val conflictMap = conflicts.associateBy { it.documentId }
@@ -95,7 +96,12 @@ object SyncThreeWayMergeEngine {
                 SyncConflictResolutionStrategy.KEEP_REMOTE -> conflict.remoteJson
                 SyncConflictResolutionStrategy.KEEP_MERGED -> conflict.suggestedMergedJson
             }
-            result = replaceEntity(result, resolution.kind, resolution.syncId, jsonWithUpdatedAt(json, resolvedAt))
+            result = replaceEntity(
+                result,
+                resolution.kind,
+                resolution.syncId,
+                if (bumpUpdatedAt) jsonWithUpdatedAt(json, resolvedAt) else json
+            )
         }
         return result
     }
@@ -151,9 +157,9 @@ object SyncThreeWayMergeEngine {
         }
 
         val merged = pickNewer(local, remote).copy(
-            currentPage = maxOf(local.currentPage, remote.currentPage, baseValue.currentPage),
-            totalPages = maxOf(local.totalPages, remote.totalPages, baseValue.totalPages),
-            totalProblems = maxOf(local.totalProblems, remote.totalProblems, baseValue.totalProblems),
+            currentPage = mergeCorrectableValue(base?.currentPage, local.currentPage, remote.currentPage),
+            totalPages = mergeCorrectableValue(base?.totalPages, local.totalPages, remote.totalPages),
+            totalProblems = mergeCorrectableValue(base?.totalProblems, local.totalProblems, remote.totalProblems),
             problemChapters = unionChapters(baseValue.problemChapters, local.problemChapters, remote.problemChapters),
             problemRecords = unionProblemRecords(baseValue.problemRecords, local.problemRecords, remote.problemRecords)
         )
@@ -193,7 +199,12 @@ object SyncThreeWayMergeEngine {
                 problemRecords = unionProblemRecords(baseValue.problemRecords, localValue.problemRecords, remoteValue.problemRecords),
                 problemStart = newer.problemStart ?: localValue.problemStart ?: remoteValue.problemStart ?: baseValue.problemStart,
                 problemEnd = newer.problemEnd ?: localValue.problemEnd ?: remoteValue.problemEnd ?: baseValue.problemEnd,
-                wrongProblemCount = maxOptional(localValue.wrongProblemCount, remoteValue.wrongProblemCount, baseValue.wrongProblemCount)
+                wrongProblemCount = mergeCorrectableValue(
+                    baseMap[syncId]?.wrongProblemCount,
+                    localValue.wrongProblemCount,
+                    remoteValue.wrongProblemCount,
+                    baseMap.containsKey(syncId)
+                )
             )
         }
     }
@@ -398,6 +409,22 @@ object SyncThreeWayMergeEngine {
     }
 
     private fun maxOptional(vararg values: Int?): Int? = values.filterNotNull().maxOrNull()
+
+    private fun mergeCorrectableValue(base: Int?, local: Int, remote: Int): Int {
+        if (base == null) return maxOf(local, remote)
+        if (local == remote) return local
+        if (local == base) return remote
+        if (remote == base) return local
+        return maxOf(local, remote)
+    }
+
+    private fun mergeCorrectableValue(base: Int?, local: Int?, remote: Int?, hasBase: Boolean): Int? {
+        if (!hasBase) return maxOptional(local, remote)
+        if (local == remote) return local
+        if (local == base) return remote
+        if (remote == base) return local
+        return maxOptional(local, remote)
+    }
 
     private fun deletionConflict(
         base: Material?,
