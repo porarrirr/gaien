@@ -428,7 +428,11 @@ struct ScreenTimeSettingsScreen: View {
         } label: {
             Text(Self.weekdayShortTitle(weekday))
                 .font(.caption.weight(.bold))
-                .foregroundStyle(isOn ? Color.white : Self.weekdayColor(weekday))
+                .foregroundStyle(
+                    isOn
+                        ? Self.selectedWeekdayForegroundColor(weekday)
+                        : Self.weekdayColor(weekday)
+                )
                 .frame(maxWidth: .infinity, minHeight: 34)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -677,6 +681,13 @@ struct ScreenTimeSettingsScreen: View {
         case 1: return AppColors.danger
         case 7: return AppColors.blue
         default: return AppColors.textPrimary
+        }
+    }
+
+    private static func selectedWeekdayForegroundColor(_ weekday: Int) -> Color {
+        switch weekday {
+        case 1, 7: return .white
+        default: return AppColors.cardBackground
         }
     }
 

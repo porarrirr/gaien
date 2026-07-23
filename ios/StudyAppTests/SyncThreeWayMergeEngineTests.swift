@@ -174,6 +174,121 @@ final class SyncThreeWayMergeEngineTests: XCTestCase {
         XCTAssertNotNil(stamped.first?.revisionId)
     }
 
+    func test_mergeAdoptsRemoteOnlyChangeEvenWhenRemoteClockIsBehind() {
+        // 端末Bの時計が遅れていても、base から変更したのが remote 側だけなら
+        // remote を採用する。updatedAt の LWW に落とすと編集が黙って消える。
+        let base = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 1_000, color: 1)])
+        let local = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 1_000, color: 1)])
+        let remote = [
+            makeEnvelope(
+                kind: .subject,
+                syncId: "s1",
+                updatedAt: 900,
+                json: encode(makeSubject(syncId: "s1", updatedAt: 900, color: 2))
+            )
+        ]
+
+        let outcome = SyncThreeWayMergeEngine.merge(base: base, local: local, remoteEnvelopes: remote)
+
+        XCTAssertTrue(outcome.conflicts.isEmpty)
+        XCTAssertEqual(outcome.merged.subjects.first?.color, 2)
+    }
+
+    func test_mergePropagatesRemoteTombstoneFromClockBehindDeviceWhenLocalUnchanged() {
+        let base = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 1_000)])
+        let local = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 1_000)])
+        var tombstone = makeSubject(syncId: "s1", updatedAt: 900)
+        tombstone.deletedAt = 900
+        let remote = [
+            makeEnvelope(
+                kind: .subject,
+                syncId: "s1",
+                updatedAt: 900,
+                deletedAt: 900,
+                json: encode(tombstone)
+            )
+        ]
+
+        let outcome = SyncThreeWayMergeEngine.merge(base: base, local: local, remoteEnvelopes: remote)
+
+        XCTAssertTrue(outcome.conflicts.isEmpty)
+        XCTAssertEqual(outcome.merged.subjects.first?.deletedAt, 900)
+    }
+
+    func test_mergeIgnoresLastSyncedAtDifferencesWhenDetectingConflicts() {
+        // 他端末の「ローカルデータをアップロード」は内容が同じでも
+        // lastSyncedAt を焼き直す。これを差分扱いすると偽競合になる。
+        let base = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 1_000, color: 1)])
+        let local = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 1_200, color: 2)])
+        var restamped = makeSubject(syncId: "s1", updatedAt: 1_000, color: 1)
+        restamped.lastSyncedAt = 5_000
+        let remote = [
+            makeEnvelope(
+                kind: .subject,
+                syncId: "s1",
+                updatedAt: 1_000,
+                json: encode(restamped)
+            )
+        ]
+
+        let outcome = SyncThreeWayMergeEngine.merge(base: base, local: local, remoteEnvelopes: remote)
+
+        XCTAssertTrue(outcome.conflicts.isEmpty)
+        XCTAssertEqual(outcome.merged.subjects.first?.color, 2)
+    }
+
+    func test_mergeDoesNotRaiseConflictWhenBothSidesDeleted() {
+        let base = makeAppData(subjects: [makeSubject(syncId: "s1", updatedAt: 100)])
+        var localTombstone = makeSubject(syncId: "s1", updatedAt: 200)
+        localTombstone.deletedAt = 200
+        let local = makeAppData(subjects: [localTombstone])
+        var remoteTombstone = makeSubject(syncId: "s1", updatedAt: 300)
+        remoteTombstone.deletedAt = 300
+        let remote = [
+            makeEnvelope(
+                kind: .subject,
+                syncId: "s1",
+                updatedAt: 300,
+                deletedAt: 300,
+                json: encode(remoteTombstone)
+            )
+        ]
+
+        let outcome = SyncThreeWayMergeEngine.merge(base: base, local: local, remoteEnvelopes: remote)
+
+        XCTAssertTrue(outcome.conflicts.isEmpty)
+        XCTAssertEqual(outcome.merged.subjects.first?.deletedAt, 300)
+    }
+
+    func test_validateForUploadRejectsOversizedJsonAndBadTimestamps() {
+        let oversized = SyncEntityEnvelope(
+            kind: .subject,
+            syncId: "big",
+            updatedAt: 1_000,
+            deletedAt: nil,
+            json: String(repeating: "a", count: 900_001)
+        )
+        XCTAssertThrowsError(try FirestoreDeltaSyncStore.validateForUpload([oversized]))
+
+        let futureClock = SyncEntityEnvelope(
+            kind: .subject,
+            syncId: "future",
+            updatedAt: 4_102_444_800_001,
+            deletedAt: nil,
+            json: "{}"
+        )
+        XCTAssertThrowsError(try FirestoreDeltaSyncStore.validateForUpload([futureClock]))
+
+        let valid = SyncEntityEnvelope(
+            kind: .subject,
+            syncId: "ok",
+            updatedAt: 1_000,
+            deletedAt: nil,
+            json: "{}"
+        )
+        XCTAssertNoThrow(try FirestoreDeltaSyncStore.validateForUpload([valid]))
+    }
+
     private func makeEnvelope(
         kind: SyncEntityKind,
         syncId: String,

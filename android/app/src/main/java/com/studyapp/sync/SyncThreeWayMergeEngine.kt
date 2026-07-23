@@ -30,6 +30,7 @@ import com.studyapp.domain.usecase.toTimetablePeriod
 import com.studyapp.domain.usecase.toTimetableReviewRecord
 import com.studyapp.domain.usecase.toTimetableTerm
 import java.security.MessageDigest
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class SyncThreeWayMergeOutcome(
@@ -156,7 +157,7 @@ object SyncThreeWayMergeEngine {
             conflictFields += SyncConflictField.NOTE
         }
 
-        val merged = pickNewer(local, remote).copy(
+        val merged = pickPreferred(base, local, remote).copy(
             currentPage = mergeCorrectableValue(base?.currentPage, local.currentPage, remote.currentPage),
             totalPages = mergeCorrectableValue(base?.totalPages, local.totalPages, remote.totalPages),
             totalProblems = mergeCorrectableValue(base?.totalProblems, local.totalProblems, remote.totalProblems),
@@ -194,7 +195,7 @@ object SyncThreeWayMergeEngine {
             }
 
             val baseValue = baseMap[syncId] ?: localValue
-            val newer = pickNewer(localValue, remoteValue)
+            val newer = pickPreferred(baseMap[syncId], localValue, remoteValue)
             newer.copy(
                 problemRecords = unionProblemRecords(baseValue.problemRecords, localValue.problemRecords, remoteValue.problemRecords),
                 problemStart = newer.problemStart ?: localValue.problemStart ?: remoteValue.problemStart ?: baseValue.problemStart,
@@ -225,6 +226,17 @@ object SyncThreeWayMergeEngine {
             val remoteValue = remoteMap[syncId]
             if (localValue == null) return@mapNotNull remoteValue
             if (remoteValue == null) return@mapNotNull localValue
+
+            val baseValue0 = baseMap[syncId]
+            if (baseValue0 != null) {
+                val baseHash = jsonHash(baseValue0.toJson().toString())
+                val localChanged = jsonHash(localValue.toJson().toString()) != baseHash
+                val remoteChanged = jsonHash(remoteValue.toJson().toString()) != baseHash
+                // 片側のみ変更なら時計に依存せずその側を採用する。
+                if (localChanged != remoteChanged) {
+                    return@mapNotNull if (localChanged) localValue else remoteValue
+                }
+            }
 
             if (localValue.deletedAt != null || remoteValue.deletedAt != null) {
                 return@mapNotNull SyncMergeEngine.merge(
@@ -345,24 +357,37 @@ object SyncThreeWayMergeEngine {
                 return@mapNotNull if (deletedAt(localValue) == null) localValue else remoteValue
             }
 
-            if (baseValue != null &&
-                jsonHash(encode(localValue)) != jsonHash(encode(baseValue)) &&
-                jsonHash(encode(remoteValue)) != jsonHash(encode(baseValue)) &&
-                jsonHash(encode(localValue)) != jsonHash(encode(remoteValue))
-            ) {
-                val merged = pickNewer(localValue, remoteValue, updatedAt, deletedAt)
-                conflicts += SyncConflict(
-                    kind = kind,
-                    syncId = syncId(localValue),
-                    title = "「${title(localValue)}」が端末間で異なります",
-                    summary = "「${title(localValue)}」が端末間で異なります",
-                    conflictFields = listOf(SyncConflictField.OTHER),
-                    baseJson = encode(baseValue),
-                    localJson = encode(localValue),
-                    remoteJson = encode(remoteValue),
-                    suggestedMergedJson = encode(merged),
-                    detectedAt = now
-                )
+            if (deletedAt(localValue) != null && deletedAt(remoteValue) != null) {
+                // 両側とも削除済み: tombstone 同士の統合は競合ではない。
+                return@mapNotNull SyncMergeEngine.merge(listOf(localValue), listOf(remoteValue), key, updatedAt, deletedAt).firstOrNull()
+            }
+
+            if (baseValue != null) {
+                val baseHash = jsonHash(encode(baseValue))
+                val localChanged = jsonHash(encode(localValue)) != baseHash
+                val remoteChanged = jsonHash(encode(remoteValue)) != baseHash
+                if (localChanged && remoteChanged && jsonHash(encode(localValue)) != jsonHash(encode(remoteValue))) {
+                    val merged = pickNewer(localValue, remoteValue, updatedAt, deletedAt)
+                    conflicts += SyncConflict(
+                        kind = kind,
+                        syncId = syncId(localValue),
+                        title = "「${title(localValue)}」が端末間で異なります",
+                        summary = "「${title(localValue)}」が端末間で異なります",
+                        conflictFields = listOf(SyncConflictField.OTHER),
+                        baseJson = encode(baseValue),
+                        localJson = encode(localValue),
+                        remoteJson = encode(remoteValue),
+                        suggestedMergedJson = encode(merged),
+                        detectedAt = now
+                    )
+                    return@mapNotNull localValue
+                }
+                // 三方向マージの基本則: base から変更された側を採用する。
+                // 端末時計の updatedAt 比較に落とすと、時計が遅れた端末の
+                // 編集（や削除）がサイレントに破棄される。
+                if (localChanged != remoteChanged) {
+                    return@mapNotNull if (localChanged) localValue else remoteValue
+                }
                 return@mapNotNull localValue
             }
 
@@ -379,11 +404,31 @@ object SyncThreeWayMergeEngine {
         return if (updatedAt(local) >= updatedAt(remote)) local else remote
     }
 
-    private fun pickNewer(local: Material, remote: Material): Material =
-        pickNewer(local, remote, Material::updatedAt, Material::deletedAt)
+    // base があるときは「base から変更された側」を採用し、端末時計の
+    // updatedAt 比較は両側変更時のタイブレークに限定する。
+    private fun <T> pickPreferred(
+        base: T?,
+        local: T,
+        remote: T,
+        updatedAt: (T) -> Long,
+        deletedAt: (T) -> Long?,
+        encode: (T) -> String
+    ): T {
+        if (base == null) return pickNewer(local, remote, updatedAt, deletedAt)
+        val baseHash = jsonHash(encode(base))
+        val localChanged = jsonHash(encode(local)) != baseHash
+        val remoteChanged = jsonHash(encode(remote)) != baseHash
+        if (localChanged != remoteChanged) {
+            return if (localChanged) local else remote
+        }
+        return pickNewer(local, remote, updatedAt, deletedAt)
+    }
 
-    private fun pickNewer(local: StudySession, remote: StudySession): StudySession =
-        pickNewer(local, remote, StudySession::updatedAt, StudySession::deletedAt)
+    private fun pickPreferred(base: Material?, local: Material, remote: Material): Material =
+        pickPreferred(base, local, remote, Material::updatedAt, Material::deletedAt) { it.toJson().toString() }
+
+    private fun pickPreferred(base: StudySession?, local: StudySession, remote: StudySession): StudySession =
+        pickPreferred(base, local, remote, StudySession::updatedAt, StudySession::deletedAt) { it.toJson().toString() }
 
     private fun scalarConflict(base: String, local: String, remote: String): Boolean =
         local != base && remote != base && local != remote
@@ -549,9 +594,38 @@ object SyncThreeWayMergeEngine {
         detectedAt = now
     )
 
+    // iOS 側 (normalizedJSONData) と同じ規則で正規化してからハッシュ化する:
+    // キーをソートし、端末ローカルにしか意味のないキーを全階層で除外する。
+    // これが揃っていないと lastSyncedAt の差だけで偽競合が発生する。
+    private val localOnlyJsonKeys = setOf(
+        "id",
+        "planId",
+        "subjectId",
+        "materialId",
+        "sessionId",
+        "lastSyncedAt"
+    )
+
     private fun jsonHash(json: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(json.toByteArray())
+        val normalized = runCatching { canonicalJson(JSONObject(json)) }.getOrDefault(json)
+        val digest = MessageDigest.getInstance("SHA-256").digest(normalized.toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun canonicalJson(value: Any?): String = when (value) {
+        null, JSONObject.NULL -> "null"
+        is JSONObject -> value.keys().asSequence()
+            .filterNot { it in localOnlyJsonKeys }
+            .sorted()
+            .joinToString(prefix = "{", postfix = "}", separator = ",") { key ->
+                "${JSONObject.quote(key)}:${canonicalJson(value.get(key))}"
+            }
+        is JSONArray -> (0 until value.length())
+            .joinToString(prefix = "[", postfix = "]", separator = ",") { canonicalJson(value.get(it)) }
+        is String -> JSONObject.quote(value)
+        is Boolean -> value.toString()
+        is Number -> JSONObject.numberToString(value)
+        else -> JSONObject.quote(value.toString())
     }
 
     private fun replaceEntity(appData: AppData, kind: SyncEntityKind, syncId: String, json: String): AppData {

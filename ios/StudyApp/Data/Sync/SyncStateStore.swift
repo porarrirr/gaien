@@ -8,6 +8,9 @@ struct PersistedSyncUserState: Codable, Equatable {
     var revisions: [String: String] = [:]
     var legacyMigrationDone = false
     var lastSyncAt: Int64?
+    /// 最後に確認したクラウド側 `syncGeneration`。変化を検出したら
+    /// ローカル同期状態を破棄してフル再同期する。
+    var serverGeneration: String?
 
     private enum CodingKeys: String, CodingKey {
         case cursor
@@ -17,6 +20,7 @@ struct PersistedSyncUserState: Codable, Equatable {
         case revisions
         case legacyMigrationDone
         case lastSyncAt
+        case serverGeneration
     }
 
     init(
@@ -26,7 +30,8 @@ struct PersistedSyncUserState: Codable, Equatable {
         baseShadow: AppData? = nil,
         revisions: [String: String] = [:],
         legacyMigrationDone: Bool = false,
-        lastSyncAt: Int64? = nil
+        lastSyncAt: Int64? = nil,
+        serverGeneration: String? = nil
     ) {
         self.cursor = cursor
         self.serverCursor = serverCursor
@@ -35,6 +40,7 @@ struct PersistedSyncUserState: Codable, Equatable {
         self.revisions = revisions
         self.legacyMigrationDone = legacyMigrationDone
         self.lastSyncAt = lastSyncAt
+        self.serverGeneration = serverGeneration
     }
 
     init(from decoder: Decoder) throws {
@@ -46,6 +52,7 @@ struct PersistedSyncUserState: Codable, Equatable {
         revisions = try container.decodeIfPresent([String: String].self, forKey: .revisions) ?? [:]
         legacyMigrationDone = try container.decodeIfPresent(Bool.self, forKey: .legacyMigrationDone) ?? false
         lastSyncAt = try container.decodeIfPresent(Int64.self, forKey: .lastSyncAt)
+        serverGeneration = try container.decodeIfPresent(String.self, forKey: .serverGeneration)
     }
 }
 
@@ -125,6 +132,23 @@ enum SyncStateStore {
             [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
             ofItemAtPath: url.path
         )
+    }
+
+    /// 指定ユーザーの同期状態だけを破棄する。状態ファイルは全アカウント
+    /// 共有なので、ファイルごと消すと同じ端末の他アカウントのカーソル・
+    /// base shadow まで失われてしまう。
+    static func clearUser(
+        userId: String,
+        fileManager: FileManager = .default,
+        defaults: UserDefaults = .standard
+    ) throws {
+        var root = try loadRoot(fileManager: fileManager)
+        root.users[userId] = nil
+        if root.ownerUserId == userId {
+            root.ownerUserId = nil
+        }
+        try save(root, fileManager: fileManager)
+        try removeLegacyState(userId: userId, fileManager: fileManager, defaults: defaults)
     }
 
     static func clear(

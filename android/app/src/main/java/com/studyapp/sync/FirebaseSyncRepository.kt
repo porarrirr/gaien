@@ -6,6 +6,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.studyapp.domain.usecase.AppData
 import com.studyapp.domain.usecase.ExportImportDataUseCase
 import com.studyapp.domain.util.Result
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,7 @@ class FirebaseSyncRepository @Inject constructor(
             setSyncing(true)
             writeLock.withLock {
                 migrateLegacyChunkedSnapshotIfNeeded(session.localId)
+                reconcileSyncGeneration(session.localId)
 
                 var lastLocalChangeDuringSync: Throwable? = null
                 repeat(MAX_SYNC_ATTEMPTS) {
@@ -127,7 +129,7 @@ class FirebaseSyncRepository @Inject constructor(
                         session.localId
                     )
                     baseShadowStore.mergeRevisionMap(session.localId, resolvedRemoteEnvelopes + outboundEnvelopes)
-                    syncPreferences.setLastSyncAt(now)
+                    syncPreferences.setLastSyncAt(session.localId, now)
                     syncPreferences.setLocalSyncOwnerUserId(session.localId)
                     syncChangeNotifier.recordManualSyncApplied()
                     _status.value = SyncStatus(
@@ -160,6 +162,7 @@ class FirebaseSyncRepository @Inject constructor(
             setSyncing(true)
             writeLock.withLock {
                 migrateLegacyChunkedSnapshotIfNeeded(session.localId)
+                reconcileSyncGeneration(session.localId)
 
                 var lastLocalChangeDuringSync: Throwable? = null
                 repeat(MAX_SYNC_ATTEMPTS) {
@@ -181,21 +184,40 @@ class FirebaseSyncRepository @Inject constructor(
                             Log.w(TAG, "Failed to record server cursor migration flag", it)
                         }
                     }
+                    // 「ローカルを正」として完全にミラーするため、差分ではなく
+                    // クラウドの全エンティティを取得する。差分だけ見ていると
+                    // クラウド専用エンティティの検出も破壊アップロードの検出も
+                    // 取りこぼす。
                     val cursor = syncPreferences.getDeltaCursor(session.localId)
-                    val fetchResult = deltaStore.fetchEnvelopes(
-                        session.localId,
-                        syncPreferences.getServerCursor(session.localId)
-                    )
+                    val fetchResult = deltaStore.fetchEnvelopes(session.localId, SyncServerCursor.ZERO)
                     val remoteEnvelopes = fetchResult.envelopes
-                    if (remoteEnvelopes.isNotEmpty()) {
-                        val remoteApp = SyncDeltaSerializer.assemble(remoteEnvelopes, onto = local)
-                        ensureNoProblemProgressLoss(remoteApp, local, "importLocalDataToCloud")
-                    }
 
                     val now = System.currentTimeMillis()
                     val stampedLocal = SyncMergeEngine.markSynced(local, now)
+                    val localDocumentIds = SyncDeltaSerializer.decompose(stampedLocal)
+                        .map { it.documentId }
+                        .toSet()
+                    // ローカルに存在しないクラウド側エンティティは tombstone を
+                    // 書き込む。これが無いと、ローカルで削除済みのエンティティが
+                    // クラウドに生存したまま残り、次の syncNow で復活する。
+                    val tombstoneEnvelopes = remoteEnvelopes
+                        .filter { it.deletedAt == null && it.documentId !in localDocumentIds }
+                        .map { envelope ->
+                            envelope.copy(
+                                updatedAt = now,
+                                deletedAt = now,
+                                json = jsonSettingTombstone(envelope.json, now)
+                            )
+                        }
+
+                    if (remoteEnvelopes.isNotEmpty()) {
+                        val remoteApp = SyncDeltaSerializer.assemble(remoteEnvelopes, onto = local)
+                        val postImport = SyncDeltaSerializer.assemble(tombstoneEnvelopes, onto = stampedLocal)
+                        ensureNoProblemProgressLoss(remoteApp, postImport, "importLocalDataToCloud")
+                    }
+
                     val baseShadow = baseShadowStore.load(session.localId)
-                    var envelopes = SyncDeltaSerializer.decompose(stampedLocal)
+                    var envelopes = SyncDeltaSerializer.decompose(stampedLocal) + tombstoneEnvelopes
                     envelopes = revisionStamper.stamp(
                         envelopes,
                         baseShadow,
@@ -208,7 +230,7 @@ class FirebaseSyncRepository @Inject constructor(
                     syncPreferences.setServerCursor(session.localId, fetchResult.cursor)
                     baseShadowStore.save(stampedLocal, session.localId)
                     baseShadowStore.mergeRevisionMap(session.localId, envelopes)
-                    syncPreferences.setLastSyncAt(now)
+                    syncPreferences.setLastSyncAt(session.localId, now)
                     syncPreferences.setLocalSyncOwnerUserId(session.localId)
                     syncChangeNotifier.recordManualSyncApplied()
                     _status.value = SyncStatus(true, session.email, false, now, null)
@@ -230,6 +252,9 @@ class FirebaseSyncRepository @Inject constructor(
         try {
             deltaStore.deleteAllUserData(session.localId)
             deleteAllSyncSnapshots(session.localId)
+            // 新しい同期世代を書き込み、他端末が古いカーソルのまま差分だけを
+            // 再アップロードして不完全なデータセットを復活させるのを防ぐ。
+            deltaStore.writeSyncGeneration(UUID.randomUUID().toString().lowercase(), session.localId)
             clearLocalSyncState()
             _status.value = SyncStatus(isAuthenticated = true, email = session.email, isSyncing = false, lastSyncAt = null, errorMessage = null)
         } catch (t: Throwable) {
@@ -324,10 +349,35 @@ class FirebaseSyncRepository @Inject constructor(
         return SyncStatus(
             isAuthenticated = session != null,
             email = session?.email,
-            lastSyncAt = syncPreferences.getLastSyncAt(),
+            lastSyncAt = syncPreferences.getLastSyncAt(session?.localId),
             errorMessage = if (conflictCount > 0) PENDING_CONFLICTS_MESSAGE else null,
             pendingConflictCount = conflictCount
         )
+    }
+
+    // クラウド側の同期世代 (users/<uid>.syncGeneration) とローカルの記録を
+    // 突き合わせる。別端末がクラウドデータを削除して世代を進めていた場合、
+    // 古いカーソル・base shadow のまま差分アップロードすると不完全な
+    // データセットをクラウドに再生成してしまうため、ローカルの同期状態を
+    // 破棄してフル再同期に切り替える。
+    private suspend fun reconcileSyncGeneration(userId: String) {
+        val remoteGeneration = deltaStore.fetchSyncGeneration(userId)
+        val storedGeneration = syncPreferences.getSyncGeneration(userId)
+        if (storedGeneration == remoteGeneration) return
+        if (storedGeneration == null) {
+            // 初回接触: 現在の世代を記録するだけでリセットは不要。
+            syncPreferences.setSyncGeneration(userId, remoteGeneration)
+            return
+        }
+        Log.w(
+            TAG,
+            "Cloud sync generation changed; resetting local sync state " +
+                "(stored=$storedGeneration remote=${remoteGeneration ?: "-"})"
+        )
+        syncPreferences.setDeltaCursor(userId, SyncDeltaCursor.ZERO)
+        syncPreferences.setServerCursor(userId, SyncServerCursor.ZERO)
+        baseShadowStore.delete(userId)
+        syncPreferences.setSyncGeneration(userId, remoteGeneration)
     }
 
     private suspend fun migrateLegacyChunkedSnapshotIfNeeded(userId: String) {
@@ -355,7 +405,7 @@ class FirebaseSyncRepository @Inject constructor(
             .collection("sync")
             .document("default")
             .get()
-            .await()
+            .awaitSyncBounded()
         if (!manifest.exists()) return null
 
         val legacyPayload = manifest.getString("payload")
@@ -375,7 +425,7 @@ class FirebaseSyncRepository @Inject constructor(
                     .collection("chunks")
                     .document(chunkId(index))
                     .get()
-                    .await()
+                    .awaitSyncBounded()
                 val chunkVersion = chunkSnapshot.getLong("version")
                     ?: error("Missing snapshot chunk version for ${chunkId(index)}")
                 check(chunkVersion == version) {
@@ -395,10 +445,10 @@ class FirebaseSyncRepository @Inject constructor(
             .document(userId)
             .collection("sync_snapshots")
             .get()
-            .await()
+            .awaitSyncBounded()
         snapshots.documents.forEach { snapshot ->
             deleteAllDocumentsInCollection(snapshot.reference.collection("chunks"))
-            snapshot.reference.delete().await()
+            snapshot.reference.delete().awaitSyncBounded()
         }
     }
 
@@ -406,7 +456,7 @@ class FirebaseSyncRepository @Inject constructor(
         collection: com.google.firebase.firestore.CollectionReference
     ) {
         while (true) {
-            val page = collection.limit(DELETE_BATCH_SIZE).get().await()
+            val page = collection.limit(DELETE_BATCH_SIZE).get().awaitSyncBounded()
             if (page.isEmpty) return
             var batch = firebaseFirestore.batch()
             var writeCount = 0
@@ -414,13 +464,13 @@ class FirebaseSyncRepository @Inject constructor(
                 batch.delete(document.reference)
                 writeCount += 1
                 if (writeCount >= DELETE_BATCH_SIZE) {
-                    batch.commit().await()
+                    batch.commit().awaitSyncBounded()
                     batch = firebaseFirestore.batch()
                     writeCount = 0
                 }
             }
             if (writeCount > 0) {
-                batch.commit().await()
+                batch.commit().awaitSyncBounded()
             }
         }
     }
@@ -447,8 +497,16 @@ class FirebaseSyncRepository @Inject constructor(
     }
 
     private fun requireSession(): AuthSession {
-        check(firebaseAuth.currentUser != null) { SIGN_IN_REQUIRED_MESSAGE }
+        val currentUser = firebaseAuth.currentUser ?: error(SIGN_IN_REQUIRED_MESSAGE)
         val session = authRepository.session.value ?: error(SIGN_IN_REQUIRED_MESSAGE)
+        // アカウント切替直後は Firebase Auth とローカルセッションが一時的に
+        // 食い違うことがある。不一致のまま同期すると別 uid のパスへ書きに
+        // 行って失敗するため、iOS と同様にここで拒否する。
+        if (currentUser.uid != session.localId) {
+            Log.w(TAG, "Sync rejected: firebase auth uid does not match local session")
+            _status.value = _status.value.copy(isAuthenticated = false, email = null)
+            error(SIGN_IN_REQUIRED_MESSAGE)
+        }
         _status.value = _status.value.copy(isAuthenticated = true, email = session.email)
         return session
     }
@@ -496,6 +554,18 @@ class FirebaseSyncRepository @Inject constructor(
     }
 
     private fun chunkId(index: Int): String = index.toString().padStart(6, '0')
+
+    // クラウド専用エンティティを論理削除に変換する。マージエンジンは
+    // envelope メタデータではなく json 内の deletedAt を見るため、両方に
+    // 書き込む必要がある。
+    private fun jsonSettingTombstone(json: String, timestamp: Long): String {
+        return runCatching {
+            JSONObject(json)
+                .put("updatedAt", timestamp)
+                .put("deletedAt", timestamp)
+                .toString()
+        }.getOrDefault(json)
+    }
 
     private fun AppData.isEmpty(): Boolean {
         return subjects.isEmpty() &&

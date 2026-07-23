@@ -121,7 +121,7 @@ enum SyncThreeWayMergeEngine {
             return local.deletedAt == nil ? local : remote
         }
 
-        var merged = pickNewer(local: local, remote: remote)
+        var merged = pickPreferred(base: base, local: local, remote: remote)
         var conflictFields: [SyncConflictField] = []
         let baseValue = base ?? local
 
@@ -188,7 +188,7 @@ enum SyncThreeWayMergeEngine {
                 conflicts.append(deleteConflict)
                 return localValue.deletedAt == nil ? localValue : remoteValue
             }
-            var merged = pickNewer(local: localValue, remote: remoteValue)
+            var merged = pickPreferred(base: baseMap[syncId], local: localValue, remote: remoteValue)
             let baseValue = baseMap[syncId] ?? localValue
             merged.problemRecords = unionProblemRecords(base: baseValue.problemRecords, local: localValue.problemRecords, remote: remoteValue.problemRecords)
             merged.problemStart = merged.problemStart ?? localValue.problemStart ?? remoteValue.problemStart ?? baseValue.problemStart
@@ -220,6 +220,15 @@ enum SyncThreeWayMergeEngine {
         return ids.compactMap { syncId -> ProblemReviewRecord? in
             guard let localValue = localMap[syncId], let remoteValue = remoteMap[syncId] else {
                 return localMap[syncId] ?? remoteMap[syncId]
+            }
+            if let baseValue = baseMap[syncId] {
+                let baseHash = jsonHash(baseValue)
+                let localChanged = jsonHash(localValue) != baseHash
+                let remoteChanged = jsonHash(remoteValue) != baseHash
+                // 片側のみ変更なら時計に依存せずその側を採用する。
+                if localChanged != remoteChanged {
+                    return localChanged ? localValue : remoteValue
+                }
             }
             if localValue.deletedAt != nil || remoteValue.deletedAt != nil {
                 return SyncMergeEngine.merge([localValue], [remoteValue], key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt).first ?? localValue
@@ -317,21 +326,34 @@ enum SyncThreeWayMergeEngine {
                 conflicts.append(deleteConflict)
                 return localValue.deletedAt == nil ? localValue : remoteValue
             }
-            if let baseValue = baseMap[syncId],
-               jsonHash(localValue) != jsonHash(baseValue),
-               jsonHash(remoteValue) != jsonHash(baseValue),
-               jsonHash(localValue) != jsonHash(remoteValue) {
-                let merged = pickNewer(local: localValue, remote: remoteValue)
-                conflicts.append(makeConflict(
-                    kind: kind,
-                    entity: merged,
-                    local: localValue,
-                    remote: remoteValue,
-                    base: baseValue,
-                    fields: [.other],
-                    summary: "「\(title(localValue))」が端末間で異なります",
-                    now: now
-                ))
+            if localValue.deletedAt != nil, remoteValue.deletedAt != nil {
+                // 両側とも削除済み: tombstone 同士の統合は競合ではない。
+                return SyncMergeEngine.merge([localValue], [remoteValue], key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt).first ?? localValue
+            }
+            if let baseValue = baseMap[syncId] {
+                let baseHash = jsonHash(baseValue)
+                let localChanged = jsonHash(localValue) != baseHash
+                let remoteChanged = jsonHash(remoteValue) != baseHash
+                if localChanged, remoteChanged, jsonHash(localValue) != jsonHash(remoteValue) {
+                    let merged = pickNewer(local: localValue, remote: remoteValue)
+                    conflicts.append(makeConflict(
+                        kind: kind,
+                        entity: merged,
+                        local: localValue,
+                        remote: remoteValue,
+                        base: baseValue,
+                        fields: [.other],
+                        summary: "「\(title(localValue))」が端末間で異なります",
+                        now: now
+                    ))
+                    return localValue
+                }
+                // 三方向マージの基本則: base から変更された側を採用する。
+                // ここで端末時計の updatedAt 比較に落とすと、時計が遅れた
+                // 端末の編集（や削除）がサイレントに破棄される。
+                if localChanged != remoteChanged {
+                    return localChanged ? localValue : remoteValue
+                }
                 return localValue
             }
             return SyncMergeEngine.merge([localValue], [remoteValue], key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt).first ?? localValue
@@ -345,6 +367,19 @@ enum SyncThreeWayMergeEngine {
             return localDelete >= remoteDelete ? local : remote
         }
         return local.updatedAt >= remote.updatedAt ? local : remote
+    }
+
+    /// base があるときは「base から変更された側」を採用し、端末時計の
+    /// updatedAt 比較は両側変更時のタイブレークに限定する。
+    private static func pickPreferred<T: Codable & SyncDeltaEntity>(base: T?, local: T, remote: T) -> T {
+        guard let base else { return pickNewer(local: local, remote: remote) }
+        let baseHash = jsonHash(base)
+        let localChanged = jsonHash(local) != baseHash
+        let remoteChanged = jsonHash(remote) != baseHash
+        if localChanged != remoteChanged {
+            return localChanged ? local : remote
+        }
+        return pickNewer(local: local, remote: remote)
     }
 
     private static func scalarConflict(base: String, local: String, remote: String) -> Bool {

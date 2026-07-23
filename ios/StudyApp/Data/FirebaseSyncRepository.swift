@@ -114,9 +114,15 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     func syncNow() async throws {
         let session = try requireActiveSession(operation: "syncNow")
         try beginSyncOperation(named: "syncNow", session: session)
+        defer { endSyncOperation() }
+        try await performSync(session: session)
+    }
+
+    /// `syncNow` の本体。`beginSyncOperation` を含まないため、既に同期操作を
+    /// 開始している `resolveConflicts` からも再入エラーなしで呼べる。
+    private func performSync(session: AuthSession) async throws {
         logger.log(category: .sync, message: "syncNow started")
         defer {
-            endSyncOperation()
             logger.log(
                 category: .sync,
                 message: "syncNow finished",
@@ -125,6 +131,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         }
         do {
             try await migrateLegacyChunkedSnapshotIfNeeded(session: session)
+            try await reconcileSyncGeneration(session: session)
 
             for attempt in 0..<Self.maxSyncRetries {
                 logger.log(category: .sync, message: "syncNow attempt started", details: "attempt=\(attempt + 1)")
@@ -338,6 +345,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         }
         do {
             try await migrateLegacyChunkedSnapshotIfNeeded(session: session)
+            try await reconcileSyncGeneration(session: session)
 
             for attempt in 0..<Self.maxSyncRetries {
                 let localData = try await persistence.exportData()
@@ -356,24 +364,38 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
                     ownerUserId: stateResult.root.ownerUserId
                 )
 
-                // Defend against destructive uploads: if the cloud already
-                // has progress we don't, bail out and force the user to
-                // pull first.
+                // 「ローカルを正」として完全にミラーするため、差分ではなく
+                // クラウドの全エンティティを取得する。差分だけ見ていると
+                // クラウド専用エンティティの検出も破壊アップロードの検出も
+                // 取りこぼす。
                 let cursor = stateResult.user.cursor
                 let fetchResult = try await deltaStore.fetchEnvelopes(
                     userId: session.localId,
-                    changedSince: stateResult.user.serverCursor
+                    changedSince: .zero
                 )
                 let remoteEnvelopes = fetchResult.envelopes
-                if !remoteEnvelopes.isEmpty {
-                    let remoteApp = SyncDeltaSerializer.assemble(envelopes: remoteEnvelopes, onto: localData)
-                    try ensureNoProblemProgressLoss(from: remoteApp, to: localData, operation: "importLocalDataToCloud")
-                }
 
                 let nowMs = Date().epochMilliseconds
                 let stampedLocal = SyncMergeEngine.markSynced(localData, at: nowMs)
+                let localDocumentIds = Set(SyncDeltaSerializer.decompose(stampedLocal).map(\.documentId))
+                // ローカルに存在しないクラウド側エンティティは tombstone を
+                // 書き込む。これが無いと、ローカルで削除済みのエンティティが
+                // クラウドに生存したまま残り、次の syncNow で復活する。
+                let tombstoneEnvelopes = remoteEnvelopes
+                    .filter { $0.deletedAt == nil && !localDocumentIds.contains($0.documentId) }
+                    .map { Self.tombstoneEnvelope(from: $0, at: nowMs) }
+
+                // Defend against destructive uploads: if the cloud already
+                // has progress we don't, bail out and force the user to
+                // pull first.
+                if !remoteEnvelopes.isEmpty {
+                    let remoteApp = SyncDeltaSerializer.assemble(envelopes: remoteEnvelopes, onto: localData)
+                    let postImport = SyncDeltaSerializer.assemble(envelopes: tombstoneEnvelopes, onto: stampedLocal)
+                    try ensureNoProblemProgressLoss(from: remoteApp, to: postImport, operation: "importLocalDataToCloud")
+                }
+
                 let baseShadow = stateResult.user.baseShadow
-                var envelopes = SyncDeltaSerializer.decompose(stampedLocal)
+                var envelopes = SyncDeltaSerializer.decompose(stampedLocal) + tombstoneEnvelopes
                 envelopes = SyncRevisionStamper.stamp(
                     envelopes,
                     previousBase: baseShadow,
@@ -419,12 +441,16 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     }
 
     func clearLocalSyncState() async {
-        if let userId = authRepository.session?.localId {
-            SyncConflictStore.delete(userId: userId)
-        }
         pendingConflictUserId = nil
         do {
-            try SyncStateStore.clear()
+            if let userId = authRepository.session?.localId {
+                SyncConflictStore.delete(userId: userId)
+                // 現在のアカウントの状態だけを破棄する。全消しすると同じ
+                // 端末で使っている他アカウントの同期状態まで失われる。
+                try SyncStateStore.clearUser(userId: userId)
+            } else {
+                try SyncStateStore.clear()
+            }
             status.errorMessage = nil
         } catch {
             status.errorMessage = error.localizedDescription
@@ -442,6 +468,11 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
     func resolveConflicts(_ resolutions: [SyncConflictResolution]) async throws {
         let session = try requireActiveSession(operation: "resolveConflicts")
+        // 同期操作として排他する。ガードが無いと await 中に auto-sync の
+        // syncNow が割り込み、ここで保持している同期状態 (baseShadow /
+        // serverCursor) を古い値で上書きしてしまう。
+        try beginSyncOperation(named: "resolveConflicts", session: session)
+        defer { endSyncOperation() }
         let conflicts = SyncConflictStore.load(userId: session.localId)
         guard !conflicts.isEmpty else { return }
 
@@ -489,7 +520,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         status.pendingConflictCount = remaining.count
         status.errorMessage = remaining.isEmpty ? nil : Self.pendingConflictsMessage
 
-        try await syncNow()
+        try await performSync(session: session)
     }
 
     func deleteCloudDataForCurrentUser() async throws {
@@ -502,6 +533,14 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
 
         do {
             try await deltaStore.deleteAllUserData(userId: session.localId)
+            // 新しい同期世代を書き込み、他端末が古いカーソルのまま差分だけを
+            // 再アップロードして不完全なデータセットを復活させるのを防ぐ。
+            // 他端末は世代変化を検出するとローカル同期状態を破棄して
+            // フル再同期を行う。
+            try await deltaStore.writeSyncGeneration(
+                UUID().uuidString.lowercased(),
+                userId: session.localId
+            )
             await clearLocalSyncState()
             status = SyncStatus(isAuthenticated: true, email: session.email)
             logger.log(category: .sync, level: .warning, message: "Cloud account data deletion succeeded")
@@ -514,6 +553,36 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
     }
 
     // MARK: - Delta helpers
+
+    /// クラウド専用エンティティを論理削除に変換する。マージエンジンは
+    /// envelope メタデータではなく json 内の `deletedAt` を見るため、
+    /// 両方に書き込む必要がある。
+    private static func tombstoneEnvelope(from envelope: SyncEntityEnvelope, at timestamp: Int64) -> SyncEntityEnvelope {
+        var tombstone = envelope
+        tombstone.updatedAt = timestamp
+        tombstone.deletedAt = timestamp
+        tombstone.json = jsonSettingTombstone(envelope.json, timestamp: timestamp)
+        return tombstone
+    }
+
+    private static func jsonSettingTombstone(_ json: String, timestamp: Int64) -> String {
+        guard
+            let data = json.data(using: .utf8),
+            var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return json
+        }
+        object["updatedAt"] = timestamp
+        object["deletedAt"] = timestamp
+        guard
+            JSONSerialization.isValidJSONObject(object),
+            let encoded = try? JSONSerialization.data(withJSONObject: object),
+            let string = String(data: encoded, encoding: .utf8)
+        else {
+            return json
+        }
+        return string
+    }
 
     private func mergeStoredConflicts(userId: String, newlyDetected: [SyncConflict]) throws -> [SyncConflict] {
         var merged = Dictionary(uniqueKeysWithValues: SyncConflictStore.load(userId: userId).map { ($0.documentId, $0) })
@@ -565,6 +634,40 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
             ["migratedLegacyChunkedSnapshot": true],
             userId: session.localId
         )
+    }
+
+    /// クラウド側の同期世代 (`users/<uid>.syncGeneration`) とローカルの記録を
+    /// 突き合わせる。別端末がクラウドデータを削除して世代を進めていた場合、
+    /// 古いカーソル・base shadow のまま差分アップロードすると不完全な
+    /// データセットをクラウドに再生成してしまうため、ローカルの同期状態を
+    /// 破棄してフル再同期に切り替える。
+    private func reconcileSyncGeneration(session: AuthSession) async throws {
+        let remoteGeneration = try await deltaStore.fetchSyncGeneration(userId: session.localId)
+        var stateResult = try loadSyncState(userId: session.localId)
+        let storedGeneration = stateResult.user.serverGeneration
+        if storedGeneration == remoteGeneration {
+            return
+        }
+        if storedGeneration == nil {
+            // 初回接触: 現在の世代を記録するだけでリセットは不要。
+            stateResult.user.serverGeneration = remoteGeneration
+            stateResult.root.users[session.localId] = stateResult.user
+            try SyncStateStore.save(stateResult.root)
+            return
+        }
+        logger.log(
+            category: .sync,
+            level: .warning,
+            message: "Cloud sync generation changed; resetting local sync state",
+            details: "action=full-resync stored=\(storedGeneration ?? "-") remote=\(remoteGeneration ?? "-")"
+        )
+        stateResult.user.cursor = .zero
+        stateResult.user.serverCursor = .zero
+        stateResult.user.baseShadow = nil
+        stateResult.user.revisions = [:]
+        stateResult.user.serverGeneration = remoteGeneration
+        stateResult.root.users[session.localId] = stateResult.user
+        try SyncStateStore.save(stateResult.root)
     }
 
     private func applyMergedSnapshotLocally(
@@ -626,24 +729,37 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         return error
     }
 
+    /// 認証エラーに分類する FIRAuthErrorDomain のコード。
+    /// localizedDescription は端末ロケールで翻訳され得るため、判定は
+    /// ドメイン + コードで行う。
+    private static let authExpiredErrorCodes: Set<Int> = [
+        17004, // invalidCredential
+        17005, // userDisabled
+        17014, // requiresRecentLogin
+        17017, // invalidUserToken
+        17021, // userTokenExpired
+        17024  // userMismatch
+    ]
+
     private func isPermissionDenied(_ error: Error) -> Bool {
         let nsError = error as NSError
-        return (nsError.code == 7 && nsError.domain.localizedCaseInsensitiveContains("firestore")) ||
-            error.localizedDescription.localizedCaseInsensitiveContains("permission_denied") ||
-            error.localizedDescription.localizedCaseInsensitiveContains("Missing or insufficient permissions")
+        if nsError.domain == FirestoreErrorDomain {
+            return nsError.code == FirestoreErrorCode.permissionDenied.rawValue
+        }
+        // gRPC 由来などドメインが取れない経路のみ、ロケール非依存の
+        // 英語識別子で補助判定する。
+        return error.localizedDescription.localizedCaseInsensitiveContains("permission_denied")
     }
 
     private func isAuthenticationExpired(_ error: Error) -> Bool {
         let nsError = error as NSError
-        let description = nsError.localizedDescription
-        let isFirestoreUnauthenticated = nsError.code == 16 && nsError.domain.localizedCaseInsensitiveContains("firestore")
-        let isFirebaseAuthCredentialFailure = nsError.domain.localizedCaseInsensitiveContains("auth") &&
-            description.localizedCaseInsensitiveContains("auth credential")
-        return isFirestoreUnauthenticated ||
-            isFirebaseAuthCredentialFailure ||
-            description.localizedCaseInsensitiveContains("supplied auth credential") ||
-            description.localizedCaseInsensitiveContains("malformed or has expired") ||
-            description.localizedCaseInsensitiveContains("unauthenticated")
+        if nsError.domain == FirestoreErrorDomain {
+            return nsError.code == FirestoreErrorCode.unauthenticated.rawValue
+        }
+        if nsError.domain == AuthErrorDomain {
+            return Self.authExpiredErrorCodes.contains(nsError.code)
+        }
+        return nsError.localizedDescription.localizedCaseInsensitiveContains("unauthenticated")
     }
 
     private func loadSyncState(userId: String) throws -> SyncStateLoadResult {
@@ -720,7 +836,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         let manifestRef = firestore
             .collection("users").document(userId)
             .collection("sync").document("default")
-        let snapshot = try await manifestRef.getDocument()
+        let snapshot = try await manifestRef.getDocumentWithSyncTimeout()
         guard let data = snapshot.data() else {
             lastLoadedVersion = 0
             logger.log(category: .sync, message: "No sync manifest found", details: "uid=\(userId)")
@@ -751,7 +867,7 @@ final class FirebaseSyncRepository: ObservableObject, SyncRepository {
         var parts = [String]()
         for i in 0..<chunkCount {
             let chunkId = String(format: "%06d", i)
-            let chunkSnap = try await chunksCol.document(chunkId).getDocument()
+            let chunkSnap = try await chunksCol.document(chunkId).getDocumentWithSyncTimeout()
             guard let chunkData = chunkSnap.data(),
                   let chunkVersion = readFirestoreInteger(chunkData["version"]),
                   chunkVersion == version,

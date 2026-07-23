@@ -161,9 +161,22 @@ service cloud.firestore {
     }
 
     function validUserRoot(data) {
-      return data.keys().hasOnly(["clientFlags", "clientFlagsUpdatedAt"]) &&
-        validClientFlags(data.clientFlags) &&
-        data.clientFlagsUpdatedAt == request.time;
+      // clientFlags と syncGeneration は別々の書き込み経路で更新されるため
+      // （merge 書き込み後の合成結果が検証対象になる）、各フィールド群を
+      // 任意扱いで個別に検証する。
+      return data.keys().hasOnly([
+          "clientFlags",
+          "clientFlagsUpdatedAt",
+          "syncGeneration",
+          "syncGenerationUpdatedAt"
+        ]) &&
+        (!("clientFlags" in data) || validClientFlags(data.clientFlags)) &&
+        (!("clientFlagsUpdatedAt" in data) || data.clientFlagsUpdatedAt is timestamp) &&
+        (!("syncGeneration" in data) ||
+          (data.syncGeneration is string &&
+            data.syncGeneration.size() > 0 &&
+            data.syncGeneration.size() <= 128)) &&
+        (!("syncGenerationUpdatedAt" in data) || data.syncGenerationUpdatedAt is timestamp);
     }
 
     match /users/{userId} {

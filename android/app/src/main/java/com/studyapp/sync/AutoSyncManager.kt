@@ -65,7 +65,12 @@ class AutoSyncManager @Inject constructor(
     }
 
     private fun requestSync(reason: String) {
-        if (autoSyncJob?.isActive == true) return
+        if (autoSyncJob?.isActive == true) {
+            // 実行中ジョブが完了間際だと、この要求ごと取りこぼされる。
+            // pending を立てておけばジョブ末尾の while が拾い直す。
+            localChangePending = true
+            return
+        }
 
         autoSyncJob = scope.launch {
             do {

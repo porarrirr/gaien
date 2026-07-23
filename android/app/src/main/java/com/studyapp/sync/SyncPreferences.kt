@@ -17,13 +17,25 @@ class SyncPreferences @Inject constructor(
     private val appContext = context.applicationContext
     private val preferences = context.getSharedPreferences("studyapp_sync", Context.MODE_PRIVATE)
 
-    fun getLastSyncAt(): Long? {
+    // lastSyncAt はユーザー毎に保持する。共有キーだとアカウント切替時に
+    // 他アカウントの同期時刻が表示されてしまう。旧グローバルキーは
+    // 読み取りフォールバックとしてのみ残す。
+    fun getLastSyncAt(userId: String?): Long? {
+        if (userId != null) {
+            val key = lastSyncAtKey(userId)
+            if (preferences.contains(key)) return preferences.getLong(key, 0L)
+        }
         return if (preferences.contains(KEY_LAST_SYNC_AT)) preferences.getLong(KEY_LAST_SYNC_AT, 0L) else null
     }
 
-    fun setLastSyncAt(timestamp: Long?) {
+    fun setLastSyncAt(userId: String, timestamp: Long?) {
         preferences.edit().apply {
-            if (timestamp == null) remove(KEY_LAST_SYNC_AT) else putLong(KEY_LAST_SYNC_AT, timestamp)
+            if (timestamp == null) {
+                remove(lastSyncAtKey(userId))
+                remove(KEY_LAST_SYNC_AT)
+            } else {
+                putLong(lastSyncAtKey(userId), timestamp)
+            }
         }.apply()
     }
 
@@ -113,6 +125,20 @@ class SyncPreferences @Inject constructor(
         preferences.edit().putBoolean(deltaMigrationDoneKey(userId), done).apply()
     }
 
+    fun getSyncGeneration(userId: String): String? {
+        return preferences.getString(syncGenerationKey(userId), null)
+    }
+
+    fun setSyncGeneration(userId: String, generation: String?) {
+        preferences.edit().apply {
+            if (generation.isNullOrEmpty()) {
+                remove(syncGenerationKey(userId))
+            } else {
+                putString(syncGenerationKey(userId), generation)
+            }
+        }.apply()
+    }
+
     fun getLastLifecycleAutoSyncAt(): Long {
         return preferences.getLong(KEY_LAST_LIFECYCLE_AUTO_SYNC_AT, 0L)
     }
@@ -132,7 +158,9 @@ class SyncPreferences @Inject constructor(
                 key.startsWith(COMPOSITE_CURSOR_KEY_PREFIX) ||
                 key.startsWith(DELTA_MIGRATION_DONE_KEY_PREFIX) ||
                 key.startsWith(SERVER_CURSOR_KEY_PREFIX) ||
-                key.startsWith(SERVER_CURSOR_MIGRATION_KEY_PREFIX)
+                key.startsWith(SERVER_CURSOR_MIGRATION_KEY_PREFIX) ||
+                key.startsWith(SYNC_GENERATION_KEY_PREFIX) ||
+                key.startsWith(LAST_SYNC_AT_KEY_PREFIX)
             ) {
                 editor.remove(key)
             }
@@ -171,6 +199,8 @@ class SyncPreferences @Inject constructor(
     private fun deltaMigrationDoneKey(userId: String) = DELTA_MIGRATION_DONE_KEY_PREFIX + userId
     private fun serverCursorKey(userId: String) = SERVER_CURSOR_KEY_PREFIX + userId
     private fun serverCursorMigrationKey(userId: String) = SERVER_CURSOR_MIGRATION_KEY_PREFIX + userId
+    private fun syncGenerationKey(userId: String) = SYNC_GENERATION_KEY_PREFIX + userId
+    private fun lastSyncAtKey(userId: String) = LAST_SYNC_AT_KEY_PREFIX + userId
 
     companion object {
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
@@ -182,6 +212,8 @@ class SyncPreferences @Inject constructor(
         private const val DELTA_MIGRATION_DONE_KEY_PREFIX = "delta_migration_done_"
         private const val SERVER_CURSOR_KEY_PREFIX = "server_delta_cursor_"
         private const val SERVER_CURSOR_MIGRATION_KEY_PREFIX = "server_delta_cursor_migrated_"
+        private const val SYNC_GENERATION_KEY_PREFIX = "sync_generation_"
+        private const val LAST_SYNC_AT_KEY_PREFIX = "last_sync_at_"
         private const val BACKUP_RETENTION_MILLIS = 30L * 24L * 60L * 60L * 1000L
     }
 }

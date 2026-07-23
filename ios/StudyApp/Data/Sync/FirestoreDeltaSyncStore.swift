@@ -1,6 +1,116 @@
 import FirebaseFirestore
 import Foundation
 
+/// 同期のネットワーク呼び出しが締切を超えたときに投げるエラー。
+struct SyncNetworkTimeoutError: LocalizedError {
+    var errorDescription: String? {
+        "同期がタイムアウトしました。通信環境を確認してもう一度お試しください。"
+    }
+}
+
+/// Firestore の完了ハンドラはオフライン時に呼ばれないことがある
+/// （特に `WriteBatch.commit` はサーバー ack まで完了しない）。締切なしで
+/// await すると `isSyncing` が立ったままスタックし、アプリ再起動まで
+/// 同期不能になるため、各ネットワーク呼び出しに締切を設ける。
+enum SyncNetworkTimeout {
+    static let interval: TimeInterval = 60
+
+    private final class OnceFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var finished = false
+        func tryFinish() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            if finished { return false }
+            finished = true
+            return true
+        }
+    }
+
+    static func run<T>(
+        _ operation: (@escaping (Result<T, Error>) -> Void) -> Void
+    ) async throws -> T {
+        let flag = OnceFlag()
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + interval) {
+                if flag.tryFinish() {
+                    continuation.resume(throwing: SyncNetworkTimeoutError())
+                }
+            }
+            operation { result in
+                guard flag.tryFinish() else { return }
+                continuation.resume(with: result)
+            }
+        }
+    }
+}
+
+extension Query {
+    func getDocumentsWithSyncTimeout() async throws -> QuerySnapshot {
+        try await SyncNetworkTimeout.run { completion in
+            self.getDocuments { snapshot, error in
+                if let snapshot {
+                    completion(.success(snapshot))
+                } else {
+                    completion(.failure(error ?? SyncNetworkTimeoutError()))
+                }
+            }
+        }
+    }
+}
+
+extension DocumentReference {
+    func getDocumentWithSyncTimeout() async throws -> DocumentSnapshot {
+        try await SyncNetworkTimeout.run { completion in
+            self.getDocument { snapshot, error in
+                if let snapshot {
+                    completion(.success(snapshot))
+                } else {
+                    completion(.failure(error ?? SyncNetworkTimeoutError()))
+                }
+            }
+        }
+    }
+
+    func setDataWithSyncTimeout(_ data: [String: Any], merge: Bool) async throws {
+        try await SyncNetworkTimeout.run { (completion: @escaping (Result<Void, Error>) -> Void) in
+            self.setData(data, merge: merge) { error in
+                if let error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        }
+    }
+
+    func deleteWithSyncTimeout() async throws {
+        try await SyncNetworkTimeout.run { (completion: @escaping (Result<Void, Error>) -> Void) in
+            self.delete { error in
+                if let error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        }
+    }
+}
+
+extension WriteBatch {
+    func commitWithSyncTimeout() async throws {
+        try await SyncNetworkTimeout.run { (completion: @escaping (Result<Void, Error>) -> Void) in
+            self.commit { error in
+                if let error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        }
+    }
+}
+
 /// Firestore-backed implementation of the per-entity delta sync store.
 ///
 /// Documents live under `users/{uid}/sync_entities/{kind}-{syncId}`.
@@ -42,8 +152,33 @@ struct FirestoreDeltaSyncStore {
     /// are still *written* rather than deleted so the other device can
     /// observe the tombstone and propagate the deletion locally. They are
     /// purged by `purgeTombstonesOlderThan` once the retention window closes.
+    /// firestore.rules の制約（json ≤ 900KB・タイムスタンプ上限）をクライアント
+    /// 側で事前検証する。ルール違反のまま書き込むと PERMISSION_DENIED になり、
+    /// 「権限がありません」という原因の分からないエラーで恒久的に同期不能に
+    /// なるため、原因を特定できるメッセージで停止する。
+    nonisolated static let maxRuleJsonBytes = 900_000
+    nonisolated static let maxRuleTimestampMillis: Int64 = 4_102_444_800_000
+
+    nonisolated static func validateForUpload(_ envelopes: [SyncEntityEnvelope]) throws {
+        for envelope in envelopes {
+            let bytes = envelope.json.lengthOfBytes(using: .utf8)
+            if bytes > maxRuleJsonBytes {
+                throw ValidationError(
+                    message: "同期データ（\(envelope.kind.rawValue)）が1件あたりの上限サイズ900KBを超えています（\(bytes)バイト）。この項目を分割してから再度同期してください。"
+                )
+            }
+            let timestamps = [envelope.updatedAt, envelope.deletedAt].compactMap { $0 }
+            if timestamps.contains(where: { $0 < 0 || $0 > maxRuleTimestampMillis }) {
+                throw ValidationError(
+                    message: "端末の日時が不正なため同期を中止しました。設定で日付と時刻を確認してください。"
+                )
+            }
+        }
+    }
+
     func writeEnvelopes(_ envelopes: [SyncEntityEnvelope], userId: String) async throws {
         guard !envelopes.isEmpty else { return }
+        try Self.validateForUpload(envelopes)
 
         let collection = entitiesCollection(userId: userId)
         logger.log(
@@ -78,7 +213,7 @@ struct FirestoreDeltaSyncStore {
                 batch.setData(operation.1, forDocument: operation.0, merge: false)
             }
             do {
-                try await batch.commit()
+                try await batch.commitWithSyncTimeout()
             } catch {
                 logFirestoreFailure(
                     operation: "writeDeltaEnvelopes",
@@ -134,7 +269,7 @@ struct FirestoreDeltaSyncStore {
                 if let lastPageDocument {
                     query = query.start(afterDocument: lastPageDocument)
                 }
-                snapshot = try await query.limit(to: pageSize).getDocuments()
+                snapshot = try await query.limit(to: pageSize).getDocumentsWithSyncTimeout()
             } catch {
                 logFirestoreFailure(
                     operation: "fetchDeltaEnvelopes",
@@ -217,7 +352,7 @@ struct FirestoreDeltaSyncStore {
             snapshot = try await collection
                 .whereField("deletedAt", isLessThan: cutoff)
                 .limit(to: 500)
-                .getDocuments()
+                .getDocumentsWithSyncTimeout()
         } catch {
             logFirestoreFailure(
                 operation: "fetchDeltaTombstonesForPurge",
@@ -237,7 +372,7 @@ struct FirestoreDeltaSyncStore {
                 batch.deleteDocument(document.reference)
             }
             do {
-                try await batch.commit()
+                try await batch.commitWithSyncTimeout()
             } catch {
                 logFirestoreFailure(
                     operation: "purgeDeltaTombstones",
@@ -263,41 +398,91 @@ struct FirestoreDeltaSyncStore {
         let manifest = firestore
             .collection("users").document(userId)
             .collection("sync").document("default")
-        let chunks = try await manifest.collection("chunks").getDocuments()
+        let chunks = try await manifest.collection("chunks").getDocumentsWithSyncTimeout()
         var batch = firestore.batch()
         var writeCount = 0
         for chunk in chunks.documents {
             batch.deleteDocument(chunk.reference)
             writeCount += 1
             if writeCount >= maxBatchOperations {
-                try await batch.commit()
+                try await batch.commitWithSyncTimeout()
                 batch = firestore.batch()
                 writeCount = 0
             }
         }
         batch.deleteDocument(manifest)
-        try await batch.commit()
+        try await batch.commitWithSyncTimeout()
+    }
+
+    /// クラウド側の同期世代。`deleteCloudDataForCurrentUser` がデータ削除後に
+    /// 新しい世代を書き込み、他端末はこの値の変化で「クラウドがリセットされた」
+    /// ことを検出してローカルの同期状態（カーソル・base shadow）を破棄する。
+    func fetchSyncGeneration(userId: String) async throws -> String? {
+        let document = firestore.collection("users").document(userId)
+        let snapshot: DocumentSnapshot
+        do {
+            snapshot = try await document.getDocumentWithSyncTimeout()
+        } catch {
+            logFirestoreFailure(
+                operation: "fetchSyncGeneration",
+                userId: userId,
+                details: "path=users/<uid>",
+                error: error
+            )
+            throw error
+        }
+        return snapshot.data()?["syncGeneration"] as? String
+    }
+
+    func writeSyncGeneration(_ generation: String, userId: String) async throws {
+        let document = firestore.collection("users").document(userId)
+        do {
+            try await document.setDataWithSyncTimeout(
+                [
+                    "syncGeneration": generation,
+                    "syncGenerationUpdatedAt": FieldValue.serverTimestamp()
+                ],
+                merge: true
+            )
+        } catch {
+            logFirestoreFailure(
+                operation: "writeSyncGeneration",
+                userId: userId,
+                details: "path=users/<uid>",
+                error: error
+            )
+            throw error
+        }
     }
 
     func recordClientFlags(_ flags: [String: Any], userId: String) async throws {
         let document = firestore.collection("users").document(userId)
-        _ = try await firestore.runTransaction { transaction, errorPointer -> Any? in
-            do {
-                let snapshot = try transaction.getDocument(document)
-                var payload = snapshot.data()?["clientFlags"] as? [String: Any] ?? [:]
-                for (key, value) in flags { payload[key] = value }
-                payload["lastSeenAt"] = Date().epochMilliseconds
-                payload["appDataSchemaVersion"] = AppData.currentSchemaVersion
-                transaction.setData(
-                    ["clientFlags": payload, "clientFlagsUpdatedAt": FieldValue.serverTimestamp()],
-                    forDocument: document,
-                    merge: true
-                )
-                return nil
-            } catch {
-                errorPointer?.pointee = error as NSError
-                return nil
-            }
+        let firestore = self.firestore
+        _ = try await SyncNetworkTimeout.run { (completion: @escaping (Result<Any?, Error>) -> Void) in
+            firestore.runTransaction({ transaction, errorPointer -> Any? in
+                do {
+                    let snapshot = try transaction.getDocument(document)
+                    var payload = snapshot.data()?["clientFlags"] as? [String: Any] ?? [:]
+                    for (key, value) in flags { payload[key] = value }
+                    payload["lastSeenAt"] = Date().epochMilliseconds
+                    payload["appDataSchemaVersion"] = AppData.currentSchemaVersion
+                    transaction.setData(
+                        ["clientFlags": payload, "clientFlagsUpdatedAt": FieldValue.serverTimestamp()],
+                        forDocument: document,
+                        merge: true
+                    )
+                    return nil
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+            }, completion: { result, error in
+                if let error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(result))
+                }
+            })
         }
     }
 
@@ -306,10 +491,10 @@ struct FirestoreDeltaSyncStore {
         try await deleteDocuments(in: entitiesCollection(userId: userId), userId: userId, operation: "deleteDeltaUserData")
 
         let snapshots = firestore.collection("users").document(userId).collection("sync_snapshots")
-        let legacySnapshots = try await snapshots.getDocuments()
+        let legacySnapshots = try await snapshots.getDocumentsWithSyncTimeout()
         for snapshot in legacySnapshots.documents {
             try await deleteDocuments(in: snapshot.reference.collection("chunks"), userId: userId, operation: "deleteLegacySnapshotChunks")
-            try await snapshot.reference.delete()
+            try await snapshot.reference.deleteWithSyncTimeout()
         }
 
         let manifest = firestore
@@ -321,7 +506,7 @@ struct FirestoreDeltaSyncStore {
         batch.deleteDocument(manifest)
         batch.deleteDocument(firestore.collection("users").document(userId))
         do {
-            try await batch.commit()
+            try await batch.commitWithSyncTimeout()
         } catch {
             logFirestoreFailure(
                 operation: "deleteUserSyncRoot",
@@ -347,7 +532,7 @@ struct FirestoreDeltaSyncStore {
         while true {
             let snapshot: QuerySnapshot
             do {
-                snapshot = try await collection.limit(to: maxBatchOperations).getDocuments()
+                snapshot = try await collection.limit(to: maxBatchOperations).getDocumentsWithSyncTimeout()
             } catch {
                 logFirestoreFailure(
                     operation: operation,
@@ -364,7 +549,7 @@ struct FirestoreDeltaSyncStore {
                 batch.deleteDocument(document.reference)
             }
             do {
-                try await batch.commit()
+                try await batch.commitWithSyncTimeout()
             } catch {
                 logFirestoreFailure(
                     operation: operation,

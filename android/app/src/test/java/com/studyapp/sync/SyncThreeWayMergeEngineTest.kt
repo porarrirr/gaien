@@ -214,6 +214,91 @@ class SyncThreeWayMergeEngineTest {
         )
     }
 
+    @Test
+    fun `merge adopts remote-only change even when remote clock is behind`() {
+        // 端末Bの時計が遅れていても、base から変更したのが remote 側だけなら
+        // remote を採用する。updatedAt の LWW に落とすと編集が黙って消える。
+        val base = appData(subjects = listOf(subject("s1", updatedAt = 1_000, color = 1)))
+        val local = appData(subjects = listOf(subject("s1", updatedAt = 1_000, color = 1)))
+        val remote = listOf(
+            envelope(
+                kind = SyncEntityKind.SUBJECT,
+                syncId = "s1",
+                updatedAt = 900,
+                json = subject("s1", updatedAt = 900, color = 2).toJson().toString()
+            )
+        )
+
+        val outcome = SyncThreeWayMergeEngine.merge(base = base, local = local, remoteEnvelopes = remote)
+
+        assertTrue(outcome.conflicts.isEmpty())
+        assertEquals(2, outcome.merged.subjects.single().color)
+    }
+
+    @Test
+    fun `merge propagates remote tombstone from clock-behind device when local unchanged`() {
+        val base = appData(subjects = listOf(subject("s1", updatedAt = 1_000)))
+        val local = appData(subjects = listOf(subject("s1", updatedAt = 1_000)))
+        val tombstone = subject("s1", updatedAt = 900).copy(deletedAt = 900)
+        val remote = listOf(
+            envelope(
+                kind = SyncEntityKind.SUBJECT,
+                syncId = "s1",
+                updatedAt = 900,
+                deletedAt = 900,
+                json = tombstone.toJson().toString()
+            )
+        )
+
+        val outcome = SyncThreeWayMergeEngine.merge(base = base, local = local, remoteEnvelopes = remote)
+
+        assertTrue(outcome.conflicts.isEmpty())
+        assertEquals(900L, outcome.merged.subjects.single().deletedAt)
+    }
+
+    @Test
+    fun `merge ignores lastSyncedAt differences when detecting conflicts`() {
+        // 他端末の「ローカルデータをアップロード」は内容が同じでも
+        // lastSyncedAt を焼き直す。これを差分扱いすると偽競合になる。
+        val base = appData(subjects = listOf(subject("s1", updatedAt = 1_000, color = 1)))
+        val local = appData(subjects = listOf(subject("s1", updatedAt = 1_200, color = 2)))
+        val restamped = subject("s1", updatedAt = 1_000, color = 1).copy(lastSyncedAt = 5_000)
+        val remote = listOf(
+            envelope(
+                kind = SyncEntityKind.SUBJECT,
+                syncId = "s1",
+                updatedAt = 1_000,
+                json = restamped.toJson().toString()
+            )
+        )
+
+        val outcome = SyncThreeWayMergeEngine.merge(base = base, local = local, remoteEnvelopes = remote)
+
+        assertTrue(outcome.conflicts.isEmpty())
+        assertEquals(2, outcome.merged.subjects.single().color)
+    }
+
+    @Test
+    fun `merge does not raise conflict when both sides deleted`() {
+        val base = appData(subjects = listOf(subject("s1", updatedAt = 100)))
+        val local = appData(subjects = listOf(subject("s1", updatedAt = 200).copy(deletedAt = 200)))
+        val remoteTombstone = subject("s1", updatedAt = 300).copy(deletedAt = 300)
+        val remote = listOf(
+            envelope(
+                kind = SyncEntityKind.SUBJECT,
+                syncId = "s1",
+                updatedAt = 300,
+                deletedAt = 300,
+                json = remoteTombstone.toJson().toString()
+            )
+        )
+
+        val outcome = SyncThreeWayMergeEngine.merge(base = base, local = local, remoteEnvelopes = remote)
+
+        assertTrue(outcome.conflicts.isEmpty())
+        assertEquals(300L, outcome.merged.subjects.single().deletedAt)
+    }
+
     private fun appData(
         subjects: List<Subject> = emptyList(),
         materials: List<Material> = emptyList()

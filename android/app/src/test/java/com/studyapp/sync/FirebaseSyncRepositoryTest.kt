@@ -74,7 +74,9 @@ class FirebaseSyncRepositoryTest {
             firebaseAuth = firebaseAuth,
             firebaseFirestore = mockk(relaxed = true),
             syncPreferences = mockk<SyncPreferences> {
-                every { getLastSyncAt() } returns null
+                every { getLastSyncAt(any()) } returns null
+                every { getSyncGeneration(any()) } returns null
+                every { setSyncGeneration(any(), any()) } just runs
                 every { getLocalSyncOwnerUserId() } returns null
                 every { setLocalSyncOwnerUserId(any()) } just runs
                 every { clearLocalSyncState() } just runs
@@ -122,7 +124,9 @@ class FirebaseSyncRepositoryTest {
 
             override suspend fun signOut() = Unit
         }
-        val firebaseUser = mockk<FirebaseUser>()
+        val firebaseUser = mockk<FirebaseUser> {
+            every { uid } returns "uid-123"
+        }
         val firebaseAuth = mockk<FirebaseAuth> {
             every { currentUser } returns firebaseUser
         }
@@ -143,9 +147,11 @@ class FirebaseSyncRepositoryTest {
             coEvery { exportAppDataWithoutWriteLock() } returns emptyAppData()
         }
         val syncPreferences = mockk<SyncPreferences> {
-            every { getLastSyncAt() } returns null
+            every { getLastSyncAt(any()) } returns null
+            every { getSyncGeneration(any()) } returns null
+            every { setSyncGeneration(any(), any()) } just runs
             every { getLocalSyncOwnerUserId() } returns null
-            every { setLastSyncAt(any()) } just runs
+            every { setLastSyncAt(any(), any()) } just runs
             every { setLocalSyncOwnerUserId(any()) } just runs
             every { clearLocalSyncState() } just runs
             every { getDeltaCursor(any()) } returns SyncDeltaCursor.ZERO
