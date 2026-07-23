@@ -10,6 +10,7 @@ struct ScreenTimeSettingsScreen: View {
     @State private var lockMonths = 0
     @State private var lockDays = 1
     @State private var isShowingLockConfirmation = false
+    @State private var expandedScheduleTimePicker: ScheduleTimePickerTarget?
 
     init(app: StudyAppContainer) {
         _app = ObservedObject(wrappedValue: app)
@@ -257,29 +258,37 @@ struct ScreenTimeSettingsScreen: View {
     }
 
     private var scheduleGroup: some View {
-        settingsGroup(title: "時間指定") {
-            VStack(spacing: 0) {
-                ForEach(focusController.settings.scheduleSlots) { slot in
-                    scheduleSlotRow(slot)
-                    if slot.id != focusController.settings.scheduleSlots.last?.id {
-                        Divider()
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("時間指定")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(AppColors.textPrimary)
+                    Text("集中する時間と曜日を登録します")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
                 }
-
-                if !focusController.settings.scheduleSlots.isEmpty {
-                    Divider()
-                }
-
-                actionLine(icon: "plus.circle", title: "時間帯を追加", color: AppColors.success) {
-                    do {
-                        try focusController.addScheduleSlot()
-                        Task { await refreshGoalProgress(reason: "screen-time-add-schedule") }
-                    } catch {
-                        app.present(error)
-                    }
-                }
-                .disabled(!canEditSettings)
+                Spacer()
+                Text(enabledScheduleCountText)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.success)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(AppColors.greenSoft, in: Capsule())
             }
+            .padding(.horizontal, 4)
+
+            if focusController.settings.scheduleSlots.isEmpty {
+                scheduleEmptyState
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(focusController.settings.scheduleSlots) { slot in
+                        scheduleSlotCard(slot)
+                    }
+                }
+            }
+
+            addScheduleButton
         }
     }
 
@@ -325,85 +334,350 @@ struct ScreenTimeSettingsScreen: View {
         return "\(Goal.format(minutes: goalProgress.studyMinutes)) / \(Goal.format(minutes: goalProgress.targetMinutes))"
     }
 
-    private func scheduleSlotRow(_ slot: FocusScheduleSlot) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                SettingsIcon(systemName: "clock.badge")
-                Text(slot.title)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(AppColors.textPrimary)
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { slot.isEnabled },
-                    set: { enabled in
-                        updateScheduleSlot(id: slot.id) { $0.isEnabled = enabled }
-                    }
-                ))
-                .labelsHidden()
-                .tint(AppColors.success)
-                Button(role: .destructive) {
-                    do {
-                        try focusController.removeScheduleSlot(id: slot.id)
-                        Task { await refreshGoalProgress(reason: "screen-time-remove-schedule") }
-                    } catch {
-                        app.present(error)
-                    }
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(AppColors.danger)
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canEditSettings)
+    private var enabledScheduleCountText: String {
+        let slots = focusController.settings.scheduleSlots
+        guard !slots.isEmpty else { return "未登録" }
+        let enabledCount = slots.filter(\.isEnabled).count
+        return "\(enabledCount) / \(slots.count) オン"
+    }
+
+    private var scheduleEmptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "calendar.badge.plus")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(AppColors.success)
+                .frame(width: 52, height: 52)
+                .background(AppColors.greenSoft, in: Circle())
+            Text("時間帯はまだありません")
+                .font(.body.weight(.bold))
+                .foregroundStyle(AppColors.textPrimary)
+            Text("よく集中する時間を追加すると、その時間だけ自動で制限できます。")
+                .font(.caption)
+                .foregroundStyle(AppColors.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 22)
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(AppColors.cardBorder, lineWidth: 1)
+        }
+    }
+
+    private var addScheduleButton: some View {
+        Button {
+            do {
+                try focusController.addScheduleSlot()
+                Task { await refreshGoalProgress(reason: "screen-time-add-schedule") }
+            } catch {
+                app.present(error)
+            }
+        } label: {
+            Label("時間帯を追加", systemImage: "plus")
+                .font(.body.weight(.bold))
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .foregroundStyle(Color.white)
+                .background(AppColors.success, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!canEditSettings)
+        .accessibilityHint("新しい集中時間を追加します")
+    }
+
+    private func scheduleSlotCard(_ slot: FocusScheduleSlot) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            scheduleSlotHeader(slot)
+
+            Divider()
+                .padding(.vertical, 14)
+
+            scheduleTimeRange(slot)
+
+            if expandedScheduleTimePicker?.slotID == slot.id {
+                inlineScheduleTimePicker(slot)
+                    .padding(.top, 12)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            HStack(spacing: 12) {
-                scheduleDatePicker(
-                    title: "開始",
-                    date: Binding(
-                        get: { scheduleDate(hour: slot.startHour, minute: slot.startMinute) },
-                        set: { date in
-                            let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-                            updateScheduleSlot(id: slot.id) {
-                                $0.startHour = components.hour ?? slot.startHour
-                                $0.startMinute = components.minute ?? slot.startMinute
-                            }
-                        }
-                    )
-                )
-                scheduleDatePicker(
-                    title: "終了",
-                    date: Binding(
-                        get: { scheduleDate(hour: slot.endHour, minute: slot.endMinute) },
-                        set: { date in
-                            let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-                            updateScheduleSlot(id: slot.id) {
-                                $0.endHour = components.hour ?? slot.endHour
-                                $0.endMinute = components.minute ?? slot.endMinute
-                            }
-                        }
-                    )
-                )
-                .disabled(!canEditSettings)
-            }
+            Divider()
+                .padding(.vertical, 14)
 
             weekdaySelector(slot)
+
+            if let validationMessage = scheduleValidationMessage(slot) {
+                Label(validationMessage, systemImage: "exclamationmark.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.danger)
+                    .padding(.top, 12)
+            }
         }
-        .padding(.vertical, 8)
+        .padding(14)
+        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(
+                    slot.isEnabled ? AppColors.success.opacity(0.32) : AppColors.cardBorder,
+                    lineWidth: slot.isEnabled ? 1.5 : 1
+                )
+        }
         .disabled(!canEditSettings)
     }
 
-    private func weekdaySelector(_ slot: FocusScheduleSlot) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private func scheduleSlotHeader(_ slot: FocusScheduleSlot) -> some View {
+        HStack(spacing: 11) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(slot.isEnabled ? AppColors.success : AppColors.textSecondary)
+                .frame(width: 38, height: 38)
+                .background(
+                    slot.isEnabled ? AppColors.greenSoft : AppColors.subtleBackground,
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(slot.title)
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
+                Text(slot.isEnabled ? "この時間帯はオンです" : "この時間帯はオフです")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Toggle("", isOn: Binding(
+                get: { slot.isEnabled },
+                set: { enabled in
+                    updateScheduleSlot(id: slot.id) { $0.isEnabled = enabled }
+                }
+            ))
+            .labelsHidden()
+            .tint(AppColors.success)
+            .accessibilityLabel("\(slot.title)を有効にする")
+
+            Menu {
+                Button(role: .destructive) {
+                    removeScheduleSlot(slot)
+                } label: {
+                    Label("この時間帯を削除", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(width: 36, height: 36)
+                    .background(AppColors.subtleBackground, in: Circle())
+            }
+            .accessibilityLabel("\(slot.title)のその他の操作")
+        }
+    }
+
+    private func scheduleTimeRange(_ slot: FocusScheduleSlot) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
             HStack {
-                Text("曜日")
+                Label("時刻", systemImage: "clock")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                Spacer()
+                Text(scheduleDurationText(slot))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.success)
+            }
+
+            HStack(spacing: 9) {
+                scheduleTimeButton(
+                    title: "開始",
+                    hour: slot.startHour,
+                    minute: slot.startMinute,
+                    target: ScheduleTimePickerTarget(slotID: slot.id, endpoint: .start)
+                )
+
+                Image(systemName: "arrow.right")
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .accessibilityHidden(true)
+
+                scheduleTimeButton(
+                    title: crossesMidnight(slot) ? "終了・翌日" : "終了",
+                    hour: slot.endHour,
+                    minute: slot.endMinute,
+                    target: ScheduleTimePickerTarget(slotID: slot.id, endpoint: .end)
+                )
+            }
+        }
+    }
+
+    private func scheduleTimeButton(
+        title: String,
+        hour: Int,
+        minute: Int,
+        target: ScheduleTimePickerTarget
+    ) -> some View {
+        let isExpanded = expandedScheduleTimePicker == target
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                expandedScheduleTimePicker = isExpanded ? nil : target
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
                     .font(.caption2.weight(.bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                HStack(spacing: 5) {
+                    Text(Self.timeText(hour: hour, minute: minute))
+                        .font(.title2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(AppColors.textPrimary)
+                    Spacer(minLength: 0)
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(AppColors.success)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .background(
+                isExpanded ? AppColors.greenSoft : AppColors.subtleBackground,
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(isExpanded ? AppColors.success.opacity(0.55) : AppColors.cardBorder, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title)時刻、\(Self.timeText(hour: hour, minute: minute))")
+        .accessibilityHint("タップして時刻を変更します")
+    }
+
+    @ViewBuilder
+    private func inlineScheduleTimePicker(_ slot: FocusScheduleSlot) -> some View {
+        if let target = expandedScheduleTimePicker, target.slotID == slot.id {
+            let title = target.endpoint == .start ? "開始時刻" : "終了時刻"
+            VStack(spacing: 4) {
+                HStack {
+                    Text(title)
+                        .font(.callout.weight(.bold))
+                        .foregroundStyle(AppColors.textPrimary)
+                    Spacer()
+                    Button("完了") {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            expandedScheduleTimePicker = nil
+                        }
+                    }
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(AppColors.success)
+                }
+
+                DatePicker(
+                    title,
+                    selection: scheduleTimeBinding(slot: slot, endpoint: target.endpoint),
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+                .datePickerStyle(.wheel)
+                .environment(\.locale, Locale(identifier: "ja_JP"))
+                .frame(maxWidth: .infinity)
+                .frame(height: 128)
+                .clipped()
+            }
+            .padding(12)
+            .background(AppColors.subtleBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+    }
+
+    private func scheduleTimeBinding(slot: FocusScheduleSlot, endpoint: ScheduleTimeEndpoint) -> Binding<Date> {
+        Binding(
+            get: {
+                switch endpoint {
+                case .start:
+                    return scheduleDate(hour: slot.startHour, minute: slot.startMinute)
+                case .end:
+                    return scheduleDate(hour: slot.endHour, minute: slot.endMinute)
+                }
+            },
+            set: { date in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                updateScheduleSlot(id: slot.id) {
+                    switch endpoint {
+                    case .start:
+                        $0.startHour = components.hour ?? slot.startHour
+                        $0.startMinute = components.minute ?? slot.startMinute
+                    case .end:
+                        $0.endHour = components.hour ?? slot.endHour
+                        $0.endMinute = components.minute ?? slot.endMinute
+                    }
+                }
+            }
+        )
+    }
+
+    private func removeScheduleSlot(_ slot: FocusScheduleSlot) {
+        do {
+            if expandedScheduleTimePicker?.slotID == slot.id {
+                expandedScheduleTimePicker = nil
+            }
+            try focusController.removeScheduleSlot(id: slot.id)
+            Task { await refreshGoalProgress(reason: "screen-time-remove-schedule") }
+        } catch {
+            app.present(error)
+        }
+    }
+
+    private func scheduleValidationMessage(_ slot: FocusScheduleSlot) -> String? {
+        guard slot.isEnabled else { return nil }
+        if slot.startHour == slot.endHour, slot.startMinute == slot.endMinute {
+            return "開始と終了を異なる時刻にしてください"
+        }
+        if !slot.hasSelectedWeekday {
+            return "繰り返す曜日を1日以上選択してください"
+        }
+        return nil
+    }
+
+    private func scheduleDurationText(_ slot: FocusScheduleSlot) -> String {
+        let start = slot.startHour * 60 + slot.startMinute
+        let end = slot.endHour * 60 + slot.endMinute
+        guard start != end else { return "時刻を確認" }
+        let duration = end > start ? end - start : 24 * 60 - start + end
+        let hours = duration / 60
+        let minutes = duration % 60
+        let durationText: String
+        switch (hours, minutes) {
+        case (0, let minutes):
+            durationText = "\(minutes)分"
+        case (let hours, 0):
+            durationText = "\(hours)時間"
+        case (let hours, let minutes):
+            durationText = "\(hours)時間\(minutes)分"
+        }
+        return end < start ? "翌日まで・\(durationText)" : durationText
+    }
+
+    private func crossesMidnight(_ slot: FocusScheduleSlot) -> Bool {
+        let start = slot.startHour * 60 + slot.startMinute
+        let end = slot.endHour * 60 + slot.endMinute
+        return end < start
+    }
+
+    private func weekdaySelector(_ slot: FocusScheduleSlot) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("繰り返し", systemImage: "repeat")
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(AppColors.textSecondary)
                 Spacer()
                 Text(weekdaysSummary(slot))
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(slot.hasSelectedWeekday ? AppColors.textSecondary : AppColors.danger)
+            }
+
+            HStack(spacing: 7) {
+                scheduleWeekdayPreset(slot: slot, title: "毎日", weekdays: FocusScheduleSlot.allWeekdays)
+                scheduleWeekdayPreset(slot: slot, title: "平日", weekdays: [2, 3, 4, 5, 6])
+                scheduleWeekdayPreset(slot: slot, title: "週末", weekdays: [1, 7])
             }
 
             HStack(spacing: 6) {
@@ -412,7 +686,32 @@ struct ScreenTimeSettingsScreen: View {
                 }
             }
         }
-        .padding(.top, 4)
+    }
+
+    private func scheduleWeekdayPreset(
+        slot: FocusScheduleSlot,
+        title: String,
+        weekdays: Set<Int>
+    ) -> some View {
+        let isSelected = slot.weekdays == weekdays
+        return Button {
+            updateScheduleSlot(id: slot.id) { $0.weekdays = weekdays }
+        } label: {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(isSelected ? AppColors.success : AppColors.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 34)
+                .background(
+                    isSelected ? AppColors.greenSoft : AppColors.subtleBackground,
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(isSelected ? AppColors.success.opacity(0.4) : AppColors.cardBorder, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isSelected ? "選択中" : "未選択")
     }
 
     private func weekdayChip(slot: FocusScheduleSlot, weekday: Int) -> some View {
@@ -428,19 +727,20 @@ struct ScreenTimeSettingsScreen: View {
         } label: {
             Text(Self.weekdayShortTitle(weekday))
                 .font(.caption.weight(.bold))
-                .foregroundStyle(
-                    isOn
-                        ? Self.selectedWeekdayForegroundColor(weekday)
-                        : Self.weekdayColor(weekday)
-                )
-                .frame(maxWidth: .infinity, minHeight: 34)
+                .foregroundStyle(isOn ? Color.white : Self.weekdayColor(weekday))
+                .frame(maxWidth: .infinity, minHeight: 38)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isOn ? Self.weekdayColor(weekday) : AppColors.cardBorder.opacity(0.16))
+                    isOn ? AppColors.success : AppColors.subtleBackground,
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                 )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(isOn ? AppColors.success : AppColors.cardBorder, lineWidth: 1)
+                }
         }
         .buttonStyle(.plain)
-        .disabled(!canEditSettings)
+        .accessibilityLabel("\(Self.weekdayLongTitle(weekday))曜日")
+        .accessibilityValue(isOn ? "選択中" : "未選択")
     }
 
     private func weekdaysSummary(_ slot: FocusScheduleSlot) -> String {
@@ -495,24 +795,6 @@ struct ScreenTimeSettingsScreen: View {
                 .tint(AppColors.success)
         }
         .frame(minHeight: 44)
-    }
-
-    private func scheduleDatePicker(title: String, date: Binding<Date>) -> some View {
-        DatePicker(selection: date, displayedComponents: .hourAndMinute) {
-            Text(title)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(AppColors.textSecondary)
-        }
-        .datePickerStyle(.compact)
-        .labelsHidden()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .topLeading) {
-            Text(title)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(AppColors.textSecondary)
-                .offset(y: -10)
-        }
-        .padding(.top, 8)
     }
 
     private func applyFocusSettings(_ update: (inout ScreenTimeFocusSettings) -> Void) {
@@ -659,11 +941,38 @@ struct ScreenTimeSettingsScreen: View {
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: now) ?? now
     }
 
+    private enum ScheduleTimeEndpoint {
+        case start
+        case end
+    }
+
+    private struct ScheduleTimePickerTarget: Equatable {
+        let slotID: String
+        let endpoint: ScheduleTimeEndpoint
+    }
+
     /// Calendar weekday order shown in the picker: Sunday first, matching the app's other
     /// weekday views.
     private static let orderedWeekdays: [Int] = [1, 2, 3, 4, 5, 6, 7]
 
+    private static func timeText(hour: Int, minute: Int) -> String {
+        String(format: "%02d:%02d", hour, minute)
+    }
+
     private static func weekdayShortTitle(_ weekday: Int) -> String {
+        switch weekday {
+        case 1: return "日"
+        case 2: return "月"
+        case 3: return "火"
+        case 4: return "水"
+        case 5: return "木"
+        case 6: return "金"
+        case 7: return "土"
+        default: return ""
+        }
+    }
+
+    private static func weekdayLongTitle(_ weekday: Int) -> String {
         switch weekday {
         case 1: return "日"
         case 2: return "月"
@@ -681,13 +990,6 @@ struct ScreenTimeSettingsScreen: View {
         case 1: return AppColors.danger
         case 7: return AppColors.blue
         default: return AppColors.textPrimary
-        }
-    }
-
-    private static func selectedWeekdayForegroundColor(_ weekday: Int) -> Color {
-        switch weekday {
-        case 1, 7: return .white
-        default: return AppColors.cardBackground
         }
     }
 
