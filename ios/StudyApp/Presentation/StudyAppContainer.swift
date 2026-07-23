@@ -269,18 +269,23 @@ final class StudyAppContainer: ObservableObject {
     func currentScreenTimeDailyGoalProgress(reference: Date? = nil) async throws -> ScreenTimeDailyGoalProgress {
         let now = reference ?? clock.now()
         let todayStart = clock.startOfToday(reference: now)
-        let dayMs: Int64 = 86_400_000
+        let todayStartDate = Date(epochMilliseconds: todayStart)
+        guard let tomorrowDate = Calendar.current.date(byAdding: .day, value: 1, to: todayStartDate) else {
+            throw ValidationError(message: "翌日の日付を計算できませんでした")
+        }
+        let tomorrowStart = tomorrowDate.epochMilliseconds
         let todayWeekday = StudyWeekday.from(calendarWeekday: Calendar.current.component(.weekday, from: now))
 
-        async let sessionsTask = sessionRepo.getSessionsBetweenDates(start: todayStart, end: todayStart + dayMs)
+        async let sessionsTask = sessionRepo.getSessionsOverlappingDates(start: todayStart, end: tomorrowStart)
         async let goalsTask = goalRepo.getAllGoals()
 
         let sessions = try await sessionsTask
         let goals = try await goalsTask
-        let activeTimerMinutes = activeTimerStudyMinutesForToday(reference: now, dayStart: todayStart)
         let eligibleStudyMinutes = StudySession.screenTimeDailyGoalUnlockStudyMinutes(
             from: sessions,
-            activeTimerMinutes: activeTimerMinutes
+            intervalStart: todayStart,
+            intervalEnd: tomorrowStart,
+            additionalIntervals: preferences.activeTimer?.finalizedIntervals(at: now) ?? []
         )
         let targetMinutes = goals.latestActiveDailyGoal(for: todayWeekday)?.targetMinutes ?? 0
 
@@ -327,19 +332,6 @@ final class StudyAppContainer: ObservableObject {
             guard let self else { return }
             await self.liveActivityController.sync(activeTimer: activeTimer, preferences: preferences, reason: reason)
         }
-    }
-
-    private func activeTimerStudyMinutesForToday(reference: Date, dayStart: Int64) -> Int {
-        guard let timer = preferences.activeTimer else { return 0 }
-        let dayEnd = dayStart + 86_400_000
-        let intervals = timer.finalizedIntervals(at: reference)
-        let duration = intervals.reduce(Int64(0)) { total, interval in
-            let start = max(interval.startTime, dayStart)
-            let end = min(interval.endTime, dayEnd)
-            guard end > start else { return total }
-            return total + (end - start)
-        }
-        return Int(duration / 60_000)
     }
 
     private func restoreScreenTimeFocus(reason: String) {

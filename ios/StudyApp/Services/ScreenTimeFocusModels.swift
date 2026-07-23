@@ -89,6 +89,13 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
         DateComponents(hour: endHour, minute: endMinute)
     }
 
+    var durationMinutes: Int {
+        let start = startHour * 60 + startMinute
+        let end = endHour * 60 + endMinute
+        guard start != end else { return 0 }
+        return end > start ? end - start : 24 * 60 - start + end
+    }
+
     /// Whether any weekday is selected. An empty selection means the slot never applies.
     var hasSelectedWeekday: Bool {
         !weekdays.isEmpty
@@ -123,6 +130,20 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
 
     static func previousWeekday(_ weekday: Int) -> Int {
         weekday == 1 ? 7 : weekday - 1
+    }
+}
+
+enum ScreenTimeScheduleValidationError: LocalizedError, Equatable {
+    case intervalTooShort(title: String)
+    case tooManyEnabledSlots(maximum: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .intervalTooShort(let title):
+            return "\(title)は15分以上の時間帯を指定してください"
+        case .tooManyEnabledSlots(let maximum):
+            return "有効にできる時間帯は最大\(maximum)件です"
+        }
     }
 }
 
@@ -161,6 +182,9 @@ enum ScreenTimeRestrictionApplyResult: Equatable {
 }
 
 struct ScreenTimeFocusSettings: Codable, Equatable {
+    static let minimumScheduleDurationMinutes = 15
+    static let maximumEnabledScheduleSlots = 20
+
     var isEnabled: Bool
     var timerRestrictionEnabled: Bool
     var scheduledRestrictionEnabled: Bool
@@ -176,7 +200,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         scheduledRestrictionEnabled: Bool = false,
         unlockRestrictionsWhenDailyGoalReached: Bool = false,
         scheduleSlots: [FocusScheduleSlot] = [],
-        activitySelection: FamilyActivitySelection = FamilyActivitySelection(),
+        activitySelection: FamilyActivitySelection = FamilyActivitySelection(includeEntireCategory: true),
         settingsLockedUntilEpochMilliseconds: Int64? = nil
     ) {
         self.isEnabled = isEnabled
@@ -184,7 +208,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         self.scheduledRestrictionEnabled = scheduledRestrictionEnabled
         self.unlockRestrictionsWhenDailyGoalReached = unlockRestrictionsWhenDailyGoalReached
         self.scheduleSlots = scheduleSlots
-        self.activitySelection = activitySelection
+        self.activitySelection = Self.selectionIncludingEntireCategories(activitySelection)
         self.settingsLockedUntilEpochMilliseconds = settingsLockedUntilEpochMilliseconds
     }
 
@@ -205,7 +229,11 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         scheduledRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .scheduledRestrictionEnabled) ?? false
         unlockRestrictionsWhenDailyGoalReached = try container.decodeIfPresent(Bool.self, forKey: .unlockRestrictionsWhenDailyGoalReached) ?? false
         scheduleSlots = try container.decodeIfPresent([FocusScheduleSlot].self, forKey: .scheduleSlots) ?? []
-        activitySelection = try container.decodeIfPresent(FamilyActivitySelection.self, forKey: .activitySelection) ?? FamilyActivitySelection()
+        let decodedSelection = try container.decodeIfPresent(
+            FamilyActivitySelection.self,
+            forKey: .activitySelection
+        ) ?? FamilyActivitySelection(includeEntireCategory: true)
+        activitySelection = Self.selectionIncludingEntireCategories(decodedSelection)
         settingsLockedUntilEpochMilliseconds = try container.decodeIfPresent(Int64.self, forKey: .settingsLockedUntilEpochMilliseconds)
     }
 
@@ -260,6 +288,24 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         return scheduleSlots.filter { $0.isEnabled && $0.hasSelectedWeekday }
     }
 
+    func validateScheduleMonitoringConfiguration() throws {
+        let slots = enabledScheduleSlots
+        guard slots.count <= Self.maximumEnabledScheduleSlots else {
+            throw ScreenTimeScheduleValidationError.tooManyEnabledSlots(
+                maximum: Self.maximumEnabledScheduleSlots
+            )
+        }
+        if let invalidSlot = slots.first(where: {
+            $0.durationMinutes < Self.minimumScheduleDurationMinutes
+        }) {
+            throw ScreenTimeScheduleValidationError.intervalTooShort(title: invalidSlot.title)
+        }
+    }
+
+    mutating func normalizeActivitySelection() {
+        activitySelection = Self.selectionIncludingEntireCategories(activitySelection)
+    }
+
     var canApplyRestrictions: Bool {
         isEnabled && (!allowedApplicationTokens.isEmpty || !allowedWebDomainTokens.isEmpty)
     }
@@ -279,6 +325,17 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     ) -> Bool {
         guard isEnabled, unlockRestrictionsWhenDailyGoalReached, let progress else { return false }
         return progress.unlocksRestrictions(on: referenceDate, calendar: calendar)
+    }
+
+    private static func selectionIncludingEntireCategories(
+        _ selection: FamilyActivitySelection
+    ) -> FamilyActivitySelection {
+        guard !selection.includeEntireCategory else { return selection }
+        var normalized = FamilyActivitySelection(includeEntireCategory: true)
+        normalized.applicationTokens = selection.applicationTokens
+        normalized.categoryTokens = selection.categoryTokens
+        normalized.webDomainTokens = selection.webDomainTokens
+        return normalized
     }
 }
 

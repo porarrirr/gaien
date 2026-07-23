@@ -5,7 +5,7 @@ struct ScreenTimeSettingsScreen: View {
     @ObservedObject private var app: StudyAppContainer
     @ObservedObject private var focusController: ScreenTimeFocusController
     @State private var isShowingAllowedAppsPicker = false
-    @State private var focusPickerSelection = FamilyActivitySelection()
+    @State private var focusPickerSelection = FamilyActivitySelection(includeEntireCategory: true)
     @State private var goalProgress: ScreenTimeDailyGoalProgress?
     @State private var lockMonths = 0
     @State private var lockDays = 1
@@ -382,7 +382,10 @@ struct ScreenTimeSettingsScreen: View {
                 .background(AppColors.success, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(!canEditSettings)
+        .disabled(
+            !canEditSettings ||
+            focusController.settings.enabledScheduleSlots.count >= ScreenTimeFocusSettings.maximumEnabledScheduleSlots
+        )
         .accessibilityHint("新しい集中時間を追加します")
     }
 

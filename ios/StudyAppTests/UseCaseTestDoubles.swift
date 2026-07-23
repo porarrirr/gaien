@@ -81,6 +81,10 @@ final class TestStudySessionRepository: StudySessionRepository {
         sessions.filter { $0.startTime >= start && $0.startTime < end }
     }
 
+    func getSessionsOverlappingDates(start: Int64, end: Int64) async throws -> [StudySession] {
+        sessions.filter { $0.startTime < end && $0.endTime > start }
+    }
+
     func insertSession(_ session: StudySession) async throws -> Int64 {
         insertedSessions.append(session)
         return session.id

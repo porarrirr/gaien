@@ -1,3 +1,4 @@
+import FamilyControls
 import XCTest
 @testable import StudyApp
 
@@ -39,6 +40,7 @@ final class ScreenTimeFocusSettingsTests: XCTestCase {
         XCTAssertFalse(settings.unlockRestrictionsWhenDailyGoalReached)
         XCTAssertNil(settings.settingsLockedUntilEpochMilliseconds)
         XCTAssertFalse(settings.isSettingsLocked)
+        XCTAssertTrue(settings.activitySelection.includeEntireCategory)
     }
 
     func testSettingsLockDecodeAndEncodeRoundTrip() throws {
@@ -161,6 +163,36 @@ final class ScreenTimeFocusSettingsTests: XCTestCase {
         XCTAssertEqual(minutes, 25)
     }
 
+    func testDailyGoalUnlockClipsStoredAndActiveIntervalsToCurrentDay() {
+        let today = testDate(2026, 6, 2)
+        let dayStart = today.epochMilliseconds
+        let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: today)!.epochMilliseconds
+        let storedStart = dayStart - 10 * 60_000
+        let stored = StudySession(
+            id: 1,
+            materialId: nil,
+            subjectId: 1,
+            sessionType: .timer,
+            startTime: storedStart,
+            endTime: dayStart + 20 * 60_000,
+            intervals: [
+                StudySessionInterval(startTime: storedStart, endTime: dayStart + 20 * 60_000)
+            ]
+        )
+        let activeIntervals = [
+            StudySessionInterval(startTime: dayEnd - 5 * 60_000, endTime: dayEnd + 10 * 60_000)
+        ]
+
+        let minutes = StudySession.screenTimeDailyGoalUnlockStudyMinutes(
+            from: [stored],
+            intervalStart: dayStart,
+            intervalEnd: dayEnd,
+            additionalIntervals: activeIntervals
+        )
+
+        XCTAssertEqual(minutes, 25)
+    }
+
     func testLegacyScheduleSlotDecodeDefaultsToAllWeekdays() throws {
         let json = """
         {
@@ -244,6 +276,72 @@ final class ScreenTimeFocusSettingsTests: XCTestCase {
         )
         XCTAssertTrue(settings.enabledScheduleSlots.isEmpty)
         XCTAssertFalse(settings.hasActiveScheduleSlot(at: monday))
+    }
+
+    func testScheduleMonitoringRejectsIntervalsShorterThanFifteenMinutes() {
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            scheduledRestrictionEnabled: true,
+            scheduleSlots: [
+                FocusScheduleSlot(
+                    title: "短い時間帯",
+                    startHour: 10,
+                    startMinute: 0,
+                    endHour: 10,
+                    endMinute: 14
+                )
+            ]
+        )
+
+        XCTAssertThrowsError(try settings.validateScheduleMonitoringConfiguration()) { error in
+            XCTAssertEqual(
+                error as? ScreenTimeScheduleValidationError,
+                .intervalTooShort(title: "短い時間帯")
+            )
+        }
+    }
+
+    func testScheduleMonitoringAcceptsFifteenMinuteInterval() throws {
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            scheduledRestrictionEnabled: true,
+            scheduleSlots: [
+                FocusScheduleSlot(
+                    startHour: 10,
+                    startMinute: 0,
+                    endHour: 10,
+                    endMinute: 15
+                )
+            ]
+        )
+
+        XCTAssertNoThrow(try settings.validateScheduleMonitoringConfiguration())
+    }
+
+    func testScheduleMonitoringRejectsMoreThanTwentyEnabledSlots() {
+        let slots = (0...ScreenTimeFocusSettings.maximumEnabledScheduleSlots).map { index in
+            FocusScheduleSlot(id: "slot-\(index)")
+        }
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            scheduledRestrictionEnabled: true,
+            scheduleSlots: slots
+        )
+
+        XCTAssertThrowsError(try settings.validateScheduleMonitoringConfiguration()) { error in
+            XCTAssertEqual(
+                error as? ScreenTimeScheduleValidationError,
+                .tooManyEnabledSlots(maximum: ScreenTimeFocusSettings.maximumEnabledScheduleSlots)
+            )
+        }
+    }
+
+    func testActivitySelectionIsNormalizedToIncludeEntireCategories() {
+        let settings = ScreenTimeFocusSettings(
+            activitySelection: FamilyActivitySelection(includeEntireCategory: false)
+        )
+
+        XCTAssertTrue(settings.activitySelection.includeEntireCategory)
     }
 
     func testStudySessionDecodeDefaultsScreenTimeUnlockExcludedToFalse() throws {

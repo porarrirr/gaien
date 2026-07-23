@@ -13,6 +13,42 @@ struct StudySession: Identifiable, Codable, Hashable {
         }
     }
 
+    static func screenTimeDailyGoalUnlockStudyMinutes(
+        from sessions: [StudySession],
+        intervalStart: Int64,
+        intervalEnd: Int64,
+        additionalIntervals: [StudySessionInterval] = []
+    ) -> Int {
+        guard intervalEnd > intervalStart else { return 0 }
+        let storedDuration = sessions.reduce(Int64(0)) { total, session in
+            guard session.countsTowardScreenTimeDailyGoalUnlock else { return total }
+            return total + overlappingDuration(
+                of: session.effectiveIntervals,
+                intervalStart: intervalStart,
+                intervalEnd: intervalEnd
+            )
+        }
+        let additionalDuration = overlappingDuration(
+            of: additionalIntervals,
+            intervalStart: intervalStart,
+            intervalEnd: intervalEnd
+        )
+        return Int((storedDuration + additionalDuration) / 60_000)
+    }
+
+    private static func overlappingDuration(
+        of intervals: [StudySessionInterval],
+        intervalStart: Int64,
+        intervalEnd: Int64
+    ) -> Int64 {
+        intervals.reduce(Int64(0)) { total, interval in
+            let start = max(interval.startTime, intervalStart)
+            let end = min(interval.endTime, intervalEnd)
+            guard end > start else { return total }
+            return total + end - start
+        }
+    }
+
     var id: Int64 = 0
     var syncId: String = UUID().uuidString.lowercased()
     var materialId: Int64?

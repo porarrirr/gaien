@@ -341,6 +341,41 @@ final class DataLayerMigrationTests: XCTestCase {
         XCTAssertFalse(saved.countsTowardScreenTimeDailyGoalUnlock)
     }
 
+    @MainActor
+    func testOverlappingSessionQueryIncludesSessionStartedBeforeRange() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PersistenceControllerTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+
+        let repository = PersistenceController(fileManager: TestFileManager(rootURL: rootURL))
+        let dayStart = testDate(2026, 6, 2).epochMilliseconds
+        let session = StudySession(
+            syncId: "cross-midnight-session",
+            materialId: nil,
+            subjectId: 1,
+            subjectName: "数学",
+            sessionType: .timer,
+            startTime: dayStart - 10 * 60_000,
+            endTime: dayStart + 20 * 60_000,
+            intervals: [
+                StudySessionInterval(
+                    startTime: dayStart - 10 * 60_000,
+                    endTime: dayStart + 20 * 60_000
+                )
+            ],
+            createdAt: dayStart,
+            updatedAt: dayStart
+        )
+        _ = try await repository.insertSession(session)
+
+        let sessions = try await repository.getSessionsOverlappingDates(
+            start: dayStart,
+            end: dayStart + 86_400_000
+        )
+
+        XCTAssertEqual(sessions.map(\.syncId), ["cross-midnight-session"])
+    }
+
     func testRealDeviceBackupWhenProvided() throws {
         guard let path = ProcessInfo.processInfo.environment["STUDYAPP_REAL_BACKUP_PATH"] else {
             throw XCTSkip("Set STUDYAPP_REAL_BACKUP_PATH to validate a private device backup.")

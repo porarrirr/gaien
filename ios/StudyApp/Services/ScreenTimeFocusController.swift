@@ -125,6 +125,8 @@ final class ScreenTimeFocusController: ObservableObject {
         }
         var next = settings
         update(&next)
+        next.normalizeActivitySelection()
+        try next.validateScheduleMonitoringConfiguration()
         try save(next)
         try syncRestrictionsAfterSettingsChange(next)
     }
@@ -140,16 +142,13 @@ final class ScreenTimeFocusController: ObservableObject {
         ) else {
             throw ScreenTimeFocusError.invalidLockDuration
         }
-        try updateSettingsBypassingLock { settings in
-            settings.settingsLockedUntilEpochMilliseconds = expiryDate.epochMilliseconds
-        }
-    }
-
-    private func updateSettingsBypassingLock(_ update: (inout ScreenTimeFocusSettings) -> Void) throws {
+        // Locking does not change the restriction configuration. Verify that the
+        // current configuration can be applied before making the lock irreversible.
+        try settings.validateScheduleMonitoringConfiguration()
+        try syncRestrictionsAfterSettingsChange(settings)
         var next = settings
-        update(&next)
+        next.settingsLockedUntilEpochMilliseconds = expiryDate.epochMilliseconds
         try save(next)
-        try syncRestrictionsAfterSettingsChange(next)
     }
 
     private func syncRestrictionsAfterSettingsChange(_ next: ScreenTimeFocusSettings) throws {
@@ -219,6 +218,7 @@ final class ScreenTimeFocusController: ObservableObject {
             ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
             return
         }
+        try settings.validateScheduleMonitoringConfiguration()
         stopStudyAppScheduleMonitoring()
         try syncScheduleMonitoring(settings: settings)
         try applyScheduleRestrictionIfNeeded()
@@ -254,6 +254,7 @@ final class ScreenTimeFocusController: ObservableObject {
     private func syncScheduleMonitoring(settings: ScreenTimeFocusSettings) throws {
         guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
         guard settings.canApplyRestrictions else { throw ScreenTimeFocusError.missingAllowedApplications }
+        try settings.validateScheduleMonitoringConfiguration()
 
         for slot in settings.enabledScheduleSlots {
             let schedule = DeviceActivitySchedule(

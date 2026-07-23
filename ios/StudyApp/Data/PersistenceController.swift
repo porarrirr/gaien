@@ -357,6 +357,20 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         ).map(PersistenceMappers.session)
     }
 
+    func getSessionsOverlappingDates(start: Int64, end: Int64) async throws -> [StudySession] {
+        try await ensureLoaded()
+        return try CoreDataQuery.fetch(
+            "StudySessionRecord",
+            in: viewContext,
+            predicate: NSPredicate(
+                format: "startTime < %lld AND endTime > %lld AND deletedAt == NIL",
+                end,
+                start
+            ),
+            sort: [NSSortDescriptor(key: "startTime", ascending: false)]
+        ).map(PersistenceMappers.session)
+    }
+
     /// Returns the distinct `epochDay` values on which the user has studied
     /// (tombstoned sessions excluded). Fetched as a dictionary with
     /// `returnsDistinctResults = true` to avoid materializing the entire

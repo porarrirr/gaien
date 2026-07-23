@@ -20,6 +20,7 @@ protocol MaterialRepository {
 protocol StudySessionRepository {
     func getAllSessions() async throws -> [StudySession]
     func getSessionsBetweenDates(start: Int64, end: Int64) async throws -> [StudySession]
+    func getSessionsOverlappingDates(start: Int64, end: Int64) async throws -> [StudySession]
     func insertSession(_ session: StudySession) async throws -> Int64
     func insertSessionWithProblemReviews(_ session: StudySession) async throws -> Int64
     func updateSession(_ session: StudySession) async throws
