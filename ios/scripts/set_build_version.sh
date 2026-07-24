@@ -10,8 +10,26 @@ if [ ! -f "$template_plist" ]; then
     exit 1
 fi
 
-build_date="${BUILD_DATE_VERSION:-$(TZ=Asia/Tokyo date +%Y.%m.%d)}"
-build_time="${BUILD_TIME_VERSION:-$(TZ=Asia/Tokyo date +%H.%M)}"
+build_epoch="${BUILD_VERSION_EPOCH:-}"
+if [ -z "$build_epoch" ]; then
+    if [ ! -f "${CLANG_MODULES_BUILD_SESSION_FILE:-}" ]; then
+        echo "Build versioning failed: Xcode build session file is unavailable" >&2
+        exit 1
+    fi
+    build_epoch="$(stat -f %m "$CLANG_MODULES_BUILD_SESSION_FILE")"
+fi
+
+case "$build_epoch" in
+    ''|*[!0-9]*)
+        echo "Build versioning failed: invalid build epoch '$build_epoch'" >&2
+        exit 1
+        ;;
+esac
+
+# All app and extension targets derive their version from the same Xcode build
+# session timestamp, even when a parallel build crosses a minute boundary.
+build_date="${BUILD_DATE_VERSION:-$(TZ=Asia/Tokyo date -r "$build_epoch" +%Y.%m.%d)}"
+build_time="${BUILD_TIME_VERSION:-$(TZ=Asia/Tokyo date -r "$build_epoch" +%H.%M)}"
 
 case "$build_date" in
     [0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]) ;;

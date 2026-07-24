@@ -10,6 +10,7 @@ struct ScreenTimeSettingsScreen: View {
     @State private var lockMonths = 0
     @State private var lockDays = 1
     @State private var isShowingLockConfirmation = false
+    @State private var isShowingTicketConfirmation = false
     @State private var expandedScheduleTimePicker: ScheduleTimePickerTarget?
 
     init(app: StudyAppContainer) {
@@ -21,7 +22,13 @@ struct ScreenTimeSettingsScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 permissionGroup
+                if focusController.settings.ticketRestrictionEnabled {
+                    ticketDashboardGroup
+                }
                 restrictionGroup
+                if focusController.settings.ticketRestrictionEnabled {
+                    ticketSettingsGroup
+                }
                 strictLockGroup
                 allowedSelectionGroup
                 if focusController.settings.scheduledRestrictionEnabled {
@@ -65,6 +72,25 @@ struct ScreenTimeSettingsScreen: View {
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text(strictLockConfirmationMessage)
+        }
+        .confirmationDialog(
+            "10分チケットを使いますか？",
+            isPresented: $isShowingTicketConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("10分使う") {
+                startTicket()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("開始後は使っていない時間も進み、0時をまたぐ場合は0時に終了します。")
+        }
+        .task(id: focusController.ticketLedger?.activeTicketEndsAt) {
+            guard let expiry = focusController.ticketLedger?.activeTicketEndDate else { return }
+            let delay = max(expiry.timeIntervalSinceNow, 0)
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await refreshGoalProgress(reason: "screen-time-ticket-expired")
         }
     }
 
@@ -138,8 +164,22 @@ struct ScreenTimeSettingsScreen: View {
             Divider()
 
             focusToggleRow(
+                icon: "ticket",
+                title: "10分チケット制",
+                isOn: Binding(
+                    get: { focusController.settings.ticketRestrictionEnabled },
+                    set: { enabled in
+                        applyFocusSettings { $0.ticketRestrictionEnabled = enabled }
+                    }
+                )
+            )
+            .disabled(!canEditSettings || !focusController.settings.isEnabled)
+
+            Divider()
+
+            focusToggleRow(
                 icon: "calendar.badge.clock",
-                title: "時間指定で制限",
+                title: "時間帯ルール",
                 isOn: Binding(
                     get: { focusController.settings.scheduledRestrictionEnabled },
                     set: { enabled in
@@ -148,6 +188,25 @@ struct ScreenTimeSettingsScreen: View {
                 )
             )
             .disabled(!canEditSettings || !focusController.settings.isEnabled)
+
+            if focusController.settings.scheduledRestrictionEnabled,
+               !focusController.settings.ticketRestrictionEnabled {
+                Divider()
+
+                focusToggleRow(
+                    icon: "clock.badge.xmark",
+                    title: "時間帯外も使用禁止",
+                    isOn: Binding(
+                        get: { focusController.settings.restrictOutsideScheduleWhenTicketsDisabled },
+                        set: { enabled in
+                            applyFocusSettings {
+                                $0.restrictOutsideScheduleWhenTicketsDisabled = enabled
+                            }
+                        }
+                    )
+                )
+                .disabled(!canEditSettings || !focusController.settings.isEnabled)
+            }
 
             Divider()
 
@@ -174,7 +233,106 @@ struct ScreenTimeSettingsScreen: View {
                 )
             }
         } footer: {
-            Text("今日の1日目標に到達した日は、タイマー中と時間指定のScreen Time制限を解除します。手動記録は解除判定に含めません。")
+            Text("今日の1日目標に到達した日は、チケット・タイマー・時間帯によるScreen Time制限を終日解除します。手動記録は解除判定に含めません。")
+        }
+    }
+
+    private var ticketDashboardGroup: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            settingsGroup(title: "今日のチケット") {
+                compactInfoRow(
+                    icon: "ticket.fill",
+                    title: "残り",
+                    value: ticketCountText(at: context.date),
+                    color: ticketRemainingCount(at: context.date) > 0
+                        ? AppColors.success
+                        : AppColors.textSecondary,
+                    showsStatusDot: ticketRemainingCount(at: context.date) > 0
+                )
+
+                Divider()
+
+                compactInfoRow(
+                    icon: "clock",
+                    title: "現在の状態",
+                    value: ticketCurrentStatusText(at: context.date),
+                    color: focusController.ticketLedger?.hasActiveTicket(at: context.date) == true
+                        ? AppColors.success
+                        : AppColors.textSecondary
+                )
+
+                Divider()
+
+                Button {
+                    isShowingTicketConfirmation = true
+                } label: {
+                    Label("10分チケットを使う", systemImage: "play.fill")
+                        .font(.body.weight(.bold))
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .foregroundStyle(Color.white)
+                        .background(
+                            ticketCanStart(at: context.date)
+                                ? AppColors.success
+                                : AppColors.textSecondary,
+                            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!ticketCanStart(at: context.date))
+            } footer: {
+                Text(ticketFooterText(at: context.date))
+            }
+            .onChange(of: Calendar.current.startOfDay(for: context.date)) { _ in
+                Task {
+                    await refreshGoalProgress(reason: "screen-time-ticket-day-changed")
+                }
+            }
+        }
+    }
+
+    private var ticketSettingsGroup: some View {
+        settingsGroup(title: "チケット設定") {
+            HStack(spacing: 12) {
+                SettingsIcon(systemName: "clock.badge.checkmark")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("次回の1日利用時間")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AppColors.textPrimary)
+                    Text("次の0時から適用")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                Spacer()
+                Stepper(
+                    value: Binding(
+                        get: { focusController.settings.dailyTicketMinutes },
+                        set: { minutes in
+                            applyFocusSettings { $0.dailyTicketMinutes = minutes }
+                        }
+                    ),
+                    in: ScreenTimeFocusSettings.minimumDailyTicketMinutes...ScreenTimeFocusSettings.maximumDailyTicketMinutes,
+                    step: ScreenTimeFocusSettings.ticketDurationMinutes
+                ) {
+                    Text("\(focusController.settings.dailyTicketMinutes)分")
+                        .font(.callout.weight(.bold).monospacedDigit())
+                        .foregroundStyle(AppColors.textSecondary)
+                        .frame(minWidth: 72, alignment: .trailing)
+                }
+                .labelsHidden()
+            }
+            .frame(minHeight: 52)
+            .disabled(!canEditSettings)
+
+            Divider()
+
+            compactInfoRow(
+                icon: "ticket",
+                title: "次回の発行枚数",
+                value: "\(focusController.settings.dailyTicketMinutes / ScreenTimeFocusSettings.ticketDurationMinutes)枚",
+                color: AppColors.textSecondary
+            )
+        } footer: {
+            Text("当日の発行枚数は途中で変更されません。設定変更は次の0時から反映されます。")
         }
     }
 
@@ -234,9 +392,9 @@ struct ScreenTimeSettingsScreen: View {
             }
         } footer: {
             if focusController.isSettingsLocked {
-                Text("ロック中はScreen Time設定を変更できません。今日の目標達成による制限解除は、ロック開始時に有効だった場合のみ適用されます。")
+                Text("ロック中も10分チケットは使用できます。設定変更はできず、今日の目標達成による解除はロック開始時に有効だった場合のみ適用されます。")
             } else {
-                Text("有効にすると、指定した期間が過ぎるまでScreen Time設定を変更できなくなります。iOSの設定アプリからScreen Time許可を取り消すことは可能です。")
+                Text("有効にすると、指定した期間が過ぎるまでScreen Time設定を変更できなくなります。チケットの使用は可能です。iOSの設定アプリからScreen Time許可を取り消すことは可能です。")
             }
         }
     }
@@ -264,7 +422,7 @@ struct ScreenTimeSettingsScreen: View {
                     Text("時間指定")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(AppColors.textPrimary)
-                    Text("集中する時間と曜日を登録します")
+                    Text("無料開放または使用禁止の時間を登録します")
                         .font(.caption)
                         .foregroundStyle(AppColors.textSecondary)
                 }
@@ -334,6 +492,80 @@ struct ScreenTimeSettingsScreen: View {
         return "\(Goal.format(minutes: goalProgress.studyMinutes)) / \(Goal.format(minutes: goalProgress.targetMinutes))"
     }
 
+    private func ticketRemainingCount(at date: Date) -> Int {
+        guard let ledger = focusController.ticketLedger,
+              ledger.isForDay(containing: date) else {
+            return 0
+        }
+        return ledger.remainingTicketCount
+    }
+
+    private func ticketCountText(at date: Date) -> String {
+        guard let ledger = focusController.ticketLedger,
+              ledger.isForDay(containing: date) else {
+            return "0 / 0枚"
+        }
+        return "\(ledger.remainingTicketCount) / \(ledger.issuedTicketCount)枚"
+    }
+
+    private func ticketCanStart(at date: Date) -> Bool {
+        guard focusController.isAuthorized,
+              ticketRemainingCount(at: date) > 0,
+              focusController.ticketLedger?.hasActiveTicket(at: date) != true else {
+            return false
+        }
+        return focusController.policyDecision?.canStartTicket == true
+    }
+
+    private func ticketCurrentStatusText(at date: Date) -> String {
+        if let expiry = focusController.ticketLedger?.activeTicketEndDate,
+           focusController.ticketLedger?.hasActiveTicket(at: date) == true {
+            let seconds = max(Int(ceil(expiry.timeIntervalSince(date))), 0)
+            return String(format: "利用中 %d:%02d", seconds / 60, seconds % 60)
+        }
+        switch focusController.policyDecision?.reason {
+        case .dailyGoalReached:
+            return "目標達成で終日開放"
+        case .studyTimer:
+            return "学習タイマーで制限中"
+        case .blockedSchedule:
+            return "使用禁止時間帯"
+        case .allowedSchedule:
+            return "無料開放時間帯"
+        case .ticketRequired:
+            return "チケット待ち"
+        case .outsideScheduleBlocked:
+            return "時間帯外のため制限中"
+        case .masterDisabled:
+            return "集中制限オフ"
+        case .activeTicket:
+            return "チケット利用中"
+        case .unrestricted, .none:
+            return "使用できます"
+        }
+    }
+
+    private func ticketFooterText(at date: Date) -> String {
+        if focusController.ticketLedger?.hasActiveTicket(at: date) == true {
+            return "チケットの時間は使用禁止時間帯に入っても停止しません。"
+        }
+        switch focusController.policyDecision?.reason {
+        case .studyTimer:
+            return "学習タイマー中はチケットを使えません。"
+        case .blockedSchedule:
+            if let nextStart = focusController.accessSnapshot?.nextAllowedScheduleStart {
+                return "使用禁止時間帯です。次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))です。"
+            }
+            return "使用禁止時間帯はチケットを使えません。"
+        case .allowedSchedule:
+            return "無料開放時間帯のため、チケットは消費されません。"
+        case .dailyGoalReached:
+            return "今日の学習目標を達成したため、終日開放されています。"
+        default:
+            return "1枚で開始から10分間利用できます。使用中に次の券は使えません。"
+        }
+    }
+
     private var enabledScheduleCountText: String {
         let slots = focusController.settings.scheduleSlots
         guard !slots.isEmpty else { return "未登録" }
@@ -351,7 +583,7 @@ struct ScreenTimeSettingsScreen: View {
             Text("時間帯はまだありません")
                 .font(.body.weight(.bold))
                 .foregroundStyle(AppColors.textPrimary)
-            Text("よく集中する時間を追加すると、その時間だけ自動で制限できます。")
+            Text("無料開放または使用禁止にする時間を追加できます。")
                 .font(.caption)
                 .foregroundStyle(AppColors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -384,7 +616,8 @@ struct ScreenTimeSettingsScreen: View {
         .buttonStyle(.plain)
         .disabled(
             !canEditSettings ||
-            focusController.settings.enabledScheduleSlots.count >= ScreenTimeFocusSettings.maximumEnabledScheduleSlots
+            focusController.settings.enabledScheduleSlots.count >=
+                focusController.settings.maximumEnabledSlotsForCurrentConfiguration
         )
         .accessibilityHint("新しい集中時間を追加します")
     }
@@ -392,6 +625,11 @@ struct ScreenTimeSettingsScreen: View {
     private func scheduleSlotCard(_ slot: FocusScheduleSlot) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             scheduleSlotHeader(slot)
+
+            Divider()
+                .padding(.vertical, 14)
+
+            scheduleBehaviorSelector(slot)
 
             Divider()
                 .padding(.vertical, 14)
@@ -443,7 +681,11 @@ struct ScreenTimeSettingsScreen: View {
                 Text(slot.title)
                     .font(.body.weight(.bold))
                     .foregroundStyle(AppColors.textPrimary)
-                Text(slot.isEnabled ? "この時間帯はオンです" : "この時間帯はオフです")
+                Text(
+                    slot.isEnabled
+                        ? "\(slot.behavior.title)としてオン"
+                        : "この時間帯はオフです"
+                )
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
             }
@@ -474,6 +716,29 @@ struct ScreenTimeSettingsScreen: View {
                     .background(AppColors.subtleBackground, in: Circle())
             }
             .accessibilityLabel("\(slot.title)のその他の操作")
+        }
+    }
+
+    private func scheduleBehaviorSelector(_ slot: FocusScheduleSlot) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label("この時間帯の動作", systemImage: "switch.2")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppColors.textSecondary)
+
+            Picker(
+                "この時間帯の動作",
+                selection: Binding(
+                    get: { slot.behavior },
+                    set: { behavior in
+                        updateScheduleSlot(id: slot.id) { $0.behavior = behavior }
+                    }
+                )
+            ) {
+                ForEach(FocusScheduleBehavior.allCases, id: \.self) { behavior in
+                    Text(behavior.title).tag(behavior)
+                }
+            }
+            .pickerStyle(.segmented)
         }
     }
 
@@ -810,6 +1075,15 @@ struct ScreenTimeSettingsScreen: View {
         }
     }
 
+    private func startTicket() {
+        do {
+            try focusController.startTicket()
+            Task { await refreshGoalProgress(reason: "screen-time-ticket-start") }
+        } catch {
+            app.present(error)
+        }
+    }
+
     private func activateStrictLock() {
         do {
             try focusController.activateSettingsLock(months: lockMonths, days: lockDays)
@@ -1001,6 +1275,13 @@ struct ScreenTimeSettingsScreen: View {
         formatter.locale = Locale(identifier: "ja_JP")
         formatter.dateStyle = .long
         formatter.timeStyle = .none
+        return formatter
+    }()
+
+    private static let shortDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M/d H:mm"
         return formatter
     }()
 }

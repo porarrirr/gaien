@@ -3,10 +3,35 @@ import FamilyControls
 import Foundation
 import ManagedSettings
 
+enum ScreenTimeDateMath {
+    static func epochMilliseconds(for date: Date) -> Int64 {
+        Int64(date.timeIntervalSince1970 * 1_000)
+    }
+
+    static func date(fromEpochMilliseconds value: Int64) -> Date {
+        Date(timeIntervalSince1970: TimeInterval(value) / 1_000)
+    }
+}
+
+enum FocusScheduleBehavior: String, Codable, CaseIterable {
+    case allow
+    case block
+
+    var title: String {
+        switch self {
+        case .allow:
+            return "無料開放"
+        case .block:
+            return "使用禁止"
+        }
+    }
+}
+
 struct FocusScheduleSlot: Identifiable, Codable, Equatable {
     var id: String
     var title: String
     var isEnabled: Bool
+    var behavior: FocusScheduleBehavior
     var startHour: Int
     var startMinute: Int
     var endHour: Int
@@ -14,14 +39,13 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
     /// Calendar weekday values (1 = Sunday … 7 = Saturday) the slot applies to.
     var weekdays: Set<Int>
 
-    /// All seven calendar weekdays. Used as the default for slots created or decoded
-    /// before per-weekday scheduling existed, so their behaviour is unchanged.
     static let allWeekdays: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
 
     init(
         id: String = UUID().uuidString,
-        title: String = "集中時間",
+        title: String = "時間帯",
         isEnabled: Bool = true,
+        behavior: FocusScheduleBehavior = .block,
         startHour: Int = 19,
         startMinute: Int = 0,
         endHour: Int = 21,
@@ -31,6 +55,7 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
         self.id = id
         self.title = title
         self.isEnabled = isEnabled
+        self.behavior = behavior
         self.startHour = startHour
         self.startMinute = startMinute
         self.endHour = endHour
@@ -42,6 +67,7 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
         case id
         case title
         case isEnabled
+        case behavior
         case startHour
         case startMinute
         case endHour
@@ -54,6 +80,7 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
         id = try container.decode(String.self, forKey: .id)
         title = try container.decode(String.self, forKey: .title)
         isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        behavior = try container.decodeIfPresent(FocusScheduleBehavior.self, forKey: .behavior) ?? .block
         startHour = try container.decode(Int.self, forKey: .startHour)
         startMinute = try container.decode(Int.self, forKey: .startMinute)
         endHour = try container.decode(Int.self, forKey: .endHour)
@@ -65,20 +92,8 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(title, forKey: .title)
-        try container.encode(isEnabled, forKey: .isEnabled)
-        try container.encode(startHour, forKey: .startHour)
-        try container.encode(startMinute, forKey: .startMinute)
-        try container.encode(endHour, forKey: .endHour)
-        try container.encode(endMinute, forKey: .endMinute)
-        try container.encode(weekdays, forKey: .weekdays)
-    }
-
     var activityName: DeviceActivityName {
-        DeviceActivityName("studyapp.focus.schedule.\(id)")
+        DeviceActivityName("\(ScreenTimeFocusShared.scheduleActivityNamePrefix)\(id)")
     }
 
     var startDateComponents: DateComponents {
@@ -96,7 +111,6 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
         return end > start ? end - start : 24 * 60 - start + end
     }
 
-    /// Whether any weekday is selected. An empty selection means the slot never applies.
     var hasSelectedWeekday: Bool {
         !weekdays.isEmpty
     }
@@ -116,9 +130,6 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
             guard isActive(onWeekday: weekday) else { return false }
             return currentMinute >= startMinuteOfDay && currentMinute < endMinuteOfDay
         }
-
-        // Crosses midnight: the evening portion belongs to today's weekday, while the
-        // early-morning portion belongs to the weekday the slot started on.
         if currentMinute >= startMinuteOfDay {
             return isActive(onWeekday: weekday)
         }
@@ -126,6 +137,26 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
             return isActive(onWeekday: Self.previousWeekday(weekday))
         }
         return false
+    }
+
+    func nextStart(after date: Date, calendar: Calendar = .current) -> Date? {
+        let today = calendar.startOfDay(for: date)
+        for dayOffset in 0...7 {
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: today),
+                  let candidate = calendar.date(
+                    bySettingHour: startHour,
+                    minute: startMinute,
+                    second: 0,
+                    of: day
+                  ) else {
+                continue
+            }
+            let weekday = calendar.component(.weekday, from: candidate)
+            if isActive(onWeekday: weekday), candidate > date {
+                return candidate
+            }
+        }
+        return nil
     }
 
     static func previousWeekday(_ weekday: Int) -> Int {
@@ -136,6 +167,7 @@ struct FocusScheduleSlot: Identifiable, Codable, Equatable {
 enum ScreenTimeScheduleValidationError: LocalizedError, Equatable {
     case intervalTooShort(title: String)
     case tooManyEnabledSlots(maximum: Int)
+    case invalidDailyTicketMinutes
 
     var errorDescription: String? {
         switch self {
@@ -143,6 +175,8 @@ enum ScreenTimeScheduleValidationError: LocalizedError, Equatable {
             return "\(title)は15分以上の時間帯を指定してください"
         case .tooManyEnabledSlots(let maximum):
             return "有効にできる時間帯は最大\(maximum)件です"
+        case .invalidDailyTicketMinutes:
+            return "1日の利用時間は0〜1440分の10分刻みで指定してください"
         }
     }
 }
@@ -162,32 +196,41 @@ struct ScreenTimeDailyGoalProgress: Codable, Equatable {
     }
 
     func isForDay(containing date: Date, calendar: Calendar = .current) -> Bool {
-        dayStart == Self.epochMilliseconds(for: calendar.startOfDay(for: date))
+        dayStart == ScreenTimeDateMath.epochMilliseconds(for: calendar.startOfDay(for: date))
     }
 
     func unlocksRestrictions(on date: Date = Date(), calendar: Calendar = .current) -> Bool {
         isForDay(containing: date, calendar: calendar) && hasReachedTarget
     }
-
-    private static func epochMilliseconds(for date: Date) -> Int64 {
-        Int64(date.timeIntervalSince1970 * 1_000)
-    }
 }
 
-enum ScreenTimeRestrictionApplyResult: Equatable {
-    case inactive
-    case missingAllowedSelection
-    case skippedDailyGoalReached
-    case applied
+struct ScreenTimeRuntimeState: Codable, Equatable {
+    var timerIsRunning: Bool
+    var updatedAt: Int64
+
+    init(
+        timerIsRunning: Bool = false,
+        updatedAt: Int64 = ScreenTimeDateMath.epochMilliseconds(for: Date())
+    ) {
+        self.timerIsRunning = timerIsRunning
+        self.updatedAt = updatedAt
+    }
 }
 
 struct ScreenTimeFocusSettings: Codable, Equatable {
     static let minimumScheduleDurationMinutes = 15
     static let maximumEnabledScheduleSlots = 20
+    static let maximumEnabledScheduleSlotsWithTickets = 18
+    static let ticketDurationMinutes = 10
+    static let minimumDailyTicketMinutes = 0
+    static let maximumDailyTicketMinutes = 1_440
 
     var isEnabled: Bool
     var timerRestrictionEnabled: Bool
     var scheduledRestrictionEnabled: Bool
+    var ticketRestrictionEnabled: Bool
+    var dailyTicketMinutes: Int
+    var restrictOutsideScheduleWhenTicketsDisabled: Bool
     var unlockRestrictionsWhenDailyGoalReached: Bool
     var scheduleSlots: [FocusScheduleSlot]
     var activitySelection: FamilyActivitySelection
@@ -198,6 +241,9 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         isEnabled: Bool = false,
         timerRestrictionEnabled: Bool = false,
         scheduledRestrictionEnabled: Bool = false,
+        ticketRestrictionEnabled: Bool = false,
+        dailyTicketMinutes: Int = 0,
+        restrictOutsideScheduleWhenTicketsDisabled: Bool = false,
         unlockRestrictionsWhenDailyGoalReached: Bool = false,
         scheduleSlots: [FocusScheduleSlot] = [],
         activitySelection: FamilyActivitySelection = FamilyActivitySelection(includeEntireCategory: true),
@@ -206,6 +252,9 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         self.isEnabled = isEnabled
         self.timerRestrictionEnabled = timerRestrictionEnabled
         self.scheduledRestrictionEnabled = scheduledRestrictionEnabled
+        self.ticketRestrictionEnabled = ticketRestrictionEnabled
+        self.dailyTicketMinutes = dailyTicketMinutes
+        self.restrictOutsideScheduleWhenTicketsDisabled = restrictOutsideScheduleWhenTicketsDisabled
         self.unlockRestrictionsWhenDailyGoalReached = unlockRestrictionsWhenDailyGoalReached
         self.scheduleSlots = scheduleSlots
         self.activitySelection = Self.selectionIncludingEntireCategories(activitySelection)
@@ -216,6 +265,9 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         case isEnabled
         case timerRestrictionEnabled
         case scheduledRestrictionEnabled
+        case ticketRestrictionEnabled
+        case dailyTicketMinutes
+        case restrictOutsideScheduleWhenTicketsDisabled
         case unlockRestrictionsWhenDailyGoalReached
         case scheduleSlots
         case activitySelection
@@ -227,25 +279,26 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
         timerRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .timerRestrictionEnabled) ?? false
         scheduledRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .scheduledRestrictionEnabled) ?? false
-        unlockRestrictionsWhenDailyGoalReached = try container.decodeIfPresent(Bool.self, forKey: .unlockRestrictionsWhenDailyGoalReached) ?? false
+        ticketRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .ticketRestrictionEnabled) ?? false
+        dailyTicketMinutes = try container.decodeIfPresent(Int.self, forKey: .dailyTicketMinutes) ?? 0
+        restrictOutsideScheduleWhenTicketsDisabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .restrictOutsideScheduleWhenTicketsDisabled
+        ) ?? false
+        unlockRestrictionsWhenDailyGoalReached = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .unlockRestrictionsWhenDailyGoalReached
+        ) ?? false
         scheduleSlots = try container.decodeIfPresent([FocusScheduleSlot].self, forKey: .scheduleSlots) ?? []
         let decodedSelection = try container.decodeIfPresent(
             FamilyActivitySelection.self,
             forKey: .activitySelection
         ) ?? FamilyActivitySelection(includeEntireCategory: true)
         activitySelection = Self.selectionIncludingEntireCategories(decodedSelection)
-        settingsLockedUntilEpochMilliseconds = try container.decodeIfPresent(Int64.self, forKey: .settingsLockedUntilEpochMilliseconds)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(isEnabled, forKey: .isEnabled)
-        try container.encode(timerRestrictionEnabled, forKey: .timerRestrictionEnabled)
-        try container.encode(scheduledRestrictionEnabled, forKey: .scheduledRestrictionEnabled)
-        try container.encode(unlockRestrictionsWhenDailyGoalReached, forKey: .unlockRestrictionsWhenDailyGoalReached)
-        try container.encode(scheduleSlots, forKey: .scheduleSlots)
-        try container.encode(activitySelection, forKey: .activitySelection)
-        try container.encodeIfPresent(settingsLockedUntilEpochMilliseconds, forKey: .settingsLockedUntilEpochMilliseconds)
+        settingsLockedUntilEpochMilliseconds = try container.decodeIfPresent(
+            Int64.self,
+            forKey: .settingsLockedUntilEpochMilliseconds
+        )
     }
 
     var settingsLockExpiryDate: Date? {
@@ -288,12 +341,21 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         return scheduleSlots.filter { $0.isEnabled && $0.hasSelectedWeekday }
     }
 
-    func validateScheduleMonitoringConfiguration() throws {
+    var maximumEnabledSlotsForCurrentConfiguration: Int {
+        ticketRestrictionEnabled
+            ? Self.maximumEnabledScheduleSlotsWithTickets
+            : Self.maximumEnabledScheduleSlots
+    }
+
+    func validateMonitoringConfiguration() throws {
+        guard (Self.minimumDailyTicketMinutes...Self.maximumDailyTicketMinutes).contains(dailyTicketMinutes),
+              dailyTicketMinutes.isMultiple(of: Self.ticketDurationMinutes) else {
+            throw ScreenTimeScheduleValidationError.invalidDailyTicketMinutes
+        }
         let slots = enabledScheduleSlots
-        guard slots.count <= Self.maximumEnabledScheduleSlots else {
-            throw ScreenTimeScheduleValidationError.tooManyEnabledSlots(
-                maximum: Self.maximumEnabledScheduleSlots
-            )
+        let maximum = maximumEnabledSlotsForCurrentConfiguration
+        guard slots.count <= maximum else {
+            throw ScreenTimeScheduleValidationError.tooManyEnabledSlots(maximum: maximum)
         }
         if let invalidSlot = slots.first(where: {
             $0.durationMinutes < Self.minimumScheduleDurationMinutes
@@ -302,12 +364,26 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         }
     }
 
+    func validateScheduleMonitoringConfiguration() throws {
+        try validateMonitoringConfiguration()
+    }
+
     mutating func normalizeActivitySelection() {
         activitySelection = Self.selectionIncludingEntireCategories(activitySelection)
     }
 
     var canApplyRestrictions: Bool {
         isEnabled && (!allowedApplicationTokens.isEmpty || !allowedWebDomainTokens.isEmpty)
+    }
+
+    var requiresAllowedSelection: Bool {
+        guard isEnabled else { return false }
+        if timerRestrictionEnabled || ticketRestrictionEnabled {
+            return true
+        }
+        guard scheduledRestrictionEnabled else { return false }
+        return restrictOutsideScheduleWhenTicketsDisabled
+            || enabledScheduleSlots.contains(where: { $0.behavior == .block })
     }
 
     func activeScheduleSlots(at date: Date = Date(), calendar: Calendar = .current) -> [FocusScheduleSlot] {
@@ -327,6 +403,16 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         return progress.unlocksRestrictions(on: referenceDate, calendar: calendar)
     }
 
+    func nextAllowedScheduleStart(
+        after date: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date? {
+        enabledScheduleSlots
+            .filter { $0.behavior == .allow }
+            .compactMap { $0.nextStart(after: date, calendar: calendar) }
+            .min()
+    }
+
     private static func selectionIncludingEntireCategories(
         _ selection: FamilyActivitySelection
     ) -> FamilyActivitySelection {
@@ -339,13 +425,91 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     }
 }
 
+enum ScreenTimePolicyReason: String, Codable, Equatable {
+    case masterDisabled
+    case dailyGoalReached
+    case studyTimer
+    case blockedSchedule
+    case allowedSchedule
+    case activeTicket
+    case ticketRequired
+    case outsideScheduleBlocked
+    case unrestricted
+}
+
+struct ScreenTimePolicyDecision: Equatable {
+    var isRestricted: Bool
+    var reason: ScreenTimePolicyReason
+
+    var canStartTicket: Bool {
+        isRestricted && reason == .ticketRequired
+    }
+}
+
+enum ScreenTimePolicyEvaluator {
+    static func evaluate(
+        settings: ScreenTimeFocusSettings,
+        ledger: ScreenTimeTicketLedger?,
+        dailyGoalProgress: ScreenTimeDailyGoalProgress?,
+        runtimeState: ScreenTimeRuntimeState,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> ScreenTimePolicyDecision {
+        guard settings.isEnabled else {
+            return ScreenTimePolicyDecision(isRestricted: false, reason: .masterDisabled)
+        }
+        if settings.shouldUnlockRestrictionsForDailyGoal(
+            progress: dailyGoalProgress,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ) {
+            return ScreenTimePolicyDecision(isRestricted: false, reason: .dailyGoalReached)
+        }
+        if settings.timerRestrictionEnabled, runtimeState.timerIsRunning {
+            return ScreenTimePolicyDecision(isRestricted: true, reason: .studyTimer)
+        }
+
+        let activeSlots = settings.activeScheduleSlots(at: referenceDate, calendar: calendar)
+        if activeSlots.contains(where: { $0.behavior == .block }) {
+            return ScreenTimePolicyDecision(isRestricted: true, reason: .blockedSchedule)
+        }
+        if activeSlots.contains(where: { $0.behavior == .allow }) {
+            return ScreenTimePolicyDecision(isRestricted: false, reason: .allowedSchedule)
+        }
+
+        if settings.ticketRestrictionEnabled {
+            if ledger?.hasActiveTicket(at: referenceDate, calendar: calendar) == true {
+                return ScreenTimePolicyDecision(isRestricted: false, reason: .activeTicket)
+            }
+            return ScreenTimePolicyDecision(isRestricted: true, reason: .ticketRequired)
+        }
+
+        if settings.scheduledRestrictionEnabled,
+           settings.restrictOutsideScheduleWhenTicketsDisabled {
+            return ScreenTimePolicyDecision(isRestricted: true, reason: .outsideScheduleBlocked)
+        }
+
+        return ScreenTimePolicyDecision(isRestricted: false, reason: .unrestricted)
+    }
+}
+
+enum ScreenTimeRestrictionApplyResult: Equatable {
+    case inactive
+    case missingAllowedSelection
+    case applied
+}
+
 enum ScreenTimeFocusShared {
     static let appGroupIdentifier = "group.com.studyapp.ios.shared"
     static let settingsKey = "screenTimeFocusSettings.v1"
     static let dailyGoalProgressKey = "screenTimeFocusDailyGoalProgress.v1"
+    static let runtimeStateKey = "screenTimeRuntimeState.v1"
     static let scheduleActivityNamePrefix = "studyapp.focus.schedule."
-    static let timerStoreName = ManagedSettingsStore.Name("studyapp.focus.timer")
-    static let scheduleStoreName = ManagedSettingsStore.Name("studyapp.focus.schedule")
+    static let dailyBoundaryActivityName = DeviceActivityName("studyapp.focus.daily-boundary")
+    static let ticketExpiryActivityName = DeviceActivityName("studyapp.focus.ticket-expiry")
+    static let policyStoreName = ManagedSettingsStore.Name("studyapp.focus.policy")
+    static let legacyTimerStoreName = ManagedSettingsStore.Name("studyapp.focus.timer")
+    static let legacyScheduleStoreName = ManagedSettingsStore.Name("studyapp.focus.schedule")
 
     static var allScheduleActivityNames: [DeviceActivityName] {
         loadSettings().scheduleSlots.map(\.activityName)
@@ -388,29 +552,37 @@ enum ScreenTimeFocusShared {
         return true
     }
 
+    static func loadRuntimeState() -> ScreenTimeRuntimeState {
+        guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
+              let data = defaults.data(forKey: runtimeStateKey),
+              let state = try? JSONDecoder().decode(ScreenTimeRuntimeState.self, from: data) else {
+            return ScreenTimeRuntimeState()
+        }
+        return state
+    }
+
+    @discardableResult
+    static func saveRuntimeState(_ state: ScreenTimeRuntimeState) -> Bool {
+        guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
+              let data = try? JSONEncoder().encode(state) else {
+            return false
+        }
+        defaults.set(data, forKey: runtimeStateKey)
+        return true
+    }
+
     static func applyRestrictions(
         using store: ManagedSettingsStore,
-        settings: ScreenTimeFocusSettings,
-        referenceDate: Date = Date()
+        settings: ScreenTimeFocusSettings
     ) -> ScreenTimeRestrictionApplyResult {
         guard settings.isEnabled else {
             clearRestrictions(using: store)
             return .inactive
         }
-
         guard settings.canApplyRestrictions else {
             clearRestrictions(using: store)
             return .missingAllowedSelection
         }
-
-        if settings.shouldUnlockRestrictionsForDailyGoal(
-            progress: loadDailyGoalProgress(),
-            referenceDate: referenceDate
-        ) {
-            clearRestrictions(using: store)
-            return .skippedDailyGoalReached
-        }
-
         store.shield.applicationCategories = .all(except: settings.allowedApplicationTokens)
         store.shield.webDomainCategories = .all(except: settings.allowedWebDomainTokens)
         return .applied

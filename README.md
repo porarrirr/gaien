@@ -41,7 +41,7 @@
 
 - **Live Activity** — ロック画面 / Dynamic Island にタイマー表示（ビルド設定で ON/OFF 可能）
 - **WidgetKit** — App Group 経由のスナップショット連携
-- **Screen Time 集中モード** — Family Controls + Device Activity で許可アプリ以外を制限（`StudyAppDeviceActivityMonitor` 拡張）
+- **Screen Time 集中モード** — Family Controls + Device Activity で許可アプリ以外を制限。毎日補充される10分チケット、無料開放 / 使用禁止時間帯、学習タイマー制限を個別または併用で設定可能
 - **iPad 向け UI** — `NavigationSplitView` によるサイドバー + 詳細の分割表示
 - **ランドスケープタイマー** — 問題進捗専用 / 時計のみの集中レイアウト
 
@@ -119,6 +119,8 @@ gaien/
 │   │   └── Widgets/                  # スナップショット同期
 │   ├── StudyAppWidgets/             # WidgetKit + Live Activity
 │   ├── StudyAppDeviceActivityMonitor/  # Screen Time 拡張
+│   ├── StudyAppShieldConfiguration/ # 制限理由・残券を表示する Shield 拡張
+│   ├── StudyAppShieldAction/        # Shield からチケットを使用する拡張
 │   └── StudyAppTests/                # XCTest
 ├── macos/StudyAppMac/                # macOS コンパニオン（SwiftPM）
 ├── docs/                             # GitHub Pages
@@ -169,9 +171,15 @@ xcodebuild -project ios/StudyApp.xcodeproj -scheme StudyApp \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 ```
 
-Screen Time・ウィジェット・Live Activity を使うビルドでは、Apple Developer の App Group と Family Controls  capability が必要です。
+Screen Time・ウィジェット・Live Activity を使うビルドでは、Apple Developer の App Group と Family Controls capability が必要です。Screen Time は署名済み実機 / TestFlight / App Store ビルド向けで、次の3拡張をホストアプリと同じ署名チーム・App Groupで署名してください。
 
-タグ `v*` の push または GitHub Release では、`.github/workflows/ios-ipa-release.yml` が未署名 IPA を生成します（Live Activity 無効ビルド。拡張は IPA から除去）。
+| ターゲット | Bundle ID | 必要な capability |
+|---|---|---|
+| `StudyAppDeviceActivityMonitor` | `com.studyapp.ios.deviceactivitymonitor` | Family Controls、`group.com.studyapp.ios.shared` |
+| `StudyAppShieldConfiguration` | `com.studyapp.ios.shieldconfiguration` | Family Controls、`group.com.studyapp.ios.shared` |
+| `StudyAppShieldAction` | `com.studyapp.ios.shieldaction` | Family Controls、`group.com.studyapp.ios.shared` |
+
+タグ `v*` の push または GitHub Release では、既存の `.github/workflows/ios-ipa-release.yml` が未署名 IPA を生成します（Live Activity 無効ビルド）。署名を必要とするScreen Time拡張を含むすべての `PlugIns` はこの未署名IPAから除去されるため、Screen Time機能は利用できません。
 
 ### macOS コンパニオン
 

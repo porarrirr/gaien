@@ -188,6 +188,19 @@
 		A50000000000000000000003 /* ScreenTimeFocusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000086 /* ScreenTimeFocusModels.swift */; };
 		A50000000000000000000004 /* ScreenTimeFocusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000087 /* ScreenTimeFocusController.swift */; };
 		A50000000000000000000005 /* DeviceActivityMonitorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000002 /* DeviceActivityMonitorExtension.swift */; };
+		A50000000000000000000006 /* ScreenTimeTicketLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000094 /* ScreenTimeTicketLedger.swift */; };
+		A50000000000000000000007 /* ScreenTimeAccessEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000095 /* ScreenTimeAccessEngine.swift */; };
+		A50000000000000000000008 /* ScreenTimeTicketLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000094 /* ScreenTimeTicketLedger.swift */; };
+		A50000000000000000000009 /* ScreenTimeAccessEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000095 /* ScreenTimeAccessEngine.swift */; };
+		A60000000000000000000001 /* StudyAppShieldConfiguration.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B60000000000000000000001 /* StudyAppShieldConfiguration.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		A60000000000000000000002 /* ScreenTimeFocusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000086 /* ScreenTimeFocusModels.swift */; };
+		A60000000000000000000003 /* ScreenTimeTicketLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000094 /* ScreenTimeTicketLedger.swift */; };
+		A60000000000000000000004 /* ShieldConfigurationExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000002 /* ShieldConfigurationExtension.swift */; };
+		A70000000000000000000001 /* StudyAppShieldAction.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B70000000000000000000001 /* StudyAppShieldAction.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		A70000000000000000000002 /* ScreenTimeFocusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000086 /* ScreenTimeFocusModels.swift */; };
+		A70000000000000000000003 /* ScreenTimeTicketLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000094 /* ScreenTimeTicketLedger.swift */; };
+		A70000000000000000000004 /* ScreenTimeAccessEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000095 /* ScreenTimeAccessEngine.swift */; };
+		A70000000000000000000005 /* ShieldActionExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000002 /* ShieldActionExtension.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -212,6 +225,20 @@
 			remoteGlobalIDString = E50000000000000000000001;
 			remoteInfo = StudyAppDeviceActivityMonitor;
 		};
+		H60000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E10000000000000000000002 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E60000000000000000000001;
+			remoteInfo = StudyAppShieldConfiguration;
+		};
+		H70000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E10000000000000000000002 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E70000000000000000000001;
+			remoteInfo = StudyAppShieldAction;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -223,6 +250,8 @@
 			files = (
 				A20000000000000000000001 /* StudyAppWidgets.appex in Embed App Extensions */,
 				A50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex in Embed App Extensions */,
+				A60000000000000000000001 /* StudyAppShieldConfiguration.appex in Embed App Extensions */,
+				A70000000000000000000001 /* StudyAppShieldAction.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -293,6 +322,8 @@
 		B10000000000000000000085 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B10000000000000000000086 /* ScreenTimeFocusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000087 /* ScreenTimeFocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusController.swift; sourceTree = "<group>"; };
+		B10000000000000000000094 /* ScreenTimeTicketLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeTicketLedger.swift; sourceTree = "<group>"; };
+		B10000000000000000000095 /* ScreenTimeAccessEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeAccessEngine.swift; sourceTree = "<group>"; };
 		B10000000000000000000088 /* SyncDeltaCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaCursor.swift; path = Sync/SyncDeltaCursor.swift; sourceTree = "<group>"; };
 		B10000000000000000000089 /* SyncConflictModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncConflictModels.swift; path = Sync/SyncConflictModels.swift; sourceTree = "<group>"; };
 		B1000000000000000000008A /* SyncDeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeviceIdentity.swift; path = Sync/SyncDeviceIdentity.swift; sourceTree = "<group>"; };
@@ -410,6 +441,14 @@
 		B50000000000000000000002 /* DeviceActivityMonitorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceActivityMonitorExtension.swift; sourceTree = "<group>"; };
 		B50000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B50000000000000000000004 /* StudyAppDeviceActivityMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyAppDeviceActivityMonitor.entitlements; sourceTree = "<group>"; };
+		B60000000000000000000001 /* StudyAppShieldConfiguration.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppShieldConfiguration.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B60000000000000000000002 /* ShieldConfigurationExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldConfigurationExtension.swift; sourceTree = "<group>"; };
+		B60000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B60000000000000000000004 /* StudyAppShieldConfiguration.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyAppShieldConfiguration.entitlements; sourceTree = "<group>"; };
+		B70000000000000000000001 /* StudyAppShieldAction.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StudyAppShieldAction.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B70000000000000000000002 /* ShieldActionExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldActionExtension.swift; sourceTree = "<group>"; };
+		B70000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B70000000000000000000004 /* StudyAppShieldAction.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyAppShieldAction.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -445,6 +484,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C70000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C80000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -454,6 +507,8 @@
 				D10000000000000000000002 /* StudyApp */,
 				D20000000000000000000002 /* StudyAppWidgets */,
 				D60000000000000000000001 /* StudyAppDeviceActivityMonitor */,
+				D70000000000000000000001 /* StudyAppShieldConfiguration */,
+				D80000000000000000000001 /* StudyAppShieldAction */,
 				D50000000000000000000001 /* StudyAppTests */,
 				D10000000000000000000003 /* Products */,
 			);
@@ -480,6 +535,8 @@
 				B10000000000000000000001 /* StudyApp.app */,
 				B20000000000000000000001 /* StudyAppWidgets.appex */,
 				B50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex */,
+				B60000000000000000000001 /* StudyAppShieldConfiguration.appex */,
+				B70000000000000000000001 /* StudyAppShieldAction.appex */,
 				B30000000000000000000050 /* StudyAppTests.xctest */,
 			);
 			name = Products;
@@ -573,6 +630,8 @@
 				B1000000000000000000004C /* RepositoryFactory.swift */,
 				B10000000000000000000086 /* ScreenTimeFocusModels.swift */,
 				B10000000000000000000087 /* ScreenTimeFocusController.swift */,
+				B10000000000000000000094 /* ScreenTimeTicketLedger.swift */,
+				B10000000000000000000095 /* ScreenTimeAccessEngine.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -906,6 +965,26 @@
 			path = StudyAppDeviceActivityMonitor;
 			sourceTree = "<group>";
 		};
+		D70000000000000000000001 /* StudyAppShieldConfiguration */ = {
+			isa = PBXGroup;
+			children = (
+				B60000000000000000000002 /* ShieldConfigurationExtension.swift */,
+				B60000000000000000000003 /* Info.plist */,
+				B60000000000000000000004 /* StudyAppShieldConfiguration.entitlements */,
+			);
+			path = StudyAppShieldConfiguration;
+			sourceTree = "<group>";
+		};
+		D80000000000000000000001 /* StudyAppShieldAction */ = {
+			isa = PBXGroup;
+			children = (
+				B70000000000000000000002 /* ShieldActionExtension.swift */,
+				B70000000000000000000003 /* Info.plist */,
+				B70000000000000000000004 /* StudyAppShieldAction.entitlements */,
+			);
+			path = StudyAppShieldAction;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -924,6 +1003,8 @@
 			dependencies = (
 				H20000000000000000000002 /* PBXTargetDependency */,
 				H50000000000000000000002 /* PBXTargetDependency */,
+				H60000000000000000000002 /* PBXTargetDependency */,
+				H70000000000000000000002 /* PBXTargetDependency */,
 			);
 			name = StudyApp;
 			packageProductDependencies = (
@@ -996,6 +1077,46 @@
 			productReference = B50000000000000000000001 /* StudyAppDeviceActivityMonitor.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		E60000000000000000000001 /* StudyAppShieldConfiguration */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = G60000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppShieldConfiguration" */;
+			buildPhases = (
+				C70000000000000000000003 /* Sources */,
+				C70000000000000000000001 /* Frameworks */,
+				C70000000000000000000004 /* Resources */,
+				C60000000000000000000004 /* Set Build Version */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = StudyAppShieldConfiguration;
+			packageProductDependencies = (
+			);
+			productName = StudyAppShieldConfiguration;
+			productReference = B60000000000000000000001 /* StudyAppShieldConfiguration.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		E70000000000000000000001 /* StudyAppShieldAction */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = G70000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppShieldAction" */;
+			buildPhases = (
+				C80000000000000000000003 /* Sources */,
+				C80000000000000000000001 /* Frameworks */,
+				C80000000000000000000004 /* Resources */,
+				C60000000000000000000005 /* Set Build Version */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = StudyAppShieldAction;
+			packageProductDependencies = (
+			);
+			productName = StudyAppShieldAction;
+			productReference = B70000000000000000000001 /* StudyAppShieldAction.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -1019,6 +1140,12 @@
 					E50000000000000000000001 = {
 						CreatedOnToolsVersion = 16.0;
 					};
+					E60000000000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					E70000000000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
 				};
 			};
 			buildConfigurationList = G10000000000000000000001 /* Build configuration list for PBXProject "StudyApp" */;
@@ -1040,6 +1167,8 @@
 				E10000000000000000000001 /* StudyApp */,
 				E20000000000000000000001 /* StudyAppWidgets */,
 				E50000000000000000000001 /* StudyAppDeviceActivityMonitor */,
+				E60000000000000000000001 /* StudyAppShieldConfiguration */,
+				E70000000000000000000001 /* StudyAppShieldAction */,
 				E30000000000000000000001 /* StudyAppTests */,
 			);
 		};
@@ -1075,6 +1204,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C50000000000000000000004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C70000000000000000000004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C80000000000000000000004 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -1127,6 +1270,48 @@
 			shellScript = "\"${SRCROOT}/scripts/set_build_version.sh\"\n";
 		};
 		C60000000000000000000003 /* Set Build Version */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/$(BUILD_VERSION_INFO_PLIST_TEMPLATE)",
+			);
+			name = "Set Build Version";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/VersionedInfo.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/set_build_version.sh\"\n";
+		};
+		C60000000000000000000004 /* Set Build Version */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/$(BUILD_VERSION_INFO_PLIST_TEMPLATE)",
+			);
+			name = "Set Build Version";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/VersionedInfo.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/set_build_version.sh\"\n";
+		};
+		C60000000000000000000005 /* Set Build Version */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -1212,6 +1397,8 @@
 				A30000000000000000000081 /* TimerAmbientModels.swift in Sources */,
 				A50000000000000000000002 /* ScreenTimeFocusModels.swift in Sources */,
 				A50000000000000000000004 /* ScreenTimeFocusController.swift in Sources */,
+				A50000000000000000000006 /* ScreenTimeTicketLedger.swift in Sources */,
+				A50000000000000000000007 /* ScreenTimeAccessEngine.swift in Sources */,
 				A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */,
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,
 				A10000000000000000000018 /* FirebaseBootstrap.swift in Sources */,
@@ -1342,7 +1529,30 @@
 			buildActionMask = 2147483647;
 			files = (
 				A50000000000000000000003 /* ScreenTimeFocusModels.swift in Sources */,
+				A50000000000000000000008 /* ScreenTimeTicketLedger.swift in Sources */,
+				A50000000000000000000009 /* ScreenTimeAccessEngine.swift in Sources */,
 				A50000000000000000000005 /* DeviceActivityMonitorExtension.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C70000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A60000000000000000000002 /* ScreenTimeFocusModels.swift in Sources */,
+				A60000000000000000000003 /* ScreenTimeTicketLedger.swift in Sources */,
+				A60000000000000000000004 /* ShieldConfigurationExtension.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C80000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A70000000000000000000002 /* ScreenTimeFocusModels.swift in Sources */,
+				A70000000000000000000003 /* ScreenTimeTicketLedger.swift in Sources */,
+				A70000000000000000000004 /* ScreenTimeAccessEngine.swift in Sources */,
+				A70000000000000000000005 /* ShieldActionExtension.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1363,6 +1573,16 @@
 			isa = PBXTargetDependency;
 			target = E50000000000000000000001 /* StudyAppDeviceActivityMonitor */;
 			targetProxy = H50000000000000000000001 /* PBXContainerItemProxy */;
+		};
+		H60000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E60000000000000000000001 /* StudyAppShieldConfiguration */;
+			targetProxy = H60000000000000000000001 /* PBXContainerItemProxy */;
+		};
+		H70000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E70000000000000000000001 /* StudyAppShieldAction */;
+			targetProxy = H70000000000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1622,6 +1842,124 @@
 			};
 			name = Release;
 		};
+		F60000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				BUILD_VERSION_INFO_PLIST_TEMPLATE = StudyAppShieldConfiguration/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = StudyAppShieldConfiguration/StudyAppShieldConfiguration.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 77V64TWCFD;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "$(DERIVED_FILE_DIR)/VersionedInfo.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2026.06.12;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.shieldconfiguration;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F60000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				BUILD_VERSION_INFO_PLIST_TEMPLATE = StudyAppShieldConfiguration/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = StudyAppShieldConfiguration/StudyAppShieldConfiguration.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 77V64TWCFD;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "$(DERIVED_FILE_DIR)/VersionedInfo.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2026.06.12;
+				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.shieldconfiguration;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F70000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				BUILD_VERSION_INFO_PLIST_TEMPLATE = StudyAppShieldAction/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = StudyAppShieldAction/StudyAppShieldAction.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 77V64TWCFD;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "$(DERIVED_FILE_DIR)/VersionedInfo.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2026.06.12;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.shieldaction;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F70000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				BUILD_VERSION_INFO_PLIST_TEMPLATE = StudyAppShieldAction/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = StudyAppShieldAction/StudyAppShieldAction.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 77V64TWCFD;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "$(DERIVED_FILE_DIR)/VersionedInfo.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2026.06.12;
+				PRODUCT_BUNDLE_IDENTIFIER = com.studyapp.ios.shieldaction;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1666,6 +2004,24 @@
 			buildConfigurations = (
 				F50000000000000000000001 /* Debug */,
 				F50000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		G60000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppShieldConfiguration" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F60000000000000000000001 /* Debug */,
+				F60000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		G70000000000000000000001 /* Build configuration list for PBXNativeTarget "StudyAppShieldAction" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F70000000000000000000001 /* Debug */,
+				F70000000000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -1,28 +1,33 @@
 import DeviceActivity
-import ManagedSettings
+import OSLog
 
 final class StudyAppDeviceActivityMonitorExtension: DeviceActivityMonitor {
-    private let scheduleStore = ManagedSettingsStore(named: ScreenTimeFocusShared.scheduleStoreName)
+    private let accessEngine = ScreenTimeAccessEngine()
+    private let logger = Logger(
+        subsystem: "com.studyapp.ios",
+        category: "DeviceActivityMonitor"
+    )
 
     override func intervalDidStart(for activity: DeviceActivityName) {
         super.intervalDidStart(for: activity)
-        refreshScheduleRestrictions()
+        refreshRestrictions(event: "start", activity: activity)
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
         super.intervalDidEnd(for: activity)
-        refreshScheduleRestrictions()
+        refreshRestrictions(event: "end", activity: activity)
     }
 
-    /// Schedules repeat daily, so an interval also fires on weekdays a slot is not meant to
-    /// apply to. Re-evaluate the currently active slots (which are weekday-aware) and only
-    /// shield when at least one slot applies right now.
-    private func refreshScheduleRestrictions() {
-        let settings = ScreenTimeFocusShared.loadSettings()
-        if settings.hasActiveScheduleSlot() {
-            _ = ScreenTimeFocusShared.applyRestrictions(using: scheduleStore, settings: settings)
-        } else {
-            ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
+    private func refreshRestrictions(event: String, activity: DeviceActivityName) {
+        do {
+            _ = try accessEngine.applyCurrentPolicy()
+            logger.notice(
+                "Refreshed Screen Time policy for \(activity.rawValue, privacy: .public) \(event, privacy: .public)"
+            )
+        } catch {
+            logger.error(
+                "Failed to refresh Screen Time policy: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 }

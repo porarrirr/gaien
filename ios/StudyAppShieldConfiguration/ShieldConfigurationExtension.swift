@@ -1,0 +1,133 @@
+import ManagedSettings
+import ManagedSettingsUI
+import UIKit
+
+final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource {
+    override func configuration(shielding application: Application) -> ShieldConfiguration {
+        makeConfiguration()
+    }
+
+    override func configuration(
+        shielding application: Application,
+        in category: ActivityCategory
+    ) -> ShieldConfiguration {
+        makeConfiguration()
+    }
+
+    override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
+        makeConfiguration()
+    }
+
+    override func configuration(
+        shielding webDomain: WebDomain,
+        in category: ActivityCategory
+    ) -> ShieldConfiguration {
+        makeConfiguration()
+    }
+
+    private func makeConfiguration(referenceDate: Date = Date()) -> ShieldConfiguration {
+        let settings = ScreenTimeFocusShared.loadSettings()
+        let ledger: ScreenTimeTicketLedger? = (try? ScreenTimeTicketLedgerStore().load(
+            settings: settings,
+            referenceDate: referenceDate,
+            createIfMissing: false
+        )) ?? nil
+        let decision = ScreenTimePolicyEvaluator.evaluate(
+            settings: settings,
+            ledger: ledger,
+            dailyGoalProgress: ScreenTimeFocusShared.loadDailyGoalProgress(),
+            runtimeState: ScreenTimeFocusShared.loadRuntimeState(),
+            referenceDate: referenceDate
+        )
+        let remaining = ledger?.isForDay(containing: referenceDate) == true
+            ? ledger?.remainingTicketCount ?? 0
+            : 0
+        let canStartTicket = decision.canStartTicket && remaining > 0
+
+        return ShieldConfiguration(
+            backgroundBlurStyle: .systemUltraThinMaterialDark,
+            backgroundColor: UIColor.systemBackground.withAlphaComponent(0.82),
+            icon: UIImage(systemName: canStartTicket ? "ticket.fill" : "lock.shield.fill"),
+            title: ShieldConfiguration.Label(
+                text: title(for: decision.reason),
+                color: UIColor.label
+            ),
+            subtitle: ShieldConfiguration.Label(
+                text: subtitle(
+                    settings: settings,
+                    decision: decision,
+                    remainingTickets: remaining,
+                    referenceDate: referenceDate
+                ),
+                color: UIColor.secondaryLabel
+            ),
+            primaryButtonLabel: ShieldConfiguration.Label(
+                text: canStartTicket ? "10分チケットを使う" : "閉じる",
+                color: UIColor.white
+            ),
+            primaryButtonBackgroundColor: canStartTicket ? UIColor.systemGreen : UIColor.systemGray,
+            secondaryButtonLabel: canStartTicket
+                ? ShieldConfiguration.Label(text: "閉じる", color: UIColor.secondaryLabel)
+                : nil
+        )
+    }
+
+    private func title(for reason: ScreenTimePolicyReason) -> String {
+        switch reason {
+        case .studyTimer:
+            return "学習タイマー中です"
+        case .blockedSchedule:
+            return "使用禁止時間帯です"
+        case .ticketRequired:
+            return "チケットが必要です"
+        case .outsideScheduleBlocked:
+            return "利用時間外です"
+        case .activeTicket:
+            return "チケットを確認しています"
+        case .dailyGoalReached, .allowedSchedule, .masterDisabled, .unrestricted:
+            return "まもなく利用できます"
+        }
+    }
+
+    private func subtitle(
+        settings: ScreenTimeFocusSettings,
+        decision: ScreenTimePolicyDecision,
+        remainingTickets: Int,
+        referenceDate: Date
+    ) -> String {
+        switch decision.reason {
+        case .ticketRequired where remainingTickets > 0:
+            return "今日の残りは\(remainingTickets)枚です。1枚で10分間利用できます。\(nextFreeOpeningText(settings: settings, after: referenceDate))"
+        case .ticketRequired:
+            return "今日使えるチケットは残っていません。\(nextFreeOpeningText(settings: settings, after: referenceDate))"
+        case .studyTimer:
+            return "学習タイマーが終了するまでチケットは使えません。"
+        case .blockedSchedule:
+            if let nextStart = settings.nextAllowedScheduleStart(after: referenceDate) {
+                return "次の無料開放は\(Self.dateFormatter.string(from: nextStart))です。"
+            }
+            return "この時間帯はチケットでも解除できません。"
+        case .outsideScheduleBlocked:
+            return nextFreeOpeningText(settings: settings, after: referenceDate)
+        default:
+            return "制限状態を更新しています。"
+        }
+    }
+
+    private func nextFreeOpeningText(
+        settings: ScreenTimeFocusSettings,
+        after referenceDate: Date
+    ) -> String {
+        guard let nextStart = settings.nextAllowedScheduleStart(after: referenceDate) else {
+            return "次の無料開放時間は設定されていません。"
+        }
+        return "次の無料開放は\(Self.dateFormatter.string(from: nextStart))です。"
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M/d H:mm"
+        return formatter
+    }()
+}

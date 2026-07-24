@@ -1,60 +1,19 @@
-import DeviceActivity
 import FamilyControls
 import Foundation
-import ManagedSettings
-
-enum ScreenTimeFocusError: LocalizedError {
-    case unavailable
-    case authorizationRequired
-    case missingAllowedApplications
-    case settingsSaveFailed
-    case goalProgressSaveFailed
-    case settingsLocked(until: Date)
-    case settingsAlreadyLocked(until: Date)
-    case invalidLockDuration
-
-    var errorDescription: String? {
-        switch self {
-        case .unavailable:
-            return "Screen Time APIはこの環境では利用できません"
-        case .authorizationRequired:
-            return "Screen Timeの許可が必要です"
-        case .missingAllowedApplications:
-            return "許可するアプリを選択してください"
-        case .settingsSaveFailed:
-            return "集中制限の設定を保存できませんでした"
-        case .goalProgressSaveFailed:
-            return "目標達成状態を保存できませんでした"
-        case .settingsLocked(let until):
-            return "設定は\(Self.lockDateFormatter.string(from: until))まで変更できません"
-        case .settingsAlreadyLocked(let until):
-            return "設定はすでに\(Self.lockDateFormatter.string(from: until))までロックされています"
-        case .invalidLockDuration:
-            return "ロック期間は1日以上を指定してください"
-        }
-    }
-
-    private static let lockDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateStyle = .long
-        formatter.timeStyle = .none
-        return formatter
-    }()
-}
 
 @MainActor
 final class ScreenTimeFocusController: ObservableObject {
     @Published private(set) var settings: ScreenTimeFocusSettings
     @Published private(set) var authorizationStatus: AuthorizationStatus
+    @Published private(set) var accessSnapshot: ScreenTimeAccessSnapshot?
 
-    private let timerStore = ManagedSettingsStore(named: ScreenTimeFocusShared.timerStoreName)
-    private let scheduleStore = ManagedSettingsStore(named: ScreenTimeFocusShared.scheduleStoreName)
-    private let deviceActivityCenter = DeviceActivityCenter()
+    private let accessEngine: ScreenTimeAccessEngine
 
-    init() {
+    init(accessEngine: ScreenTimeAccessEngine = ScreenTimeAccessEngine()) {
+        self.accessEngine = accessEngine
         self.settings = ScreenTimeFocusShared.loadSettings()
         self.authorizationStatus = AuthorizationCenter.shared.authorizationStatus
+        self.accessSnapshot = try? accessEngine.snapshot()
     }
 
     var isAvailable: Bool {
@@ -108,9 +67,18 @@ final class ScreenTimeFocusController: ObservableObject {
         settings.settingsLockExpiryDate
     }
 
-    func refresh() {
+    var ticketLedger: ScreenTimeTicketLedger? {
+        accessSnapshot?.ledger
+    }
+
+    var policyDecision: ScreenTimePolicyDecision? {
+        accessSnapshot?.decision
+    }
+
+    func refresh(referenceDate: Date = Date()) {
         settings = ScreenTimeFocusShared.loadSettings()
         authorizationStatus = AuthorizationCenter.shared.authorizationStatus
+        accessSnapshot = try? accessEngine.snapshot(referenceDate: referenceDate)
     }
 
     func requestAuthorization() async throws {
@@ -123,12 +91,22 @@ final class ScreenTimeFocusController: ObservableObject {
         if settings.isSettingsLocked, let expiryDate = settings.settingsLockExpiryDate {
             throw ScreenTimeFocusError.settingsLocked(until: expiryDate)
         }
+
+        let previous = settings
         var next = settings
         update(&next)
         next.normalizeActivitySelection()
-        try next.validateScheduleMonitoringConfiguration()
+        try next.validateMonitoringConfiguration()
         try save(next)
-        try syncRestrictionsAfterSettingsChange(next)
+
+        do {
+            try synchronize(settings: next)
+        } catch {
+            _ = ScreenTimeFocusShared.saveSettings(previous)
+            settings = previous
+            try? synchronize(settings: previous)
+            throw error
+        }
     }
 
     func activateSettingsLock(months: Int, days: Int, referenceDate: Date = Date()) throws {
@@ -142,41 +120,19 @@ final class ScreenTimeFocusController: ObservableObject {
         ) else {
             throw ScreenTimeFocusError.invalidLockDuration
         }
-        // Locking does not change the restriction configuration. Verify that the
-        // current configuration can be applied before making the lock irreversible.
-        try settings.validateScheduleMonitoringConfiguration()
-        try syncRestrictionsAfterSettingsChange(settings)
+        try settings.validateMonitoringConfiguration()
+        try synchronize(settings: settings)
         var next = settings
         next.settingsLockedUntilEpochMilliseconds = expiryDate.epochMilliseconds
         try save(next)
-    }
-
-    private func syncRestrictionsAfterSettingsChange(_ next: ScreenTimeFocusSettings) throws {
-        if next.isEnabled, next.scheduledRestrictionEnabled {
-            do {
-                stopStudyAppScheduleMonitoring()
-                try syncScheduleMonitoring(settings: next)
-                try applyScheduleRestrictionIfNeeded()
-            } catch {
-                stopStudyAppScheduleMonitoring()
-                ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
-                throw error
-            }
-        } else {
-            stopStudyAppScheduleMonitoring()
-            ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
-        }
-
-        if !next.isEnabled || !next.timerRestrictionEnabled {
-            clearTimerRestriction()
-        }
+        refresh(referenceDate: referenceDate)
     }
 
     func addScheduleSlot() throws {
         try updateSettings { settings in
             let nextIndex = settings.scheduleSlots.count + 1
             settings.scheduleSlots.append(
-                FocusScheduleSlot(title: "集中時間 \(nextIndex)")
+                FocusScheduleSlot(title: "時間帯 \(nextIndex)")
             )
         }
     }
@@ -187,61 +143,67 @@ final class ScreenTimeFocusController: ObservableObject {
         }
     }
 
-    func applyTimerRestrictionIfNeeded(isRunning: Bool) throws {
-        guard isRunning else {
-            clearTimerRestriction()
-            return
-        }
-        guard settings.isEnabled, settings.timerRestrictionEnabled else { return }
+    @discardableResult
+    func startTicket(referenceDate: Date = Date()) throws -> ScreenTimeTicketLedger {
         guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
-        let result = ScreenTimeFocusShared.applyRestrictions(using: timerStore, settings: settings)
-        guard result != .missingAllowedSelection else {
-            throw ScreenTimeFocusError.missingAllowedApplications
+        let ledger = try accessEngine.startTicket(referenceDate: referenceDate)
+        refresh(referenceDate: referenceDate)
+        return ledger
+    }
+
+    func applyTimerRestrictionIfNeeded(isRunning: Bool, referenceDate: Date = Date()) throws {
+        let runtime = ScreenTimeRuntimeState(
+            timerIsRunning: isRunning,
+            updatedAt: referenceDate.epochMilliseconds
+        )
+        _ = ScreenTimeFocusShared.saveRuntimeState(runtime)
+        if settings.isEnabled, isRunning || settings.ticketRestrictionEnabled || settings.scheduledRestrictionEnabled {
+            guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
         }
+        _ = try accessEngine.applyCurrentPolicy(referenceDate: referenceDate)
+        refresh(referenceDate: referenceDate)
     }
 
     func clearTimerRestriction() {
-        ScreenTimeFocusShared.clearRestrictions(using: timerStore)
+        let runtime = ScreenTimeRuntimeState(timerIsRunning: false)
+        _ = ScreenTimeFocusShared.saveRuntimeState(runtime)
+        _ = try? accessEngine.applyCurrentPolicy()
+        refresh()
     }
 
     func restoreTimerRestriction(activeTimerIsRunning: Bool) {
-        do {
-            try applyTimerRestrictionIfNeeded(isRunning: activeTimerIsRunning)
-        } catch {
-            clearTimerRestriction()
-        }
+        try? applyTimerRestrictionIfNeeded(isRunning: activeTimerIsRunning)
     }
 
-    func syncScheduleMonitoringIfNeeded() throws {
-        guard settings.isEnabled, settings.scheduledRestrictionEnabled else {
-            stopStudyAppScheduleMonitoring()
-            ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
-            return
+    func syncScheduleMonitoringIfNeeded(referenceDate: Date = Date()) throws {
+        guard !settings.isEnabled || isAuthorized else {
+            throw ScreenTimeFocusError.authorizationRequired
         }
-        try settings.validateScheduleMonitoringConfiguration()
-        stopStudyAppScheduleMonitoring()
-        try syncScheduleMonitoring(settings: settings)
-        try applyScheduleRestrictionIfNeeded()
+        try accessEngine.syncMonitoring(settings: settings, referenceDate: referenceDate)
+        _ = try accessEngine.applyCurrentPolicy(referenceDate: referenceDate)
+        refresh(referenceDate: referenceDate)
     }
 
     func applyScheduleRestrictionIfNeeded(referenceDate: Date = Date()) throws {
-        guard settings.isEnabled, settings.scheduledRestrictionEnabled else {
-            ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
-            return
+        guard !settings.isEnabled || isAuthorized else {
+            throw ScreenTimeFocusError.authorizationRequired
         }
-        guard settings.hasActiveScheduleSlot(at: referenceDate) else {
-            ScreenTimeFocusShared.clearRestrictions(using: scheduleStore)
-            return
+        _ = try accessEngine.applyCurrentPolicy(referenceDate: referenceDate)
+        refresh(referenceDate: referenceDate)
+    }
+
+    func clearAllRestrictionsAndMonitoring() {
+        accessEngine.stopAllMonitoringAndClearRestrictions()
+        refresh()
+    }
+
+    private func synchronize(settings: ScreenTimeFocusSettings) throws {
+        if settings.isEnabled {
+            guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
         }
-        guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
-        let result = ScreenTimeFocusShared.applyRestrictions(
-            using: scheduleStore,
-            settings: settings,
-            referenceDate: referenceDate
-        )
-        guard result != .missingAllowedSelection else {
-            throw ScreenTimeFocusError.missingAllowedApplications
-        }
+        try accessEngine.syncMonitoring(settings: settings)
+        _ = try accessEngine.applyCurrentPolicy()
+        refresh()
     }
 
     private func save(_ next: ScreenTimeFocusSettings) throws {
@@ -249,28 +211,5 @@ final class ScreenTimeFocusController: ObservableObject {
             throw ScreenTimeFocusError.settingsSaveFailed
         }
         settings = next
-    }
-
-    private func syncScheduleMonitoring(settings: ScreenTimeFocusSettings) throws {
-        guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
-        guard settings.canApplyRestrictions else { throw ScreenTimeFocusError.missingAllowedApplications }
-        try settings.validateScheduleMonitoringConfiguration()
-
-        for slot in settings.enabledScheduleSlots {
-            let schedule = DeviceActivitySchedule(
-                intervalStart: slot.startDateComponents,
-                intervalEnd: slot.endDateComponents,
-                repeats: true
-            )
-            try deviceActivityCenter.startMonitoring(slot.activityName, during: schedule)
-        }
-    }
-
-    private func stopStudyAppScheduleMonitoring() {
-        let names = deviceActivityCenter.activities.filter {
-            $0.rawValue.hasPrefix(ScreenTimeFocusShared.scheduleActivityNamePrefix)
-        }
-        guard !names.isEmpty else { return }
-        deviceActivityCenter.stopMonitoring(names)
     }
 }

@@ -54,7 +54,7 @@ struct ReportsScreen: View {
     }
 
     private var streakSection: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             reportMetricCard(
                 icon: "calendar",
                 title: "連続日数",
@@ -211,10 +211,14 @@ struct ReportsScreen: View {
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundStyle(AppColors.success)
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     Text(suffix)
                         .font(.title3.weight(.bold))
                         .foregroundStyle(AppColors.success)
                 }
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)

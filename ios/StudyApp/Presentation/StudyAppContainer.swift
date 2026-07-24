@@ -341,11 +341,10 @@ final class StudyAppContainer: ObservableObject {
             try screenTimeFocusController.applyTimerRestrictionIfNeeded(isRunning: preferences.activeTimer?.isRunning == true)
             logger.log(category: .app, message: "Screen Time focus restored", details: reason)
         } catch ScreenTimeFocusError.authorizationRequired {
-            screenTimeFocusController.clearTimerRestriction()
+            screenTimeFocusController.clearAllRestrictionsAndMonitoring()
         } catch ScreenTimeFocusError.missingAllowedApplications {
-            screenTimeFocusController.clearTimerRestriction()
+            screenTimeFocusController.clearAllRestrictionsAndMonitoring()
         } catch {
-            screenTimeFocusController.clearTimerRestriction()
             present(error)
         }
     }
@@ -355,7 +354,6 @@ final class StudyAppContainer: ObservableObject {
             try screenTimeFocusController.applyTimerRestrictionIfNeeded(isRunning: timer?.isRunning == true)
             logger.log(category: .app, message: "Screen Time focus timer synced", details: reason)
         } catch {
-            screenTimeFocusController.clearTimerRestriction()
             present(error)
         }
     }
