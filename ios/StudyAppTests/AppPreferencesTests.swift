@@ -729,6 +729,48 @@ final class ScreenTimeTicketPolicyTests: XCTestCase {
         }
     }
 
+    func testInitialAllowanceChangeAppliesImmediatelyBeforeFirstTicketUse() throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+        let fileURL = temporaryDirectory.appendingPathComponent("ledger.json")
+        let store = ScreenTimeTicketLedgerStore(fileURLProvider: { fileURL })
+        let now = date()
+        let initialSettings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            ticketRestrictionEnabled: true,
+            dailyTicketMinutes: 0
+        )
+        let configuredSettings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            ticketRestrictionEnabled: true,
+            dailyTicketMinutes: 30
+        )
+
+        let initial = try XCTUnwrap(store.load(
+            settings: initialSettings,
+            referenceDate: now,
+            calendar: calendar,
+            createIfMissing: true
+        ))
+        XCTAssertEqual(initial.issuedTicketCount, 0)
+
+        let configured = try XCTUnwrap(store.load(
+            settings: configuredSettings,
+            referenceDate: now.addingTimeInterval(60),
+            calendar: calendar,
+            createIfMissing: true
+        ))
+        XCTAssertEqual(configured.issuedTicketCount, 3)
+        XCTAssertEqual(configured.remainingTicketCount, 3)
+    }
+
     func testDisableAndReenableDoesNotRestoreUsedTickets() throws {
         let now = date()
         var ledger = self.ledger(at: now, issued: 2)

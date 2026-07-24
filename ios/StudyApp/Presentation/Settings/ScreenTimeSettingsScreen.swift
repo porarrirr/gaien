@@ -295,10 +295,10 @@ struct ScreenTimeSettingsScreen: View {
             HStack(spacing: 12) {
                 SettingsIcon(systemName: "clock.badge.checkmark")
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("次回の1日利用時間")
+                    Text("1日の利用時間")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AppColors.textPrimary)
-                    Text("次の0時から適用")
+                    Text(ticketSettingsApplyTimingText)
                         .font(.caption)
                         .foregroundStyle(AppColors.textSecondary)
                 }
@@ -327,12 +327,12 @@ struct ScreenTimeSettingsScreen: View {
 
             compactInfoRow(
                 icon: "ticket",
-                title: "次回の発行枚数",
+                title: "発行枚数",
                 value: "\(focusController.settings.dailyTicketMinutes / ScreenTimeFocusSettings.ticketDurationMinutes)枚",
                 color: AppColors.textSecondary
             )
         } footer: {
-            Text("当日の発行枚数は途中で変更されません。設定変更は次の0時から反映されます。")
+            Text(ticketSettingsFooterText)
         }
     }
 
@@ -498,6 +498,24 @@ struct ScreenTimeSettingsScreen: View {
             return 0
         }
         return ledger.remainingTicketCount
+    }
+
+    private var canUpdateTodayTicketCount: Bool {
+        guard let ledger = focusController.ticketLedger else {
+            return true
+        }
+        return ledger.canUpdateIssuedTicketCount(at: Date())
+    }
+
+    private var ticketSettingsApplyTimingText: String {
+        canUpdateTodayTicketCount ? "今日からすぐ反映" : "次の0時から反映"
+    }
+
+    private var ticketSettingsFooterText: String {
+        if canUpdateTodayTicketCount {
+            return "今日まだチケットを使っていないため、設定した枚数をすぐ利用できます。"
+        }
+        return "今日はすでにチケットを使用しているため、変更は次の0時から反映されます。"
     }
 
     private func ticketCountText(at date: Date) -> String {

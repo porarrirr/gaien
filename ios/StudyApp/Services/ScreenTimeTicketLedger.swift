@@ -55,6 +55,10 @@ struct ScreenTimeTicketLedger: Codable, Equatable {
         return ScreenTimeDateMath.epochMilliseconds(for: date) < activeTicketEndsAt
     }
 
+    func canUpdateIssuedTicketCount(at date: Date, calendar: Calendar = .current) -> Bool {
+        isForDay(containing: date, calendar: calendar) && usedTicketCount == 0
+    }
+
     mutating func reserveTicket(start: Date, expiry: Date, calendar: Calendar = .current) throws {
         guard isForDay(containing: start, calendar: calendar) else {
             throw ScreenTimeTicketLedgerMutationError.notCurrentDay
@@ -83,6 +87,10 @@ struct ScreenTimeTicketLedger: Codable, Equatable {
         }
         if issuedLocalDayOrdinal == nil {
             issuedLocalDayOrdinal = effectiveIssuedLocalDayOrdinal(calendar: calendar)
+        }
+        if canUpdateIssuedTicketCount(at: referenceDate, calendar: calendar) {
+            issuedTicketCount =
+                settings.dailyTicketMinutes / ScreenTimeFocusSettings.ticketDurationMinutes
         }
         if !isForDay(containing: referenceDate, calendar: calendar)
             || !hasActiveTicket(at: referenceDate, calendar: calendar) {
