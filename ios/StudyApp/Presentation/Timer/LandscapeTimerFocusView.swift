@@ -110,13 +110,6 @@ struct LandscapeTimerFocusView: View {
             progressLine
                 .frame(maxWidth: .infinity)
 
-            Text(progressText)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.78))
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 14)
-
             Spacer(minLength: 16)
 
             HStack(alignment: .center, spacing: 38) {
@@ -199,14 +192,6 @@ struct LandscapeTimerFocusView: View {
             return subject.name
         }
         return "科目未選択"
-    }
-
-    private var progressText: String {
-        guard materialProblemCount > 0 else {
-            return "\(viewModel.timerProblemRecords.count) ページ"
-        }
-        let completed = Int((Double(materialProblemCount) * min(max(progress, 0), 1)).rounded())
-        return "\(completed) / \(materialProblemCount) ページ"
     }
 
     private var progressLegend: some View {

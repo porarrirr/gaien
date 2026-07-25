@@ -29,9 +29,6 @@ struct ScreenTimeSettingsScreen: View {
                 restrictionMethodsSection
                 allowedAppsSection
                 goalUnlockSection
-                if focusController.settings.scheduledRestrictionEnabled {
-                    scheduleGroup
-                }
                 safetyLockSection
             }
             .padding(.horizontal, 16)
@@ -352,6 +349,11 @@ struct ScreenTimeSettingsScreen: View {
 
             if !focusController.settings.isEnabled {
                 disabledSectionHint
+            }
+
+            if focusController.settings.scheduledRestrictionEnabled {
+                scheduleGroup
+                    .padding(.top, 4)
             }
         }
     }
