@@ -338,7 +338,10 @@ final class StudyAppContainer: ObservableObject {
         screenTimeFocusController.refresh()
         do {
             try screenTimeFocusController.syncScheduleMonitoringIfNeeded()
-            try screenTimeFocusController.applyTimerRestrictionIfNeeded(isRunning: preferences.activeTimer?.isRunning == true)
+            try screenTimeFocusController.applyTimerRestrictionIfNeeded(
+                isRunning: preferences.activeTimer?.isRunning == true,
+                restrictionEndDate: preferences.activeTimer?.countdownEndDate
+            )
             logger.log(category: .app, message: "Screen Time focus restored", details: reason)
         } catch ScreenTimeFocusError.authorizationRequired {
             screenTimeFocusController.clearAllRestrictionsAndMonitoring()
@@ -351,7 +354,10 @@ final class StudyAppContainer: ObservableObject {
 
     private func syncScreenTimeFocusForTimer(_ timer: TimerSnapshot?, reason: String) {
         do {
-            try screenTimeFocusController.applyTimerRestrictionIfNeeded(isRunning: timer?.isRunning == true)
+            try screenTimeFocusController.applyTimerRestrictionIfNeeded(
+                isRunning: timer?.isRunning == true,
+                restrictionEndDate: timer?.countdownEndDate
+            )
             logger.log(category: .app, message: "Screen Time focus timer synced", details: reason)
         } catch {
             present(error)

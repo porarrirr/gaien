@@ -171,6 +171,7 @@ struct ScreenTimeAccessEngine {
         guard settings.isEnabled else {
             stopDailyBoundaryMonitoring()
             stopTicketExpiryMonitoring()
+            stopTimerExpiryMonitoring()
             ScreenTimeFocusShared.clearRestrictions(using: policyStore)
             return
         }
@@ -186,8 +187,14 @@ struct ScreenTimeAccessEngine {
             }
         }
 
-        if settings.ticketRestrictionEnabled {
+        if settings.requiresDailyBoundaryMonitoring {
             try registerDailyBoundaryMonitoring()
+        } else {
+            stopDailyBoundaryMonitoring()
+        }
+
+        if settings.ticketRestrictionEnabled,
+           !settings.unlockRestrictionsWhenDailyGoalReached {
             if let ledger = try currentLedger(
                 settings: settings,
                 referenceDate: referenceDate,
@@ -200,14 +207,39 @@ struct ScreenTimeAccessEngine {
                 stopTicketExpiryMonitoring()
             }
         } else {
-            stopDailyBoundaryMonitoring()
             stopTicketExpiryMonitoring()
-            try cancelActiveTicketIfPresent(
-                settings: settings,
-                referenceDate: referenceDate,
-                calendar: calendar
-            )
+            if !settings.ticketRestrictionEnabled {
+                try cancelActiveTicketIfPresent(
+                    settings: settings,
+                    referenceDate: referenceDate,
+                    calendar: calendar
+                )
+            }
         }
+
+        try syncTimerExpiryMonitoring(
+            settings: settings,
+            runtimeState: ScreenTimeFocusShared.loadRuntimeState(),
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+
+    func syncTimerExpiryMonitoring(
+        settings: ScreenTimeFocusSettings,
+        runtimeState: ScreenTimeRuntimeState,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) throws {
+        stopTimerExpiryMonitoring()
+        guard settings.isEnabled,
+              !settings.unlockRestrictionsWhenDailyGoalReached,
+              settings.timerRestrictionEnabled,
+              runtimeState.isTimerRestrictionActive(at: referenceDate),
+              let expiry = runtimeState.timerRestrictionEndDate else {
+            return
+        }
+        try registerTimerExpiryMonitoring(expiry: expiry, calendar: calendar)
     }
 
     @discardableResult
@@ -308,12 +340,23 @@ struct ScreenTimeAccessEngine {
             $0.rawValue.hasPrefix(ScreenTimeFocusShared.scheduleActivityNamePrefix)
                 || $0 == ScreenTimeFocusShared.dailyBoundaryActivityName
                 || $0 == ScreenTimeFocusShared.ticketExpiryActivityName
+                || $0 == ScreenTimeFocusShared.timerExpiryActivityName
         }
         if !activityNames.isEmpty {
             deviceActivityCenter.stopMonitoring(activityNames)
         }
         ScreenTimeFocusShared.clearRestrictions(using: policyStore)
         clearLegacyStores()
+    }
+
+    func completeOneShotMonitoring(_ activity: DeviceActivityName) {
+        guard activity == ScreenTimeFocusShared.ticketExpiryActivityName
+                || activity == ScreenTimeFocusShared.timerExpiryActivityName else {
+            return
+        }
+        if deviceActivityCenter.activities.contains(activity) {
+            deviceActivityCenter.stopMonitoring([activity])
+        }
     }
 
     private func currentLedger(
@@ -383,6 +426,22 @@ struct ScreenTimeAccessEngine {
         )
     }
 
+    private func registerTimerExpiryMonitoring(expiry: Date, calendar: Calendar) throws {
+        let start = expiry.addingTimeInterval(-15 * 60)
+        let components: Set<Calendar.Component> = [
+            .era, .year, .month, .day, .hour, .minute, .second
+        ]
+        let schedule = DeviceActivitySchedule(
+            intervalStart: calendar.dateComponents(components, from: start),
+            intervalEnd: calendar.dateComponents(components, from: expiry),
+            repeats: false
+        )
+        try deviceActivityCenter.startMonitoring(
+            ScreenTimeFocusShared.timerExpiryActivityName,
+            during: schedule
+        )
+    }
+
     private func stopScheduleMonitoring() {
         let names = deviceActivityCenter.activities.filter {
             $0.rawValue.hasPrefix(ScreenTimeFocusShared.scheduleActivityNamePrefix)
@@ -401,6 +460,12 @@ struct ScreenTimeAccessEngine {
     private func stopTicketExpiryMonitoring() {
         if deviceActivityCenter.activities.contains(ScreenTimeFocusShared.ticketExpiryActivityName) {
             deviceActivityCenter.stopMonitoring([ScreenTimeFocusShared.ticketExpiryActivityName])
+        }
+    }
+
+    private func stopTimerExpiryMonitoring() {
+        if deviceActivityCenter.activities.contains(ScreenTimeFocusShared.timerExpiryActivityName) {
+            deviceActivityCenter.stopMonitoring([ScreenTimeFocusShared.timerExpiryActivityName])
         }
     }
 

@@ -344,6 +344,45 @@ final class ScreenTimeFocusSettingsTests: XCTestCase {
         XCTAssertTrue(settings.activitySelection.includeEntireCategory)
     }
 
+    func testDailyGoalRuleReservesDailyBoundaryMonitoringActivity() {
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            scheduledRestrictionEnabled: true,
+            unlockRestrictionsWhenDailyGoalReached: true
+        )
+
+        XCTAssertTrue(settings.requiresDailyBoundaryMonitoring)
+        XCTAssertEqual(
+            settings.maximumEnabledSlotsForCurrentConfiguration,
+            ScreenTimeFocusSettings.maximumEnabledScheduleSlots - 1
+        )
+    }
+
+    func testMonitoringCapacityReservesTicketAndTimerExpiryActivities() {
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            timerRestrictionEnabled: true,
+            scheduledRestrictionEnabled: true,
+            ticketRestrictionEnabled: true
+        )
+
+        XCTAssertEqual(settings.maximumEnabledSlotsForCurrentConfiguration, 17)
+    }
+
+    func testLegacyRuntimeStateDecodeDefaultsTimerExpiryToNil() throws {
+        let json = """
+        {
+          "timerIsRunning": true,
+          "updatedAt": 1000
+        }
+        """
+
+        let runtime = try JSONDecoder().decode(ScreenTimeRuntimeState.self, from: Data(json.utf8))
+
+        XCTAssertTrue(runtime.timerIsRunning)
+        XCTAssertNil(runtime.timerRestrictionEndsAt)
+    }
+
     func testStudySessionDecodeDefaultsScreenTimeUnlockExcludedToFalse() throws {
         let json = """
         {
@@ -410,13 +449,17 @@ final class ScreenTimeTicketPolicyTests: XCTestCase {
         ledger: ScreenTimeTicketLedger? = nil,
         goal: ScreenTimeDailyGoalProgress? = nil,
         timerRunning: Bool = false,
+        timerRestrictionEnd: Date? = nil,
         at referenceDate: Date
     ) -> ScreenTimePolicyDecision {
         ScreenTimePolicyEvaluator.evaluate(
             settings: settings,
             ledger: ledger,
             dailyGoalProgress: goal,
-            runtimeState: ScreenTimeRuntimeState(timerIsRunning: timerRunning),
+            runtimeState: ScreenTimeRuntimeState(
+                timerIsRunning: timerRunning,
+                timerRestrictionEndsAt: timerRestrictionEnd.map(ScreenTimeDateMath.epochMilliseconds)
+            ),
             referenceDate: referenceDate,
             calendar: calendar
         )
@@ -554,6 +597,34 @@ final class ScreenTimeTicketPolicyTests: XCTestCase {
         XCTAssertEqual(
             decision(settings: settings, timerRunning: false, at: now).reason,
             .allowedSchedule
+        )
+    }
+
+    func testCountdownTimerRestrictionExpiresWithoutForegroundStateMutation() {
+        let now = date()
+        let expiry = now.addingTimeInterval(10 * 60)
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            timerRestrictionEnabled: true
+        )
+
+        XCTAssertEqual(
+            decision(
+                settings: settings,
+                timerRunning: true,
+                timerRestrictionEnd: expiry,
+                at: expiry.addingTimeInterval(-1)
+            ).reason,
+            .studyTimer
+        )
+        XCTAssertEqual(
+            decision(
+                settings: settings,
+                timerRunning: true,
+                timerRestrictionEnd: expiry,
+                at: expiry
+            ).reason,
+            .unrestricted
         )
     }
 

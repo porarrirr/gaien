@@ -206,14 +206,29 @@ struct ScreenTimeDailyGoalProgress: Codable, Equatable {
 
 struct ScreenTimeRuntimeState: Codable, Equatable {
     var timerIsRunning: Bool
+    /// Epoch milliseconds for an automatically ending countdown timer.
+    /// `nil` means the running timer has no automatic end (for example, a stopwatch).
+    var timerRestrictionEndsAt: Int64?
     var updatedAt: Int64
 
     init(
         timerIsRunning: Bool = false,
+        timerRestrictionEndsAt: Int64? = nil,
         updatedAt: Int64 = ScreenTimeDateMath.epochMilliseconds(for: Date())
     ) {
         self.timerIsRunning = timerIsRunning
+        self.timerRestrictionEndsAt = timerRestrictionEndsAt
         self.updatedAt = updatedAt
+    }
+
+    func isTimerRestrictionActive(at date: Date = Date()) -> Bool {
+        guard timerIsRunning else { return false }
+        guard let timerRestrictionEndsAt else { return true }
+        return ScreenTimeDateMath.epochMilliseconds(for: date) < timerRestrictionEndsAt
+    }
+
+    var timerRestrictionEndDate: Date? {
+        timerRestrictionEndsAt.map(ScreenTimeDateMath.date(fromEpochMilliseconds:))
     }
 }
 
@@ -342,9 +357,27 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     }
 
     var maximumEnabledSlotsForCurrentConfiguration: Int {
-        ticketRestrictionEnabled
-            ? Self.maximumEnabledScheduleSlotsWithTickets
-            : Self.maximumEnabledScheduleSlots
+        Self.maximumEnabledScheduleSlots - reservedMonitoringActivityCount
+    }
+
+    var requiresDailyBoundaryMonitoring: Bool {
+        isEnabled && (ticketRestrictionEnabled || unlockRestrictionsWhenDailyGoalReached)
+    }
+
+    private var reservedMonitoringActivityCount: Int {
+        guard isEnabled else { return 0 }
+        var count = 0
+        if ticketRestrictionEnabled || unlockRestrictionsWhenDailyGoalReached {
+            count += 1
+        }
+        guard !unlockRestrictionsWhenDailyGoalReached else { return count }
+        if ticketRestrictionEnabled {
+            count += 1
+        }
+        if timerRestrictionEnabled {
+            count += 1
+        }
+        return count
     }
 
     func validateMonitoringConfiguration() throws {
@@ -469,7 +502,8 @@ enum ScreenTimePolicyEvaluator {
             }
             return ScreenTimePolicyDecision(isRestricted: true, reason: .dailyGoalPending)
         }
-        if settings.timerRestrictionEnabled, runtimeState.timerIsRunning {
+        if settings.timerRestrictionEnabled,
+           runtimeState.isTimerRestrictionActive(at: referenceDate) {
             return ScreenTimePolicyDecision(isRestricted: true, reason: .studyTimer)
         }
 
@@ -511,6 +545,7 @@ enum ScreenTimeFocusShared {
     static let scheduleActivityNamePrefix = "studyapp.focus.schedule."
     static let dailyBoundaryActivityName = DeviceActivityName("studyapp.focus.daily-boundary")
     static let ticketExpiryActivityName = DeviceActivityName("studyapp.focus.ticket-expiry")
+    static let timerExpiryActivityName = DeviceActivityName("studyapp.focus.timer-expiry")
     static let policyStoreName = ManagedSettingsStore.Name("studyapp.focus.policy")
     static let legacyTimerStoreName = ManagedSettingsStore.Name("studyapp.focus.timer")
     static let legacyScheduleStoreName = ManagedSettingsStore.Name("studyapp.focus.schedule")

@@ -15,6 +15,7 @@ final class StudyAppDeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
         super.intervalDidEnd(for: activity)
+        accessEngine.completeOneShotMonitoring(activity)
         refreshRestrictions(event: "end", activity: activity)
     }
 

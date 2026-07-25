@@ -83,6 +83,12 @@ final class ScreenTimeFocusController: ObservableObject {
 
     func requestAuthorization() async throws {
         guard isAvailable else { throw ScreenTimeFocusError.unavailable }
+        authorizationStatus = AuthorizationCenter.shared.authorizationStatus
+        if !isAuthorized {
+            var resetSettings = ScreenTimeFocusShared.loadSettings()
+            resetSettings.activitySelection = FamilyActivitySelection(includeEntireCategory: true)
+            try save(resetSettings)
+        }
         try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
         refresh()
     }
@@ -151,28 +157,29 @@ final class ScreenTimeFocusController: ObservableObject {
         return ledger
     }
 
-    func applyTimerRestrictionIfNeeded(isRunning: Bool, referenceDate: Date = Date()) throws {
+    func applyTimerRestrictionIfNeeded(
+        isRunning: Bool,
+        restrictionEndDate: Date? = nil,
+        referenceDate: Date = Date()
+    ) throws {
         let runtime = ScreenTimeRuntimeState(
             timerIsRunning: isRunning,
+            timerRestrictionEndsAt: isRunning ? restrictionEndDate?.epochMilliseconds : nil,
             updatedAt: referenceDate.epochMilliseconds
         )
-        _ = ScreenTimeFocusShared.saveRuntimeState(runtime)
+        guard ScreenTimeFocusShared.saveRuntimeState(runtime) else {
+            throw ScreenTimeFocusError.settingsSaveFailed
+        }
         if settings.isEnabled, isRunning || settings.ticketRestrictionEnabled || settings.scheduledRestrictionEnabled {
             guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
         }
+        try accessEngine.syncTimerExpiryMonitoring(
+            settings: settings,
+            runtimeState: runtime,
+            referenceDate: referenceDate
+        )
         _ = try accessEngine.applyCurrentPolicy(referenceDate: referenceDate)
         refresh(referenceDate: referenceDate)
-    }
-
-    func clearTimerRestriction() {
-        let runtime = ScreenTimeRuntimeState(timerIsRunning: false)
-        _ = ScreenTimeFocusShared.saveRuntimeState(runtime)
-        _ = try? accessEngine.applyCurrentPolicy()
-        refresh()
-    }
-
-    func restoreTimerRestriction(activeTimerIsRunning: Bool) {
-        try? applyTimerRestrictionIfNeeded(isRunning: activeTimerIsRunning)
     }
 
     func syncScheduleMonitoringIfNeeded(referenceDate: Date = Date()) throws {

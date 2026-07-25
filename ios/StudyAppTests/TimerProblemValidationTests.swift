@@ -7,6 +7,37 @@ import XCTest
 /// tests. The rules matter because they are the only gate that prevents a
 /// corrupted problem range from getting saved.
 final class TimerProblemValidationTests: XCTestCase {
+    func test_countdownEndDateUsesRemainingDurationAtResume() {
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let timer = TimerSnapshot(
+            subjectId: 1,
+            materialId: nil,
+            startedAt: startedAt.epochMilliseconds,
+            accumulatedMilliseconds: 5 * 60_000,
+            mode: .timer,
+            targetDurationMilliseconds: 25 * 60_000,
+            isRunning: true
+        )
+
+        XCTAssertEqual(
+            timer.countdownEndDate,
+            startedAt.addingTimeInterval(20 * 60)
+        )
+    }
+
+    func test_stopwatchHasNoAutomaticScreenTimeRestrictionEnd() {
+        let timer = TimerSnapshot(
+            subjectId: 1,
+            materialId: nil,
+            startedAt: Date().epochMilliseconds,
+            accumulatedMilliseconds: 0,
+            mode: .stopwatch,
+            isRunning: true
+        )
+
+        XCTAssertNil(timer.countdownEndDate)
+    }
+
     func test_countdownFinalizedIntervalsCapAtConfiguredDuration() {
         let snapshot = TimerSnapshot(
             subjectId: 1,

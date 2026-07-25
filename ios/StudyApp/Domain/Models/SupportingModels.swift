@@ -151,6 +151,17 @@ struct TimerSnapshot: Codable, Equatable {
         return max((targetDurationMilliseconds ?? 0) - elapsedTime(at: now), 0)
     }
 
+    var countdownEndDate: Date? {
+        guard isRunning,
+              mode == .timer,
+              let startedAt,
+              let targetDurationMilliseconds else {
+            return nil
+        }
+        let remainingAtStart = max(targetDurationMilliseconds - accumulatedMilliseconds, 0)
+        return Date(epochMilliseconds: startedAt + remainingAtStart)
+    }
+
     var sessionType: StudySessionType {
         switch mode {
         case .stopwatch: return .stopwatch
