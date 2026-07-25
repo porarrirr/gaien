@@ -54,6 +54,7 @@ enum ScreenTimeTicketStartError: LocalizedError, Equatable {
     case alreadyUnrestricted
     case activeTicket
     case noTicketsRemaining
+    case unavailableUntilDailyGoalReached
     case unavailableDuringStudyTimer
     case unavailableDuringBlockedSchedule
     case midnightCalculationFailed
@@ -69,6 +70,8 @@ enum ScreenTimeTicketStartError: LocalizedError, Equatable {
             return "使用中のチケットが終了してから次のチケットを使ってください"
         case .noTicketsRemaining:
             return "今日使えるチケットは残っていません"
+        case .unavailableUntilDailyGoalReached:
+            return "今日の学習目標を達成するまでチケットは使えません"
         case .unavailableDuringStudyTimer:
             return "学習タイマー中はチケットを使えません"
         case .unavailableDuringBlockedSchedule:
@@ -248,6 +251,8 @@ struct ScreenTimeAccessEngine {
                     throw ScreenTimeTicketStartError.activeTicket
                 }
                 switch decision.reason {
+                case .dailyGoalPending:
+                    throw ScreenTimeTicketStartError.unavailableUntilDailyGoalReached
                 case .studyTimer:
                     throw ScreenTimeTicketStartError.unavailableDuringStudyTimer
                 case .blockedSchedule:

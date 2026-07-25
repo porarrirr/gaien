@@ -481,6 +481,43 @@ final class ScreenTimeTicketPolicyTests: XCTestCase {
             decision(settings: settings, goal: reachedGoal, timerRunning: true, at: now).reason,
             .dailyGoalReached
         )
+
+        let pendingGoal = ScreenTimeDailyGoalProgress(
+            dayStart: ScreenTimeDateMath.epochMilliseconds(for: calendar.startOfDay(for: now)),
+            studyMinutes: 59,
+            targetMinutes: 60,
+            updatedAt: ScreenTimeDateMath.epochMilliseconds(for: now)
+        )
+        let pendingDecision = decision(
+            settings: settings,
+            goal: pendingGoal,
+            timerRunning: true,
+            at: now
+        )
+        XCTAssertTrue(pendingDecision.isRestricted)
+        XCTAssertEqual(pendingDecision.reason, .dailyGoalPending)
+    }
+
+    func testDailyGoalPolicyRestrictsWhenProgressIsMissingOrStale() {
+        let now = date()
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            unlockRestrictionsWhenDailyGoalReached: true
+        )
+        let staleProgress = ScreenTimeDailyGoalProgress(
+            dayStart: ScreenTimeDateMath.epochMilliseconds(
+                for: calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now))!
+            ),
+            studyMinutes: 60,
+            targetMinutes: 60,
+            updatedAt: ScreenTimeDateMath.epochMilliseconds(for: now)
+        )
+
+        XCTAssertEqual(decision(settings: settings, at: now).reason, .dailyGoalPending)
+        XCTAssertEqual(
+            decision(settings: settings, goal: staleProgress, at: now).reason,
+            .dailyGoalPending
+        )
     }
 
     func testPolicyPriorityTimerThenBlockThenAllow() {

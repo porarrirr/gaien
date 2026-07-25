@@ -70,16 +70,16 @@ struct ScreenTimeSettingsScreen: View {
             Text(strictLockConfirmationMessage)
         }
         .confirmationDialog(
-            "10分チケットを使いますか？",
+            "チケットを1枚使います。よろしいですか？",
             isPresented: $isShowingTicketConfirmation,
             titleVisibility: .visible
         ) {
-            Button("10分使う") {
+            Button("使う") {
                 startTicket()
             }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("開始後は使っていない時間も進み、0時をまたぐ場合は0時に終了します。")
+            Text("開始すると10分間利用できます。途中で停止できず、使っていない時間も進みます。")
         }
         .task(id: focusController.ticketLedger?.activeTicketEndsAt) {
             guard let expiry = focusController.ticketLedger?.activeTicketEndDate else { return }
@@ -413,15 +413,15 @@ struct ScreenTimeSettingsScreen: View {
         VStack(alignment: .leading, spacing: 12) {
             screenTimeSectionHeader(
                 number: "3",
-                title: "勉強できたら解除",
-                subtitle: "今日の学習目標を達成した日に自動で開放します"
+                title: "目標達成まで解除しない",
+                subtitle: "今日の学習目標を達成するまで制限を続けます"
             )
 
             VStack(spacing: 0) {
                 focusOptionRow(
                     icon: "target",
-                    title: "目標達成で終日解除",
-                    detail: "手動で追加した学習記録は含みません",
+                    title: "目標達成まで制限",
+                    detail: "達成後は終日開放します。手動の学習記録は含みません",
                     isOn: Binding(
                         get: { focusController.settings.unlockRestrictionsWhenDailyGoalReached },
                         set: { enabled in
@@ -439,7 +439,7 @@ struct ScreenTimeSettingsScreen: View {
                             Text("今日の進み具合")
                                 .font(.body.weight(.semibold))
                                 .foregroundStyle(AppColors.textPrimary)
-                            Text(goalProgress?.hasReachedTarget == true ? "目標を達成しました" : "目標まであと少し")
+                            Text(goalProgressStatusText)
                                 .font(.caption)
                                 .foregroundStyle(AppColors.textSecondary)
                         }
@@ -853,6 +853,12 @@ struct ScreenTimeSettingsScreen: View {
         return "\(Goal.format(minutes: goalProgress.studyMinutes)) / \(Goal.format(minutes: goalProgress.targetMinutes))"
     }
 
+    private var goalProgressStatusText: String {
+        guard let goalProgress else { return "進捗を確認しています" }
+        guard goalProgress.hasTarget else { return "1日の学習目標を設定してください" }
+        return goalProgress.hasReachedTarget ? "目標を達成しました" : "目標達成まで制限中"
+    }
+
     private func ticketRemainingCount(at date: Date) -> Int {
         guard let ledger = focusController.ticketLedger,
               ledger.isForDay(containing: date) else {
@@ -896,6 +902,8 @@ struct ScreenTimeSettingsScreen: View {
             return String(format: "利用中 %d:%02d", seconds / 60, seconds % 60)
         }
         switch focusController.policyDecision?.reason {
+        case .dailyGoalPending:
+            return "目標達成まで制限中"
         case .dailyGoalReached:
             return "目標達成で終日開放"
         case .studyTimer:
@@ -922,6 +930,8 @@ struct ScreenTimeSettingsScreen: View {
             return "チケットの時間は使用禁止時間帯に入っても停止しません。"
         }
         switch focusController.policyDecision?.reason {
+        case .dailyGoalPending:
+            return "今日の学習目標を達成するまで、チケットを含むすべての開放より優先して制限します。"
         case .studyTimer:
             return "学習タイマー中はチケットを使えません。"
         case .blockedSchedule:

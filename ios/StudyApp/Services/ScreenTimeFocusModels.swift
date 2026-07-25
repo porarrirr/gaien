@@ -427,6 +427,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
 
 enum ScreenTimePolicyReason: String, Codable, Equatable {
     case masterDisabled
+    case dailyGoalPending
     case dailyGoalReached
     case studyTimer
     case blockedSchedule
@@ -458,12 +459,15 @@ enum ScreenTimePolicyEvaluator {
         guard settings.isEnabled else {
             return ScreenTimePolicyDecision(isRestricted: false, reason: .masterDisabled)
         }
-        if settings.shouldUnlockRestrictionsForDailyGoal(
-            progress: dailyGoalProgress,
-            referenceDate: referenceDate,
-            calendar: calendar
-        ) {
-            return ScreenTimePolicyDecision(isRestricted: false, reason: .dailyGoalReached)
+        if settings.unlockRestrictionsWhenDailyGoalReached {
+            if settings.shouldUnlockRestrictionsForDailyGoal(
+                progress: dailyGoalProgress,
+                referenceDate: referenceDate,
+                calendar: calendar
+            ) {
+                return ScreenTimePolicyDecision(isRestricted: false, reason: .dailyGoalReached)
+            }
+            return ScreenTimePolicyDecision(isRestricted: true, reason: .dailyGoalPending)
         }
         if settings.timerRestrictionEnabled, runtimeState.timerIsRunning {
             return ScreenTimePolicyDecision(isRestricted: true, reason: .studyTimer)

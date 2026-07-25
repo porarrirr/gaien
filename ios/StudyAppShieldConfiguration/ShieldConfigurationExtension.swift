@@ -74,6 +74,8 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
 
     private func title(for reason: ScreenTimePolicyReason) -> String {
         switch reason {
+        case .dailyGoalPending:
+            return "学習目標が未達成です"
         case .studyTimer:
             return "学習タイマー中です"
         case .blockedSchedule:
@@ -96,6 +98,8 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
         referenceDate: Date
     ) -> String {
         switch decision.reason {
+        case .dailyGoalPending:
+            return "今日の学習目標を達成すると、終日利用できます。"
         case .ticketRequired where remainingTickets > 0:
             return "今日の残りは\(remainingTickets)枚です。1枚で10分間利用できます。\(nextFreeOpeningText(settings: settings, after: referenceDate))"
         case .ticketRequired:
