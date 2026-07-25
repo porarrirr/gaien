@@ -181,6 +181,7 @@ final class SettingsViewModel: ScreenViewModel {
         perform {
             try await self.app.syncRepository.syncNow()
             self.app.refreshSyncStatus()
+            await self.app.handleSyncApplied(reason: "manual-sync")
             self.summary = try await GetSettingsSummaryUseCase(sessionRepository: self.app.sessionRepo).execute()
             self.debugLogEntries = self.app.logger.recentEntries()
             self.app.bumpDataVersion(shouldScheduleAutoSync: false)
@@ -206,6 +207,7 @@ final class SettingsViewModel: ScreenViewModel {
         perform {
             try await self.app.syncRepository.resolveConflicts(resolutions)
             self.app.refreshSyncStatus()
+            await self.app.handleSyncApplied(reason: "conflict-resolution")
             self.summary = try await GetSettingsSummaryUseCase(sessionRepository: self.app.sessionRepo).execute()
             self.debugLogEntries = self.app.logger.recentEntries()
             self.app.bumpDataVersion(shouldScheduleAutoSync: false)

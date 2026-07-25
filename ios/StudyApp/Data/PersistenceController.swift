@@ -1051,17 +1051,21 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
     func exportData() async throws -> AppData {
         try await ensureLoaded()
         try requirePreparedDataStore()
-        return try await backgroundRead { ctx in
+        var appData = try await backgroundRead { ctx in
             try AppDataArchiver.buildExport(in: ctx)
         }
+        appData.screenTimeSettings = ScreenTimeFocusShared.loadSyncSettings()
+        return appData
     }
 
     /// Encodes the export as pretty-printed JSON entirely off the main thread.
     func exportJSON() async throws -> String {
         try await ensureLoaded()
         try requirePreparedDataStore()
+        let screenTimeSettings = ScreenTimeFocusShared.loadSyncSettings()
         return try await backgroundContext.perform { [backgroundContext] in
-            let appData = try AppDataArchiver.buildExport(in: backgroundContext)
+            var appData = try AppDataArchiver.buildExport(in: backgroundContext)
+            appData.screenTimeSettings = screenTimeSettings
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let bytes = try encoder.encode(appData)
@@ -1085,7 +1089,7 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
         try requirePreparedDataStore()
         let jsonData = Data(json.utf8)
         let gate = mutationGate
-        try await backgroundContext.perform { [backgroundContext] in
+        let importedScreenTimeSettings = try await backgroundContext.perform { [backgroundContext] in
             try gate.mutate {
                 do {
                     let appData = try AppDataUpgrader.decode(jsonData)
@@ -1095,13 +1099,14 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                     if changed {
                         try backgroundContext.save()
                     }
-                    return ((), changed)
+                    return (appData.screenTimeSettings, changed)
                 } catch {
                     backgroundContext.rollback()
                     throw error
                 }
             }
         }
+        try applyScreenTimeSettingsIfPresent(importedScreenTimeSettings)
         return currentPreferences
     }
 
@@ -1129,15 +1134,24 @@ final class PersistenceController: SubjectRepository, MaterialRepository, StudyS
                 }
             }
         }
+        try applyScreenTimeSettingsIfPresent(appData.screenTimeSettings)
     }
 
     func createDataBackup(reason: String) async throws -> DataBackupDescriptor {
         try await ensureLoaded()
-        let appData = try await backgroundRead { ctx in
+        var appData = try await backgroundRead { ctx in
             try AppDataArchiver.buildExport(in: ctx)
         }
+        appData.screenTimeSettings = ScreenTimeFocusShared.loadSyncSettings()
         let data = try await SyncPayloadCodec.encode(appData, prettyPrinted: true)
         return try DataBackupStore.save(data: data, reason: reason, fileManager: fileManager)
+    }
+
+    private func applyScreenTimeSettingsIfPresent(_ settings: ScreenTimeSyncSettings?) throws {
+        guard let settings else { return }
+        guard ScreenTimeFocusShared.applySyncedSettings(settings) else {
+            throw ScreenTimeFocusError.settingsSaveFailed
+        }
     }
 
     func createDataBackupIfNeeded(

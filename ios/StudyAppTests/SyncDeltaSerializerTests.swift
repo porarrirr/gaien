@@ -136,12 +136,34 @@ final class SyncDeltaSerializerTests: XCTestCase {
         XCTAssertTrue(merged.subjects.isEmpty)
     }
 
+    func test_screenTimeSettings_roundTripAsDedicatedDeltaEntity() {
+        let screenTime = ScreenTimeSyncSettings(
+            settings: ScreenTimeFocusSettings(
+                isEnabled: true,
+                scheduledRestrictionEnabled: true,
+                scheduleSlots: [
+                    FocusScheduleSlot(id: "school", title: "学校", startHour: 8, endHour: 15)
+                ],
+                selectionWasConfigured: true,
+                updatedAt: 900
+            )
+        )
+        let source = makeAppData(screenTimeSettings: screenTime)
+
+        let envelopes = SyncDeltaSerializer.decompose(source)
+        let restored = SyncDeltaSerializer.assemble(envelopes: envelopes, onto: makeAppData())
+
+        XCTAssertEqual(envelopes.map(\.kind), [.screenTimeSettings])
+        XCTAssertEqual(restored.screenTimeSettings, screenTime)
+    }
+
     // MARK: - Helpers
 
     private func makeAppData(
         subjects: [Subject] = [],
         sessions: [StudySession] = [],
-        plans: [PlanData] = []
+        plans: [PlanData] = [],
+        screenTimeSettings: ScreenTimeSyncSettings? = nil
     ) -> AppData {
         AppData(
             subjects: subjects,
@@ -150,6 +172,7 @@ final class SyncDeltaSerializerTests: XCTestCase {
             goals: [],
             exams: [],
             plans: plans,
+            screenTimeSettings: screenTimeSettings,
             exportDate: 0
         )
     }

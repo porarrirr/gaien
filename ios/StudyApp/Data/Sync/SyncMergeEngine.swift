@@ -31,6 +31,13 @@ enum SyncMergeEngine {
             timetableTerms: merge(local.timetableTerms, remote.timetableTerms, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
             timetableReviewRecords: merge(local.timetableReviewRecords, remote.timetableReviewRecords, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
             problemReviewRecords: merge(local.problemReviewRecords, remote.problemReviewRecords, key: \.syncId, updatedAt: \.updatedAt, deletedAt: \.deletedAt),
+            screenTimeSettings: merge(
+                [local.screenTimeSettings, remote.screenTimeSettings].compactMap { $0 },
+                [],
+                key: \.syncId,
+                updatedAt: \.updatedAt,
+                deletedAt: \.deletedAt
+            ).first,
             exportDate: max(local.exportDate, remote.exportDate)
         )
     }
@@ -156,6 +163,7 @@ enum SyncMergeEngine {
             timetableTerms: appData.timetableTerms.map { var value = $0; value.lastSyncedAt = timestamp; return value },
             timetableReviewRecords: appData.timetableReviewRecords.map { var value = $0; value.lastSyncedAt = timestamp; return value },
             problemReviewRecords: appData.problemReviewRecords.map { var value = $0; value.lastSyncedAt = timestamp; return value },
+            screenTimeSettings: appData.screenTimeSettings,
             exportDate: timestamp
         )
     }

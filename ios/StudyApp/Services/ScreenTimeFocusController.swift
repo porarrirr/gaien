@@ -6,14 +6,17 @@ final class ScreenTimeFocusController: ObservableObject {
     @Published private(set) var settings: ScreenTimeFocusSettings
     @Published private(set) var authorizationStatus: AuthorizationStatus
     @Published private(set) var accessSnapshot: ScreenTimeAccessSnapshot?
+    @Published private(set) var requiresRestoredActivitySelection: Bool
 
     private let accessEngine: ScreenTimeAccessEngine
+    var settingsDidChange: (() -> Void)?
 
     init(accessEngine: ScreenTimeAccessEngine = ScreenTimeAccessEngine()) {
         self.accessEngine = accessEngine
         self.settings = ScreenTimeFocusShared.loadSettings()
         self.authorizationStatus = AuthorizationCenter.shared.authorizationStatus
         self.accessSnapshot = try? accessEngine.snapshot()
+        self.requiresRestoredActivitySelection = ScreenTimeFocusShared.isRestoredSelectionRequired
     }
 
     var isAvailable: Bool {
@@ -79,6 +82,7 @@ final class ScreenTimeFocusController: ObservableObject {
         settings = ScreenTimeFocusShared.loadSettings()
         authorizationStatus = AuthorizationCenter.shared.authorizationStatus
         accessSnapshot = try? accessEngine.snapshot(referenceDate: referenceDate)
+        requiresRestoredActivitySelection = ScreenTimeFocusShared.isRestoredSelectionRequired
     }
 
     func requestAuthorization() async throws {
@@ -87,6 +91,9 @@ final class ScreenTimeFocusController: ObservableObject {
         if !isAuthorized {
             var resetSettings = ScreenTimeFocusShared.loadSettings()
             resetSettings.activitySelection = FamilyActivitySelection(includeEntireCategory: true)
+            if resetSettings.selectionWasConfigured || resetSettings.requiresAllowedSelection {
+                ScreenTimeFocusShared.setRestoredSelectionRequired(true)
+            }
             try save(resetSettings)
         }
         try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
@@ -101,6 +108,11 @@ final class ScreenTimeFocusController: ObservableObject {
         let previous = settings
         var next = settings
         update(&next)
+        if next.activitySelection != previous.activitySelection {
+            next.selectionWasConfigured = !next.allowedApplicationTokens.isEmpty
+                || !next.allowedWebDomainTokens.isEmpty
+        }
+        next.updatedAt = nextSettingsTimestamp(after: previous.updatedAt)
         next.normalizeActivitySelection()
         try next.validateMonitoringConfiguration()
         try save(next)
@@ -113,6 +125,7 @@ final class ScreenTimeFocusController: ObservableObject {
             try? synchronize(settings: previous)
             throw error
         }
+        settingsDidChange?()
     }
 
     func activateSettingsLock(months: Int, days: Int, referenceDate: Date = Date()) throws {
@@ -130,8 +143,10 @@ final class ScreenTimeFocusController: ObservableObject {
         try synchronize(settings: settings)
         var next = settings
         next.settingsLockedUntilEpochMilliseconds = expiryDate.epochMilliseconds
+        next.updatedAt = nextSettingsTimestamp(after: settings.updatedAt)
         try save(next)
         refresh(referenceDate: referenceDate)
+        settingsDidChange?()
     }
 
     func addScheduleSlot() throws {
@@ -204,6 +219,31 @@ final class ScreenTimeFocusController: ObservableObject {
         refresh()
     }
 
+    func resolveRestoredActivitySelection(_ selection: FamilyActivitySelection) throws {
+        let hasSelection = !selection.applicationTokens.isEmpty || !selection.webDomainTokens.isEmpty
+        guard hasSelection else { throw ScreenTimeFocusError.missingAllowedApplications }
+
+        let previous = settings
+        var next = settings
+        next.activitySelection = selection
+        next.selectionWasConfigured = true
+        next.normalizeActivitySelection()
+        try next.validateMonitoringConfiguration()
+        try save(next)
+        ScreenTimeFocusShared.setRestoredSelectionRequired(false)
+
+        do {
+            try synchronize(settings: next)
+        } catch {
+            ScreenTimeFocusShared.setRestoredSelectionRequired(true)
+            _ = ScreenTimeFocusShared.saveSettings(previous)
+            settings = previous
+            try? synchronize(settings: previous)
+            throw error
+        }
+        refresh()
+    }
+
     private func synchronize(settings: ScreenTimeFocusSettings) throws {
         if settings.isEnabled {
             guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
@@ -218,5 +258,9 @@ final class ScreenTimeFocusController: ObservableObject {
             throw ScreenTimeFocusError.settingsSaveFailed
         }
         settings = next
+    }
+
+    private func nextSettingsTimestamp(after previous: Int64) -> Int64 {
+        max(Date().epochMilliseconds, previous + 1)
     }
 }

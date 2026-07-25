@@ -62,6 +62,17 @@ struct ScreenTimeSettingsScreen: View {
             selection: $focusPickerSelection
         )
         .onChange(of: focusPickerSelection) { selection in
+            if focusController.requiresRestoredActivitySelection {
+                let hasSelection = !selection.applicationTokens.isEmpty || !selection.webDomainTokens.isEmpty
+                guard hasSelection else { return }
+                do {
+                    try focusController.resolveRestoredActivitySelection(selection)
+                    Task { await refreshGoalProgress(reason: "screen-time-restored-selection") }
+                } catch {
+                    app.present(error)
+                }
+                return
+            }
             guard canEditSettings else { return }
             // onAppear の同期代入で保存が走らないよう、実際に変化したときだけ書き込む。
             guard selection != settings.activitySelection else { return }
@@ -283,7 +294,9 @@ struct ScreenTimeSettingsScreen: View {
                 ScreenTimeWarning(
                     id: "allowed-selection",
                     icon: "exclamationmark.triangle.fill",
-                    message: "「制限中も使えるもの」が未選択のため、実際には何も制限されていません。",
+                    message: focusController.requiresRestoredActivitySelection
+                        ? "ほかの端末の設定を復元しました。許可アプリはこの端末で選び直してください。"
+                        : "「制限中も使えるもの」が未選択のため、実際には何も制限されていません。",
                     color: AppColors.danger,
                     actionTitle: "選ぶ",
                     action: {
@@ -943,7 +956,7 @@ struct ScreenTimeSettingsScreen: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!canEditSettings)
+            .disabled(!canEditSettings && !focusController.requiresRestoredActivitySelection)
         } footer: {
             Text("ここで選んだものだけ、制限中も開けます。1つも選ばないと制限そのものがかかりません。")
         }

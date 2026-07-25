@@ -42,6 +42,13 @@ enum SyncThreeWayMergeEngine {
             timetableTerms: mergeEntities(base: base.timetableTerms, local: local.timetableTerms, remote: remotePartial.timetableTerms, kind: .timetableTerm, title: { $0.name }, conflicts: &conflicts, now: now) { $0.syncId },
             timetableReviewRecords: mergeEntities(base: base.timetableReviewRecords, local: local.timetableReviewRecords, remote: remotePartial.timetableReviewRecords, kind: .timetableReviewRecord, title: { $0.subjectName }, conflicts: &conflicts, now: now) { $0.syncId },
             problemReviewRecords: mergeProblemReviews(base: base.problemReviewRecords, local: local.problemReviewRecords, remote: remotePartial.problemReviewRecords, conflicts: &conflicts, now: now),
+            screenTimeSettings: SyncMergeEngine.merge(
+                [local.screenTimeSettings, remotePartial.screenTimeSettings].compactMap { $0 },
+                [],
+                key: \.syncId,
+                updatedAt: \.updatedAt,
+                deletedAt: \.deletedAt
+            ).first,
             exportDate: max(local.exportDate, remotePartial.exportDate, base.exportDate, now)
         )
 
@@ -601,6 +608,10 @@ enum SyncThreeWayMergeEngine {
         case .problemReviewRecord:
             if let value = try? decoder.decode(ProblemReviewRecord.self, from: data) {
                 copy.problemReviewRecords = replace(in: copy.problemReviewRecords, syncId: syncId, with: value)
+            }
+        case .screenTimeSettings:
+            if let value = try? decoder.decode(ScreenTimeSyncSettings.self, from: data) {
+                copy.screenTimeSettings = value
             }
         }
         return copy

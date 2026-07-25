@@ -38,6 +38,42 @@ final class SyncThreeWayMergeEngineTests: XCTestCase {
         XCTAssertEqual(outcome.merged.materials.first?.currentPage, 8)
     }
 
+    func test_mergeAppliesNewerRemoteScreenTimeSettings() {
+        let baseSettings = ScreenTimeSyncSettings(
+            settings: ScreenTimeFocusSettings(
+                isEnabled: false,
+                timerRestrictionEnabled: true,
+                updatedAt: 100
+            )
+        )
+        let remoteSettings = ScreenTimeSyncSettings(
+            settings: ScreenTimeFocusSettings(
+                isEnabled: true,
+                timerRestrictionEnabled: true,
+                selectionWasConfigured: true,
+                updatedAt: 200
+            )
+        )
+        let base = makeAppData(screenTimeSettings: baseSettings)
+        let local = makeAppData(screenTimeSettings: baseSettings)
+        let remote = [
+            makeEnvelope(
+                kind: .screenTimeSettings,
+                syncId: remoteSettings.syncId,
+                updatedAt: remoteSettings.updatedAt,
+                json: encode(remoteSettings)
+            )
+        ]
+
+        let outcome = SyncThreeWayMergeEngine.merge(
+            base: base,
+            local: local,
+            remoteEnvelopes: remote
+        )
+
+        XCTAssertEqual(outcome.merged.screenTimeSettings, remoteSettings)
+    }
+
     func test_mergeAcceptsRemoteDownwardCorrectionWhenLocalIsUnchanged() {
         let base = makeAppData(materials: [makeMaterial(syncId: "m1", updatedAt: 500, currentPage: 500)])
         let local = makeAppData(materials: [makeMaterial(syncId: "m1", updatedAt: 500, currentPage: 500)])
@@ -306,7 +342,8 @@ final class SyncThreeWayMergeEngineTests: XCTestCase {
 
     private func makeAppData(
         subjects: [Subject] = [],
-        materials: [Material] = []
+        materials: [Material] = [],
+        screenTimeSettings: ScreenTimeSyncSettings? = nil
     ) -> AppData {
         AppData(
             subjects: subjects,
@@ -315,6 +352,7 @@ final class SyncThreeWayMergeEngineTests: XCTestCase {
             goals: [],
             exams: [],
             plans: [],
+            screenTimeSettings: screenTimeSettings,
             exportDate: 0
         )
     }

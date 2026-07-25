@@ -73,6 +73,7 @@ struct AppData: Codable, Hashable {
     var timetableTerms: [TimetableTerm]
     var timetableReviewRecords: [TimetableReviewRecord]
     var problemReviewRecords: [ProblemReviewRecord]
+    var screenTimeSettings: ScreenTimeSyncSettings?
     var exportDate: Int64
 
     private enum CodingKeys: String, CodingKey {
@@ -89,6 +90,7 @@ struct AppData: Codable, Hashable {
         case timetableTerms
         case timetableReviewRecords
         case problemReviewRecords
+        case screenTimeSettings
         case exportDate
     }
 
@@ -106,6 +108,7 @@ struct AppData: Codable, Hashable {
         timetableTerms: [TimetableTerm] = [],
         timetableReviewRecords: [TimetableReviewRecord] = [],
         problemReviewRecords: [ProblemReviewRecord] = [],
+        screenTimeSettings: ScreenTimeSyncSettings? = nil,
         exportDate: Int64
     ) {
         self.schemaVersion = schemaVersion
@@ -121,6 +124,7 @@ struct AppData: Codable, Hashable {
         self.timetableTerms = timetableTerms
         self.timetableReviewRecords = timetableReviewRecords
         self.problemReviewRecords = problemReviewRecords
+        self.screenTimeSettings = screenTimeSettings
         self.exportDate = exportDate
     }
 
@@ -146,6 +150,7 @@ struct AppData: Codable, Hashable {
         timetableTerms = try container.decodeIfPresent([TimetableTerm].self, forKey: .timetableTerms) ?? []
         timetableReviewRecords = try container.decodeIfPresent([TimetableReviewRecord].self, forKey: .timetableReviewRecords) ?? []
         problemReviewRecords = try container.decodeIfPresent([ProblemReviewRecord].self, forKey: .problemReviewRecords) ?? []
+        screenTimeSettings = try container.decodeIfPresent(ScreenTimeSyncSettings.self, forKey: .screenTimeSettings)
         exportDate = try container.decodeIfPresent(Int64.self, forKey: .exportDate) ?? Date().epochMilliseconds
     }
 }

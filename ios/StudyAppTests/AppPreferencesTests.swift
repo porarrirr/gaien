@@ -64,6 +64,46 @@ final class ScreenTimeFocusSettingsTests: XCTestCase {
         XCTAssertEqual(roundTripped.settingsLockedUntilEpochMilliseconds, expiry)
     }
 
+    func testScreenTimeSyncSettingsExcludeDeviceLocalFamilySelection() throws {
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            timerRestrictionEnabled: true,
+            scheduleSlots: [
+                FocusScheduleSlot(id: "evening", title: "夜", startHour: 19, endHour: 21)
+            ],
+            selectionWasConfigured: true,
+            updatedAt: 123_456
+        )
+
+        let synced = ScreenTimeSyncSettings(settings: settings)
+        let json = String(decoding: try JSONEncoder().encode(synced), as: UTF8.self)
+
+        XCTAssertTrue(synced.selectionWasConfigured)
+        XCTAssertEqual(synced.scheduleSlots.map(\.id), ["evening"])
+        XCTAssertFalse(json.contains("activitySelection"))
+        XCTAssertFalse(json.contains("applicationTokens"))
+        XCTAssertFalse(json.contains("webDomainTokens"))
+    }
+
+    func testRestoredScreenTimeSettingsRequireDeviceSelectionWhenRemoteHadOne() {
+        let synced = ScreenTimeSyncSettings(
+            settings: ScreenTimeFocusSettings(
+                isEnabled: true,
+                timerRestrictionEnabled: true,
+                selectionWasConfigured: true,
+                updatedAt: 123_456
+            )
+        )
+        let localSelection = FamilyActivitySelection(includeEntireCategory: true)
+
+        let restored = synced.restoredSettings(preserving: localSelection)
+
+        XCTAssertTrue(restored.isEnabled)
+        XCTAssertTrue(restored.timerRestrictionEnabled)
+        XCTAssertEqual(restored.updatedAt, 123_456)
+        XCTAssertTrue(synced.requiresSelectionConfirmation(preserving: localSelection))
+    }
+
     func testSettingsLockExpiryCalculationRejectsZeroDuration() {
         let start = testDate(2026, 6, 1, hour: 12)
         XCTAssertNil(ScreenTimeFocusSettings.lockExpiryDate(from: start, months: 0, days: 0))

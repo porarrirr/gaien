@@ -910,7 +910,8 @@ extension AppData {
         timetableEntries.isEmpty &&
         timetableTerms.isEmpty &&
         timetableReviewRecords.isEmpty &&
-        problemReviewRecords.isEmpty
+        problemReviewRecords.isEmpty &&
+        screenTimeSettings == nil
     }
 }
 

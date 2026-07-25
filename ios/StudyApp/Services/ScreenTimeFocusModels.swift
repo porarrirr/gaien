@@ -13,7 +13,7 @@ enum ScreenTimeDateMath {
     }
 }
 
-enum FocusScheduleBehavior: String, Codable, CaseIterable {
+enum FocusScheduleBehavior: String, Codable, CaseIterable, Hashable {
     case allow
     case block
 
@@ -27,7 +27,7 @@ enum FocusScheduleBehavior: String, Codable, CaseIterable {
     }
 }
 
-struct FocusScheduleSlot: Identifiable, Codable, Equatable {
+struct FocusScheduleSlot: Identifiable, Codable, Hashable {
     var id: String
     var title: String
     var isEnabled: Bool
@@ -249,6 +249,11 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     var unlockRestrictionsWhenDailyGoalReached: Bool
     var scheduleSlots: [FocusScheduleSlot]
     var activitySelection: FamilyActivitySelection
+    /// Whether the user selected device-local Family Controls tokens.
+    /// The tokens themselves are intentionally never synced between devices.
+    var selectionWasConfigured: Bool
+    /// Last time a cloud-portable Screen Time setting changed.
+    var updatedAt: Int64
     /// Epoch milliseconds. While `Date() < expiry`, all Screen Time settings are read-only in-app.
     var settingsLockedUntilEpochMilliseconds: Int64?
 
@@ -262,6 +267,8 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         unlockRestrictionsWhenDailyGoalReached: Bool = false,
         scheduleSlots: [FocusScheduleSlot] = [],
         activitySelection: FamilyActivitySelection = FamilyActivitySelection(includeEntireCategory: true),
+        selectionWasConfigured: Bool? = nil,
+        updatedAt: Int64 = 0,
         settingsLockedUntilEpochMilliseconds: Int64? = nil
     ) {
         self.isEnabled = isEnabled
@@ -273,6 +280,10 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         self.unlockRestrictionsWhenDailyGoalReached = unlockRestrictionsWhenDailyGoalReached
         self.scheduleSlots = scheduleSlots
         self.activitySelection = Self.selectionIncludingEntireCategories(activitySelection)
+        self.selectionWasConfigured = selectionWasConfigured
+            ?? !activitySelection.applicationTokens.isEmpty
+            || !activitySelection.webDomainTokens.isEmpty
+        self.updatedAt = updatedAt
         self.settingsLockedUntilEpochMilliseconds = settingsLockedUntilEpochMilliseconds
     }
 
@@ -286,6 +297,8 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         case unlockRestrictionsWhenDailyGoalReached
         case scheduleSlots
         case activitySelection
+        case selectionWasConfigured
+        case updatedAt
         case settingsLockedUntilEpochMilliseconds
     }
 
@@ -310,6 +323,11 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
             forKey: .activitySelection
         ) ?? FamilyActivitySelection(includeEntireCategory: true)
         activitySelection = Self.selectionIncludingEntireCategories(decodedSelection)
+        selectionWasConfigured = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .selectionWasConfigured
+        ) ?? (!decodedSelection.applicationTokens.isEmpty || !decodedSelection.webDomainTokens.isEmpty)
+        updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? 0
         settingsLockedUntilEpochMilliseconds = try container.decodeIfPresent(
             Int64.self,
             forKey: .settingsLockedUntilEpochMilliseconds
@@ -349,6 +367,19 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
 
     var allowedWebDomainTokens: Set<WebDomainToken> {
         activitySelection.webDomainTokens
+    }
+
+    var hasMeaningfulConfiguration: Bool {
+        isEnabled
+            || timerRestrictionEnabled
+            || scheduledRestrictionEnabled
+            || ticketRestrictionEnabled
+            || dailyTicketMinutes != 0
+            || restrictOutsideScheduleWhenTicketsDisabled
+            || unlockRestrictionsWhenDailyGoalReached
+            || !scheduleSlots.isEmpty
+            || selectionWasConfigured
+            || settingsLockedUntilEpochMilliseconds != nil
     }
 
     var enabledScheduleSlots: [FocusScheduleSlot] {
@@ -458,6 +489,74 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     }
 }
 
+/// Cloud-portable Screen Time policy. Family Controls tokens are deliberately
+/// excluded because Apple treats them as opaque, device-local authorization data.
+struct ScreenTimeSyncSettings: Codable, Hashable {
+    static let stableSyncId = "screen-time-focus"
+
+    var syncId: String
+    var isEnabled: Bool
+    var timerRestrictionEnabled: Bool
+    var scheduledRestrictionEnabled: Bool
+    var ticketRestrictionEnabled: Bool
+    var dailyTicketMinutes: Int
+    var restrictOutsideScheduleWhenTicketsDisabled: Bool
+    var unlockRestrictionsWhenDailyGoalReached: Bool
+    var scheduleSlots: [FocusScheduleSlot]
+    var selectionWasConfigured: Bool
+    var settingsLockedUntilEpochMilliseconds: Int64?
+    var updatedAt: Int64
+    var deletedAt: Int64?
+
+    init(settings: ScreenTimeFocusSettings) {
+        syncId = Self.stableSyncId
+        isEnabled = settings.isEnabled
+        timerRestrictionEnabled = settings.timerRestrictionEnabled
+        scheduledRestrictionEnabled = settings.scheduledRestrictionEnabled
+        ticketRestrictionEnabled = settings.ticketRestrictionEnabled
+        dailyTicketMinutes = settings.dailyTicketMinutes
+        restrictOutsideScheduleWhenTicketsDisabled = settings.restrictOutsideScheduleWhenTicketsDisabled
+        unlockRestrictionsWhenDailyGoalReached = settings.unlockRestrictionsWhenDailyGoalReached
+        scheduleSlots = settings.scheduleSlots
+        selectionWasConfigured = settings.selectionWasConfigured
+        settingsLockedUntilEpochMilliseconds = settings.settingsLockedUntilEpochMilliseconds
+        updatedAt = settings.updatedAt
+        deletedAt = nil
+    }
+
+    var requiresAllowedSelection: Bool {
+        guard isEnabled else { return false }
+        if timerRestrictionEnabled || ticketRestrictionEnabled {
+            return true
+        }
+        guard scheduledRestrictionEnabled else { return false }
+        return restrictOutsideScheduleWhenTicketsDisabled
+            || scheduleSlots.contains { $0.isEnabled && $0.behavior == .block && $0.hasSelectedWeekday }
+    }
+
+    func restoredSettings(preserving selection: FamilyActivitySelection) -> ScreenTimeFocusSettings {
+        ScreenTimeFocusSettings(
+            isEnabled: isEnabled,
+            timerRestrictionEnabled: timerRestrictionEnabled,
+            scheduledRestrictionEnabled: scheduledRestrictionEnabled,
+            ticketRestrictionEnabled: ticketRestrictionEnabled,
+            dailyTicketMinutes: dailyTicketMinutes,
+            restrictOutsideScheduleWhenTicketsDisabled: restrictOutsideScheduleWhenTicketsDisabled,
+            unlockRestrictionsWhenDailyGoalReached: unlockRestrictionsWhenDailyGoalReached,
+            scheduleSlots: scheduleSlots,
+            activitySelection: selection,
+            selectionWasConfigured: selectionWasConfigured,
+            updatedAt: updatedAt,
+            settingsLockedUntilEpochMilliseconds: settingsLockedUntilEpochMilliseconds
+        )
+    }
+
+    func requiresSelectionConfirmation(preserving selection: FamilyActivitySelection) -> Bool {
+        let hasLocalSelection = !selection.applicationTokens.isEmpty || !selection.webDomainTokens.isEmpty
+        return !hasLocalSelection && (selectionWasConfigured || requiresAllowedSelection)
+    }
+}
+
 enum ScreenTimePolicyReason: String, Codable, Equatable {
     case masterDisabled
     case dailyGoalPending
@@ -542,6 +641,7 @@ enum ScreenTimeFocusShared {
     static let settingsKey = "screenTimeFocusSettings.v1"
     static let dailyGoalProgressKey = "screenTimeFocusDailyGoalProgress.v1"
     static let runtimeStateKey = "screenTimeRuntimeState.v1"
+    static let restoredSelectionRequiredKey = "screenTimeFocusRestoredSelectionRequired.v1"
     static let scheduleActivityNamePrefix = "studyapp.focus.schedule."
     static let dailyBoundaryActivityName = DeviceActivityName("studyapp.focus.daily-boundary")
     static let ticketExpiryActivityName = DeviceActivityName("studyapp.focus.ticket-expiry")
@@ -557,8 +657,14 @@ enum ScreenTimeFocusShared {
     static func loadSettings() -> ScreenTimeFocusSettings {
         guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
               let data = defaults.data(forKey: settingsKey),
-              let settings = try? JSONDecoder().decode(ScreenTimeFocusSettings.self, from: data) else {
+              var settings = try? JSONDecoder().decode(ScreenTimeFocusSettings.self, from: data) else {
             return ScreenTimeFocusSettings()
+        }
+        if settings.updatedAt == 0, settings.hasMeaningfulConfiguration {
+            settings.updatedAt = ScreenTimeDateMath.epochMilliseconds(for: Date())
+            if let migrated = try? JSONEncoder().encode(settings) {
+                defaults.set(migrated, forKey: settingsKey)
+            }
         }
         return settings
     }
@@ -571,6 +677,37 @@ enum ScreenTimeFocusShared {
         }
         defaults.set(data, forKey: settingsKey)
         return true
+    }
+
+    static func loadSyncSettings() -> ScreenTimeSyncSettings? {
+        let settings = loadSettings()
+        guard settings.updatedAt > 0, settings.hasMeaningfulConfiguration else { return nil }
+        return ScreenTimeSyncSettings(settings: settings)
+    }
+
+    @discardableResult
+    static func applySyncedSettings(_ synced: ScreenTimeSyncSettings) -> Bool {
+        let current = loadSettings()
+        let requiresSelection = synced.requiresSelectionConfirmation(
+            preserving: current.activitySelection
+        )
+        let restored = synced.restoredSettings(preserving: current.activitySelection)
+        guard saveSettings(restored),
+              let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
+            return false
+        }
+        defaults.set(requiresSelection, forKey: restoredSelectionRequiredKey)
+        return true
+    }
+
+    static var isRestoredSelectionRequired: Bool {
+        UserDefaults(suiteName: appGroupIdentifier)?
+            .bool(forKey: restoredSelectionRequiredKey) == true
+    }
+
+    static func setRestoredSelectionRequired(_ required: Bool) {
+        UserDefaults(suiteName: appGroupIdentifier)?
+            .set(required, forKey: restoredSelectionRequiredKey)
     }
 
     static func loadDailyGoalProgress() -> ScreenTimeDailyGoalProgress? {

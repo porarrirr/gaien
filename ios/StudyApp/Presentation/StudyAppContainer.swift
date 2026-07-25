@@ -43,7 +43,11 @@ final class StudyAppContainer: ObservableObject {
         syncRepository: syncRepository,
         logger: logger,
         currentDataVersion: { [weak self] in self?.dataVersion ?? 0 },
-        onSyncStatusChanged: { [weak self] in self?.refreshSyncStatus() }
+        onSyncStatusChanged: { [weak self] in
+            guard let self else { return }
+            self.refreshSyncStatus()
+            Task { await self.handleSyncApplied(reason: "auto-sync") }
+        }
     )
     private lazy var reminderCoordinator = ReminderCoordinator(
         scheduler: reminderScheduler,
@@ -97,6 +101,9 @@ final class StudyAppContainer: ObservableObject {
         self.syncRepository = syncRepository ?? DisabledSyncRepository(logger: logger)
         self.preferences = preferencesRepository.loadPreferences()
         self.syncStatus = self.syncRepository.status
+        self.screenTimeFocusController.settingsDidChange = { [weak self] in
+            self?.bumpDataVersion()
+        }
 
         self.syncRepository.statusPublisher
             .receive(on: RunLoop.main)
@@ -254,6 +261,11 @@ final class StudyAppContainer: ObservableObject {
 
     func blockAutoSyncUntilLocalChange() {
         autoSyncCoordinator.blockUntilLocalChange()
+    }
+
+    func handleSyncApplied(reason: String) async {
+        screenTimeFocusController.refresh()
+        await refreshScreenTimeFocusState(reason: reason)
     }
 
     func present(_ error: Error) {

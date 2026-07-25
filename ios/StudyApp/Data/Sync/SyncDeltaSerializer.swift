@@ -16,6 +16,7 @@ enum SyncEntityKind: String, Codable, CaseIterable {
     case timetableTerm
     case timetableReviewRecord
     case problemReviewRecord
+    case screenTimeSettings
 }
 
 /// A single entity, encoded and paired with the metadata we need for
@@ -106,6 +107,9 @@ enum SyncDeltaSerializer {
         for value in appData.problemReviewRecords {
             envelopes.append(envelope(for: value, kind: .problemReviewRecord))
         }
+        if let value = appData.screenTimeSettings {
+            envelopes.append(envelope(for: value, kind: .screenTimeSettings))
+        }
         return envelopes
     }
 
@@ -160,6 +164,7 @@ enum SyncDeltaSerializer {
             + appData.timetableTerms.count
             + appData.timetableReviewRecords.count
             + appData.problemReviewRecords.count
+            + (appData.screenTimeSettings == nil ? 0 : 1)
     }
 
     /// Packs a single `Encodable` domain entity (including its `updatedAt`
@@ -208,6 +213,7 @@ enum SyncDeltaSerializer {
         var timetableTerms: [TimetableTerm] = []
         var timetableReviewRecords: [TimetableReviewRecord] = []
         var problemReviewRecords: [ProblemReviewRecord] = []
+        var screenTimeSettings: ScreenTimeSyncSettings?
 
         for envelope in envelopes {
             switch envelope.kind {
@@ -259,6 +265,10 @@ enum SyncDeltaSerializer {
                 if let value = try? decodeFromString(envelope.json, as: ProblemReviewRecord.self) {
                     problemReviewRecords.append(value)
                 }
+            case .screenTimeSettings:
+                if let value = try? decodeFromString(envelope.json, as: ScreenTimeSyncSettings.self) {
+                    screenTimeSettings = value
+                }
             }
         }
 
@@ -281,6 +291,7 @@ enum SyncDeltaSerializer {
             timetableTerms: timetableTerms,
             timetableReviewRecords: timetableReviewRecords,
             problemReviewRecords: problemReviewRecords,
+            screenTimeSettings: screenTimeSettings,
             exportDate: exportDate
         )
     }
@@ -308,3 +319,4 @@ extension TimetableEntry: SyncDeltaEntity {}
 extension TimetableTerm: SyncDeltaEntity {}
 extension TimetableReviewRecord: SyncDeltaEntity {}
 extension ProblemReviewRecord: SyncDeltaEntity {}
+extension ScreenTimeSyncSettings: SyncDeltaEntity {}
