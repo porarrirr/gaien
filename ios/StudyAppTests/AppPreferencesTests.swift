@@ -409,6 +409,17 @@ final class ScreenTimeFocusSettingsTests: XCTestCase {
         XCTAssertEqual(settings.maximumEnabledSlotsForCurrentConfiguration, 17)
     }
 
+    func testGoalAndTicketRulesReserveTicketExpiryMonitoringActivity() {
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            scheduledRestrictionEnabled: true,
+            ticketRestrictionEnabled: true,
+            unlockRestrictionsWhenDailyGoalReached: true
+        )
+
+        XCTAssertEqual(settings.maximumEnabledSlotsForCurrentConfiguration, 18)
+    }
+
     func testLegacyRuntimeStateDecodeDefaultsTimerExpiryToNil() throws {
         let json = """
         {
@@ -696,6 +707,73 @@ final class ScreenTimeTicketPolicyTests: XCTestCase {
         )
     }
 
+    func testTicketCanStartAndBypassesEveryRestrictedPolicyReason() {
+        let now = date()
+        let active = ledger(
+            at: now,
+            issued: 3,
+            used: 1,
+            activeUntil: now.addingTimeInterval(10 * 60)
+        )
+        let block = FocusScheduleSlot(
+            behavior: .block,
+            startHour: 11,
+            endHour: 13
+        )
+        let pendingGoal = ScreenTimeDailyGoalProgress(
+            dayStart: ScreenTimeDateMath.epochMilliseconds(for: calendar.startOfDay(for: now)),
+            studyMinutes: 59,
+            targetMinutes: 60,
+            updatedAt: ScreenTimeDateMath.epochMilliseconds(for: now)
+        )
+
+        let goalSettings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            ticketRestrictionEnabled: true,
+            dailyTicketMinutes: 30,
+            unlockRestrictionsWhenDailyGoalReached: true
+        )
+        XCTAssertTrue(
+            decision(settings: goalSettings, goal: pendingGoal, at: now).canStartTicket
+        )
+        XCTAssertEqual(
+            decision(settings: goalSettings, ledger: active, goal: pendingGoal, at: now).reason,
+            .activeTicket
+        )
+
+        let timerSettings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            timerRestrictionEnabled: true,
+            ticketRestrictionEnabled: true,
+            dailyTicketMinutes: 30
+        )
+        XCTAssertTrue(
+            decision(settings: timerSettings, timerRunning: true, at: now).canStartTicket
+        )
+        XCTAssertEqual(
+            decision(
+                settings: timerSettings,
+                ledger: active,
+                timerRunning: true,
+                at: now
+            ).reason,
+            .activeTicket
+        )
+
+        let scheduleSettings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            scheduledRestrictionEnabled: true,
+            ticketRestrictionEnabled: true,
+            dailyTicketMinutes: 30,
+            scheduleSlots: [block]
+        )
+        XCTAssertTrue(decision(settings: scheduleSettings, at: now).canStartTicket)
+        XCTAssertEqual(
+            decision(settings: scheduleSettings, ledger: active, at: now).reason,
+            .activeTicket
+        )
+    }
+
     func testPolicyBlocksOutsideScheduleOnlyWhenConfigured() {
         let now = date()
         var settings = ScreenTimeFocusSettings(
@@ -710,7 +788,7 @@ final class ScreenTimeTicketPolicyTests: XCTestCase {
         XCTAssertEqual(decision(settings: settings, at: now).reason, .unrestricted)
     }
 
-    func testBlockedSchedulePausesAccessButTicketContinuesOnWallClock() {
+    func testActiveTicketBypassesBlockedScheduleAndContinuesOnWallClock() {
         let ticketStart = date(hour: 11, minute: 55)
         let duringBlock = date(hour: 12, minute: 1)
         let afterBlock = date(hour: 12, minute: 3)
@@ -737,7 +815,7 @@ final class ScreenTimeTicketPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             decision(settings: settings, ledger: active, at: duringBlock).reason,
-            .blockedSchedule
+            .activeTicket
         )
         XCTAssertEqual(
             decision(settings: settings, ledger: active, at: afterBlock).reason,

@@ -99,18 +99,18 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
     ) -> String {
         switch decision.reason {
         case .dailyGoalPending:
-            return "今日の学習目標を達成すると、終日利用できます。"
+            return "今日の残りは\(remainingTickets)枚です。チケット1枚で目標未達成の制限を10分間解除できます。"
         case .ticketRequired where remainingTickets > 0:
             return "今日の残りは\(remainingTickets)枚です。1枚で10分間利用できます。\(nextFreeOpeningText(settings: settings, after: referenceDate))"
         case .ticketRequired:
             return "今日使えるチケットは残っていません。\(nextFreeOpeningText(settings: settings, after: referenceDate))"
         case .studyTimer:
-            return "学習タイマーが終了するまでチケットは使えません。"
+            return "今日の残りは\(remainingTickets)枚です。チケット1枚でタイマー中の制限を10分間解除できます。"
         case .blockedSchedule:
             if let nextStart = settings.nextAllowedScheduleStart(after: referenceDate) {
-                return "次の無料開放は\(Self.dateFormatter.string(from: nextStart))です。"
+                return "今日の残りは\(remainingTickets)枚です。チケットで10分間解除できます。次の無料開放は\(Self.dateFormatter.string(from: nextStart))です。"
             }
-            return "この時間帯はチケットでも解除できません。"
+            return "今日の残りは\(remainingTickets)枚です。チケット1枚でこの制限を10分間解除できます。"
         case .outsideScheduleBlocked:
             return nextFreeOpeningText(settings: settings, after: referenceDate)
         default:

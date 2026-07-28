@@ -100,7 +100,8 @@ service cloud.firestore {
         "timetableEntry",
         "timetableTerm",
         "timetableReviewRecord",
-        "problemReviewRecord"
+        "problemReviewRecord",
+        "screenTimeSettings"
       ];
     }
 

@@ -401,11 +401,10 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         if ticketRestrictionEnabled || unlockRestrictionsWhenDailyGoalReached {
             count += 1
         }
-        guard !unlockRestrictionsWhenDailyGoalReached else { return count }
         if ticketRestrictionEnabled {
             count += 1
         }
-        if timerRestrictionEnabled {
+        if timerRestrictionEnabled && !unlockRestrictionsWhenDailyGoalReached {
             count += 1
         }
         return count
@@ -575,7 +574,14 @@ struct ScreenTimePolicyDecision: Equatable {
     var reason: ScreenTimePolicyReason
 
     var canStartTicket: Bool {
-        isRestricted && reason == .ticketRequired
+        guard isRestricted else { return false }
+        switch reason {
+        case .dailyGoalPending, .studyTimer, .blockedSchedule, .ticketRequired:
+            return true
+        case .masterDisabled, .dailyGoalReached, .allowedSchedule, .activeTicket,
+             .outsideScheduleBlocked, .unrestricted:
+            return false
+        }
     }
 }
 
@@ -591,6 +597,8 @@ enum ScreenTimePolicyEvaluator {
         guard settings.isEnabled else {
             return ScreenTimePolicyDecision(isRestricted: false, reason: .masterDisabled)
         }
+        let hasActiveTicket = settings.ticketRestrictionEnabled
+            && ledger?.hasActiveTicket(at: referenceDate, calendar: calendar) == true
         if settings.unlockRestrictionsWhenDailyGoalReached {
             if settings.shouldUnlockRestrictionsForDailyGoal(
                 progress: dailyGoalProgress,
@@ -599,15 +607,24 @@ enum ScreenTimePolicyEvaluator {
             ) {
                 return ScreenTimePolicyDecision(isRestricted: false, reason: .dailyGoalReached)
             }
+            if hasActiveTicket {
+                return ScreenTimePolicyDecision(isRestricted: false, reason: .activeTicket)
+            }
             return ScreenTimePolicyDecision(isRestricted: true, reason: .dailyGoalPending)
         }
         if settings.timerRestrictionEnabled,
            runtimeState.isTimerRestrictionActive(at: referenceDate) {
+            if hasActiveTicket {
+                return ScreenTimePolicyDecision(isRestricted: false, reason: .activeTicket)
+            }
             return ScreenTimePolicyDecision(isRestricted: true, reason: .studyTimer)
         }
 
         let activeSlots = settings.activeScheduleSlots(at: referenceDate, calendar: calendar)
         if activeSlots.contains(where: { $0.behavior == .block }) {
+            if hasActiveTicket {
+                return ScreenTimePolicyDecision(isRestricted: false, reason: .activeTicket)
+            }
             return ScreenTimePolicyDecision(isRestricted: true, reason: .blockedSchedule)
         }
         if activeSlots.contains(where: { $0.behavior == .allow }) {
@@ -615,7 +632,7 @@ enum ScreenTimePolicyEvaluator {
         }
 
         if settings.ticketRestrictionEnabled {
-            if ledger?.hasActiveTicket(at: referenceDate, calendar: calendar) == true {
+            if hasActiveTicket {
                 return ScreenTimePolicyDecision(isRestricted: false, reason: .activeTicket)
             }
             return ScreenTimePolicyDecision(isRestricted: true, reason: .ticketRequired)

@@ -64,7 +64,20 @@ await expect(
   setDoc(doc(db, `users/${uid}/sync_entities/subject-s1`), { ...entityBase, deletedAt: 2000 })
 );
 
-// 4. json 900KB 超 → 拒否（クライアント検証と同じ境界）
+// 4. Screen Time 設定エンティティ → 許可
+await expect(
+  "screen time settings entity is allowed",
+  "allow",
+  setDoc(doc(db, `users/${uid}/sync_entities/screenTimeSettings-screen-time-focus`), {
+    ...entityBase,
+    kind: "screenTimeSettings",
+    syncId: "screen-time-focus",
+    deletedAt: null,
+    json: "{\"isEnabled\":true}",
+  })
+);
+
+// 5. json 900KB 超 → 拒否（クライアント検証と同じ境界）
 await expect(
   "oversized json is denied",
   "deny",
@@ -75,7 +88,7 @@ await expect(
   })
 );
 
-// 5. updatedAt が2100年超 → 拒否
+// 6. updatedAt が2100年超 → 拒否
 await expect(
   "far-future updatedAt is denied",
   "deny",
@@ -86,7 +99,7 @@ await expect(
   })
 );
 
-// 6. 新ルール: syncGeneration のみのルートdoc → 許可
+// 7. 新ルール: syncGeneration のみのルートdoc → 許可
 await expect(
   "generation-only user root write is allowed",
   "allow",
@@ -97,7 +110,7 @@ await expect(
   )
 );
 
-// 7. clientFlags のみ（merge で generation と共存）→ 許可
+// 8. clientFlags のみ（merge で generation と共存）→ 許可
 await expect(
   "clientFlags merge onto generation doc is allowed",
   "allow",
@@ -111,14 +124,14 @@ await expect(
   )
 );
 
-// 8. 未知フィールドのルートdoc → 拒否
+// 9. 未知フィールドのルートdoc → 拒否
 await expect(
   "unknown user-root field is denied",
   "deny",
   setDoc(doc(db, `users/${uid}`), { evil: true }, { merge: true })
 );
 
-// 9. 他人の uid への書き込み → 拒否
+// 10. 他人の uid への書き込み → 拒否
 const otherDb = env.authenticatedContext("someone-else").firestore();
 await expect(
   "cross-user write is denied",

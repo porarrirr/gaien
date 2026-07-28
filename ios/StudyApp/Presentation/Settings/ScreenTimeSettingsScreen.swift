@@ -29,7 +29,8 @@ struct ScreenTimeSettingsScreen: View {
         !focusController.isSettingsLocked
     }
 
-    /// 目標達成ルールがオンの間、タイマー・時間帯・チケットの判定には到達しない。
+    /// 目標達成ルールがオンの間、タイマー・時間帯の判定には到達しない。
+    /// チケットは目標未達成による制限も一時解除できる。
     private var goalRuleOverridesOthers: Bool {
         settings.unlockRestrictionsWhenDailyGoalReached
     }
@@ -247,7 +248,7 @@ struct ScreenTimeSettingsScreen: View {
             return "勉強タイマー中のため制限しています。"
         case .blockedSchedule:
             if let nextStart = focusController.accessSnapshot?.nextAllowedScheduleStart {
-                return "使用禁止の時間帯です。次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))。"
+                return "チケットで10分間解除できます。次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))。"
             }
             return "使用禁止の時間帯です。"
         case .allowedSchedule:
@@ -318,8 +319,7 @@ struct ScreenTimeSettingsScreen: View {
             )
         }
 
-        if !goalRuleOverridesOthers,
-           settings.ticketRestrictionEnabled,
+        if settings.ticketRestrictionEnabled,
            settings.dailyTicketMinutes == 0 {
             items.append(
                 ScreenTimeWarning(
@@ -508,14 +508,14 @@ struct ScreenTimeSettingsScreen: View {
         }
         switch focusController.policyDecision?.reason {
         case .dailyGoalPending:
-            return "「目標達成まで制限」がオンの間は、チケットを使えません。"
+            return "チケットを1枚使うと、目標未達成の制限を10分間解除できます。"
         case .studyTimer:
-            return "勉強タイマー中はチケットを使えません。"
+            return "チケットを1枚使うと、勉強タイマー中の制限を10分間解除できます。"
         case .blockedSchedule:
             if let nextStart = focusController.accessSnapshot?.nextAllowedScheduleStart {
                 return "使用禁止の時間帯です。次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))。"
             }
-            return "使用禁止の時間帯ではチケットを使えません。"
+            return "チケットを1枚使うと、使用禁止時間帯の制限を10分間解除できます。"
         case .allowedSchedule:
             return "無料開放の時間帯なので、チケットは消費されません。"
         case .dailyGoalReached:
@@ -595,7 +595,7 @@ struct ScreenTimeSettingsScreen: View {
                         .foregroundStyle(goalProgress?.hasReachedTarget == true ? AppColors.success : AppColors.textPrimary)
                 }
 
-                Text("このルールがオンの間、下の3つのルールは使われません（手動で追加した学習記録は進み具合に含みません）。")
+                Text("このルールがオンの間、タイマーと時間帯のルールは休止します。チケットは目標未達成の制限を10分間解除できます（手動で追加した学習記録は進み具合に含みません）。")
                     .font(.caption2)
                     .foregroundStyle(AppColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -663,9 +663,8 @@ struct ScreenTimeSettingsScreen: View {
             ruleRow(
                 icon: "ticket",
                 title: "チケット制",
-                detail: "ふだんは制限し、チケット1枚で10分だけ開けます",
-                badge: dormantBadge,
-                isDormant: goalRuleOverridesOthers,
+                detail: "どの制限中でも、チケット1枚で10分だけ開けます",
+                badge: nil,
                 isOn: Binding(
                     get: { settings.ticketRestrictionEnabled },
                     set: { enabled in

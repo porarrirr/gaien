@@ -54,9 +54,6 @@ enum ScreenTimeTicketStartError: LocalizedError, Equatable {
     case alreadyUnrestricted
     case activeTicket
     case noTicketsRemaining
-    case unavailableUntilDailyGoalReached
-    case unavailableDuringStudyTimer
-    case unavailableDuringBlockedSchedule
     case midnightCalculationFailed
     case monitoringFailed
 
@@ -70,12 +67,6 @@ enum ScreenTimeTicketStartError: LocalizedError, Equatable {
             return "使用中のチケットが終了してから次のチケットを使ってください"
         case .noTicketsRemaining:
             return "今日使えるチケットは残っていません"
-        case .unavailableUntilDailyGoalReached:
-            return "今日の学習目標を達成するまでチケットは使えません"
-        case .unavailableDuringStudyTimer:
-            return "学習タイマー中はチケットを使えません"
-        case .unavailableDuringBlockedSchedule:
-            return "使用禁止時間帯はチケットを使えません"
         case .midnightCalculationFailed:
             return "チケットの終了時刻を計算できませんでした"
         case .monitoringFailed:
@@ -193,8 +184,7 @@ struct ScreenTimeAccessEngine {
             stopDailyBoundaryMonitoring()
         }
 
-        if settings.ticketRestrictionEnabled,
-           !settings.unlockRestrictionsWhenDailyGoalReached {
+        if settings.ticketRestrictionEnabled {
             if let ledger = try currentLedger(
                 settings: settings,
                 referenceDate: referenceDate,
@@ -283,20 +273,14 @@ struct ScreenTimeAccessEngine {
                     throw ScreenTimeTicketStartError.activeTicket
                 }
                 switch decision.reason {
-                case .dailyGoalPending:
-                    throw ScreenTimeTicketStartError.unavailableUntilDailyGoalReached
-                case .studyTimer:
-                    throw ScreenTimeTicketStartError.unavailableDuringStudyTimer
-                case .blockedSchedule:
-                    throw ScreenTimeTicketStartError.unavailableDuringBlockedSchedule
+                case .dailyGoalPending, .studyTimer, .blockedSchedule, .ticketRequired:
+                    break
                 case .dailyGoalReached, .allowedSchedule, .masterDisabled, .unrestricted:
                     throw ScreenTimeTicketStartError.alreadyUnrestricted
                 case .activeTicket:
                     throw ScreenTimeTicketStartError.activeTicket
                 case .outsideScheduleBlocked:
                     throw ScreenTimeTicketStartError.ticketsDisabled
-                case .ticketRequired:
-                    break
                 }
 
                 let previous = ledger
