@@ -997,6 +997,166 @@ final class ScreenTimeTicketPolicyTests: XCTestCase {
         XCTAssertEqual(configured.remainingTicketCount, 3)
     }
 
+    func testTicketsCannotStartWhileTicketRuleIsDisabled() {
+        let now = date()
+        let pendingGoal = ScreenTimeDailyGoalProgress(
+            dayStart: ScreenTimeDateMath.epochMilliseconds(for: calendar.startOfDay(for: now)),
+            studyMinutes: 59,
+            targetMinutes: 60,
+            updatedAt: ScreenTimeDateMath.epochMilliseconds(for: now)
+        )
+        let block = FocusScheduleSlot(behavior: .block, startHour: 11, endHour: 13)
+
+        let goalSettings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            ticketRestrictionEnabled: false,
+            dailyTicketMinutes: 30,
+            unlockRestrictionsWhenDailyGoalReached: true
+        )
+        let goalDecision = decision(settings: goalSettings, goal: pendingGoal, at: now)
+        XCTAssertEqual(goalDecision.reason, .dailyGoalPending)
+        XCTAssertFalse(goalDecision.canStartTicket)
+
+        let timerSettings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            timerRestrictionEnabled: true,
+            ticketRestrictionEnabled: false,
+            dailyTicketMinutes: 30
+        )
+        let timerDecision = decision(settings: timerSettings, timerRunning: true, at: now)
+        XCTAssertEqual(timerDecision.reason, .studyTimer)
+        XCTAssertFalse(timerDecision.canStartTicket)
+
+        let scheduleSettings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            scheduledRestrictionEnabled: true,
+            ticketRestrictionEnabled: false,
+            dailyTicketMinutes: 30,
+            scheduleSlots: [block]
+        )
+        let scheduleDecision = decision(settings: scheduleSettings, at: now)
+        XCTAssertEqual(scheduleDecision.reason, .blockedSchedule)
+        XCTAssertFalse(scheduleDecision.canStartTicket)
+    }
+
+    func testReadOnlyLoadReportsRemainingCountWithoutTouchingTheFile() throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+        let fileURL = temporaryDirectory.appendingPathComponent("ledger.json")
+        let store = ScreenTimeTicketLedgerStore(fileURLProvider: { fileURL })
+        let now = date()
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            ticketRestrictionEnabled: true,
+            dailyTicketMinutes: 30
+        )
+
+        XCTAssertNil(try store.loadReadOnly(
+            settings: settings,
+            referenceDate: now,
+            calendar: calendar
+        ))
+
+        _ = try store.load(
+            settings: settings,
+            referenceDate: now,
+            calendar: calendar,
+            createIfMissing: true
+        )
+        try store.update(settings: settings, referenceDate: now, calendar: calendar) { ledger in
+            try ledger.reserveTicket(
+                start: now,
+                expiry: now.addingTimeInterval(10 * 60),
+                calendar: calendar
+            )
+        }
+
+        let before = try Data(contentsOf: fileURL)
+        let readOnly = try XCTUnwrap(store.loadReadOnly(
+            settings: settings,
+            referenceDate: now.addingTimeInterval(60),
+            calendar: calendar
+        ))
+        XCTAssertEqual(readOnly.issuedTicketCount, 3)
+        XCTAssertEqual(readOnly.remainingTicketCount, 2)
+        XCTAssertEqual(try Data(contentsOf: fileURL), before)
+    }
+
+    func testReadOnlyLoadSurfacesDecodeFailureInsteadOfReportingZero() throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+        let fileURL = temporaryDirectory.appendingPathComponent("ledger.json")
+        try Data("not json".utf8).write(to: fileURL)
+        let store = ScreenTimeTicketLedgerStore(fileURLProvider: { fileURL })
+
+        XCTAssertThrowsError(
+            try store.loadReadOnly(
+                settings: ScreenTimeFocusSettings(
+                    isEnabled: true,
+                    ticketRestrictionEnabled: true,
+                    dailyTicketMinutes: 30
+                ),
+                referenceDate: date(),
+                calendar: calendar
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? ScreenTimeTicketLedgerStoreError,
+                ScreenTimeTicketLedgerStoreError.stateReadFailed
+            )
+        }
+    }
+
+    func testMinuteAlignedExpiryEndsTicketExactlyWhenMonitoringWindowStarts() throws {
+        let start = date(hour: 10, minute: 0).addingTimeInterval(37)
+        let expiry = ScreenTimeDateMath.ceilingToMinute(
+            start.addingTimeInterval(TimeInterval(ScreenTimeFocusSettings.ticketDurationMinutes * 60)),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(expiry, date(hour: 10, minute: 11))
+
+        var ledger = self.ledger(at: start, issued: 3)
+        try ledger.reserveTicket(start: start, expiry: expiry, calendar: calendar)
+
+        // 監視ウィンドウは expiry ちょうどに開始する。その瞬間にチケットは有効であってはならない。
+        XCTAssertTrue(ledger.hasActiveTicket(at: expiry.addingTimeInterval(-1), calendar: calendar))
+        XCTAssertFalse(ledger.hasActiveTicket(at: expiry, calendar: calendar))
+    }
+
+    func testEndActiveTicketClearsWindowWithoutRefundingTheTicket() throws {
+        let now = date()
+        var ledger = self.ledger(at: now, issued: 3)
+        try ledger.reserveTicket(
+            start: now,
+            expiry: now.addingTimeInterval(10 * 60),
+            calendar: calendar
+        )
+        XCTAssertEqual(ledger.remainingTicketCount, 2)
+
+        ledger.endActiveTicket()
+
+        XCTAssertNil(ledger.activeTicketStartedAt)
+        XCTAssertNil(ledger.activeTicketEndsAt)
+        XCTAssertFalse(ledger.hasActiveTicket(at: now, calendar: calendar))
+        XCTAssertEqual(ledger.usedTicketCount, 1)
+        XCTAssertEqual(ledger.remainingTicketCount, 2)
+    }
+
     func testDisableAndReenableDoesNotRestoreUsedTickets() throws {
         let now = date()
         var ledger = self.ledger(at: now, issued: 2)

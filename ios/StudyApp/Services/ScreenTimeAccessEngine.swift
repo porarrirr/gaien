@@ -99,7 +99,18 @@ struct ScreenTimeAccessEngine {
     }
 
     func snapshot(referenceDate: Date = Date(), calendar: Calendar = .current) throws -> ScreenTimeAccessSnapshot {
-        let settings = ScreenTimeFocusShared.loadSettings()
+        try snapshot(
+            settings: ScreenTimeFocusShared.loadSettings(),
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+
+    private func snapshot(
+        settings: ScreenTimeFocusSettings,
+        referenceDate: Date,
+        calendar: Calendar
+    ) throws -> ScreenTimeAccessSnapshot {
         let ledger = try currentLedger(
             settings: settings,
             referenceDate: referenceDate,
@@ -130,8 +141,13 @@ struct ScreenTimeAccessEngine {
         calendar: Calendar = .current
     ) throws -> ScreenTimePolicyDecision {
         clearLegacyStores()
+        // 判定と適用で別の設定を読まないよう、一度だけ読んで共有する。
         let settings = ScreenTimeFocusShared.loadSettings()
-        let snapshot = try snapshot(referenceDate: referenceDate, calendar: calendar)
+        let snapshot = try snapshot(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
 
         if snapshot.decision.isRestricted {
             let result = ScreenTimeFocusShared.applyRestrictions(
@@ -248,8 +264,14 @@ struct ScreenTimeAccessEngine {
         ) else {
             throw ScreenTimeTicketStartError.midnightCalculationFailed
         }
-        let nominalExpiry = referenceDate.addingTimeInterval(
-            TimeInterval(ScreenTimeFocusSettings.ticketDurationMinutes * 60)
+        // 期限監視のスケジュールは分粒度でしか境界を持てないため、台帳側の期限も分境界へ
+        // 切り上げて一致させる。ズレたままだと期限コールバック時点で `hasActiveTicket` が
+        // まだ true になり、再シールドではなく制限解除が走ってしまう。
+        let nominalExpiry = ScreenTimeDateMath.ceilingToMinute(
+            referenceDate.addingTimeInterval(
+                TimeInterval(ScreenTimeFocusSettings.ticketDurationMinutes * 60)
+            ),
+            calendar: calendar
         )
         let expiry = min(nominalExpiry, nextDayStart)
         let progress = ScreenTimeFocusShared.loadDailyGoalProgress()
@@ -333,6 +355,39 @@ struct ScreenTimeAccessEngine {
         clearLegacyStores()
     }
 
+    /// 期限監視コールバックを受けて、使用中チケットを台帳上でも終了させる。
+    ///
+    /// これを行わないと再シールドの可否が `hasActiveTicket` の壁時計比較だけに依存し、
+    /// コールバックの配送タイミング次第で「まだ有効」と判定されて制限が戻らない。
+    /// 期限に達していないチケットは触らない（誤配送でチケットを失わせないため）。
+    @discardableResult
+    func finalizeExpiredTicket(
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> Bool {
+        let settings = ScreenTimeFocusShared.loadSettings()
+        guard try ledgerStore.load(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar,
+            createIfMissing: false
+        ) != nil else {
+            return false
+        }
+        return try ledgerStore.update(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ) { ledger in
+            guard let endsAt = ledger.activeTicketEndsAt,
+                  endsAt <= ScreenTimeDateMath.epochMilliseconds(for: referenceDate) else {
+                return false
+            }
+            ledger.endActiveTicket()
+            return true
+        }
+    }
+
     func completeOneShotMonitoring(_ activity: DeviceActivityName) {
         guard activity == ScreenTimeFocusShared.ticketExpiryActivityName
                 || activity == ScreenTimeFocusShared.timerExpiryActivityName else {
@@ -394,35 +449,40 @@ struct ScreenTimeAccessEngine {
         )
     }
 
-    private func registerTicketExpiryMonitoring(expiry: Date, calendar: Calendar) throws {
-        let start = expiry.addingTimeInterval(-15 * 60)
+    /// 期限を「ウィンドウの開始」に置いた一回限りのスケジュールを作る。
+    ///
+    /// 期限をウィンドウの終端にすると、登録時点でウィンドウがすでに進行中になるうえ、
+    /// 分粒度への丸めで `intervalDidEnd` が実際の期限より前に届きうる。その場合
+    /// 再評価はまだ「チケット有効」と判定し、再シールドではなく制限解除が走ってしまう。
+    /// 期限を開始側に置けば未来から始まるウィンドウになり、システムは期限より前に発火しない。
+    /// 終端の +15 分は `DeviceActivitySchedule` の最小長を満たすためだけのもの。
+    private static func expirySchedule(expiry: Date, calendar: Calendar) -> DeviceActivitySchedule {
         let components: Set<Calendar.Component> = [
-            .era, .year, .month, .day, .hour, .minute, .second
+            .era, .year, .month, .day, .hour, .minute
         ]
-        let schedule = DeviceActivitySchedule(
-            intervalStart: calendar.dateComponents(components, from: start),
-            intervalEnd: calendar.dateComponents(components, from: expiry),
+        return DeviceActivitySchedule(
+            intervalStart: calendar.dateComponents(components, from: expiry),
+            intervalEnd: calendar.dateComponents(
+                components,
+                from: expiry.addingTimeInterval(15 * 60)
+            ),
             repeats: false
         )
+    }
+
+    private func registerTicketExpiryMonitoring(expiry: Date, calendar: Calendar) throws {
+        stopTicketExpiryMonitoring()
         try deviceActivityCenter.startMonitoring(
             ScreenTimeFocusShared.ticketExpiryActivityName,
-            during: schedule
+            during: Self.expirySchedule(expiry: expiry, calendar: calendar)
         )
     }
 
     private func registerTimerExpiryMonitoring(expiry: Date, calendar: Calendar) throws {
-        let start = expiry.addingTimeInterval(-15 * 60)
-        let components: Set<Calendar.Component> = [
-            .era, .year, .month, .day, .hour, .minute, .second
-        ]
-        let schedule = DeviceActivitySchedule(
-            intervalStart: calendar.dateComponents(components, from: start),
-            intervalEnd: calendar.dateComponents(components, from: expiry),
-            repeats: false
-        )
+        stopTimerExpiryMonitoring()
         try deviceActivityCenter.startMonitoring(
             ScreenTimeFocusShared.timerExpiryActivityName,
-            during: schedule
+            during: Self.expirySchedule(expiry: expiry, calendar: calendar)
         )
     }
 

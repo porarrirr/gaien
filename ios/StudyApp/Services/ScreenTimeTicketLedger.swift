@@ -75,6 +75,12 @@ struct ScreenTimeTicketLedger: Codable, Equatable {
         updatedAt = ScreenTimeDateMath.epochMilliseconds(for: start)
     }
 
+    /// 使用中チケットの区間だけを終了させる。消費済み枚数は戻さない。
+    mutating func endActiveTicket() {
+        activeTicketStartedAt = nil
+        activeTicketEndsAt = nil
+    }
+
     mutating func normalize(
         settings: ScreenTimeFocusSettings,
         referenceDate: Date,
@@ -94,8 +100,7 @@ struct ScreenTimeTicketLedger: Codable, Equatable {
         }
         if !isForDay(containing: referenceDate, calendar: calendar)
             || !hasActiveTicket(at: referenceDate, calendar: calendar) {
-            activeTicketStartedAt = nil
-            activeTicketEndsAt = nil
+            endActiveTicket()
         }
         updatedAt = ScreenTimeDateMath.epochMilliseconds(for: referenceDate)
     }
@@ -167,6 +172,29 @@ struct ScreenTimeTicketLedgerStore {
             }
             return ledger
         }
+    }
+
+    /// 表示専用の読み取り。`NSFileCoordinator` を使わず、ファイルへも書き戻さない。
+    ///
+    /// `ShieldConfigurationDataSource` は極めて短い実行予算で同期的に応答する必要があり、
+    /// ファイル協調の書き込みクレーム獲得も App Group への書き込みも前提にできない。
+    /// `load(createIfMissing:)` はたとえ読み取り目的でも `coordinate(writingItemAt:)` を通り、
+    /// `normalize()` の結果を毎回書き戻すため、この経路をシールド拡張から使うと
+    /// 失敗が「残り0枚」として描画されてしまう。
+    ///
+    /// 協調なしで安全なのは `writeLedger` が `.atomic`（一時ファイル + rename）で書くため。
+    /// 読み手は必ず新旧どちらかの完全なファイルを見る（破損した中間状態は観測されない）。
+    func loadReadOnly(
+        settings: ScreenTimeFocusSettings,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> ScreenTimeTicketLedger? {
+        guard let fileURL = fileURLProvider() else {
+            throw ScreenTimeTicketLedgerStoreError.appGroupUnavailable
+        }
+        guard var ledger = try readLedger(at: fileURL) else { return nil }
+        ledger.normalize(settings: settings, referenceDate: referenceDate, calendar: calendar)
+        return ledger
     }
 
     func update<T>(

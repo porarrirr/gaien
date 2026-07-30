@@ -11,6 +11,18 @@ enum ScreenTimeDateMath {
     static func date(fromEpochMilliseconds value: Int64) -> Date {
         Date(timeIntervalSince1970: TimeInterval(value) / 1_000)
     }
+
+    /// `DeviceActivitySchedule` は分粒度でしか境界を扱えない。
+    /// 期限を分境界へ切り上げておくことで、台帳の期限とスケジュールの境界が一致し、
+    /// 期限コールバックが実際の期限より前に届くことがなくなる。
+    static func ceilingToMinute(_ date: Date, calendar: Calendar = .current) -> Date {
+        let truncated = calendar.date(
+            from: calendar.dateComponents([.era, .year, .month, .day, .hour, .minute], from: date)
+        )
+        guard let truncated else { return date }
+        guard truncated < date else { return truncated }
+        return truncated.addingTimeInterval(60)
+    }
 }
 
 enum FocusScheduleBehavior: String, Codable, CaseIterable, Hashable {
@@ -572,9 +584,12 @@ enum ScreenTimePolicyReason: String, Codable, Equatable {
 struct ScreenTimePolicyDecision: Equatable {
     var isRestricted: Bool
     var reason: ScreenTimePolicyReason
+    /// チケット制が無効な間はチケットを受け付けない（`hasActiveTicket` も `startTicket` も
+    /// この設定でゲートしている）。表示側が枚数やチケットボタンを出さないよう決定に含める。
+    var ticketRestrictionEnabled: Bool = false
 
     var canStartTicket: Bool {
-        guard isRestricted else { return false }
+        guard ticketRestrictionEnabled, isRestricted else { return false }
         switch reason {
         case .dailyGoalPending, .studyTimer, .blockedSchedule, .ticketRequired:
             return true
@@ -594,8 +609,19 @@ enum ScreenTimePolicyEvaluator {
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> ScreenTimePolicyDecision {
+        func decision(
+            isRestricted: Bool,
+            reason: ScreenTimePolicyReason
+        ) -> ScreenTimePolicyDecision {
+            ScreenTimePolicyDecision(
+                isRestricted: isRestricted,
+                reason: reason,
+                ticketRestrictionEnabled: settings.isEnabled && settings.ticketRestrictionEnabled
+            )
+        }
+
         guard settings.isEnabled else {
-            return ScreenTimePolicyDecision(isRestricted: false, reason: .masterDisabled)
+            return decision(isRestricted: false, reason: .masterDisabled)
         }
         let hasActiveTicket = settings.ticketRestrictionEnabled
             && ledger?.hasActiveTicket(at: referenceDate, calendar: calendar) == true
@@ -605,45 +631,45 @@ enum ScreenTimePolicyEvaluator {
                 referenceDate: referenceDate,
                 calendar: calendar
             ) {
-                return ScreenTimePolicyDecision(isRestricted: false, reason: .dailyGoalReached)
+                return decision(isRestricted: false, reason: .dailyGoalReached)
             }
             if hasActiveTicket {
-                return ScreenTimePolicyDecision(isRestricted: false, reason: .activeTicket)
+                return decision(isRestricted: false, reason: .activeTicket)
             }
-            return ScreenTimePolicyDecision(isRestricted: true, reason: .dailyGoalPending)
+            return decision(isRestricted: true, reason: .dailyGoalPending)
         }
         if settings.timerRestrictionEnabled,
            runtimeState.isTimerRestrictionActive(at: referenceDate) {
             if hasActiveTicket {
-                return ScreenTimePolicyDecision(isRestricted: false, reason: .activeTicket)
+                return decision(isRestricted: false, reason: .activeTicket)
             }
-            return ScreenTimePolicyDecision(isRestricted: true, reason: .studyTimer)
+            return decision(isRestricted: true, reason: .studyTimer)
         }
 
         let activeSlots = settings.activeScheduleSlots(at: referenceDate, calendar: calendar)
         if activeSlots.contains(where: { $0.behavior == .block }) {
             if hasActiveTicket {
-                return ScreenTimePolicyDecision(isRestricted: false, reason: .activeTicket)
+                return decision(isRestricted: false, reason: .activeTicket)
             }
-            return ScreenTimePolicyDecision(isRestricted: true, reason: .blockedSchedule)
+            return decision(isRestricted: true, reason: .blockedSchedule)
         }
         if activeSlots.contains(where: { $0.behavior == .allow }) {
-            return ScreenTimePolicyDecision(isRestricted: false, reason: .allowedSchedule)
+            return decision(isRestricted: false, reason: .allowedSchedule)
         }
 
         if settings.ticketRestrictionEnabled {
             if hasActiveTicket {
-                return ScreenTimePolicyDecision(isRestricted: false, reason: .activeTicket)
+                return decision(isRestricted: false, reason: .activeTicket)
             }
-            return ScreenTimePolicyDecision(isRestricted: true, reason: .ticketRequired)
+            return decision(isRestricted: true, reason: .ticketRequired)
         }
 
         if settings.scheduledRestrictionEnabled,
            settings.restrictOutsideScheduleWhenTicketsDisabled {
-            return ScreenTimePolicyDecision(isRestricted: true, reason: .outsideScheduleBlocked)
+            return decision(isRestricted: true, reason: .outsideScheduleBlocked)
         }
 
-        return ScreenTimePolicyDecision(isRestricted: false, reason: .unrestricted)
+        return decision(isRestricted: false, reason: .unrestricted)
     }
 }
 

@@ -1,8 +1,14 @@
 import ManagedSettings
 import ManagedSettingsUI
+import OSLog
 import UIKit
 
 final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource {
+    private let logger = Logger(
+        subsystem: "com.studyapp.ios",
+        category: "ShieldConfiguration"
+    )
+
     override func configuration(shielding application: Application) -> ShieldConfiguration {
         makeConfiguration()
     }
@@ -27,11 +33,7 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
 
     private func makeConfiguration(referenceDate: Date = Date()) -> ShieldConfiguration {
         let settings = ScreenTimeFocusShared.loadSettings()
-        let ledger: ScreenTimeTicketLedger? = (try? ScreenTimeTicketLedgerStore().load(
-            settings: settings,
-            referenceDate: referenceDate,
-            createIfMissing: false
-        )) ?? nil
+        let ledger = loadLedger(settings: settings, referenceDate: referenceDate)
         let decision = ScreenTimePolicyEvaluator.evaluate(
             settings: settings,
             ledger: ledger,
@@ -56,7 +58,7 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
                 text: subtitle(
                     settings: settings,
                     decision: decision,
-                    remainingTickets: remaining,
+                    remainingTickets: decision.canStartTicket ? remaining : nil,
                     referenceDate: referenceDate
                 ),
                 color: UIColor.secondaryLabel
@@ -70,6 +72,25 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
                 ? ShieldConfiguration.Label(text: "閉じる", color: UIColor.secondaryLabel)
                 : nil
         )
+    }
+
+    /// 表示専用なので協調書き込みを伴わない読み取り経路を使う。
+    /// 読めなかった場合と「本当に0枚」を区別できるよう、失敗は必ずログに残す。
+    private func loadLedger(
+        settings: ScreenTimeFocusSettings,
+        referenceDate: Date
+    ) -> ScreenTimeTicketLedger? {
+        do {
+            return try ScreenTimeTicketLedgerStore().loadReadOnly(
+                settings: settings,
+                referenceDate: referenceDate
+            )
+        } catch {
+            logger.error(
+                "Failed to read ticket ledger for shield: \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
     }
 
     private func title(for reason: ScreenTimePolicyReason) -> String {
@@ -91,19 +112,30 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
         }
     }
 
+    /// `remainingTickets` が nil のときは、この状態でチケットが使えない
+    /// （チケット制がオフ、またはチケットで解除できない理由）ことを表す。
+    /// その場合は枚数にも「チケットで解除できます」にも言及しない。
     private func subtitle(
         settings: ScreenTimeFocusSettings,
         decision: ScreenTimePolicyDecision,
-        remainingTickets: Int,
+        remainingTickets: Int?,
         referenceDate: Date
     ) -> String {
+        guard let remainingTickets else {
+            return subtitleWithoutTickets(
+                reason: decision.reason,
+                settings: settings,
+                referenceDate: referenceDate
+            )
+        }
+        guard remainingTickets > 0 else {
+            return "今日使えるチケットは残っていません。\(subtitleWithoutTickets(reason: decision.reason, settings: settings, referenceDate: referenceDate))"
+        }
         switch decision.reason {
         case .dailyGoalPending:
             return "今日の残りは\(remainingTickets)枚です。チケット1枚で目標未達成の制限を10分間解除できます。"
-        case .ticketRequired where remainingTickets > 0:
-            return "今日の残りは\(remainingTickets)枚です。1枚で10分間利用できます。\(nextFreeOpeningText(settings: settings, after: referenceDate))"
         case .ticketRequired:
-            return "今日使えるチケットは残っていません。\(nextFreeOpeningText(settings: settings, after: referenceDate))"
+            return "今日の残りは\(remainingTickets)枚です。1枚で10分間利用できます。\(nextFreeOpeningText(settings: settings, after: referenceDate))"
         case .studyTimer:
             return "今日の残りは\(remainingTickets)枚です。チケット1枚でタイマー中の制限を10分間解除できます。"
         case .blockedSchedule:
@@ -111,7 +143,22 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
                 return "今日の残りは\(remainingTickets)枚です。チケットで10分間解除できます。次の無料開放は\(Self.dateFormatter.string(from: nextStart))です。"
             }
             return "今日の残りは\(remainingTickets)枚です。チケット1枚でこの制限を10分間解除できます。"
-        case .outsideScheduleBlocked:
+        default:
+            return "制限状態を更新しています。"
+        }
+    }
+
+    private func subtitleWithoutTickets(
+        reason: ScreenTimePolicyReason,
+        settings: ScreenTimeFocusSettings,
+        referenceDate: Date
+    ) -> String {
+        switch reason {
+        case .dailyGoalPending:
+            return "今日の学習目標を達成すると、終日利用できます。"
+        case .studyTimer:
+            return "学習タイマーが終了するまで利用できません。"
+        case .ticketRequired, .blockedSchedule, .outsideScheduleBlocked:
             return nextFreeOpeningText(settings: settings, after: referenceDate)
         default:
             return "制限状態を更新しています。"
