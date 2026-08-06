@@ -5,10 +5,18 @@ import SwiftUI
 // MARK: - Root
 
 struct RootView: View {
+    private enum RestoredPickerTarget {
+        case allowedDuringRestriction
+        case dailyBudget
+    }
+
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var app: StudyAppContainer
     @ObservedObject private var focusController: ScreenTimeFocusController
-    @State private var restoredSelection = FamilyActivitySelection(includeEntireCategory: true)
+    @State private var restoredAllowedSelection = FamilyActivitySelection(includeEntireCategory: true)
+    @State private var restoredBudgetSelection = FamilyActivitySelection(includeEntireCategory: true)
+    @State private var restoredPickerSelection = FamilyActivitySelection(includeEntireCategory: true)
+    @State private var restoredPickerTarget: RestoredPickerTarget = .allowedDuringRestriction
     @State private var isShowingRestoredSelectionPicker = false
     @State private var hasPresentedRestoredSelectionPrompt = false
 
@@ -64,7 +72,7 @@ struct RootView: View {
         } message: {
             Text(app.errorMessage ?? "")
         }
-        .alert("許可するアプリを選択してください", isPresented: restoredSelectionPromptBinding) {
+        .alert("対象アプリを選択してください", isPresented: restoredSelectionPromptBinding) {
             Button("選択する") {
                 beginRestoredSelection()
             }
@@ -72,22 +80,25 @@ struct RootView: View {
                 hasPresentedRestoredSelectionPrompt = true
             }
         } message: {
-            Text("ログインしたアカウントのScreen Time設定を復元しました。Appleの仕様により許可アプリは端末間で引き継げないため、この端末で選び直してください。")
+            Text("ログインしたアカウントのScreen Time設定を復元しました。Appleの仕様によりアプリの選択は端末間で引き継げないため、この端末で選び直してください。")
         }
         .familyActivityPicker(
-            headerText: "集中制限中も使えるアプリとWebサイトを選択してください",
-            footerText: "この選択は端末固有です。ほかのScreen Time設定はクラウドから復元済みです。",
+            headerText: restoredPickerHeaderText,
+            footerText: restoredPickerFooterText,
             isPresented: $isShowingRestoredSelectionPicker,
-            selection: $restoredSelection
+            selection: $restoredPickerSelection
         )
-        .onChange(of: restoredSelection) { selection in
-            let hasSelection = !selection.applicationTokens.isEmpty || !selection.webDomainTokens.isEmpty
-            guard hasSelection, focusController.requiresRestoredActivitySelection else { return }
-            do {
-                try focusController.resolveRestoredActivitySelection(selection)
-            } catch {
-                app.present(error)
+        .onChange(of: restoredPickerSelection) { selection in
+            switch restoredPickerTarget {
+            case .allowedDuringRestriction:
+                restoredAllowedSelection = selection
+            case .dailyBudget:
+                restoredBudgetSelection = selection
             }
+        }
+        .onChange(of: isShowingRestoredSelectionPicker) { isPresented in
+            guard !isPresented else { return }
+            continueRestoredSelection(afterDismissing: restoredPickerTarget)
         }
         .onChange(of: focusController.requiresRestoredActivitySelection) { required in
             if !required {
@@ -107,11 +118,87 @@ struct RootView: View {
                 if !focusController.isAuthorized {
                     try await focusController.requestAuthorization()
                 }
-                restoredSelection = focusController.settings.activitySelection
-                isShowingRestoredSelectionPicker = true
+                restoredAllowedSelection = focusController.settings.activitySelection
+                restoredBudgetSelection = focusController.settings.budgetSelection
+                showNextRestoredPickerIfNeeded()
             } catch {
                 app.present(error)
             }
+        }
+    }
+
+    private var restoredPickerHeaderText: String {
+        switch restoredPickerTarget {
+        case .allowedDuringRestriction:
+            return "集中制限中も使えるアプリとWebサイトを選択してください"
+        case .dailyBudget:
+            return "時間を決めて使うアプリとWebサイトを選択してください"
+        }
+    }
+
+    private var restoredPickerFooterText: String {
+        switch restoredPickerTarget {
+        case .allowedDuringRestriction:
+            return "壁のルール中も開けるものを選びます。この選択は端末固有です。"
+        case .dailyBudget:
+            return "使用時間を持ち時間から引く対象を選びます。この選択は端末固有です。"
+        }
+    }
+
+    private func showRestoredPicker(_ target: RestoredPickerTarget) {
+        restoredPickerTarget = target
+        switch target {
+        case .allowedDuringRestriction:
+            restoredPickerSelection = restoredAllowedSelection
+        case .dailyBudget:
+            restoredPickerSelection = restoredBudgetSelection
+        }
+        isShowingRestoredSelectionPicker = true
+    }
+
+    private func showNextRestoredPickerIfNeeded() {
+        let settings = focusController.settings
+        if settings.requiresAllowedSelection, !hasAllowedRestoredSelection {
+            showRestoredPicker(.allowedDuringRestriction)
+        } else if settings.requiresBudgetSelection, !hasBudgetRestoredSelection {
+            showRestoredPicker(.dailyBudget)
+        } else {
+            finishRestoredSelection()
+        }
+    }
+
+    private func continueRestoredSelection(afterDismissing target: RestoredPickerTarget) {
+        guard focusController.requiresRestoredActivitySelection else { return }
+        switch target {
+        case .allowedDuringRestriction:
+            guard hasAllowedRestoredSelection else { return }
+        case .dailyBudget:
+            guard hasBudgetRestoredSelection else { return }
+        }
+        DispatchQueue.main.async {
+            showNextRestoredPickerIfNeeded()
+        }
+    }
+
+    private var hasAllowedRestoredSelection: Bool {
+        !restoredAllowedSelection.applicationTokens.isEmpty
+            || !restoredAllowedSelection.webDomainTokens.isEmpty
+    }
+
+    private var hasBudgetRestoredSelection: Bool {
+        !restoredBudgetSelection.applicationTokens.isEmpty
+            || !restoredBudgetSelection.categoryTokens.isEmpty
+            || !restoredBudgetSelection.webDomainTokens.isEmpty
+    }
+
+    private func finishRestoredSelection() {
+        do {
+            try focusController.resolveRestoredActivitySelections(
+                allowedSelection: restoredAllowedSelection,
+                budgetSelection: restoredBudgetSelection
+            )
+        } catch {
+            app.present(error)
         }
     }
 }

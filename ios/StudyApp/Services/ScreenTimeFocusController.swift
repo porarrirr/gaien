@@ -7,6 +7,10 @@ final class ScreenTimeFocusController: ObservableObject {
     @Published private(set) var authorizationStatus: AuthorizationStatus
     @Published private(set) var accessSnapshot: ScreenTimeAccessSnapshot?
     @Published private(set) var requiresRestoredActivitySelection: Bool
+    @Published private(set) var usageSummary: ScreenTimeUsageSummary
+    /// 制限をオンにしたまま Screen Time の許可が外れている状態。
+    /// この間 OS 側のシールドは消えるため、隠さずに知らせる。
+    @Published private(set) var isProtectionInterrupted: Bool
 
     private let accessEngine: ScreenTimeAccessEngine
     var settingsDidChange: (() -> Void)?
@@ -17,6 +21,9 @@ final class ScreenTimeFocusController: ObservableObject {
         self.authorizationStatus = AuthorizationCenter.shared.authorizationStatus
         self.accessSnapshot = try? accessEngine.snapshot()
         self.requiresRestoredActivitySelection = ScreenTimeFocusShared.isRestoredSelectionRequired
+        self.usageSummary = (try? accessEngine.usageSummary()) ?? .empty
+        self.isProtectionInterrupted = false
+        detectProtectionInterruption()
     }
 
     var isAvailable: Bool {
@@ -62,6 +69,18 @@ final class ScreenTimeFocusController: ObservableObject {
         settings.allowedWebDomainTokens.count
     }
 
+    var budgetApplicationCount: Int {
+        settings.budgetApplicationTokens.count
+    }
+
+    var budgetCategoryCount: Int {
+        settings.budgetCategoryTokens.count
+    }
+
+    var budgetWebDomainCount: Int {
+        settings.budgetWebDomainTokens.count
+    }
+
     var isSettingsLocked: Bool {
         settings.isSettingsLocked
     }
@@ -78,11 +97,31 @@ final class ScreenTimeFocusController: ObservableObject {
         accessSnapshot?.decision
     }
 
+    /// 使用量マイルストーンの段間隔（分）。表示を「目安」と伝えるために使う。
+    var usageResolutionMinutes: Int {
+        accessSnapshot?.usageResolutionMinutes ?? 0
+    }
+
     func refresh(referenceDate: Date = Date()) {
         settings = ScreenTimeFocusShared.loadSettings()
         authorizationStatus = AuthorizationCenter.shared.authorizationStatus
         accessSnapshot = try? accessEngine.snapshot(referenceDate: referenceDate)
         requiresRestoredActivitySelection = ScreenTimeFocusShared.isRestoredSelectionRequired
+        usageSummary = (try? accessEngine.usageSummary(referenceDate: referenceDate)) ?? .empty
+        detectProtectionInterruption(referenceDate: referenceDate)
+    }
+
+    /// 制限がオンのまま許可が外れていたら、その日の記録に残してから状態を反映する。
+    ///
+    /// iOS の設定から Screen Time の許可を取り消すとシールドは即座に消える。
+    /// アプリ側で止められはしないが、黙って無効化されるのは防ぐ。
+    private func detectProtectionInterruption(referenceDate: Date = Date()) {
+        let interrupted = settings.isEnabled && !isAuthorized
+        if interrupted, !isProtectionInterrupted {
+            accessEngine.recordProtectionInterruption(referenceDate: referenceDate)
+            usageSummary = (try? accessEngine.usageSummary(referenceDate: referenceDate)) ?? usageSummary
+        }
+        isProtectionInterrupted = interrupted
     }
 
     func requestAuthorization() async throws {
@@ -91,7 +130,11 @@ final class ScreenTimeFocusController: ObservableObject {
         if !isAuthorized {
             var resetSettings = ScreenTimeFocusShared.loadSettings()
             resetSettings.activitySelection = FamilyActivitySelection(includeEntireCategory: true)
-            if resetSettings.selectionWasConfigured || resetSettings.requiresAllowedSelection {
+            resetSettings.budgetSelection = FamilyActivitySelection(includeEntireCategory: true)
+            if resetSettings.selectionWasConfigured
+                || resetSettings.budgetSelectionWasConfigured
+                || resetSettings.requiresAllowedSelection
+                || resetSettings.requiresBudgetSelection {
                 ScreenTimeFocusShared.setRestoredSelectionRequired(true)
             }
             try save(resetSettings)
@@ -112,6 +155,9 @@ final class ScreenTimeFocusController: ObservableObject {
             next.selectionWasConfigured = !next.allowedApplicationTokens.isEmpty
                 || !next.allowedWebDomainTokens.isEmpty
         }
+        if next.budgetSelection != previous.budgetSelection {
+            next.budgetSelectionWasConfigured = next.hasBudgetSelection
+        }
         next.updatedAt = nextSettingsTimestamp(after: previous.updatedAt)
         next.normalizeActivitySelection()
         try next.validateMonitoringConfiguration()
@@ -120,12 +166,30 @@ final class ScreenTimeFocusController: ObservableObject {
         do {
             try synchronize(settings: next)
         } catch {
-            _ = ScreenTimeFocusShared.saveSettings(previous)
-            settings = previous
-            try? synchronize(settings: previous)
-            throw error
+            try rollbackSettings(to: previous, after: error)
         }
+        clearRestoredSelectionRequirementIfResolved(using: next)
         settingsDidChange?()
+    }
+
+    /// 同期復元や Screen Time の再許可で端末固有トークンが消えた場合、
+    /// 必要な選択がすべてそろった時点でだけ復元警告を解除する。
+    private func clearRestoredSelectionRequirementIfResolved(using settings: ScreenTimeFocusSettings) {
+        guard requiresRestoredActivitySelection else { return }
+        let hasAllowedSelection = !settings.requiresAllowedSelection
+            || !settings.allowedApplicationTokens.isEmpty
+            || !settings.allowedWebDomainTokens.isEmpty
+        let hasBudgetSelection = !settings.requiresBudgetSelection || settings.hasBudgetSelection
+        guard hasAllowedSelection, hasBudgetSelection else { return }
+        ScreenTimeFocusShared.setRestoredSelectionRequired(false)
+        requiresRestoredActivitySelection = false
+    }
+
+    /// おすすめ設定を丸ごと当てる。対象アプリの選択は端末固有なのでそのまま残す。
+    func applyPreset(_ preset: ScreenTimeFocusPreset) throws {
+        try updateSettings { settings in
+            preset.apply(&settings)
+        }
     }
 
     func activateSettingsLock(months: Int, days: Int, referenceDate: Date = Date()) throws {
@@ -149,15 +213,6 @@ final class ScreenTimeFocusController: ObservableObject {
         settingsDidChange?()
     }
 
-    func addScheduleSlot() throws {
-        try updateSettings { settings in
-            let nextIndex = settings.scheduleSlots.count + 1
-            settings.scheduleSlots.append(
-                FocusScheduleSlot(title: "時間帯 \(nextIndex)")
-            )
-        }
-    }
-
     func removeScheduleSlot(id: String) throws {
         try updateSettings { settings in
             settings.scheduleSlots.removeAll { $0.id == id }
@@ -170,6 +225,23 @@ final class ScreenTimeFocusController: ObservableObject {
         let ledger = try accessEngine.startTicket(referenceDate: referenceDate)
         refresh(referenceDate: referenceDate)
         return ledger
+    }
+
+    /// 学習実績を持ち時間へ反映する。ホストアプリだけが呼ぶ。
+    func applyStudyProgress(
+        progress: ScreenTimeDailyGoalProgress,
+        goalReached: Bool,
+        referenceDate: Date = Date()
+    ) throws {
+        guard settings.isEnabled,
+              settings.budgetRestrictionEnabled || settings.goalRestrictionEnabled else {
+            return
+        }
+        _ = try accessEngine.applyStudyProgress(
+            progress: progress,
+            goalReached: goalReached,
+            referenceDate: referenceDate
+        )
     }
 
     func applyTimerRestrictionIfNeeded(
@@ -185,7 +257,7 @@ final class ScreenTimeFocusController: ObservableObject {
         guard ScreenTimeFocusShared.saveRuntimeState(runtime) else {
             throw ScreenTimeFocusError.settingsSaveFailed
         }
-        if settings.isEnabled, isRunning || settings.ticketRestrictionEnabled || settings.scheduledRestrictionEnabled {
+        if settings.isEnabled, isRunning || settings.activeRuleCount > 0 {
             guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
         }
         try accessEngine.syncTimerExpiryMonitoring(
@@ -219,15 +291,25 @@ final class ScreenTimeFocusController: ObservableObject {
         refresh()
     }
 
-    func resolveRestoredActivitySelection(_ selection: FamilyActivitySelection) throws {
-        let hasSelection = !selection.applicationTokens.isEmpty || !selection.webDomainTokens.isEmpty
-        guard hasSelection else { throw ScreenTimeFocusError.missingAllowedApplications }
-
+    func resolveRestoredActivitySelections(
+        allowedSelection: FamilyActivitySelection,
+        budgetSelection: FamilyActivitySelection
+    ) throws {
         let previous = settings
         var next = settings
-        next.activitySelection = selection
-        next.selectionWasConfigured = true
+        next.activitySelection = allowedSelection
+        next.budgetSelection = budgetSelection
         next.normalizeActivitySelection()
+        let hasAllowedSelection = !next.allowedApplicationTokens.isEmpty
+            || !next.allowedWebDomainTokens.isEmpty
+        guard !next.requiresAllowedSelection || hasAllowedSelection else {
+            throw ScreenTimeFocusError.missingAllowedApplications
+        }
+        guard !next.requiresBudgetSelection || next.hasBudgetSelection else {
+            throw ScreenTimeFocusError.missingBudgetTargets
+        }
+        next.selectionWasConfigured = hasAllowedSelection
+        next.budgetSelectionWasConfigured = next.hasBudgetSelection
         try next.validateMonitoringConfiguration()
         try save(next)
         ScreenTimeFocusShared.setRestoredSelectionRequired(false)
@@ -236,12 +318,33 @@ final class ScreenTimeFocusController: ObservableObject {
             try synchronize(settings: next)
         } catch {
             ScreenTimeFocusShared.setRestoredSelectionRequired(true)
-            _ = ScreenTimeFocusShared.saveSettings(previous)
-            settings = previous
-            try? synchronize(settings: previous)
-            throw error
+            try rollbackSettings(to: previous, after: error)
         }
         refresh()
+    }
+
+    /// 設定保存後のOS監視同期に失敗した場合、永続値と監視を両方とも以前の状態へ戻す。
+    /// どちらかの復元に失敗したときは、元のエラーで隠さず不整合を利用者へ伝える。
+    private func rollbackSettings(
+        to previous: ScreenTimeFocusSettings,
+        after originalError: Error
+    ) throws -> Never {
+        guard ScreenTimeFocusShared.saveSettings(previous) else {
+            throw ScreenTimeFocusError.settingsRollbackFailed(
+                original: originalError.localizedDescription,
+                rollback: ScreenTimeFocusError.settingsSaveFailed.localizedDescription
+            )
+        }
+        settings = previous
+        do {
+            try synchronize(settings: previous)
+        } catch {
+            throw ScreenTimeFocusError.settingsRollbackFailed(
+                original: originalError.localizedDescription,
+                rollback: error.localizedDescription
+            )
+        }
+        throw originalError
     }
 
     private func synchronize(settings: ScreenTimeFocusSettings) throws {

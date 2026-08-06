@@ -3,14 +3,22 @@ import SwiftUI
 
 /// 集中制限の設定画面。
 ///
-/// 画面のルール一覧は `ScreenTimePolicyEvaluator.evaluate` の判定順とそろえている。
-/// 上のルールほど先に判定され、下のルールは上のルールが成立した時点で使われない。
+/// 画面は「いまの状態 → 実績 → 持ち時間 → 壁のルール → チケット → 対象の選択 → 固定」の順に並ぶ。
+/// ルールは互いに独立して効くため、以前のような優先順の説明や休止表示は持たない。
+/// 表示される理由だけが優先順（`ScreenTimePolicyEvaluator`）に従う。
 struct ScreenTimeSettingsScreen: View {
+    private enum ActivityPickerTarget: Equatable {
+        case allowedDuringRestriction
+        case dailyBudget
+    }
+
     @ObservedObject private var app: StudyAppContainer
     @ObservedObject private var focusController: ScreenTimeFocusController
 
-    @State private var isShowingAllowedAppsPicker = false
-    @State private var focusPickerSelection = FamilyActivitySelection(includeEntireCategory: true)
+    @State private var isShowingActivityPicker = false
+    @State private var activityPickerTarget: ActivityPickerTarget = .allowedDuringRestriction
+    @State private var activityPickerSelection = FamilyActivitySelection(includeEntireCategory: true)
+    @State private var pendingSettings: ScreenTimeFocusSettings?
     @State private var goalProgress: ScreenTimeDailyGoalProgress?
     @State private var isShowingTicketConfirmation = false
     @State private var editingSlot: ScheduleEditorTarget?
@@ -29,23 +37,26 @@ struct ScreenTimeSettingsScreen: View {
         !focusController.isSettingsLocked
     }
 
-    /// 目標達成ルールがオンの間、タイマー・時間帯の判定には到達しない。
-    /// チケットは目標未達成による制限も一時解除できる。
-    private var goalRuleOverridesOthers: Bool {
-        settings.unlockRestrictionsWhenDailyGoalReached
-    }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 statusCard
-                if settings.isEnabled, settings.ticketRestrictionEnabled {
+                if shouldShowPresets {
+                    presetCard
+                }
+                if settings.isEnabled, settings.budgetRestrictionEnabled {
+                    allowanceCard
+                }
+                if settings.isEnabled, settings.ticketsEnabled {
                     ticketCard
                 }
-                rulesCard
+                reportCard
+                budgetCard
+                wallRulesCard
                 if settings.scheduledRestrictionEnabled {
                     scheduleSection
                 }
+                ticketRuleCard
                 allowedAppsCard
                 lockCard
             }
@@ -57,27 +68,17 @@ struct ScreenTimeSettingsScreen: View {
         .navigationTitle("集中制限")
         .navigationBarTitleDisplayMode(.inline)
         .familyActivityPicker(
-            headerText: "集中制限中も使えるアプリとWebサイトを選択してください",
-            footerText: "選択されていないアプリとWebサイトは集中制限中に開けなくなります。",
-            isPresented: $isShowingAllowedAppsPicker,
-            selection: $focusPickerSelection
+            headerText: activityPickerHeaderText,
+            footerText: activityPickerFooterText,
+            isPresented: $isShowingActivityPicker,
+            selection: $activityPickerSelection
         )
-        .onChange(of: focusPickerSelection) { selection in
-            if focusController.requiresRestoredActivitySelection {
-                let hasSelection = !selection.applicationTokens.isEmpty || !selection.webDomainTokens.isEmpty
-                guard hasSelection else { return }
-                do {
-                    try focusController.resolveRestoredActivitySelection(selection)
-                    Task { await refreshGoalProgress(reason: "screen-time-restored-selection") }
-                } catch {
-                    app.present(error)
-                }
-                return
-            }
-            guard canEditSettings else { return }
-            // onAppear の同期代入で保存が走らないよう、実際に変化したときだけ書き込む。
-            guard selection != settings.activitySelection else { return }
-            applyFocusSettings { $0.activitySelection = selection }
+        .onChange(of: activityPickerSelection) { selection in
+            handleActivitySelectionChange(selection)
+        }
+        .onChange(of: isShowingActivityPicker) { isPresented in
+            guard !isPresented else { return }
+            continuePendingSettingsUpdate(afterDismissing: activityPickerTarget)
         }
         .sheet(item: $editingSlot) { target in
             ScheduleSlotEditorSheet(
@@ -107,14 +108,14 @@ struct ScreenTimeSettingsScreen: View {
             }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("開始すると10分間利用できます。途中で停止できず、使っていない時間も進みます。")
+            Text(ticketConfirmationMessage)
         }
         .task(id: app.dataVersion) {
             await refreshGoalProgress(reason: "screen-time-settings-data")
         }
         .onAppear {
             focusController.refresh()
-            focusPickerSelection = settings.activitySelection
+            activityPickerSelection = settings.activitySelection
         }
         .task(id: focusController.ticketLedger?.activeTicketEndsAt) {
             guard let expiry = focusController.ticketLedger?.activeTicketEndDate else { return }
@@ -123,6 +124,116 @@ struct ScreenTimeSettingsScreen: View {
             guard !Task.isCancelled else { return }
             await refreshGoalProgress(reason: "screen-time-ticket-expired")
         }
+    }
+
+    private var activityPickerHeaderText: String {
+        switch activityPickerTarget {
+        case .allowedDuringRestriction:
+            return "集中制限中も使えるアプリとWebサイトを選択してください"
+        case .dailyBudget:
+            return "時間を決めて使うアプリとWebサイトを選択してください"
+        }
+    }
+
+    private var activityPickerFooterText: String {
+        switch activityPickerTarget {
+        case .allowedDuringRestriction:
+            return "選択されていないアプリとWebサイトは集中制限中に開けなくなります。"
+        case .dailyBudget:
+            return "選択したものの使用時間が持ち時間から引かれ、使い切ると開けなくなります。"
+        }
+    }
+
+    private func showActivityPicker(for target: ActivityPickerTarget) {
+        if pendingSettings == nil {
+            // FamilyActivityPicker は選択のたびに Binding を更新する。操作途中の空選択を
+            // 保存して検証エラーにしないよう、閉じるまでは常に下書きへ保持する。
+            pendingSettings = settings
+        }
+        activityPickerTarget = target
+        let source = pendingSettings ?? settings
+        switch target {
+        case .allowedDuringRestriction:
+            activityPickerSelection = source.activitySelection
+        case .dailyBudget:
+            activityPickerSelection = source.budgetSelection
+        }
+        isShowingActivityPicker = true
+    }
+
+    private func handleActivitySelectionChange(_ selection: FamilyActivitySelection) {
+        guard pendingSettings != nil else { return }
+        switch activityPickerTarget {
+        case .allowedDuringRestriction:
+            pendingSettings?.activitySelection = selection
+        case .dailyBudget:
+            pendingSettings?.budgetSelection = selection
+        }
+    }
+
+    /// 選択が必須の設定変更は、対象選択を終えてから同じ変更を再開する。
+    /// ピッカーをキャンセルした場合は、未完成の設定を保存しない。
+    private func continuePendingSettingsUpdate(afterDismissing dismissedTarget: ActivityPickerTarget) {
+        guard var candidate = pendingSettings else { return }
+        // dismiss と最後の Binding 更新の通知順に依存せず、閉じた時点の値を確定候補へ入れる。
+        switch dismissedTarget {
+        case .allowedDuringRestriction:
+            candidate.activitySelection = activityPickerSelection
+        case .dailyBudget:
+            candidate.budgetSelection = activityPickerSelection
+        }
+
+        if candidate.requiresBudgetSelection, !candidate.hasBudgetSelection {
+            guard dismissedTarget != .dailyBudget else {
+                pendingSettings = nil
+                return
+            }
+            pendingSettings = candidate
+            DispatchQueue.main.async {
+                showActivityPicker(for: .dailyBudget)
+            }
+            return
+        }
+
+        if candidate.requiresAllowedSelection, !hasAllowedSelection(candidate) {
+            guard dismissedTarget != .allowedDuringRestriction else {
+                pendingSettings = nil
+                return
+            }
+            pendingSettings = candidate
+            DispatchQueue.main.async {
+                showActivityPicker(for: .allowedDuringRestriction)
+            }
+            return
+        }
+
+        pendingSettings = nil
+        if focusController.requiresRestoredActivitySelection {
+            do {
+                try focusController.resolveRestoredActivitySelections(
+                    allowedSelection: candidate.activitySelection,
+                    budgetSelection: candidate.budgetSelection
+                )
+            } catch {
+                app.present(error)
+                return
+            }
+
+            // 復元修復と同時にトグル等を操作していた場合だけ、その変更も続けて反映する。
+            let repaired = settings
+            candidate.activitySelection = repaired.activitySelection
+            candidate.budgetSelection = repaired.budgetSelection
+            candidate.selectionWasConfigured = repaired.selectionWasConfigured
+            candidate.budgetSelectionWasConfigured = repaired.budgetSelectionWasConfigured
+            candidate.updatedAt = repaired.updatedAt
+            guard candidate != repaired else { return }
+        }
+        guard candidate != settings else { return }
+        commitFocusSettings { $0 = candidate }
+    }
+
+    private func hasAllowedSelection(_ settings: ScreenTimeFocusSettings) -> Bool {
+        !settings.allowedApplicationTokens.isEmpty || !settings.allowedWebDomainTokens.isEmpty
     }
 
     // MARK: - いまの状態
@@ -197,17 +308,17 @@ struct ScreenTimeSettingsScreen: View {
     }
 
     private var statusIcon: String {
-        guard focusController.isAvailable, focusController.isAuthorized else {
-            return "exclamationmark.shield.fill"
-        }
+        guard focusController.isAvailable else { return "exclamationmark.shield.fill" }
+        if focusController.isProtectionInterrupted { return "exclamationmark.shield.fill" }
+        guard focusController.isAuthorized else { return "exclamationmark.shield.fill" }
         guard settings.isEnabled else { return "shield.slash.fill" }
         return isCurrentlyRestricted ? "lock.fill" : "lock.open.fill"
     }
 
     private var statusColor: Color {
-        guard focusController.isAvailable, focusController.isAuthorized else {
-            return AppColors.warning
-        }
+        guard focusController.isAvailable else { return AppColors.warning }
+        if focusController.isProtectionInterrupted { return AppColors.danger }
+        guard focusController.isAuthorized else { return AppColors.warning }
         guard settings.isEnabled else { return AppColors.textSecondary }
         return isCurrentlyRestricted ? AppColors.success : AppColors.blue
     }
@@ -218,20 +329,31 @@ struct ScreenTimeSettingsScreen: View {
 
     private func statusHeadline(at date: Date) -> String {
         guard focusController.isAvailable else { return "この端末では使えません" }
+        if focusController.isProtectionInterrupted { return "制限が効いていません" }
         guard focusController.isAuthorized else { return "許可がまだです" }
         guard settings.isEnabled else { return "集中制限はオフ" }
         if let remaining = activeTicketRemainingText(at: date) {
             return "チケット利用中 \(remaining)"
         }
-        return isCurrentlyRestricted ? "いま制限中" : "いま使えます"
+        switch focusController.policyDecision?.reason {
+        case .budgetExhausted:
+            return "持ち時間を使い切りました"
+        case .lockedSchedule:
+            return "いま制限中（解除不可）"
+        default:
+            return isCurrentlyRestricted ? "いま制限中" : "いま使えます"
+        }
     }
 
     private func statusDetail(at date: Date) -> String {
         guard focusController.isAvailable else {
             return "Screen TimeはiOS 16以降で利用できます。"
         }
+        if focusController.isProtectionInterrupted {
+            return "iOSの設定でScreen Timeの許可が外れています。許可し直すまで制限はかかりません。"
+        }
         guard focusController.isAuthorized else {
-            return "iPhoneのScreen Time機能を使って、勉強中の寄り道を防ぎます。"
+            return "iPhoneのScreen Time機能を使って、勉強中の寄り道と使いすぎを防ぎます。"
         }
         guard settings.isEnabled else {
             return "右のスイッチをオンにすると、下のルールが動き始めます。"
@@ -240,28 +362,61 @@ struct ScreenTimeSettingsScreen: View {
             return "終了すると再び制限されます。"
         }
         switch focusController.policyDecision?.reason {
+        case .budgetExhausted:
+            return "対象のアプリは明日まで開けません。\(earnHintText)"
+        case .lockedSchedule:
+            return "チケットでも開けられない時間帯です。"
         case .dailyGoalPending:
             return "今日の目標を達成するまで制限します（\(goalProgressText)）。"
         case .dailyGoalReached:
-            return "今日の目標を達成したので、終日開放しています。"
+            return "今日の目標を達成しました。\(goalBonusStatusText)"
         case .studyTimer:
             return "勉強タイマー中のため制限しています。"
         case .blockedSchedule:
             if let nextStart = focusController.accessSnapshot?.nextAllowedScheduleStart {
-                return "チケットで10分間解除できます。次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))。"
+                return "使用禁止の時間帯です。次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))。"
             }
             return "使用禁止の時間帯です。"
         case .allowedSchedule:
             return "無料開放の時間帯です。チケットは減りません。"
-        case .ticketRequired:
-            return "チケットを1枚使うと10分だけ開けられます。"
+        case .alwaysRestricted:
+            guard settings.ticketsEnabled else {
+                return "常に制限がオンです。\(nextFreeOpeningDetailText)"
+            }
+            return "チケットを1枚使うと\(ScreenTimeFocusSettings.ticketDurationMinutes)分だけ開けられます。"
         case .activeTicket:
             return "チケットの残り時間だけ使えます。"
-        case .outsideScheduleBlocked:
-            return "登録した時間帯以外なので制限しています。"
         case .masterDisabled, .unrestricted, .none:
+            return remainingAllowanceStatusText
+        }
+    }
+
+    private var remainingAllowanceStatusText: String {
+        guard settings.budgetRestrictionEnabled, let ledger = focusController.ticketLedger else {
             return "いまはどのルールにも当てはまっていません。"
         }
+        return "対象アプリの持ち時間は残り\(ledger.remainingAllowanceMinutes)分です（目安）。"
+    }
+
+    private var goalBonusStatusText: String {
+        settings.goalBonusAllowanceMinutes > 0
+            ? "持ち時間に\(settings.goalBonusAllowanceMinutes)分のボーナスが入りました。"
+            : "目標未達成による制限は解除されました。"
+    }
+
+    /// 無料開放枠の案内。壁を開ける手段が時間帯しかないときに使う。
+    private var nextFreeOpeningDetailText: String {
+        guard let nextStart = focusController.accessSnapshot?.nextAllowedScheduleStart else {
+            return "無料開放の時間帯がないため、いまは開ける手段がありません。"
+        }
+        return "次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))です。"
+    }
+
+    private var earnHintText: String {
+        guard settings.earnedAllowanceEnabled, settings.studyMinutesPerEarnedMinute > 0 else {
+            return "明日また使えます。"
+        }
+        return "勉強\(settings.studyMinutesPerEarnedMinute)分ごとに持ち時間が1分増えます。"
     }
 
     private func activeTicketRemainingText(at date: Date) -> String? {
@@ -285,9 +440,25 @@ struct ScreenTimeSettingsScreen: View {
         var action: (() -> Void)?
     }
 
+    /// 許可が外れている間も警告を出す。以前は未許可だと警告ごと消えていて、
+    /// 「制限しているつもりで何も効いていない」状態が見えなかった。
     private var warnings: [ScreenTimeWarning] {
-        guard focusController.isAuthorized, settings.isEnabled else { return [] }
+        guard settings.isEnabled else { return [] }
         var items: [ScreenTimeWarning] = []
+
+        if focusController.isProtectionInterrupted {
+            items.append(
+                ScreenTimeWarning(
+                    id: "authorization-lost",
+                    icon: "exclamationmark.shield.fill",
+                    message: "Screen Timeの許可が外れているため、制限は一切かかっていません。この状態は記録に残ります。",
+                    color: AppColors.danger,
+                    actionTitle: "許可する",
+                    action: { requestScreenTimeAuthorization() }
+                )
+            )
+            return items
+        }
 
         // 許可アプリが空だと ManagedSettings 側は shield を解除するため、実際には何も制限されない。
         if settings.requiresAllowedSelection, !settings.canApplyRestrictions {
@@ -296,19 +467,33 @@ struct ScreenTimeSettingsScreen: View {
                     id: "allowed-selection",
                     icon: "exclamationmark.triangle.fill",
                     message: focusController.requiresRestoredActivitySelection
-                        ? "ほかの端末の設定を復元しました。許可アプリはこの端末で選び直してください。"
-                        : "「制限中も使えるもの」が未選択のため、実際には何も制限されていません。",
+                        ? "ほかの端末の設定を復元しました。対象アプリはこの端末で選び直してください。"
+                        : "「制限中も使えるもの」が未選択のため、壁のルールが何も効いていません。",
                     color: AppColors.danger,
                     actionTitle: "選ぶ",
                     action: {
-                        focusPickerSelection = settings.activitySelection
-                        isShowingAllowedAppsPicker = true
+                        showActivityPicker(for: .allowedDuringRestriction)
                     }
                 )
             )
         }
 
-        if activeRuleCount == 0 {
+        if settings.budgetRestrictionEnabled, !settings.hasBudgetSelection {
+            items.append(
+                ScreenTimeWarning(
+                    id: "budget-selection",
+                    icon: "hourglass",
+                    message: "「時間を決めて使うもの」が未選択のため、使用時間が測れていません。",
+                    color: AppColors.danger,
+                    actionTitle: "選ぶ",
+                    action: {
+                        showActivityPicker(for: .dailyBudget)
+                    }
+                )
+            )
+        }
+
+        if settings.activeRuleCount == 0 {
             items.append(
                 ScreenTimeWarning(
                     id: "no-rule",
@@ -319,26 +504,60 @@ struct ScreenTimeSettingsScreen: View {
             )
         }
 
-        if settings.ticketRestrictionEnabled,
-           settings.dailyTicketMinutes == 0 {
+        if settings.budgetRestrictionEnabled,
+           ScreenTimeAllowance.maximumPossibleMinutes(settings: settings) == 0 {
             items.append(
                 ScreenTimeWarning(
-                    id: "no-ticket",
-                    icon: "ticket.fill",
-                    message: "1日に使える時間が0分です。このままだと1日中開けられません。",
+                    id: "no-allowance",
+                    icon: "hourglass.bottomhalf.filled",
+                    message: "持ち時間が0分です。このままだと対象アプリは1日中開けません。",
                     color: AppColors.warning
                 )
             )
         }
 
-        if !goalRuleOverridesOthers,
-           settings.scheduledRestrictionEnabled,
-           settings.enabledScheduleSlots.isEmpty {
+        // 常に制限は、チケットも無料開放枠も無いと二度と開かない設定になる。
+        if settings.alwaysRestrictEnabled, !hasAnyWayToOpenWall {
+            items.append(
+                ScreenTimeWarning(
+                    id: "always-no-escape",
+                    icon: "lock.trianglebadge.exclamationmark.fill",
+                    message: "「常に制限」がオンですが、チケットも無料開放の時間帯もありません。このままだと解除する手段がありません。",
+                    color: AppColors.warning
+                )
+            )
+        }
+
+        if settings.ticketsEnabled, settings.dailyTicketCount == 0 {
+            items.append(
+                ScreenTimeWarning(
+                    id: "no-ticket",
+                    icon: "ticket.fill",
+                    message: "チケットが0枚です。壁を一時的に開ける手段がありません。",
+                    color: AppColors.warning
+                )
+            )
+        }
+
+        // 常に制限がオンの間、チケットで開ける使用禁止の枠は壁を何も足さない。
+        // 表示だけが「この時間帯だけ禁止」に見えて誤解を生むので警告する。
+        if settings.scheduleSlots.contains(where: { isRedundantBlockSlot($0) }) {
+            items.append(
+                ScreenTimeWarning(
+                    id: "redundant-block-slot",
+                    icon: "calendar.badge.exclamationmark",
+                    message: "「常に制限」がオンなので、チケットで開ける使用禁止の時間帯は何も変えません。無料開放にするか、チケットでも開けない設定にしてください。",
+                    color: AppColors.warning
+                )
+            )
+        }
+
+        if settings.scheduledRestrictionEnabled, settings.enabledScheduleSlots.isEmpty {
             items.append(
                 ScreenTimeWarning(
                     id: "no-slot",
                     icon: "calendar.badge.exclamationmark",
-                    message: "使える時間帯が登録されていません。",
+                    message: "時間帯が登録されていません。",
                     color: AppColors.warning
                 )
             )
@@ -347,15 +566,22 @@ struct ScreenTimeSettingsScreen: View {
         return items
     }
 
-    private var activeRuleCount: Int {
-        if goalRuleOverridesOthers { return 1 }
-        return [
-            settings.timerRestrictionEnabled,
-            settings.scheduledRestrictionEnabled,
-            settings.ticketRestrictionEnabled
-        ]
-        .filter { $0 }
-        .count
+    /// 「常に制限」がすでに同じ壁を立てているため、何も足していない使用禁止の枠。
+    private func isRedundantBlockSlot(_ slot: FocusScheduleSlot) -> Bool {
+        settings.isEnabled
+            && settings.alwaysRestrictEnabled
+            && settings.scheduledRestrictionEnabled
+            && slot.isEnabled
+            && slot.hasSelectedWeekday
+            && slot.behavior == .block
+            && slot.allowsTicketBypass
+    }
+
+    /// 壁を開ける手段があるか。チケットか、無料開放の時間帯のどちらか。
+    private var hasAnyWayToOpenWall: Bool {
+        if settings.ticketsEnabled, settings.dailyTicketCount > 0 { return true }
+        guard settings.scheduledRestrictionEnabled else { return false }
+        return settings.enabledScheduleSlots.contains { $0.behavior == .allow && $0.hasSelectedWeekday }
     }
 
     private func warningBanner(_ warning: ScreenTimeWarning) -> some View {
@@ -381,6 +607,197 @@ struct ScreenTimeSettingsScreen: View {
         .background(warning.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 
+    // MARK: - おすすめ設定
+
+    /// ルールが1つも選ばれていない間だけ出す。全オフから組み立てるのは負担が大きい。
+    private var shouldShowPresets: Bool {
+        canEditSettings && focusController.isAuthorized && settings.activeRuleCount == 0
+    }
+
+    private var presetCard: some View {
+        settingsGroup(title: "おすすめ設定") {
+            VStack(spacing: 0) {
+                ForEach(Array(ScreenTimeFocusPreset.all.enumerated()), id: \.element.id) { index, preset in
+                    if index > 0 {
+                        Divider()
+                    }
+                    presetRow(preset)
+                }
+            }
+        } footer: {
+            Text("当てたあとで細かく変えられます。対象アプリの選択はこの端末で行ってください。")
+        }
+    }
+
+    private func presetRow(_ preset: ScreenTimeFocusPreset) -> some View {
+        Button {
+            applyPreset(preset)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: preset.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(AppColors.success)
+                    .frame(width: 30, height: 30)
+                    .background(AppColors.greenSoft, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(preset.title)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(AppColors.textPrimary)
+                        Text(preset.summary)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(AppColors.success)
+                    }
+                    Text(preset.detail)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                Text("当てる")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.success)
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - 持ち時間
+
+    private var allowanceCard: some View {
+        settingsGroup(title: "今日の持ち時間") {
+            if let ledger = focusController.ticketLedger {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("残り")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(AppColors.textSecondary)
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text("\(ledger.remainingAllowanceMinutes)")
+                                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                                    .monospacedDigit()
+                                    .foregroundStyle(
+                                        ledger.remainingAllowanceMinutes > 0 ? AppColors.textPrimary : AppColors.danger
+                                    )
+                                Text("/ \(ledger.totalAllowanceMinutes)分")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(AppColors.textSecondary)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("使用（目安）")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(AppColors.textSecondary)
+                            Text("\(ledger.usageMilestoneMinutes)分")
+                                .font(.subheadline.weight(.bold).monospacedDigit())
+                                .foregroundStyle(AppColors.textPrimary)
+                        }
+                    }
+
+                    allowanceBar(ledger: ledger)
+                    allowanceBreakdown(ledger: ledger)
+                }
+                .padding(.vertical, 4)
+            } else {
+                Text("持ち時間を準備しています。")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 10)
+            }
+        } footer: {
+            Text(allowanceFooterText)
+        }
+    }
+
+    private func allowanceBar(ledger: ScreenTimeTicketLedger) -> some View {
+        GeometryReader { geometry in
+            let ratio = ledger.allowanceProgressRatio
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(AppColors.subtleBackground)
+                Capsule()
+                    .fill(ratio >= 1 ? AppColors.danger : AppColors.blue)
+                    .frame(width: max(geometry.size.width * ratio, ratio > 0 ? 4 : 0))
+            }
+        }
+        .frame(height: 8)
+    }
+
+    private func allowanceBreakdown(ledger: ScreenTimeTicketLedger) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 10) {
+                breakdownChip(title: "基本", minutes: ledger.baseAllowanceMinutes, color: AppColors.textSecondary)
+                if settings.earnedAllowanceEnabled {
+                    breakdownChip(title: "勉強で", minutes: ledger.earnedAllowanceMinutes, color: AppColors.success, showsPlus: true)
+                }
+                if settings.goalBonusAllowanceMinutes > 0 {
+                    breakdownChip(title: "達成", minutes: ledger.bonusAllowanceMinutes, color: AppColors.blue, showsPlus: true)
+                }
+                Spacer(minLength: 0)
+            }
+            if let hint = nextEarnHint(ledger: ledger) {
+                Text(hint)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppColors.success)
+            }
+        }
+    }
+
+    private func breakdownChip(title: String, minutes: Int, color: Color, showsPlus: Bool = false) -> some View {
+        HStack(spacing: 3) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(AppColors.textSecondary)
+            Text("\(showsPlus ? "+" : "")\(minutes)分")
+                .font(.caption2.weight(.bold).monospacedDigit())
+                .foregroundStyle(color)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.10), in: Capsule())
+    }
+
+    /// 次の +1分まであと何分勉強すればよいか。稼ぐ動機を具体的に見せる。
+    private func nextEarnHint(ledger: ScreenTimeTicketLedger) -> String? {
+        guard settings.earnedAllowanceEnabled,
+              settings.studyMinutesPerEarnedMinute > 0,
+              ledger.earnedAllowanceMinutes < settings.earnedAllowanceCapMinutes else {
+            return nil
+        }
+        let rate = settings.studyMinutesPerEarnedMinute
+        let remainder = ledger.studyMinutes % rate
+        let needed = remainder == 0 ? rate : rate - remainder
+        return "あと\(needed)分勉強すると持ち時間が1分増えます"
+    }
+
+    private var allowanceFooterText: String {
+        let resolution = focusController.usageResolutionMinutes
+        var text = "使用時間はiOSから届く到達通知をもとにした目安です"
+        if resolution > 0 {
+            text += "（最大\(resolution)分ほど少なく出ます）"
+        }
+        text += "。増やす変更は翌日から、減らす変更はすぐ反映されます。"
+        return text
+    }
+
+    // MARK: - 実績
+
+    private var reportCard: some View {
+        ScreenTimeUsageReportCard(
+            summary: focusController.usageSummary,
+            resolutionMinutes: focusController.usageResolutionMinutes,
+            isBudgetRuleEnabled: settings.budgetRestrictionEnabled
+        )
+    }
+
     // MARK: - チケット
 
     private var ticketCard: some View {
@@ -398,11 +815,9 @@ struct ScreenTimeSettingsScreen: View {
                         .frame(width: 1, height: 34)
 
                     ticketMetric(
-                        title: "1日に使える時間",
-                        value: "\(settings.dailyTicketMinutes)分",
-                        color: AppColors.textPrimary,
-                        // 使用済みチケットがある日は枚数を変えられないため、今日の残り枚数と食い違う。
-                        subtitle: canUpdateTodayTicketCount(at: context.date) ? nil : "変更は明日から反映"
+                        title: "次に使えるまで",
+                        value: nextTicketText(at: context.date),
+                        color: AppColors.textPrimary
                     )
                 }
                 .padding(.bottom, 10)
@@ -459,11 +874,6 @@ struct ScreenTimeSettingsScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func canUpdateTodayTicketCount(at date: Date) -> Bool {
-        guard let ledger = focusController.ticketLedger else { return true }
-        return ledger.canUpdateIssuedTicketCount(at: date)
-    }
-
     private func ticketRemainingCount(at date: Date) -> Int {
         guard let ledger = focusController.ticketLedger, ledger.isForDay(containing: date) else { return 0 }
         return ledger.remainingTicketCount
@@ -476,9 +886,27 @@ struct ScreenTimeSettingsScreen: View {
         return "\(ledger.remainingTicketCount) / \(ledger.issuedTicketCount)枚"
     }
 
+    private func nextTicketText(at date: Date) -> String {
+        if let remaining = activeTicketRemainingText(at: date) {
+            return "利用中 \(remaining)"
+        }
+        guard let ledger = focusController.ticketLedger,
+              let available = ledger.nextTicketAvailableDate(at: date, settings: settings),
+              available > date else {
+            return ticketRemainingCount(at: date) > 0 ? "いま使える" : "—"
+        }
+        let seconds = max(Int(ceil(available.timeIntervalSince(date))), 0)
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    private func isTicketCoolingDown(at date: Date) -> Bool {
+        focusController.ticketLedger?.isInTicketCooldown(at: date, settings: settings) == true
+    }
+
     private func ticketCanStart(at date: Date) -> Bool {
         guard focusController.isAuthorized,
               ticketRemainingCount(at: date) > 0,
+              !isTicketCoolingDown(at: date),
               focusController.ticketLedger?.hasActiveTicket(at: date) != true else {
             return false
         }
@@ -492,67 +920,275 @@ struct ScreenTimeSettingsScreen: View {
         if ticketRemainingCount(at: date) == 0 {
             return "今日のチケットは終了"
         }
+        if isTicketCoolingDown(at: date) {
+            return "次のチケットまで待機中"
+        }
         if focusController.policyDecision?.canStartTicket != true {
             return "いまは使えません"
         }
-        return "チケット1枚で10分使う"
+        return "チケット1枚で\(ScreenTimeFocusSettings.ticketDurationMinutes)分使う"
     }
 
     private func ticketButtonIcon(at date: Date) -> String {
-        focusController.ticketLedger?.hasActiveTicket(at: date) == true ? "hourglass" : "play.fill"
+        if focusController.ticketLedger?.hasActiveTicket(at: date) == true { return "hourglass" }
+        if isTicketCoolingDown(at: date) { return "clock.badge.exclamationmark" }
+        return "play.fill"
     }
 
     private func ticketFooterText(at date: Date) -> String {
         if focusController.ticketLedger?.hasActiveTicket(at: date) == true {
             return "チケットの時間は使用禁止時間帯に入っても止まりません。"
         }
+        if isTicketCoolingDown(at: date), let ledger = focusController.ticketLedger {
+            return "続けて使えないよう\(ledger.cooldownMinutes(settings: settings))分の間隔をあけています。"
+        }
         switch focusController.policyDecision?.reason {
+        case .budgetExhausted:
+            return "持ち時間の使い切りはチケットでは開けられません。\(earnHintText)"
+        case .lockedSchedule:
+            return "いまは「解除不可」の時間帯なので、チケットは使えません。"
         case .dailyGoalPending:
-            return "チケットを1枚使うと、目標未達成の制限を10分間解除できます。"
+            return "チケット1枚で、目標未達成の制限を\(ScreenTimeFocusSettings.ticketDurationMinutes)分だけ解除できます。"
         case .studyTimer:
-            return "チケットを1枚使うと、勉強タイマー中の制限を10分間解除できます。"
+            return "チケット1枚で、勉強タイマー中の制限を\(ScreenTimeFocusSettings.ticketDurationMinutes)分だけ解除できます。"
         case .blockedSchedule:
             if let nextStart = focusController.accessSnapshot?.nextAllowedScheduleStart {
                 return "使用禁止の時間帯です。次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))。"
             }
-            return "チケットを1枚使うと、使用禁止時間帯の制限を10分間解除できます。"
+            return "チケット1枚で、使用禁止時間帯の制限を\(ScreenTimeFocusSettings.ticketDurationMinutes)分だけ解除できます。"
         case .allowedSchedule:
             return "無料開放の時間帯なので、チケットは消費されません。"
         case .dailyGoalReached:
-            return "今日の目標を達成したため、終日開放されています。"
+            return "目標未達成による制限は解除されています。"
         default:
-            return "1枚で開始から10分間使えます。\(ticketSettingsApplyTimingText)。"
+            return "1枚で開始から\(ScreenTimeFocusSettings.ticketDurationMinutes)分間、壁を開けられます。使っていない時間も進みます。"
         }
     }
 
-    private var ticketSettingsApplyTimingText: String {
-        canUpdateTodayTicketCount(at: Date())
-            ? "枚数の変更は今日からすぐ反映"
-            : "枚数の変更は次の0時から反映"
+    private var ticketConfirmationMessage: String {
+        var text = "開始すると\(ScreenTimeFocusSettings.ticketDurationMinutes)分間利用できます。途中で停止できず、使っていない時間も進みます。"
+        if let ledger = focusController.ticketLedger {
+            let nextCooldown = max(settings.ticketCooldownMinutes, 0)
+                + max(settings.ticketCooldownEscalationMinutes, 0) * ledger.usedTicketCount
+            if nextCooldown > 0 {
+                text += "\n終了後は\(nextCooldown)分あけないと次のチケットを使えません。"
+            }
+        }
+        return text
     }
 
-    // MARK: - ルール
+    // MARK: - 使いすぎ防止（持ち時間ルール）
 
-    private var rulesCard: some View {
+    private var budgetCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("制限のルール")
+                Text("使いすぎ防止")
                     .font(.callout.weight(.bold))
                     .foregroundStyle(AppColors.textSecondary)
-                Text("複数が重なったときは、上のルールが優先されます")
+                Text("対象アプリを「1日に何分まで」で区切ります")
                     .font(.caption2)
                     .foregroundStyle(AppColors.textSecondary)
             }
             .padding(.leading, 11)
 
             VStack(spacing: 0) {
-                goalRuleRows
+                ruleRow(
+                    icon: "hourglass",
+                    title: "時間を決めて使う",
+                    detail: "選んだアプリの使用時間が持ち時間を超えたら、そのアプリだけを閉じます",
+                    isOn: Binding(
+                        get: { settings.budgetRestrictionEnabled },
+                        set: { enabled in
+                            applyFocusSettings { $0.budgetRestrictionEnabled = enabled }
+                        }
+                    )
+                )
+
+                subRowDivider
+                budgetTargetRow
+
+                if settings.budgetRestrictionEnabled {
+                    subRowDivider
+                    minutesRow(
+                        icon: "clock",
+                        title: "基本の持ち時間",
+                        detail: "毎日0時に補充されます",
+                        value: Binding(
+                            get: { settings.baseAllowanceMinutes },
+                            set: { minutes in
+                                applyFocusSettings { $0.baseAllowanceMinutes = minutes }
+                            }
+                        )
+                    )
+                    subRowDivider
+                    earnRuleRows
+                    subRowDivider
+                    minutesRow(
+                        icon: "trophy",
+                        title: "目標達成ボーナス",
+                        detail: "今日の学習目標を達成したときに加算されます",
+                        value: Binding(
+                            get: { settings.goalBonusAllowanceMinutes },
+                            set: { minutes in
+                                applyFocusSettings { $0.goalBonusAllowanceMinutes = minutes }
+                            }
+                        )
+                    )
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
+            .disabled(!canEditSettings)
+            .opacity(settings.isEnabled ? 1 : 0.55)
+
+            groupFooter(budgetFooterText)
+        }
+    }
+
+    private var budgetFooterText: String {
+        if !settings.isEnabled {
+            return "集中制限がオフの間は、どのルールも動きません。"
+        }
+        if !canEditSettings {
+            return "厳格ロック中のため変更できません。"
+        }
+        // 増やす手段が実際に有効なときだけ「増やせる」と言う。
+        if settings.earnedAllowanceEnabled || settings.goalBonusAllowanceMinutes > 0 {
+            return "このルールはチケットでは開けられません。増やす手段は勉強と目標達成だけです。"
+        }
+        return "このルールはチケットでは開けられません。使い切ると翌日まで開けられません。"
+    }
+
+    private var budgetTargetRow: some View {
+        Button {
+            showActivityPicker(for: .dailyBudget)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(width: 30, height: 30)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("時間を決めて使うもの")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColors.textPrimary)
+                    Text(budgetSelectionSummary)
+                        .font(.caption2)
+                        .foregroundStyle(settings.hasBudgetSelection ? AppColors.textSecondary : AppColors.danger)
+                }
+
+                Spacer(minLength: 8)
+
+                Text("選ぶ")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.success)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color(.tertiaryLabel))
+            }
+            .padding(.leading, 16)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var budgetSelectionSummary: String {
+        let apps = focusController.budgetApplicationCount
+        let categories = focusController.budgetCategoryCount
+        let webs = focusController.budgetWebDomainCount
+        guard apps > 0 || categories > 0 || webs > 0 else {
+            return "未選択（使用時間が測れません）"
+        }
+        var parts: [String] = []
+        if categories > 0 { parts.append("カテゴリ \(categories)件") }
+        if apps > 0 { parts.append("アプリ \(apps)件") }
+        if webs > 0 { parts.append("Webサイト \(webs)件") }
+        return parts.joined(separator: "・")
+    }
+
+    private var earnRuleRows: some View {
+        VStack(spacing: 0) {
+            ruleRow(
+                icon: "arrow.up.circle",
+                title: "勉強した分だけ増やす",
+                detail: "勉強時間に応じて持ち時間がたまります",
+                indented: true,
+                isOn: Binding(
+                    get: { settings.earnedAllowanceEnabled },
+                    set: { enabled in
+                        applyFocusSettings { $0.earnedAllowanceEnabled = enabled }
+                    }
+                )
+            )
+
+            if settings.earnedAllowanceEnabled {
+                subRowDivider
+                subRow(
+                    icon: "arrow.left.arrow.right",
+                    title: "交換レート",
+                    detail: "勉強\(settings.studyMinutesPerEarnedMinute)分で持ち時間1分"
+                ) {
+                    Stepper(
+                        value: Binding(
+                            get: { settings.studyMinutesPerEarnedMinute },
+                            set: { rate in
+                                applyFocusSettings { $0.studyMinutesPerEarnedMinute = rate }
+                            }
+                        ),
+                        in: 1...ScreenTimeFocusSettings.maximumStudyMinutesPerEarnedMinute
+                    ) {
+                        Text("\(settings.studyMinutesPerEarnedMinute):1")
+                            .font(.subheadline.weight(.bold).monospacedDigit())
+                            .foregroundStyle(AppColors.textPrimary)
+                            .frame(minWidth: 44, alignment: .trailing)
+                    }
+                }
+                subRowDivider
+                minutesRow(
+                    icon: "arrow.up.to.line",
+                    title: "稼げる上限",
+                    detail: "1日にこれ以上は増えません",
+                    value: Binding(
+                        get: { settings.earnedAllowanceCapMinutes },
+                        set: { minutes in
+                            applyFocusSettings { $0.earnedAllowanceCapMinutes = minutes }
+                        }
+                    )
+                )
+            }
+        }
+    }
+
+    // MARK: - 壁のルール
+
+    private var wallRulesCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("壁のルール")
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                Text("許可したアプリ以外を止めます。複数を同時にオンにできます")
+                    .font(.caption2)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+            .padding(.leading, 11)
+
+            VStack(spacing: 0) {
+                scheduleRuleRows
                 Divider()
                 timerRuleRow
                 Divider()
-                scheduleRuleRows
+                goalRuleRows
                 Divider()
-                ticketRuleRows
+                alwaysRuleRow
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
@@ -569,40 +1205,32 @@ struct ScreenTimeSettingsScreen: View {
                 groupFooter("集中制限がオフの間は、どのルールも動きません。")
             } else if !canEditSettings {
                 groupFooter("厳格ロック中のため変更できません。")
+            } else {
+                groupFooter("同時に成り立ったときは、いちばん強い理由が画面に表示されます。")
             }
         }
     }
 
-    private var goalRuleRows: some View {
-        VStack(spacing: 0) {
-            ruleRow(
-                icon: "target",
-                title: "目標達成まで制限",
-                detail: "達成するまで終日制限し、達成したら終日開放します",
-                badge: goalRuleOverridesOthers ? RuleBadge(text: "最優先で動作中", color: AppColors.success) : nil,
-                isOn: Binding(
-                    get: { settings.unlockRestrictionsWhenDailyGoalReached },
-                    set: { enabled in
-                        applyFocusSettings { $0.unlockRestrictionsWhenDailyGoalReached = enabled }
-                    }
-                )
-            )
-
-            if goalRuleOverridesOthers {
-                subRow(icon: "chart.line.uptrend.xyaxis", title: "今日の進み具合", detail: goalProgressStatusText) {
-                    Text(goalProgressText)
-                        .font(.subheadline.weight(.bold).monospacedDigit())
-                        .foregroundStyle(goalProgress?.hasReachedTarget == true ? AppColors.success : AppColors.textPrimary)
+    private var scheduleRuleRows: some View {
+        ruleRow(
+            icon: "calendar.badge.clock",
+            title: "決めた時間帯",
+            detail: scheduleRuleDetailText,
+            isOn: Binding(
+                get: { settings.scheduledRestrictionEnabled },
+                set: { enabled in
+                    applyFocusSettings { $0.scheduledRestrictionEnabled = enabled }
                 }
+            )
+        )
+    }
 
-                Text("このルールがオンの間、タイマーと時間帯のルールは休止します。チケットは目標未達成の制限を10分間解除できます（手動で追加した学習記録は進み具合に含みません）。")
-                    .font(.caption2)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 10)
-            }
-        }
+    /// 時間帯の役割は「常に制限」の状態で変わる。オンなら壁に穴を開ける側、
+    /// オフなら壁を立てる側になるので、説明もそれに合わせる。
+    private var scheduleRuleDetailText: String {
+        settings.alwaysRestrictEnabled
+            ? "曜日と時刻ごとに、無料開放する時間を決めます"
+            : "曜日と時刻ごとに、使用禁止／無料開放を切り替えます"
     }
 
     private var timerRuleRow: some View {
@@ -610,8 +1238,6 @@ struct ScreenTimeSettingsScreen: View {
             icon: "timer",
             title: "勉強タイマー中",
             detail: "タイマーを開始している間だけ制限します",
-            badge: dormantBadge,
-            isDormant: goalRuleOverridesOthers,
             isOn: Binding(
                 get: { settings.timerRestrictionEnabled },
                 set: { enabled in
@@ -621,126 +1247,192 @@ struct ScreenTimeSettingsScreen: View {
         )
     }
 
-    private var scheduleRuleRows: some View {
+    private var goalRuleRows: some View {
         VStack(spacing: 0) {
             ruleRow(
-                icon: "calendar.badge.clock",
-                title: "決めた時間帯",
-                detail: "曜日と時刻ごとに、使用禁止／無料開放を切り替えます",
-                badge: dormantBadge,
-                isDormant: goalRuleOverridesOthers,
+                icon: "target",
+                title: "目標未達成の間は制限",
+                detail: "達成するとこの制限だけ解除され、ボーナスが入ります",
                 isOn: Binding(
-                    get: { settings.scheduledRestrictionEnabled },
+                    get: { settings.goalRestrictionEnabled },
                     set: { enabled in
-                        applyFocusSettings { $0.scheduledRestrictionEnabled = enabled }
+                        applyFocusSettings { $0.goalRestrictionEnabled = enabled }
                     }
                 )
             )
 
-            // チケット制がオンのときは判定がチケット側で止まるため、この設定は効かない。
-            if settings.scheduledRestrictionEnabled, !settings.ticketRestrictionEnabled {
+            if settings.goalRestrictionEnabled {
                 subRowDivider
+                subRow(icon: "chart.line.uptrend.xyaxis", title: "今日の進み具合", detail: goalProgressStatusText) {
+                    Text(goalProgressText)
+                        .font(.subheadline.weight(.bold).monospacedDigit())
+                        .foregroundStyle(goalProgress?.hasReachedTarget == true ? AppColors.success : AppColors.textPrimary)
+                }
+
+                Text("達成しても他のルールは動き続けます（手動で追加した学習記録は進み具合に含みません）。")
+                    .font(.caption2)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 46)
+                    .padding(.bottom, 10)
+            }
+        }
+    }
+
+    private var alwaysRuleRow: some View {
+        ruleRow(
+            icon: "lock",
+            title: "常に制限",
+            detail: "いつでも制限します。無料開放の時間帯とチケットだけが開けます",
+            isOn: Binding(
+                get: { settings.alwaysRestrictEnabled },
+                set: { enabled in
+                    applyFocusSettings { $0.alwaysRestrictEnabled = enabled }
+                }
+            )
+        )
+    }
+
+    // MARK: - チケットの設定
+
+    private var ticketRuleCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("チケット")
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                Text("壁を\(ScreenTimeFocusSettings.ticketDurationMinutes)分だけ開ける鍵です。持ち時間は減りません")
+                    .font(.caption2)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+            .padding(.leading, 11)
+
+            VStack(spacing: 0) {
                 ruleRow(
-                    icon: "clock.badge.xmark",
-                    title: "時間帯の外も制限",
-                    detail: "無料開放に指定した時間だけ使えるようにします",
-                    badge: dormantBadge,
-                    isDormant: goalRuleOverridesOthers,
-                    indented: true,
+                    icon: "ticket",
+                    title: "チケットを使えるようにする",
+                    detail: "壁のルールを一時的に開けられます",
                     isOn: Binding(
-                        get: { settings.restrictOutsideScheduleWhenTicketsDisabled },
+                        get: { settings.ticketsEnabled },
                         set: { enabled in
-                            applyFocusSettings { $0.restrictOutsideScheduleWhenTicketsDisabled = enabled }
+                            applyFocusSettings { $0.ticketsEnabled = enabled }
                         }
                     )
                 )
-            }
-        }
-    }
 
-    private var ticketRuleRows: some View {
-        VStack(spacing: 0) {
-            ruleRow(
-                icon: "ticket",
-                title: "チケット制",
-                detail: "どの制限中でも、チケット1枚で10分だけ開けます",
-                badge: nil,
-                isOn: Binding(
-                    get: { settings.ticketRestrictionEnabled },
-                    set: { enabled in
-                        applyFocusSettings { $0.ticketRestrictionEnabled = enabled }
-                    }
-                )
-            )
-
-            if settings.ticketRestrictionEnabled {
-                subRowDivider
-                subRow(
-                    icon: "clock.badge.checkmark",
-                    title: "1日に使える時間",
-                    detail: "\(settings.dailyTicketMinutes / ScreenTimeFocusSettings.ticketDurationMinutes)枚・\(ticketSettingsApplyTimingText)"
-                ) {
-                    Stepper(
-                        value: Binding(
-                            get: { settings.dailyTicketMinutes },
-                            set: { minutes in
-                                applyFocusSettings { $0.dailyTicketMinutes = minutes }
-                            }
-                        ),
-                        in: ScreenTimeFocusSettings.minimumDailyTicketMinutes...ScreenTimeFocusSettings.maximumDailyTicketMinutes,
-                        step: ScreenTimeFocusSettings.ticketDurationMinutes
+                if settings.ticketsEnabled {
+                    subRowDivider
+                    subRow(
+                        icon: "number",
+                        title: "1日の枚数",
+                        detail: "最大\(settings.dailyTicketCount * ScreenTimeFocusSettings.ticketDurationMinutes)分ぶん"
                     ) {
-                        Text("\(settings.dailyTicketMinutes)分")
-                            .font(.subheadline.weight(.bold).monospacedDigit())
-                            .foregroundStyle(AppColors.textPrimary)
-                            .frame(minWidth: 56, alignment: .trailing)
+                        Stepper(
+                            value: Binding(
+                                get: { settings.dailyTicketCount },
+                                set: { count in
+                                    applyFocusSettings { $0.dailyTicketCount = count }
+                                }
+                            ),
+                            in: 0...ScreenTimeFocusSettings.maximumDailyTicketCount
+                        ) {
+                            Text("\(settings.dailyTicketCount)枚")
+                                .font(.subheadline.weight(.bold).monospacedDigit())
+                                .foregroundStyle(AppColors.textPrimary)
+                                .frame(minWidth: 44, alignment: .trailing)
+                        }
                     }
-                    .labelsHidden()
+                    subRowDivider
+                    subRow(
+                        icon: "clock.arrow.circlepath",
+                        title: "次に使えるまでの間隔",
+                        detail: "続けて使えないようにします"
+                    ) {
+                        Stepper(
+                            value: Binding(
+                                get: { settings.ticketCooldownMinutes },
+                                set: { minutes in
+                                    applyFocusSettings { $0.ticketCooldownMinutes = minutes }
+                                }
+                            ),
+                            in: 0...ScreenTimeFocusSettings.maximumTicketCooldownMinutes,
+                            step: 5
+                        ) {
+                            Text("\(settings.ticketCooldownMinutes)分")
+                                .font(.subheadline.weight(.bold).monospacedDigit())
+                                .foregroundStyle(AppColors.textPrimary)
+                                .frame(minWidth: 44, alignment: .trailing)
+                        }
+                    }
+                    subRowDivider
+                    subRow(
+                        icon: "chart.line.uptrend.xyaxis",
+                        title: "使うほど間隔を伸ばす",
+                        detail: cooldownEscalationDetail
+                    ) {
+                        Stepper(
+                            value: Binding(
+                                get: { settings.ticketCooldownEscalationMinutes },
+                                set: { minutes in
+                                    applyFocusSettings { $0.ticketCooldownEscalationMinutes = minutes }
+                                }
+                            ),
+                            in: 0...ScreenTimeFocusSettings.maximumTicketCooldownMinutes,
+                            step: 5
+                        ) {
+                            Text("+\(settings.ticketCooldownEscalationMinutes)分")
+                                .font(.subheadline.weight(.bold).monospacedDigit())
+                                .foregroundStyle(AppColors.textPrimary)
+                                .frame(minWidth: 48, alignment: .trailing)
+                        }
+                    }
                 }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
+            .disabled(!canEditSettings)
+            .opacity(settings.isEnabled ? 1 : 0.55)
+
+            groupFooter("「解除不可」に指定した時間帯と、持ち時間の使い切りはチケットでも開けられません。")
         }
     }
 
-    private struct RuleBadge {
-        let text: String
-        let color: Color
+    private var cooldownEscalationDetail: String {
+        guard settings.ticketCooldownEscalationMinutes > 0 else {
+            return "1枚ごとに間隔を増やしません"
+        }
+        let base = settings.ticketCooldownMinutes
+        let step = settings.ticketCooldownEscalationMinutes
+        return "1枚目\(base)分 → 2枚目\(base + step)分 → 3枚目\(base + step * 2)分"
     }
 
-    private var dormantBadge: RuleBadge? {
-        goalRuleOverridesOthers ? RuleBadge(text: "休止中", color: AppColors.textSecondary) : nil
-    }
+    // MARK: - 行の共通レイアウト
 
     private func ruleRow(
         icon: String,
         title: String,
         detail: String,
-        badge: RuleBadge?,
-        isDormant: Bool = false,
         indented: Bool = false,
         isOn: Binding<Bool>
     ) -> some View {
-        let accentColor = isDormant ? AppColors.textSecondary : AppColors.success
-        return HStack(spacing: 12) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(accentColor)
+                .foregroundStyle(AppColors.success)
                 .frame(width: 30, height: 30)
-                .background(accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(AppColors.success.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(title)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(AppColors.textPrimary)
-                    if let badge {
-                        Text(badge.text)
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(badge.color)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(badge.color.opacity(0.14), in: Capsule())
-                    }
-                }
+                Text(title)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppColors.textPrimary)
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
@@ -755,7 +1447,6 @@ struct ScreenTimeSettingsScreen: View {
         }
         .padding(.leading, indented ? 16 : 0)
         .padding(.vertical, 11)
-        .opacity(isDormant ? 0.6 : 1)
     }
 
     private func subRow<Trailing: View>(
@@ -777,6 +1468,7 @@ struct ScreenTimeSettingsScreen: View {
                 Text(detail)
                     .font(.caption2)
                     .foregroundStyle(AppColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 8)
@@ -785,6 +1477,60 @@ struct ScreenTimeSettingsScreen: View {
         }
         .padding(.leading, 16)
         .padding(.vertical, 9)
+    }
+
+    /// 分数の設定行。0〜720分を刻み5分の Stepper だけで動かすのは現実的でないため、
+    /// よく使う値をチップで並べる。
+    private func minutesRow(
+        icon: String,
+        title: String,
+        detail: String,
+        value: Binding<Int>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            subRow(icon: icon, title: title, detail: detail) {
+                Stepper(
+                    value: value,
+                    in: 0...ScreenTimeFocusSettings.maximumAllowanceMinutes,
+                    step: ScreenTimeFocusSettings.allowanceStepMinutes
+                ) {
+                    Text("\(value.wrappedValue)分")
+                        .font(.subheadline.weight(.bold).monospacedDigit())
+                        .foregroundStyle(AppColors.textPrimary)
+                        .frame(minWidth: 52, alignment: .trailing)
+                }
+            }
+
+            HStack(spacing: 6) {
+                ForEach(Self.minutePresets, id: \.self) { preset in
+                    minutePresetChip(preset, value: value)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 58)
+            .padding(.bottom, 6)
+        }
+    }
+
+    private static let minutePresets = [0, 15, 30, 45, 60, 90, 120]
+
+    private func minutePresetChip(_ minutes: Int, value: Binding<Int>) -> some View {
+        let isSelected = value.wrappedValue == minutes
+        return Button {
+            value.wrappedValue = minutes
+        } label: {
+            Text("\(minutes)")
+                .font(.caption2.weight(.bold).monospacedDigit())
+                .foregroundStyle(isSelected ? Color.white : AppColors.textSecondary)
+                .frame(minWidth: 26)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .background(
+                    isSelected ? AppColors.success : AppColors.subtleBackground,
+                    in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private var subRowDivider: some View {
@@ -874,9 +1620,27 @@ struct ScreenTimeSettingsScreen: View {
                         .background(behaviorColor(slot.behavior).opacity(0.13), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(ScreenTimeFormat.timeRangeText(slot))
-                            .font(.subheadline.weight(.bold).monospacedDigit())
-                            .foregroundStyle(AppColors.textPrimary)
+                        HStack(spacing: 6) {
+                            Text(ScreenTimeFormat.timeRangeText(slot))
+                                .font(.subheadline.weight(.bold).monospacedDigit())
+                                .foregroundStyle(AppColors.textPrimary)
+                            if slot.isNonNegotiableBlock {
+                                Text("解除不可")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(AppColors.danger)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(AppColors.danger.opacity(0.14), in: Capsule())
+                            }
+                            if isRedundantBlockSlot(slot) {
+                                Text("効果なし")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(AppColors.warning)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(AppColors.warning.opacity(0.14), in: Capsule())
+                            }
+                        }
                         Text(ScreenTimeFormat.weekdaysSummary(slot) + "・" + ScreenTimeFormat.durationText(slot))
                             .font(.caption2)
                             .foregroundStyle(AppColors.textSecondary)
@@ -921,8 +1685,7 @@ struct ScreenTimeSettingsScreen: View {
     private var allowedAppsCard: some View {
         settingsGroup(title: "制限中も使えるもの") {
             Button {
-                focusPickerSelection = settings.activitySelection
-                isShowingAllowedAppsPicker = true
+                showActivityPicker(for: .allowedDuringRestriction)
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "apps.iphone")
@@ -957,7 +1720,7 @@ struct ScreenTimeSettingsScreen: View {
             .buttonStyle(.plain)
             .disabled(!canEditSettings && !focusController.requiresRestoredActivitySelection)
         } footer: {
-            Text("ここで選んだものだけ、制限中も開けます。1つも選ばないと制限そのものがかかりません。")
+            Text("壁のルールが動いているとき、ここで選んだものだけ開けます。1つも選ばないと壁そのものが立ちません。")
         }
     }
 
@@ -965,7 +1728,7 @@ struct ScreenTimeSettingsScreen: View {
         let appCount = focusController.allowedApplicationCount
         let webCount = focusController.allowedWebDomainCount
         if appCount == 0, webCount == 0 {
-            return "未選択（制限がかかりません）"
+            return "未選択（壁が立ちません）"
         }
         if webCount == 0 {
             return "アプリ \(appCount)件"
@@ -1028,7 +1791,7 @@ struct ScreenTimeSettingsScreen: View {
                 .buttonStyle(.plain)
             }
         } footer: {
-            Text("一度オンにすると期限まで解除できません。iOSの設定アプリからScreen Timeの許可を取り消すことはできます。")
+            Text("一度オンにすると期限まで解除できません。iOSの設定アプリからScreen Timeの許可を取り消すことはできますが、その場合は制限が外れた記録が残ります。")
         }
     }
 
@@ -1108,11 +1871,41 @@ struct ScreenTimeSettingsScreen: View {
 
     private func applyFocusSettings(_ update: (inout ScreenTimeFocusSettings) -> Void) {
         guard canEditSettings else { return }
+
+        var candidate = settings
+        update(&candidate)
+
+        if candidate.requiresBudgetSelection, !candidate.hasBudgetSelection {
+            pendingSettings = candidate
+            showActivityPicker(for: .dailyBudget)
+            return
+        }
+
+        if candidate.requiresAllowedSelection, !hasAllowedSelection(candidate) {
+            pendingSettings = candidate
+            showActivityPicker(for: .allowedDuringRestriction)
+            return
+        }
+
+        commitFocusSettings { $0 = candidate }
+    }
+
+    @discardableResult
+    private func commitFocusSettings(_ update: (inout ScreenTimeFocusSettings) -> Void) -> Bool {
+        guard canEditSettings else { return false }
         do {
             try focusController.updateSettings(update)
             Task { await refreshGoalProgress(reason: "screen-time-settings") }
+            return true
         } catch {
             app.present(error)
+            return false
+        }
+    }
+
+    private func applyPreset(_ preset: ScreenTimeFocusPreset) {
+        applyFocusSettings { settings in
+            preset.apply(&settings)
         }
     }
 
@@ -1124,11 +1917,11 @@ struct ScreenTimeSettingsScreen: View {
     }
 
     private func addScheduleSlot() {
-        do {
-            try focusController.addScheduleSlot()
-            Task { await refreshGoalProgress(reason: "screen-time-add-schedule") }
-        } catch {
-            app.present(error)
+        applyFocusSettings { settings in
+            let nextIndex = settings.scheduleSlots.count + 1
+            settings.scheduleSlots.append(
+                FocusScheduleSlot(title: "時間帯 \(nextIndex)")
+            )
         }
     }
 
@@ -1297,12 +2090,36 @@ private struct ScheduleSlotEditorSheet: View {
             .padding(.vertical, 4)
 
             Text(slot.behavior == .block
-                 ? "この時間はチケットも使えず、必ず制限されます。"
-                 : "この時間はチケットを使わずに開けられます。")
+                 ? "この時間は許可したアプリ以外を制限します。"
+                 : "この時間は壁のルールを解除し、チケットも消費しません。")
                 .font(.caption)
                 .foregroundStyle(AppColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 4)
+
+            if slot.behavior == .block {
+                Divider()
+                    .padding(.vertical, 8)
+
+                Toggle(isOn: Binding(
+                    get: { !slot.allowsTicketBypass },
+                    set: { locked in
+                        onUpdate(slot.id) { $0.allowsTicketBypass = !locked }
+                    }
+                )) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("チケットでも開けられない")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppColors.textPrimary)
+                        Text("就寝時間のように、交渉の余地をなくしたい時間帯に使います。")
+                            .font(.caption2)
+                            .foregroundStyle(AppColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tint(AppColors.danger)
+                .frame(minHeight: 44)
+            }
         }
     }
 
@@ -1367,10 +2184,10 @@ private struct ScheduleSlotEditorSheet: View {
         } label: {
             Text(title)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(isSelected ? AppColors.success : AppColors.textSecondary)
-                .frame(maxWidth: .infinity, minHeight: 32)
+                .foregroundStyle(isSelected ? Color.white : AppColors.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 34)
                 .background(
-                    isSelected ? AppColors.greenSoft : AppColors.subtleBackground,
+                    isSelected ? AppColors.success : AppColors.subtleBackground,
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                 )
         }
@@ -1379,7 +2196,7 @@ private struct ScheduleSlotEditorSheet: View {
     }
 
     private func weekdayChip(_ slot: FocusScheduleSlot, weekday: Int) -> some View {
-        let isOn = slot.weekdays.contains(weekday)
+        let isSelected = slot.weekdays.contains(weekday)
         return Button {
             onUpdate(slot.id) { current in
                 if current.weekdays.contains(weekday) {
@@ -1391,20 +2208,16 @@ private struct ScheduleSlotEditorSheet: View {
         } label: {
             Text(ScreenTimeFormat.weekdayShortTitle(weekday))
                 .font(.caption.weight(.bold))
-                .foregroundStyle(isOn ? Color.white : ScreenTimeFormat.weekdayColor(weekday))
-                .frame(maxWidth: .infinity, minHeight: 38)
+                .foregroundStyle(isSelected ? Color.white : AppColors.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 36)
                 .background(
-                    isOn ? AppColors.success : AppColors.subtleBackground,
-                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    isSelected ? AppColors.success : AppColors.subtleBackground,
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                 )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(isOn ? AppColors.success : AppColors.cardBorder, lineWidth: 1)
-                }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(ScreenTimeFormat.weekdayShortTitle(weekday))曜日")
-        .accessibilityValue(isOn ? "選択中" : "未選択")
+        .accessibilityValue(isSelected ? "選択中" : "未選択")
     }
 
     private var deleteButton: some View {
@@ -1415,7 +2228,7 @@ private struct ScheduleSlotEditorSheet: View {
                 .font(.subheadline.weight(.bold))
                 .frame(maxWidth: .infinity, minHeight: 46)
                 .foregroundStyle(AppColors.danger)
-                .background(AppColors.redSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(AppColors.danger.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -1423,16 +2236,18 @@ private struct ScheduleSlotEditorSheet: View {
     private func timeBinding(_ slot: FocusScheduleSlot, endpoint: TimeEndpoint) -> Binding<Date> {
         Binding(
             get: {
-                let now = Date()
-                switch endpoint {
-                case .start:
-                    return Calendar.current.date(bySettingHour: slot.startHour, minute: slot.startMinute, second: 0, of: now) ?? now
-                case .end:
-                    return Calendar.current.date(bySettingHour: slot.endHour, minute: slot.endMinute, second: 0, of: now) ?? now
-                }
+                let calendar = Calendar.current
+                let hour = endpoint == .start ? slot.startHour : slot.endHour
+                let minute = endpoint == .start ? slot.startMinute : slot.endMinute
+                return calendar.date(
+                    bySettingHour: hour,
+                    minute: minute,
+                    second: 0,
+                    of: calendar.startOfDay(for: Date())
+                ) ?? Date()
             },
-            set: { date in
-                let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+            set: { newValue in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
                 onUpdate(slot.id) { current in
                     switch endpoint {
                     case .start:
@@ -1640,7 +2455,6 @@ private struct StrictLockSheet: View {
                     .foregroundStyle(AppColors.textSecondary)
                     .frame(minWidth: 64, alignment: .trailing)
             }
-            .labelsHidden()
         }
         .frame(minHeight: 44)
     }
@@ -1713,14 +2527,6 @@ private enum ScreenTimeFormat {
         case 6: return "金"
         case 7: return "土"
         default: return ""
-        }
-    }
-
-    static func weekdayColor(_ weekday: Int) -> Color {
-        switch weekday {
-        case 1: return AppColors.danger
-        case 7: return AppColors.blue
-        default: return AppColors.textPrimary
         }
     }
 

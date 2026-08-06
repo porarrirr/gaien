@@ -12,6 +12,10 @@ final class StudyAppDeviceActivityMonitorExtension: DeviceActivityMonitor {
         super.intervalDidStart(for: activity)
         // 期限監視はウィンドウの「開始」が期限到達を表す。
         guard isExpiryActivity(activity) else {
+            if activity == ScreenTimeFocusShared.dailyBoundaryActivityName
+                || activity == ScreenTimeFocusShared.budgetActivityName {
+                archiveCompletedDay(activity: activity)
+            }
             refreshRestrictions(event: "start", activity: activity)
             return
         }
@@ -26,8 +30,47 @@ final class StudyAppDeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
         super.intervalDidEnd(for: activity)
+        if activity == ScreenTimeFocusShared.dailyBoundaryActivityName
+            || activity == ScreenTimeFocusShared.budgetActivityName {
+            archiveCompletedDay(activity: activity)
+        }
         refreshRestrictions(event: "end", activity: activity)
         accessEngine.completeOneShotMonitoring(activity)
+    }
+
+    /// 対象アプリの使用時間がしきい値に達した。
+    ///
+    /// Screen Time は使用時間そのものをアプリへ渡さないため、この到達通知だけが
+    /// 「どれだけ使ったか」を知る手段になる。到達段を台帳へ記録し、持ち時間を
+    /// 使い切っていれば対象アプリを閉じる。
+    override func eventDidReachThreshold(
+        _ event: DeviceActivityEvent.Name,
+        activity: DeviceActivityName
+    ) {
+        super.eventDidReachThreshold(event, activity: activity)
+        guard let minutes = ScreenTimeFocusShared.usageMinutes(fromEventName: event) else {
+            logger.error("Unknown usage event: \(event.rawValue, privacy: .public)")
+            return
+        }
+        do {
+            let outcome = try accessEngine.recordUsageMilestone(minutes: minutes)
+            logger.notice(
+                """
+                Usage threshold \(minutes, privacy: .public)min reached: \
+                remaining=\(outcome.remainingMinutes, privacy: .public) \
+                of \(outcome.totalAllowanceMinutes, privacy: .public) \
+                exhausted=\(outcome.isExhausted, privacy: .public)
+                """
+            )
+            if outcome.shouldNotifyWarning || outcome.shouldNotifyExhausted {
+                accessEngine.notifyUsage(outcome: outcome)
+            }
+        } catch {
+            logger.error(
+                "Failed to record usage threshold \(minutes, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+        refreshRestrictions(event: "usage-threshold", activity: activity)
     }
 
     private func isExpiryActivity(_ activity: DeviceActivityName) -> Bool {
@@ -48,13 +91,27 @@ final class StudyAppDeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
     }
 
+    private func archiveCompletedDay(activity: DeviceActivityName) {
+        do {
+            let archived = try accessEngine.archiveCompletedDayIfNeeded()
+            if archived {
+                logger.notice("Archived previous day at \(activity.rawValue, privacy: .public)")
+            }
+        } catch {
+            logger.error(
+                "Failed to archive previous day: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
     private func refreshRestrictions(event: String, activity: DeviceActivityName) {
         do {
             let decision = try accessEngine.applyCurrentPolicy()
             logger.notice(
                 """
                 Refreshed Screen Time policy for \(activity.rawValue, privacy: .public) \
-                \(event, privacy: .public): restricted=\(decision.isRestricted, privacy: .public) \
+                \(event, privacy: .public): all=\(decision.restrictsAllApps, privacy: .public) \
+                budget=\(decision.restrictsBudgetTargets, privacy: .public) \
                 reason=\(decision.reason.rawValue, privacy: .public)
                 """
             )

@@ -2,12 +2,15 @@ import DeviceActivity
 import Foundation
 import ManagedSettings
 import OSLog
+import UserNotifications
 
 enum ScreenTimeFocusError: LocalizedError {
     case unavailable
     case authorizationRequired
     case missingAllowedApplications
+    case missingBudgetTargets
     case settingsSaveFailed
+    case settingsRollbackFailed(original: String, rollback: String)
     case goalProgressSaveFailed
     case settingsLocked(until: Date)
     case settingsAlreadyLocked(until: Date)
@@ -21,8 +24,12 @@ enum ScreenTimeFocusError: LocalizedError {
             return "Screen Timeの許可が必要です"
         case .missingAllowedApplications:
             return "許可するアプリを選択してください"
+        case .missingBudgetTargets:
+            return "時間を決めて使うアプリを選択してください"
         case .settingsSaveFailed:
             return "集中制限の設定を保存できませんでした"
+        case .settingsRollbackFailed(let original, let rollback):
+            return "集中制限の変更に失敗し、以前の状態にも戻せませんでした（変更: \(original)／復元: \(rollback)）"
         case .goalProgressSaveFailed:
             return "目標達成状態を保存できませんでした"
         case .settingsLocked(let until):
@@ -47,6 +54,11 @@ struct ScreenTimeAccessSnapshot {
     var ledger: ScreenTimeTicketLedger?
     var decision: ScreenTimePolicyDecision
     var nextAllowedScheduleStart: Date?
+    /// 使用中またはクールダウン中に、次のチケットが使えるようになる時刻。
+    var nextTicketAvailableDate: Date?
+    /// 使用量マイルストーンの段間隔（分）。表示を「目安」と伝えるために使う。
+    var usageResolutionMinutes: Int
+    var isGoalReached: Bool
 }
 
 enum ScreenTimeTicketStartError: LocalizedError, Equatable {
@@ -54,25 +66,48 @@ enum ScreenTimeTicketStartError: LocalizedError, Equatable {
     case alreadyUnrestricted
     case activeTicket
     case noTicketsRemaining
+    case cooldown(until: Date)
+    case nonNegotiable
     case midnightCalculationFailed
     case monitoringFailed
 
     var errorDescription: String? {
         switch self {
         case .ticketsDisabled:
-            return "チケット制が有効ではありません"
+            return "チケットが有効ではありません"
         case .alreadyUnrestricted:
             return "現在はチケットなしで利用できます"
         case .activeTicket:
             return "使用中のチケットが終了してから次のチケットを使ってください"
         case .noTicketsRemaining:
             return "今日使えるチケットは残っていません"
+        case .cooldown(let until):
+            return "次のチケットは\(Self.timeFormatter.string(from: until))から使えます"
+        case .nonNegotiable:
+            return "いまの制限はチケットでは開けられません"
         case .midnightCalculationFailed:
             return "チケットの終了時刻を計算できませんでした"
         case .monitoringFailed:
             return "チケットの終了監視を開始できませんでした"
         }
     }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "H:mm"
+        return formatter
+    }()
+}
+
+/// しきい値到達を記録した結果。通知を出すべきかどうかを含む。
+struct ScreenTimeUsageMilestoneOutcome: Equatable {
+    var didAdvance: Bool
+    var totalAllowanceMinutes: Int
+    var remainingMinutes: Int
+    var isExhausted: Bool
+    var shouldNotifyWarning: Bool
+    var shouldNotifyExhausted: Bool
 }
 
 struct ScreenTimeAccessEngine {
@@ -82,21 +117,32 @@ struct ScreenTimeAccessEngine {
     )
 
     private let ledgerStore: ScreenTimeTicketLedgerStore
+    private let historyStore: ScreenTimeUsageHistoryStore
     private let deviceActivityCenter: DeviceActivityCenter
     private let policyStore: ManagedSettingsStore
+    private let budgetStore: ManagedSettingsStore
     private let legacyTimerStore: ManagedSettingsStore
     private let legacyScheduleStore: ManagedSettingsStore
 
     init(
         ledgerStore: ScreenTimeTicketLedgerStore = ScreenTimeTicketLedgerStore(),
+        historyStore: ScreenTimeUsageHistoryStore = ScreenTimeUsageHistoryStore(),
         deviceActivityCenter: DeviceActivityCenter = DeviceActivityCenter()
     ) {
-        self.ledgerStore = ledgerStore
+        // 台帳を正規化するあらゆる経路（起動時の `snapshot` を含む）で、前日分が
+        // 上書きされる前に履歴へ切り出す。呼び出し順に依存しないよう、ここで結線する。
+        self.ledgerStore = ledgerStore.withStaleDayHandler { stale in
+            Self.archive(stale, to: historyStore)
+        }
+        self.historyStore = historyStore
         self.deviceActivityCenter = deviceActivityCenter
         self.policyStore = ManagedSettingsStore(named: ScreenTimeFocusShared.policyStoreName)
+        self.budgetStore = ManagedSettingsStore(named: ScreenTimeFocusShared.budgetStoreName)
         self.legacyTimerStore = ManagedSettingsStore(named: ScreenTimeFocusShared.legacyTimerStoreName)
         self.legacyScheduleStore = ManagedSettingsStore(named: ScreenTimeFocusShared.legacyScheduleStoreName)
     }
+
+    // MARK: - 状態
 
     func snapshot(referenceDate: Date = Date(), calendar: Calendar = .current) throws -> ScreenTimeAccessSnapshot {
         try snapshot(
@@ -115,12 +161,13 @@ struct ScreenTimeAccessEngine {
             settings: settings,
             referenceDate: referenceDate,
             calendar: calendar,
-            createIfMissing: settings.ticketRestrictionEnabled
+            createIfMissing: Self.requiresLedger(settings)
         )
+        let progress = ScreenTimeFocusShared.loadDailyGoalProgress()
         let decision = ScreenTimePolicyEvaluator.evaluate(
             settings: settings,
             ledger: ledger,
-            dailyGoalProgress: ScreenTimeFocusShared.loadDailyGoalProgress(),
+            dailyGoalProgress: progress,
             runtimeState: ScreenTimeFocusShared.loadRuntimeState(),
             referenceDate: referenceDate,
             calendar: calendar
@@ -131,9 +178,51 @@ struct ScreenTimeAccessEngine {
             nextAllowedScheduleStart: settings.nextAllowedScheduleStart(
                 after: referenceDate,
                 calendar: calendar
+            ),
+            nextTicketAvailableDate: ledger?.nextTicketAvailableDate(
+                at: referenceDate,
+                settings: settings
+            ),
+            // 実際に登録されている階段の粗さを出す。天井は日内で下げないため、
+            // 設定上必要な天井より広い階段が張られていることがある。
+            usageResolutionMinutes: ScreenTimeAllowance.milestoneResolutionMinutes(
+                maximumMinutes: max(
+                    settings.usageLadderCeilingMinutes,
+                    ScreenTimeFocusShared.budgetLadderCeilingMinutes
+                )
+            ),
+            isGoalReached: ScreenTimePolicyEvaluator.isGoalReached(
+                settings: settings,
+                progress: progress,
+                referenceDate: referenceDate,
+                calendar: calendar
             )
         )
     }
+
+    /// 直近の利用記録。今日の分は台帳から、過去は履歴ファイルから組み立てる。
+    func usageSummary(
+        dayCount: Int = 7,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> ScreenTimeUsageSummary {
+        let settings = ScreenTimeFocusShared.loadSettings()
+        let history = try historyStore.loadReadOnly()
+        let today = try? ledgerStore.loadReadOnly(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+        return ScreenTimeUsageSummary.make(
+            history: history,
+            today: today.map { ScreenTimeDayRecord(ledger: $0, calendar: calendar) },
+            dayCount: dayCount,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+
+    // MARK: - 適用
 
     @discardableResult
     func applyCurrentPolicy(
@@ -149,19 +238,40 @@ struct ScreenTimeAccessEngine {
             calendar: calendar
         )
 
-        if snapshot.decision.isRestricted {
+        var pendingError: Error?
+
+        if snapshot.decision.restrictsAllApps {
             let result = ScreenTimeFocusShared.applyRestrictions(
                 using: policyStore,
                 settings: settings
             )
             if result == .missingAllowedSelection {
-                throw ScreenTimeFocusError.missingAllowedApplications
+                pendingError = ScreenTimeFocusError.missingAllowedApplications
             }
         } else {
             ScreenTimeFocusShared.clearRestrictions(using: policyStore)
         }
+
+        // 持ち時間の壁は別ストア。許可リストの壁と同時に立っても互いを消さない。
+        if snapshot.decision.restrictsBudgetTargets {
+            let result = ScreenTimeFocusShared.applyBudgetRestrictions(
+                using: budgetStore,
+                settings: settings
+            )
+            if result == .missingBudgetSelection, pendingError == nil {
+                pendingError = ScreenTimeFocusError.missingBudgetTargets
+            }
+        } else {
+            ScreenTimeFocusShared.clearRestrictions(using: budgetStore)
+        }
+
+        if let pendingError {
+            throw pendingError
+        }
         return snapshot.decision
     }
+
+    // MARK: - 監視
 
     func syncMonitoring(
         settings: ScreenTimeFocusSettings,
@@ -172,14 +282,23 @@ struct ScreenTimeAccessEngine {
         guard !settings.requiresAllowedSelection || settings.canApplyRestrictions else {
             throw ScreenTimeFocusError.missingAllowedApplications
         }
+        guard !settings.requiresBudgetSelection || settings.hasBudgetSelection else {
+            throw ScreenTimeFocusError.missingBudgetTargets
+        }
         clearLegacyStores()
+        // 日付が変わっていれば、台帳を作り直す前に前日分を履歴へ残す。
+        _ = try? archiveCompletedDayIfNeeded(referenceDate: referenceDate, calendar: calendar)
         stopScheduleMonitoring()
 
         guard settings.isEnabled else {
             stopDailyBoundaryMonitoring()
             stopTicketExpiryMonitoring()
             stopTimerExpiryMonitoring()
+            stopBudgetMonitoring()
+            ScreenTimeFocusShared.setBudgetMonitoringFingerprint(nil)
+            ScreenTimeFocusShared.setBudgetLadderCeilingMinutes(nil)
             ScreenTimeFocusShared.clearRestrictions(using: policyStore)
+            ScreenTimeFocusShared.clearRestrictions(using: budgetStore)
             return
         }
 
@@ -200,7 +319,9 @@ struct ScreenTimeAccessEngine {
             stopDailyBoundaryMonitoring()
         }
 
-        if settings.ticketRestrictionEnabled {
+        try syncBudgetMonitoring(settings: settings, referenceDate: referenceDate, calendar: calendar)
+
+        if settings.ticketsEnabled {
             if let ledger = try currentLedger(
                 settings: settings,
                 referenceDate: referenceDate,
@@ -214,13 +335,11 @@ struct ScreenTimeAccessEngine {
             }
         } else {
             stopTicketExpiryMonitoring()
-            if !settings.ticketRestrictionEnabled {
-                try cancelActiveTicketIfPresent(
-                    settings: settings,
-                    referenceDate: referenceDate,
-                    calendar: calendar
-                )
-            }
+            try cancelActiveTicketIfPresent(
+                settings: settings,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
         }
 
         try syncTimerExpiryMonitoring(
@@ -239,7 +358,6 @@ struct ScreenTimeAccessEngine {
     ) throws {
         stopTimerExpiryMonitoring()
         guard settings.isEnabled,
-              !settings.unlockRestrictionsWhenDailyGoalReached,
               settings.timerRestrictionEnabled,
               runtimeState.isTimerRestrictionActive(at: referenceDate),
               let expiry = runtimeState.timerRestrictionEndDate else {
@@ -248,13 +366,237 @@ struct ScreenTimeAccessEngine {
         try registerTimerExpiryMonitoring(expiry: expiry, calendar: calendar)
     }
 
+    /// 使用量のしきい値監視を貼る。
+    ///
+    /// 貼り直すとその区間で積み上がっていた使用量が 0 に戻り、次の段へ向けて
+    /// 積み上がっていた端数が失われる。持ち時間を1目盛り動かすたびに貼り直していると、
+    /// ステッパーを触るだけで実使用の計測を巻き戻せてしまうため、貼り直すのは
+    /// 次の3つの場合だけに限る。
+    /// - 監視が失われている（端末再起動など）
+    /// - 対象アプリが変わった
+    /// - 階段の天井が足りなくなった（持ち時間を増やしたとき）
+    ///
+    /// 持ち時間を減らす変更では天井が足りているため貼り直さない。段は最適より粗くなるが、
+    /// 計測は正しいままで、巻き戻しも起きない。
+    private func syncBudgetMonitoring(
+        settings: ScreenTimeFocusSettings,
+        referenceDate: Date,
+        calendar: Calendar
+    ) throws {
+        let requiredCeiling = settings.usageLadderCeilingMinutes
+        guard settings.requiresBudgetMonitoring, requiredCeiling > 0 else {
+            stopBudgetMonitoring()
+            ScreenTimeFocusShared.setBudgetMonitoringFingerprint(nil)
+            ScreenTimeFocusShared.setBudgetLadderCeilingMinutes(nil)
+            return
+        }
+
+        let fingerprint = settings.budgetMonitoringFingerprint
+        let isMonitoring = deviceActivityCenter.activities.contains(ScreenTimeFocusShared.budgetActivityName)
+        let registeredCeiling = ScreenTimeFocusShared.budgetLadderCeilingMinutes
+        if isMonitoring,
+           ScreenTimeFocusShared.budgetMonitoringFingerprint == fingerprint,
+           registeredCeiling >= requiredCeiling {
+            return
+        }
+
+        // 天井は日内で下げない。下げると階段が変わって貼り直しが必要になるうえ、
+        // 一度測れていた範囲を測れなくする理由がない。
+        let ceiling = max(requiredCeiling, isMonitoring ? registeredCeiling : 0)
+        let milestones = ScreenTimeAllowance.usageMilestones(maximumMinutes: ceiling)
+        guard !milestones.isEmpty else {
+            stopBudgetMonitoring()
+            ScreenTimeFocusShared.setBudgetMonitoringFingerprint(nil)
+            ScreenTimeFocusShared.setBudgetLadderCeilingMinutes(nil)
+            return
+        }
+
+        var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
+        for minutes in milestones {
+            events[ScreenTimeFocusShared.usageEventName(minutes: minutes)] = DeviceActivityEvent(
+                applications: settings.budgetApplicationTokens,
+                categories: settings.budgetCategoryTokens,
+                webDomains: settings.budgetWebDomainTokens,
+                threshold: DateComponents(minute: minutes)
+            )
+        }
+
+        stopBudgetMonitoring()
+        let schedule = DeviceActivitySchedule(
+            intervalStart: DateComponents(hour: 0, minute: 0),
+            intervalEnd: DateComponents(hour: 23, minute: 59),
+            repeats: true
+        )
+        try deviceActivityCenter.startMonitoring(
+            ScreenTimeFocusShared.budgetActivityName,
+            during: schedule,
+            events: events
+        )
+        // しきい値の起点が 0 に戻るため、ここまでの記録をベースラインとして固定する。
+        // 監視が失われていた場合（端末再起動など）も起点は 0 に戻るので、
+        // `isMonitoring` で条件分けせず必ず固定する。当日分が空なら 0 のままで無害。
+        try? ledgerStore.update(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ) { ledger in
+            ledger.markUsageMonitoringRestarted()
+        }
+        ScreenTimeFocusShared.setBudgetMonitoringFingerprint(fingerprint)
+        ScreenTimeFocusShared.setBudgetLadderCeilingMinutes(ceiling)
+        Self.logger.notice(
+            """
+            Screen Time budget monitoring registered with \(milestones.count, privacy: .public) \
+            thresholds up to \(ceiling, privacy: .public)min
+            """
+        )
+    }
+
+    // MARK: - 使用量
+
+    /// しきい値到達を台帳へ記録する。通知の重複を避けるため、通知済みフラグも同じ更新で立てる。
+    @discardableResult
+    func recordUsageMilestone(
+        minutes: Int,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> ScreenTimeUsageMilestoneOutcome {
+        let settings = ScreenTimeFocusShared.loadSettings()
+        return try ledgerStore.update(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ) { ledger in
+            let didAdvance = ledger.recordUsageMilestone(minutes: minutes)
+            let total = ledger.totalAllowanceMinutes
+            let remaining = ledger.remainingAllowanceMinutes
+            let isExhausted = ledger.isBudgetExhausted(at: referenceDate, calendar: calendar)
+
+            var shouldNotifyExhausted = false
+            var shouldNotifyWarning = false
+            if isExhausted, !ledger.notifiedUsageExhausted {
+                ledger.notifiedUsageExhausted = true
+                ledger.notifiedUsageWarning = true
+                shouldNotifyExhausted = true
+            } else if !isExhausted,
+                      total > 0,
+                      !ledger.notifiedUsageWarning,
+                      Double(remaining) <= Double(total) * ScreenTimeFocusSettings.usageWarningRemainingRatio {
+                ledger.notifiedUsageWarning = true
+                shouldNotifyWarning = true
+            }
+
+            return ScreenTimeUsageMilestoneOutcome(
+                didAdvance: didAdvance,
+                totalAllowanceMinutes: total,
+                remainingMinutes: remaining,
+                isExhausted: isExhausted,
+                shouldNotifyWarning: shouldNotifyWarning,
+                shouldNotifyExhausted: shouldNotifyExhausted
+            )
+        }
+    }
+
+    /// 学習実績にもとづく持ち時間の付与を台帳へ反映する。ホストアプリだけが呼ぶ。
+    @discardableResult
+    func applyStudyProgress(
+        progress: ScreenTimeDailyGoalProgress,
+        goalReached: Bool,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> ScreenTimeTicketLedger {
+        let settings = ScreenTimeFocusShared.loadSettings()
+        return try ledgerStore.update(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ) { ledger in
+            ledger.applyStudyProgress(progress: progress, settings: settings, goalReached: goalReached)
+            return ledger
+        }
+    }
+
+    /// シールド画面で操作があったことを記録する。
+    /// 画面を出しただけでは数えられないため、実際の操作だけを集計する。
+    func recordShieldInteraction(referenceDate: Date = Date(), calendar: Calendar = .current) {
+        let settings = ScreenTimeFocusShared.loadSettings()
+        try? ledgerStore.update(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ) { ledger in
+            ledger.shieldInteractionCount += 1
+        }
+    }
+
+    /// 制限がオンのままScreen Timeの許可が外れた日を記録する。
+    /// シールドはOS側で消えてしまうため、少なくとも記録には残す。
+    func recordProtectionInterruption(referenceDate: Date = Date(), calendar: Calendar = .current) {
+        let settings = ScreenTimeFocusShared.loadSettings()
+        try? ledgerStore.update(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ) { ledger in
+            ledger.protectionInterrupted = true
+        }
+    }
+
+    /// 日付が変わっていれば、前日の台帳を履歴へ切り出して当日分へ入れ替える。
+    ///
+    /// 切り出し自体は台帳ストアの日跨ぎフックが行う（`init` で結線している）。
+    /// ここは「誰も台帳に触らないまま日が変わった」場合にフックを起動するための入口で、
+    /// 日境界の `DeviceActivityMonitor` コールバックから呼ばれる。
+    /// - Returns: 切り出す対象があったかどうか。
+    @discardableResult
+    func archiveCompletedDayIfNeeded(
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> Bool {
+        guard let raw = try ledgerStore.loadRaw() else { return false }
+        let todayOrdinal = ScreenTimeDateMath.localDayOrdinal(for: referenceDate, calendar: calendar)
+        guard raw.localDayOrdinal(calendar: calendar) < todayOrdinal else { return false }
+        // 正規化経路を通すと、書き戻しの直前にフックが履歴へ切り出す。
+        _ = try ledgerStore.load(
+            settings: ScreenTimeFocusShared.loadSettings(),
+            referenceDate: referenceDate,
+            calendar: calendar,
+            createIfMissing: false
+        )
+        return true
+    }
+
+    /// 日跨ぎで捨てられる台帳を履歴へ残す。台帳ストアのフックから同期的に呼ばれる。
+    private static func archive(
+        _ ledger: ScreenTimeTicketLedger,
+        to historyStore: ScreenTimeUsageHistoryStore
+    ) {
+        let record = ScreenTimeDayRecord(ledger: ledger)
+        do {
+            try historyStore.update { history in
+                history.upsert(record)
+            }
+            logger.notice("Archived Screen Time day \(record.dayOrdinal, privacy: .public)")
+        } catch {
+            // ここで失敗するとその日の実績は復元できない。握り潰さずに記録を残す。
+            logger.error(
+                """
+                Failed to archive Screen Time day \(record.dayOrdinal, privacy: .public): \
+                \(error.localizedDescription, privacy: .public)
+                """
+            )
+        }
+    }
+
+    // MARK: - チケット
+
     @discardableResult
     func startTicket(
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) throws -> ScreenTimeTicketLedger {
         let settings = ScreenTimeFocusShared.loadSettings()
-        guard settings.isEnabled, settings.ticketRestrictionEnabled else {
+        guard settings.isEnabled, settings.ticketsEnabled else {
             throw ScreenTimeTicketStartError.ticketsDisabled
         }
         guard let nextDayStart = calendar.date(
@@ -294,26 +636,30 @@ struct ScreenTimeAccessEngine {
                 if ledger.hasActiveTicket(at: referenceDate, calendar: calendar) {
                     throw ScreenTimeTicketStartError.activeTicket
                 }
-                switch decision.reason {
-                case .dailyGoalPending, .studyTimer, .blockedSchedule, .ticketRequired:
-                    break
-                case .dailyGoalReached, .allowedSchedule, .masterDisabled, .unrestricted:
+                guard decision.restrictsAllApps else {
+                    // 持ち時間の使い切りはチケットでは開けられない（別資源）。
                     throw ScreenTimeTicketStartError.alreadyUnrestricted
-                case .activeTicket:
-                    throw ScreenTimeTicketStartError.activeTicket
-                case .outsideScheduleBlocked:
-                    throw ScreenTimeTicketStartError.ticketsDisabled
+                }
+                guard decision.isTicketBypassable else {
+                    throw ScreenTimeTicketStartError.nonNegotiable
                 }
 
                 let previous = ledger
                 do {
-                    try ledger.reserveTicket(start: referenceDate, expiry: expiry, calendar: calendar)
+                    try ledger.reserveTicket(
+                        start: referenceDate,
+                        expiry: expiry,
+                        settings: settings,
+                        calendar: calendar
+                    )
                 } catch ScreenTimeTicketLedgerMutationError.activeTicket {
                     throw ScreenTimeTicketStartError.activeTicket
                 } catch ScreenTimeTicketLedgerMutationError.noTicketsRemaining {
                     throw ScreenTimeTicketStartError.noTicketsRemaining
                 } catch ScreenTimeTicketLedgerMutationError.notCurrentDay {
                     throw ScreenTimeTicketStartError.noTicketsRemaining
+                } catch ScreenTimeTicketLedgerMutationError.cooldown(let until) {
+                    throw ScreenTimeTicketStartError.cooldown(until: until)
                 }
                 return (previous: previous, reserved: ledger)
             }
@@ -347,11 +693,15 @@ struct ScreenTimeAccessEngine {
                 || $0 == ScreenTimeFocusShared.dailyBoundaryActivityName
                 || $0 == ScreenTimeFocusShared.ticketExpiryActivityName
                 || $0 == ScreenTimeFocusShared.timerExpiryActivityName
+                || $0 == ScreenTimeFocusShared.budgetActivityName
         }
         if !activityNames.isEmpty {
             deviceActivityCenter.stopMonitoring(activityNames)
         }
+        ScreenTimeFocusShared.setBudgetMonitoringFingerprint(nil)
+        ScreenTimeFocusShared.setBudgetLadderCeilingMinutes(nil)
         ScreenTimeFocusShared.clearRestrictions(using: policyStore)
+        ScreenTimeFocusShared.clearRestrictions(using: budgetStore)
         clearLegacyStores()
     }
 
@@ -398,13 +748,61 @@ struct ScreenTimeAccessEngine {
         }
     }
 
+    // MARK: - 通知
+
+    /// 持ち時間の残りが少なくなった／尽きたことを知らせる。
+    ///
+    /// 使いすぎ防止では「気づき」が壁と同じくらい効く。壁に当たって初めて知る状態を避ける。
+    func notifyUsage(outcome: ScreenTimeUsageMilestoneOutcome) {
+        let content = UNMutableNotificationContent()
+        if outcome.shouldNotifyExhausted {
+            content.title = "今日の持ち時間を使い切りました"
+            content.body = "対象のアプリは明日まで開けません。勉強すると持ち時間が増えます。"
+        } else if outcome.shouldNotifyWarning {
+            content.title = "持ち時間があと\(outcome.remainingMinutes)分"
+            content.body = "使い切ると対象のアプリが開けなくなります。"
+        } else {
+            return
+        }
+        content.sound = nil
+        let request = UNNotificationRequest(
+            identifier: "screen-time-usage-\(outcome.shouldNotifyExhausted ? "exhausted" : "warning")-\(Int(Date().timeIntervalSince1970))",
+            content: content,
+            trigger: nil
+        )
+        // 呼び出し元は `DeviceActivityMonitor` 拡張で、実行予算を使い切ると即座に
+        // サスペンドされる。登録完了を待たずに戻ると通知が消えるが、台帳側の
+        // 通知済みフラグは既に立っているため再送もされない。短く待って取りこぼしを防ぐ。
+        let completion = DispatchSemaphore(value: 0)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                Self.logger.error(
+                    "Failed to post usage notification: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+            completion.signal()
+        }
+        if completion.wait(timeout: .now() + 2) == .timedOut {
+            Self.logger.error("Timed out while enqueueing usage notification")
+        }
+    }
+
+    // MARK: - 内部
+
+    private static func requiresLedger(_ settings: ScreenTimeFocusSettings) -> Bool {
+        settings.ticketsEnabled || settings.budgetRestrictionEnabled || settings.goalRestrictionEnabled
+    }
+
+    /// 台帳を必要としない設定のときは、共有ファイルにも触らない。
+    /// 触ると App Group が使えない環境（未署名ビルドなど）で毎回失敗し、
+    /// 制限を何も使っていないのにエラーとして表面化してしまう。
     private func currentLedger(
         settings: ScreenTimeFocusSettings,
         referenceDate: Date,
         calendar: Calendar,
         createIfMissing: Bool
     ) throws -> ScreenTimeTicketLedger? {
-        guard settings.ticketRestrictionEnabled || createIfMissing else { return nil }
+        guard createIfMissing || Self.requiresLedger(settings) else { return nil }
         return try ledgerStore.load(
             settings: settings,
             referenceDate: referenceDate,
@@ -431,13 +829,14 @@ struct ScreenTimeAccessEngine {
             referenceDate: referenceDate,
             calendar: calendar
         ) { ledger in
-            ledger.activeTicketStartedAt = nil
-            ledger.activeTicketEndsAt = nil
+            ledger.endActiveTicket()
         }
     }
 
     private func registerDailyBoundaryMonitoring() throws {
-        stopDailyBoundaryMonitoring()
+        guard !deviceActivityCenter.activities.contains(ScreenTimeFocusShared.dailyBoundaryActivityName) else {
+            return
+        }
         let schedule = DeviceActivitySchedule(
             intervalStart: DateComponents(hour: 0, minute: 0),
             intervalEnd: DateComponents(hour: 23, minute: 59),
@@ -510,6 +909,12 @@ struct ScreenTimeAccessEngine {
     private func stopTimerExpiryMonitoring() {
         if deviceActivityCenter.activities.contains(ScreenTimeFocusShared.timerExpiryActivityName) {
             deviceActivityCenter.stopMonitoring([ScreenTimeFocusShared.timerExpiryActivityName])
+        }
+    }
+
+    private func stopBudgetMonitoring() {
+        if deviceActivityCenter.activities.contains(ScreenTimeFocusShared.budgetActivityName) {
+            deviceActivityCenter.stopMonitoring([ScreenTimeFocusShared.budgetActivityName])
         }
     }
 

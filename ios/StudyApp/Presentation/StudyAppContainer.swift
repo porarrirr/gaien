@@ -225,7 +225,9 @@ final class StudyAppContainer: ObservableObject {
         if preferences.reminderEnabled {
             Task { await refreshTimetableReviewReminder() }
         }
-        if screenTimeFocusController.settings.unlockRestrictionsWhenDailyGoalReached {
+        // 学習記録が変われば、目標判定だけでなく勉強で稼ぐ持ち時間も変わる。
+        let focusSettings = screenTimeFocusController.settings
+        if focusSettings.goalRestrictionEnabled || focusSettings.budgetRestrictionEnabled {
             Task { await refreshScreenTimeFocusState(reason: "data-version-\(dataVersion)") }
         }
     }
@@ -309,11 +311,16 @@ final class StudyAppContainer: ObservableObject {
         )
     }
 
+    /// 学習実績を Screen Time 側へ渡し、制限と持ち時間を最新化する。
+    ///
+    /// 目標未達成ルールだけでなく、持ち時間を勉強で稼ぐルールも学習実績を必要とする。
+    /// どちらかがオンなら実績を計算して台帳へ反映する。
     @discardableResult
     func refreshScreenTimeFocusState(reason: String) async -> ScreenTimeDailyGoalProgress? {
         do {
             screenTimeFocusController.refresh()
-            guard screenTimeFocusController.settings.unlockRestrictionsWhenDailyGoalReached else {
+            let settings = screenTimeFocusController.settings
+            guard settings.goalRestrictionEnabled || settings.budgetRestrictionEnabled else {
                 restoreScreenTimeFocus(reason: reason)
                 return nil
             }
@@ -321,6 +328,10 @@ final class StudyAppContainer: ObservableObject {
             if !ScreenTimeFocusShared.saveDailyGoalProgress(progress) {
                 throw ScreenTimeFocusError.goalProgressSaveFailed
             }
+            try screenTimeFocusController.applyStudyProgress(
+                progress: progress,
+                goalReached: progress.liftsGoalRestriction()
+            )
             restoreScreenTimeFocus(reason: reason)
             return progress
         } catch {
@@ -358,6 +369,10 @@ final class StudyAppContainer: ObservableObject {
         } catch ScreenTimeFocusError.authorizationRequired {
             screenTimeFocusController.clearAllRestrictionsAndMonitoring()
         } catch ScreenTimeFocusError.missingAllowedApplications {
+            screenTimeFocusController.clearAllRestrictionsAndMonitoring()
+        } catch ScreenTimeFocusError.missingBudgetTargets {
+            // Family Controls の対象トークンは端末間で復元できない。
+            // RootView の選択導線へ任せ、起動直後に前提エラーを重ねて表示しない。
             screenTimeFocusController.clearAllRestrictionsAndMonitoring()
         } catch {
             present(error)

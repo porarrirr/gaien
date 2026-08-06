@@ -388,9 +388,12 @@ final class TimerViewModel: ScreenViewModel {
             }
     }
 
+    /// タイマー中の学習分数は、目標判定だけでなく勉強で稼ぐ持ち時間にも効く。
+    /// どちらかのルールが動いているときは1分ごとに反映する。
     private func refreshScreenTimeGoalProgressIfNeeded() {
-        guard app.screenTimeFocusController.settings.isEnabled,
-              app.screenTimeFocusController.settings.unlockRestrictionsWhenDailyGoalReached else {
+        let settings = app.screenTimeFocusController.settings
+        guard settings.isEnabled,
+              settings.goalRestrictionEnabled || settings.budgetRestrictionEnabled else {
             return
         }
         let currentMinute = elapsedMilliseconds / 60_000

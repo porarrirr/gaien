@@ -41,7 +41,11 @@
 
 - **Live Activity** — ロック画面 / Dynamic Island にタイマー表示（ビルド設定で ON/OFF 可能）
 - **WidgetKit** — App Group 経由のスナップショット連携
-- **Screen Time 集中モード** — Family Controls + Device Activity で許可アプリ以外を制限。毎日補充される10分チケット、無料開放 / 使用禁止時間帯、学習タイマー制限を個別または併用で設定可能
+- **Screen Time 集中モード** — Family Controls + Device Activity による使いすぎ防止。2つの資源で構成する
+  - **持ち時間**（分）— 対象アプリの実使用時間を `DeviceActivityEvent` のしきい値到達で測り、超えたら対象アプリだけを閉じる。基本枠（毎日補充）＋勉強で稼いだ分（交換レート指定）＋目標達成ボーナスで増える。チケットでは開けられない
+  - **チケット**（枚）— 壁のルールを10分だけ開ける鍵。1日の枚数・使うほど伸びる間隔（クールダウン）を設定でき、持ち時間は消費しない
+  - **壁のルール** — 決めた時間帯（枠ごとに「チケットでも開けられない」を指定可）／勉強タイマー中／目標未達成／常に制限。すべて独立に併用でき、同時に成立したときは最も強い理由を表示する。「常に制限」は壁の基本状態で、オンの間は無料開放の時間帯とチケットだけが開ける（旧「時間帯の外も制限」はこれに統合済み）
+  - **実績** — 直近7日間の使用時間（目安）・持ち時間・チケット・制限に当たった回数・前週比を表示。おすすめ設定3種を1タップで適用でき、Screen Time の許可が外れた日も記録に残す
 - **iPad 向け UI** — `NavigationSplitView` によるサイドバー + 詳細の分割表示
 - **ランドスケープタイマー** — 問題進捗専用 / 時計のみの集中レイアウト
 
@@ -118,7 +122,7 @@ gaien/
 │   │   ├── Services/                 # Live Activity、Screen Time、通知
 │   │   └── Widgets/                  # スナップショット同期
 │   ├── StudyAppWidgets/             # WidgetKit + Live Activity
-│   ├── StudyAppDeviceActivityMonitor/  # Screen Time 拡張
+│   ├── StudyAppDeviceActivityMonitor/  # Screen Time 拡張（使用量しきい値・期限・日境界）
 │   ├── StudyAppShieldConfiguration/ # 制限理由・残券を表示する Shield 拡張
 │   ├── StudyAppShieldAction/        # Shield からチケットを使用する拡張
 │   └── StudyAppTests/                # XCTest
