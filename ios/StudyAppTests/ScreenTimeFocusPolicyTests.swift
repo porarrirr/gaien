@@ -274,6 +274,10 @@ final class ScreenTimeSettingsMigrationTests: XCTestCase {
         XCTAssertFalse(json.contains("baseAllowanceMinutes"))
         XCTAssertFalse(json.contains("earnedAllowanceEnabled"))
         XCTAssertFalse(json.contains("goalBonusAllowanceMinutes"))
+        XCTAssertFalse(json.contains("ticketRestrictionEnabled"))
+        XCTAssertFalse(json.contains("dailyTicketMinutes"))
+        XCTAssertFalse(json.contains("unlockRestrictionsWhenDailyGoalReached"))
+        XCTAssertFalse(json.contains("restrictOutsideSchedule"))
     }
 
     func testRestoredRemovedBudgetSettingsDoNotRequireSelectionConfirmation() {

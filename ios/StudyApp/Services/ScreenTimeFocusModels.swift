@@ -1176,15 +1176,6 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
         )
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
-
-        try container.encode(alwaysRestrictEnabled, forKey: .legacyTicketRestrictionEnabled)
-        try container.encode(
-            ScreenTimeLegacyCompatibility.goalUnlock(
-                goalRestrictionEnabled: goalRestrictionEnabled,
-                scheduleSlots: scheduleSlots
-            ),
-            forKey: .legacyUnlockRestrictionsWhenDailyGoalReached
-        )
     }
 
     var requiresAllowedSelection: Bool {
