@@ -1047,19 +1047,12 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
     var timerRestrictionEnabled: Bool
     var scheduledRestrictionEnabled: Bool
     var alwaysRestrictEnabled: Bool
-    var budgetRestrictionEnabled: Bool
     var ticketsEnabled: Bool
-    var baseAllowanceMinutes: Int
-    var earnedAllowanceEnabled: Bool
-    var studyMinutesPerEarnedMinute: Int
-    var earnedAllowanceCapMinutes: Int
-    var goalBonusAllowanceMinutes: Int
     var dailyTicketCount: Int
     var ticketCooldownMinutes: Int
     var ticketCooldownEscalationMinutes: Int
     var scheduleSlots: [FocusScheduleSlot]
     var selectionWasConfigured: Bool
-    var budgetSelectionWasConfigured: Bool
     var settingsLockedUntilEpochMilliseconds: Int64?
     var updatedAt: Int64
     var deletedAt: Int64?
@@ -1071,19 +1064,12 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
         timerRestrictionEnabled = settings.timerRestrictionEnabled
         scheduledRestrictionEnabled = settings.scheduledRestrictionEnabled
         alwaysRestrictEnabled = settings.alwaysRestrictEnabled
-        budgetRestrictionEnabled = settings.budgetRestrictionEnabled
         ticketsEnabled = settings.ticketsEnabled
-        baseAllowanceMinutes = settings.baseAllowanceMinutes
-        earnedAllowanceEnabled = settings.earnedAllowanceEnabled
-        studyMinutesPerEarnedMinute = settings.studyMinutesPerEarnedMinute
-        earnedAllowanceCapMinutes = settings.earnedAllowanceCapMinutes
-        goalBonusAllowanceMinutes = settings.goalBonusAllowanceMinutes
         dailyTicketCount = settings.dailyTicketCount
         ticketCooldownMinutes = settings.ticketCooldownMinutes
         ticketCooldownEscalationMinutes = settings.ticketCooldownEscalationMinutes
         scheduleSlots = settings.scheduleSlots
         selectionWasConfigured = settings.selectionWasConfigured
-        budgetSelectionWasConfigured = settings.budgetSelectionWasConfigured
         settingsLockedUntilEpochMilliseconds = settings.settingsLockedUntilEpochMilliseconds
         updatedAt = settings.updatedAt
         deletedAt = nil
@@ -1152,20 +1138,9 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
         goalRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .goalRestrictionEnabled)
             ?? legacyGoalUnlock
             ?? false
-        budgetRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .budgetRestrictionEnabled) ?? false
-        baseAllowanceMinutes = try container.decodeIfPresent(Int.self, forKey: .baseAllowanceMinutes)
-            ?? legacyMinutes
-            ?? 0
         dailyTicketCount = try container.decodeIfPresent(Int.self, forKey: .dailyTicketCount)
             ?? legacyMinutes.map { $0 / ScreenTimeFocusSettings.ticketDurationMinutes }
             ?? 0
-        earnedAllowanceEnabled = try container.decodeIfPresent(Bool.self, forKey: .earnedAllowanceEnabled) ?? false
-        studyMinutesPerEarnedMinute = try container.decodeIfPresent(
-            Int.self,
-            forKey: .studyMinutesPerEarnedMinute
-        ) ?? 3
-        earnedAllowanceCapMinutes = try container.decodeIfPresent(Int.self, forKey: .earnedAllowanceCapMinutes) ?? 60
-        goalBonusAllowanceMinutes = try container.decodeIfPresent(Int.self, forKey: .goalBonusAllowanceMinutes) ?? 0
         ticketCooldownMinutes = try container.decodeIfPresent(Int.self, forKey: .ticketCooldownMinutes) ?? 0
         ticketCooldownEscalationMinutes = try container.decodeIfPresent(
             Int.self,
@@ -1173,10 +1148,6 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
         ) ?? 0
         scheduleSlots = try container.decodeIfPresent([FocusScheduleSlot].self, forKey: .scheduleSlots) ?? []
         selectionWasConfigured = try container.decodeIfPresent(Bool.self, forKey: .selectionWasConfigured) ?? false
-        budgetSelectionWasConfigured = try container.decodeIfPresent(
-            Bool.self,
-            forKey: .budgetSelectionWasConfigured
-        ) ?? false
         settingsLockedUntilEpochMilliseconds = try container.decodeIfPresent(
             Int64.self,
             forKey: .settingsLockedUntilEpochMilliseconds
@@ -1193,19 +1164,12 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
         try container.encode(timerRestrictionEnabled, forKey: .timerRestrictionEnabled)
         try container.encode(scheduledRestrictionEnabled, forKey: .scheduledRestrictionEnabled)
         try container.encode(alwaysRestrictEnabled, forKey: .alwaysRestrictEnabled)
-        try container.encode(budgetRestrictionEnabled, forKey: .budgetRestrictionEnabled)
         try container.encode(ticketsEnabled, forKey: .ticketsEnabled)
-        try container.encode(baseAllowanceMinutes, forKey: .baseAllowanceMinutes)
-        try container.encode(earnedAllowanceEnabled, forKey: .earnedAllowanceEnabled)
-        try container.encode(studyMinutesPerEarnedMinute, forKey: .studyMinutesPerEarnedMinute)
-        try container.encode(earnedAllowanceCapMinutes, forKey: .earnedAllowanceCapMinutes)
-        try container.encode(goalBonusAllowanceMinutes, forKey: .goalBonusAllowanceMinutes)
         try container.encode(dailyTicketCount, forKey: .dailyTicketCount)
         try container.encode(ticketCooldownMinutes, forKey: .ticketCooldownMinutes)
         try container.encode(ticketCooldownEscalationMinutes, forKey: .ticketCooldownEscalationMinutes)
         try container.encode(scheduleSlots, forKey: .scheduleSlots)
         try container.encode(selectionWasConfigured, forKey: .selectionWasConfigured)
-        try container.encode(budgetSelectionWasConfigured, forKey: .budgetSelectionWasConfigured)
         try container.encodeIfPresent(
             settingsLockedUntilEpochMilliseconds,
             forKey: .settingsLockedUntilEpochMilliseconds
@@ -1214,10 +1178,6 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
 
         try container.encode(alwaysRestrictEnabled, forKey: .legacyTicketRestrictionEnabled)
-        try container.encode(
-            ScreenTimeLegacyCompatibility.dailyTicketMinutes(baseAllowanceMinutes),
-            forKey: .legacyDailyTicketMinutes
-        )
         try container.encode(
             ScreenTimeLegacyCompatibility.goalUnlock(
                 goalRestrictionEnabled: goalRestrictionEnabled,
@@ -1246,21 +1206,13 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
             timerRestrictionEnabled: timerRestrictionEnabled,
             scheduledRestrictionEnabled: scheduledRestrictionEnabled,
             alwaysRestrictEnabled: alwaysRestrictEnabled,
-            budgetRestrictionEnabled: budgetRestrictionEnabled,
             ticketsEnabled: ticketsEnabled,
-            baseAllowanceMinutes: baseAllowanceMinutes,
-            earnedAllowanceEnabled: earnedAllowanceEnabled,
-            studyMinutesPerEarnedMinute: studyMinutesPerEarnedMinute,
-            earnedAllowanceCapMinutes: earnedAllowanceCapMinutes,
-            goalBonusAllowanceMinutes: goalBonusAllowanceMinutes,
             dailyTicketCount: dailyTicketCount,
             ticketCooldownMinutes: ticketCooldownMinutes,
             ticketCooldownEscalationMinutes: ticketCooldownEscalationMinutes,
             scheduleSlots: scheduleSlots,
             activitySelection: selection,
             selectionWasConfigured: selectionWasConfigured,
-            budgetSelection: budgetSelection,
-            budgetSelectionWasConfigured: budgetSelectionWasConfigured,
             updatedAt: updatedAt,
             settingsLockedUntilEpochMilliseconds: settingsLockedUntilEpochMilliseconds
         )

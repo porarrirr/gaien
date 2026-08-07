@@ -254,7 +254,7 @@ final class ScreenTimeSettingsMigrationTests: XCTestCase {
         XCTAssertEqual(decoded.scheduleSlots.first?.allowsTicketBypass, false)
     }
 
-    func testSyncSettingsStillExcludeDeviceLocalSelections() throws {
+    func testSyncSettingsExcludeRemovedBudgetFieldsAndDeviceLocalSelections() throws {
         let settings = ScreenTimeFocusSettings(
             isEnabled: true,
             budgetRestrictionEnabled: true,
@@ -267,10 +267,13 @@ final class ScreenTimeSettingsMigrationTests: XCTestCase {
         let json = String(decoding: try JSONEncoder().encode(synced), as: UTF8.self)
 
         XCTAssertTrue(synced.selectionWasConfigured)
-        XCTAssertTrue(synced.budgetSelectionWasConfigured)
         XCTAssertFalse(json.contains("activitySelection"))
         XCTAssertFalse(json.contains("budgetSelection\":{"))
         XCTAssertFalse(json.contains("applicationTokens"))
+        XCTAssertFalse(json.contains("budgetRestrictionEnabled"))
+        XCTAssertFalse(json.contains("baseAllowanceMinutes"))
+        XCTAssertFalse(json.contains("earnedAllowanceEnabled"))
+        XCTAssertFalse(json.contains("goalBonusAllowanceMinutes"))
     }
 
     func testRestoredRemovedBudgetSettingsDoNotRequireSelectionConfirmation() {
@@ -288,7 +291,7 @@ final class ScreenTimeSettingsMigrationTests: XCTestCase {
             synced.requiresSelectionConfirmation(preserving: empty, budgetSelection: empty)
         )
         let restored = synced.restoredSettings(preserving: empty, budgetSelection: empty)
-        XCTAssertTrue(restored.budgetRestrictionEnabled)
+        XCTAssertFalse(restored.budgetRestrictionEnabled)
         XCTAssertEqual(restored.updatedAt, 7)
     }
 
