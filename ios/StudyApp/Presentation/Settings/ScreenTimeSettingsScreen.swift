@@ -3,7 +3,7 @@ import SwiftUI
 
 /// 集中制限の設定画面。
 ///
-/// 画面は「いまの状態 → 実績 → 持ち時間 → 壁のルール → チケット → 対象の選択 → 固定」の順に並ぶ。
+/// 画面は「いまの状態 → 実績 → 壁のルール → チケット → 対象の選択 → 固定」の順に並ぶ。
 /// ルールは互いに独立して効くため、以前のような優先順の説明や休止表示は持たない。
 /// 表示される理由だけが優先順（`ScreenTimePolicyEvaluator`）に従う。
 struct ScreenTimeSettingsScreen: View {
@@ -51,7 +51,6 @@ struct ScreenTimeSettingsScreen: View {
                     ticketCard
                 }
                 reportCard
-                budgetCard
                 wallRulesCard
                 if settings.scheduledRestrictionEnabled {
                     scheduleSection
