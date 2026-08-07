@@ -995,7 +995,9 @@ struct ScreenTimeSettingsScreen: View {
                 ruleRow(
                     icon: "hourglass",
                     title: "時間を決めて使う",
-                    detail: "選んだアプリの使用時間が持ち時間を超えたら、そのアプリだけを閉じます",
+                    detail: settings.budgetRestrictionEnabled
+                        ? "1日の上限に達したら、選んだアプリを閉じます"
+                        : "アプリごとに1日の使用時間を決めます",
                     isOn: Binding(
                         get: { settings.budgetRestrictionEnabled },
                         set: { enabled in
@@ -1004,15 +1006,14 @@ struct ScreenTimeSettingsScreen: View {
                     )
                 )
 
-                subRowDivider
-                budgetTargetRow
-
                 if settings.budgetRestrictionEnabled {
+                    subRowDivider
+                    budgetTargetRow
                     subRowDivider
                     minutesRow(
                         icon: "clock",
-                        title: "基本の持ち時間",
-                        detail: "毎日0時に補充されます",
+                        title: "1日の上限",
+                        detail: "毎日0時にリセット",
                         value: Binding(
                             get: { settings.baseAllowanceMinutes },
                             set: { minutes in
@@ -1021,19 +1022,7 @@ struct ScreenTimeSettingsScreen: View {
                         )
                     )
                     subRowDivider
-                    earnRuleRows
-                    subRowDivider
-                    minutesRow(
-                        icon: "trophy",
-                        title: "目標達成ボーナス",
-                        detail: "今日の学習目標を達成したときに加算されます",
-                        value: Binding(
-                            get: { settings.goalBonusAllowanceMinutes },
-                            set: { minutes in
-                                applyFocusSettings { $0.goalBonusAllowanceMinutes = minutes }
-                            }
-                        )
-                    )
+                    allowanceBoostRows
                 }
             }
             .padding(.horizontal, 10)
@@ -1070,13 +1059,13 @@ struct ScreenTimeSettingsScreen: View {
             showActivityPicker(for: .dailyBudget)
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: "square.grid.2x2")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppColors.textSecondary)
+                Image(systemName: settings.hasBudgetSelection ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(settings.hasBudgetSelection ? AppColors.success : AppColors.danger)
                     .frame(width: 30, height: 30)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("時間を決めて使うもの")
+                    Text("対象のアプリ・Webサイト")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColors.textPrimary)
                     Text(budgetSelectionSummary)
@@ -1086,7 +1075,7 @@ struct ScreenTimeSettingsScreen: View {
 
                 Spacer(minLength: 8)
 
-                Text("選ぶ")
+                Text(settings.hasBudgetSelection ? "変更" : "選択")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(AppColors.success)
                 Image(systemName: "chevron.right")
@@ -1164,6 +1153,33 @@ struct ScreenTimeSettingsScreen: View {
                     )
                 )
             }
+        }
+    }
+
+    private var allowanceBoostRows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("上限を増やすルール")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppColors.textSecondary)
+                .textCase(.uppercase)
+                .padding(.leading, 58)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+
+            earnRuleRows
+
+            subRowDivider
+            minutesRow(
+                icon: "trophy",
+                title: "目標達成ボーナス",
+                detail: "今日の学習目標を達成したら追加",
+                value: Binding(
+                    get: { settings.goalBonusAllowanceMinutes },
+                    set: { minutes in
+                        applyFocusSettings { $0.goalBonusAllowanceMinutes = minutes }
+                    }
+                )
+            )
         }
     }
 
@@ -1479,58 +1495,106 @@ struct ScreenTimeSettingsScreen: View {
         .padding(.vertical, 9)
     }
 
-    /// 分数の設定行。0〜720分を刻み5分の Stepper だけで動かすのは現実的でないため、
-    /// よく使う値をチップで並べる。
+    /// 分数の設定行。現在値と増減操作をひとまとまりにし、よく使う値はメニューへ集約する。
+    /// 横一列の小さなプリセット群と Stepper の重複を避け、どの画面幅でも44ptの操作領域を保つ。
     private func minutesRow(
         icon: String,
         title: String,
         detail: String,
         value: Binding<Int>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            subRow(icon: icon, title: title, detail: detail) {
-                Stepper(
-                    value: value,
-                    in: 0...ScreenTimeFocusSettings.maximumAllowanceMinutes,
-                    step: ScreenTimeFocusSettings.allowanceStepMinutes
-                ) {
-                    Text("\(value.wrappedValue)分")
-                        .font(.subheadline.weight(.bold).monospacedDigit())
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(width: 30, height: 30)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColors.textPrimary)
-                        .frame(minWidth: 52, alignment: .trailing)
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(AppColors.textSecondary)
                 }
+
+                Spacer(minLength: 8)
+
+                Text("\(value.wrappedValue)分")
+                    .font(.title3.weight(.bold).monospacedDigit())
+                    .foregroundStyle(AppColors.textPrimary)
+                    .contentTransition(.numericText())
             }
 
-            HStack(spacing: 6) {
-                ForEach(Self.minutePresets, id: \.self) { preset in
-                    minutePresetChip(preset, value: value)
+            HStack(spacing: 10) {
+                minuteAdjustmentButton(
+                    systemImage: "minus",
+                    accessibilityLabel: "\(title)を\(ScreenTimeFocusSettings.allowanceStepMinutes)分減らす",
+                    isDisabled: value.wrappedValue == 0
+                ) {
+                    value.wrappedValue = max(0, value.wrappedValue - ScreenTimeFocusSettings.allowanceStepMinutes)
                 }
-                Spacer(minLength: 0)
+
+                Menu {
+                    ForEach(Self.minutePresets, id: \.self) { preset in
+                        Button {
+                            value.wrappedValue = preset
+                        } label: {
+                            if value.wrappedValue == preset {
+                                Label("\(preset)分", systemImage: "checkmark")
+                            } else {
+                                Text("\(preset)分")
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("よく使う時間")
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.bold))
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(AppColors.subtleBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+
+                minuteAdjustmentButton(
+                    systemImage: "plus",
+                    accessibilityLabel: "\(title)を\(ScreenTimeFocusSettings.allowanceStepMinutes)分増やす",
+                    isDisabled: value.wrappedValue == ScreenTimeFocusSettings.maximumAllowanceMinutes
+                ) {
+                    value.wrappedValue = min(
+                        ScreenTimeFocusSettings.maximumAllowanceMinutes,
+                        value.wrappedValue + ScreenTimeFocusSettings.allowanceStepMinutes
+                    )
+                }
             }
-            .padding(.leading, 58)
-            .padding(.bottom, 6)
+            .padding(.leading, 42)
         }
+        .padding(.leading, 16)
+        .padding(.vertical, 12)
     }
 
     private static let minutePresets = [0, 15, 30, 45, 60, 90, 120]
 
-    private func minutePresetChip(_ minutes: Int, value: Binding<Int>) -> some View {
-        let isSelected = value.wrappedValue == minutes
-        return Button {
-            value.wrappedValue = minutes
-        } label: {
-            Text("\(minutes)")
-                .font(.caption2.weight(.bold).monospacedDigit())
-                .foregroundStyle(isSelected ? Color.white : AppColors.textSecondary)
-                .frame(minWidth: 26)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 5)
-                .background(
-                    isSelected ? AppColors.success : AppColors.subtleBackground,
-                    in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-                )
+    private func minuteAdjustmentButton(
+        systemImage: String,
+        accessibilityLabel: String,
+        isDisabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(isDisabled ? AppColors.textSecondary : AppColors.success)
+                .frame(width: 48, height: 44)
+                .background(AppColors.subtleBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .accessibilityLabel(accessibilityLabel)
     }
 
     private var subRowDivider: some View {
