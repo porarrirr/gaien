@@ -273,8 +273,7 @@ final class ScreenTimeSettingsMigrationTests: XCTestCase {
         XCTAssertFalse(json.contains("applicationTokens"))
     }
 
-    /// 予算対象を選び直させる必要があるかどうかは、許可リストとは独立に判断する。
-    func testRestoredSettingsRequireBudgetSelectionConfirmation() {
+    func testRestoredRemovedBudgetSettingsDoNotRequireSelectionConfirmation() {
         let synced = ScreenTimeSyncSettings(
             settings: ScreenTimeFocusSettings(
                 isEnabled: true,
@@ -285,7 +284,7 @@ final class ScreenTimeSettingsMigrationTests: XCTestCase {
         )
         let empty = FamilyActivitySelection(includeEntireCategory: true)
 
-        XCTAssertTrue(
+        XCTAssertFalse(
             synced.requiresSelectionConfirmation(preserving: empty, budgetSelection: empty)
         )
         let restored = synced.restoredSettings(preserving: empty, budgetSelection: empty)
@@ -1465,22 +1464,22 @@ private extension ScreenTimeUsageSummary {
 // MARK: - 監視の枠数
 
 final class ScreenTimeMonitoringCapacityTests: XCTestCase {
-    func testBudgetRuleReservesItsOwnMonitoringActivity() {
+    func testRemovedBudgetRuleDoesNotReserveMonitoringActivities() {
         let settings = ScreenTimeFocusSettings(
             isEnabled: true,
             scheduledRestrictionEnabled: true,
             budgetRestrictionEnabled: true
         )
 
-        XCTAssertTrue(settings.requiresDailyBoundaryMonitoring)
-        // 日境界 + 予算 の2枠を予約する。
+        XCTAssertFalse(settings.requiresDailyBoundaryMonitoring)
+        XCTAssertFalse(settings.requiresBudgetMonitoring)
         XCTAssertEqual(
             settings.maximumEnabledSlotsForCurrentConfiguration,
-            ScreenTimeFocusSettings.maximumEnabledScheduleSlots - 2
+            ScreenTimeFocusSettings.maximumEnabledScheduleSlots
         )
     }
 
-    func testAllRulesTogetherReserveFourActivities() {
+    func testRemovedBudgetRuleDoesNotConsumeAnExtraActivity() {
         let settings = ScreenTimeFocusSettings(
             isEnabled: true,
             goalRestrictionEnabled: true,
@@ -1492,7 +1491,7 @@ final class ScreenTimeMonitoringCapacityTests: XCTestCase {
 
         XCTAssertEqual(
             settings.maximumEnabledSlotsForCurrentConfiguration,
-            ScreenTimeFocusSettings.maximumEnabledScheduleSlots - 4
+            ScreenTimeFocusSettings.maximumEnabledScheduleSlots - 3
         )
     }
 
@@ -1588,13 +1587,13 @@ final class ScreenTimeMonitoringCapacityTests: XCTestCase {
         }
     }
 
-    func testStrictPresetEarnsAllowanceInsteadOfGrantingIt() {
+    func testStrictPresetDoesNotEnableRemovedAllowanceFeature() {
         var settings = ScreenTimeFocusSettings()
         ScreenTimeFocusPreset.strict.apply(&settings)
 
         XCTAssertEqual(settings.baseAllowanceMinutes, 0)
-        XCTAssertTrue(settings.earnedAllowanceEnabled)
-        XCTAssertTrue(settings.budgetRestrictionEnabled)
+        XCTAssertFalse(settings.earnedAllowanceEnabled)
+        XCTAssertFalse(settings.budgetRestrictionEnabled)
     }
 }
 

@@ -794,11 +794,11 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     }
 
     var requiresDailyBoundaryMonitoring: Bool {
-        isEnabled && (ticketsEnabled || goalRestrictionEnabled || budgetRestrictionEnabled)
+        isEnabled && (ticketsEnabled || goalRestrictionEnabled)
     }
 
     var requiresBudgetMonitoring: Bool {
-        isEnabled && budgetRestrictionEnabled && hasBudgetSelection
+        false
     }
 
     private var reservedMonitoringActivityCount: Int {
@@ -811,9 +811,6 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
             count += 1
         }
         if timerRestrictionEnabled {
-            count += 1
-        }
-        if budgetRestrictionEnabled {
             count += 1
         }
         return count
@@ -866,7 +863,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     }
 
     var canApplyBudgetRestrictions: Bool {
-        isEnabled && budgetRestrictionEnabled && hasBudgetSelection
+        false
     }
 
     /// 許可リストの選択が必要かどうか。許可リストが空だと壁そのものが立たない。
@@ -881,7 +878,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
 
     /// 持ち時間ルールがオンなのに対象が空、という取り違えを検知する。
     var requiresBudgetSelection: Bool {
-        isEnabled && budgetRestrictionEnabled
+        false
     }
 
     var activeRuleCount: Int {
@@ -890,8 +887,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
             goalRestrictionEnabled,
             timerRestrictionEnabled,
             scheduledRestrictionEnabled,
-            alwaysRestrictEnabled,
-            budgetRestrictionEnabled
+            alwaysRestrictEnabled
         ]
         .filter { $0 }
         .count
@@ -959,17 +955,14 @@ struct ScreenTimeFocusPreset: Identifiable {
     static let gentle = ScreenTimeFocusPreset(
         id: "gentle",
         title: "やさしく始める",
-        summary: "1日60分＋勉強で追加",
-        detail: "対象アプリを1日60分まで。勉強30分ごとに10分増え、目標達成で30分ボーナス。チケット3枚。",
+        summary: "タイマー中は集中＋チケット3枚",
+        detail: "勉強タイマー中は対象アプリを制限します。必要なときは10分チケットを1日3枚まで使えます。",
         icon: "leaf.fill"
     ) { settings in
         settings.isEnabled = true
-        settings.budgetRestrictionEnabled = true
-        settings.baseAllowanceMinutes = 60
-        settings.earnedAllowanceEnabled = true
-        settings.studyMinutesPerEarnedMinute = 3
-        settings.earnedAllowanceCapMinutes = 60
-        settings.goalBonusAllowanceMinutes = 30
+        settings.budgetRestrictionEnabled = false
+        settings.earnedAllowanceEnabled = false
+        settings.goalBonusAllowanceMinutes = 0
         settings.ticketsEnabled = true
         settings.dailyTicketCount = 3
         settings.ticketCooldownMinutes = 15
@@ -982,17 +975,14 @@ struct ScreenTimeFocusPreset: Identifiable {
     static let night = ScreenTimeFocusPreset(
         id: "night",
         title: "夜はしっかり止める",
-        summary: "1日45分＋23時以降は交渉不可",
-        detail: "対象アプリを1日45分まで。勉強30分ごとに10分増える。23:00〜6:00はチケットでも開けられません。",
+        summary: "23時以降は交渉不可",
+        detail: "勉強タイマー中と23:00〜6:00に制限します。夜間はチケットでも開けられません。",
         icon: "moon.stars.fill"
     ) { settings in
         settings.isEnabled = true
-        settings.budgetRestrictionEnabled = true
-        settings.baseAllowanceMinutes = 45
-        settings.earnedAllowanceEnabled = true
-        settings.studyMinutesPerEarnedMinute = 3
-        settings.earnedAllowanceCapMinutes = 45
-        settings.goalBonusAllowanceMinutes = 15
+        settings.budgetRestrictionEnabled = false
+        settings.earnedAllowanceEnabled = false
+        settings.goalBonusAllowanceMinutes = 0
         settings.ticketsEnabled = true
         settings.dailyTicketCount = 2
         settings.ticketCooldownMinutes = 20
@@ -1015,17 +1005,14 @@ struct ScreenTimeFocusPreset: Identifiable {
     static let strict = ScreenTimeFocusPreset(
         id: "strict",
         title: "本気で減らす",
-        summary: "勉強した分だけ使える",
-        detail: "基本枠なし。勉強20分ごとに10分たまります。目標未達成の間は制限、23:00〜6:00は交渉不可。チケット1枚。",
+        summary: "目標達成まで制限",
+        detail: "目標未達成の間と勉強タイマー中に制限し、23:00〜6:00はチケットでも開けられません。",
         icon: "flame.fill"
     ) { settings in
         settings.isEnabled = true
-        settings.budgetRestrictionEnabled = true
-        settings.baseAllowanceMinutes = 0
-        settings.earnedAllowanceEnabled = true
-        settings.studyMinutesPerEarnedMinute = 2
-        settings.earnedAllowanceCapMinutes = 60
-        settings.goalBonusAllowanceMinutes = 20
+        settings.budgetRestrictionEnabled = false
+        settings.earnedAllowanceEnabled = false
+        settings.goalBonusAllowanceMinutes = 0
         settings.goalRestrictionEnabled = true
         settings.timerRestrictionEnabled = true
         settings.ticketsEnabled = true
@@ -1284,13 +1271,7 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
         budgetSelection: FamilyActivitySelection
     ) -> Bool {
         let hasAllowlist = !selection.applicationTokens.isEmpty || !selection.webDomainTokens.isEmpty
-        let hasBudget = !budgetSelection.applicationTokens.isEmpty
-            || !budgetSelection.categoryTokens.isEmpty
-            || !budgetSelection.webDomainTokens.isEmpty
         if !hasAllowlist, selectionWasConfigured || requiresAllowedSelection {
-            return true
-        }
-        if !hasBudget, budgetSelectionWasConfigured || budgetRestrictionEnabled {
             return true
         }
         return false
@@ -1397,17 +1378,12 @@ enum ScreenTimePolicyEvaluator {
         }
         let negotiableApplies = negotiableReason != nil && negotiableSuppressedBy == nil
 
-        // 第3層: 持ち時間。使い切ったら対象アプリだけを止める。
-        // チケットでは開けられない（チケットは壁の鍵、持ち時間は使える総量）。
-        let budgetExhausted = settings.canApplyBudgetRestrictions
-            && ledger?.isBudgetExhausted(at: referenceDate, calendar: calendar) == true
-
         let restrictsAllApps = hasLockedBlock || negotiableApplies
         let reason = resolveReason(
             hasLockedBlock: hasLockedBlock,
             negotiableReason: negotiableApplies ? negotiableReason : nil,
             negotiableSuppressedBy: negotiableSuppressedBy,
-            budgetExhausted: budgetExhausted,
+            budgetExhausted: false,
             hasAllowWindow: hasAllowWindow,
             settings: settings,
             progress: dailyGoalProgress,
@@ -1417,7 +1393,7 @@ enum ScreenTimePolicyEvaluator {
 
         return ScreenTimePolicyDecision(
             restrictsAllApps: restrictsAllApps,
-            restrictsBudgetTargets: budgetExhausted,
+            restrictsBudgetTargets: false,
             reason: reason,
             ticketRestrictionEnabled: ticketsEnabled,
             // 交渉可能な制限が立っているときだけチケットに意味がある。

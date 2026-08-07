@@ -44,9 +44,6 @@ struct ScreenTimeSettingsScreen: View {
                 if shouldShowPresets {
                     presetCard
                 }
-                if settings.isEnabled, settings.budgetRestrictionEnabled {
-                    allowanceCard
-                }
                 if settings.isEnabled, settings.ticketsEnabled {
                     ticketCard
                 }

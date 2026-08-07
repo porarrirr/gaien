@@ -790,7 +790,7 @@ struct ScreenTimeAccessEngine {
     // MARK: - 内部
 
     private static func requiresLedger(_ settings: ScreenTimeFocusSettings) -> Bool {
-        settings.ticketsEnabled || settings.budgetRestrictionEnabled || settings.goalRestrictionEnabled
+        settings.ticketsEnabled || settings.goalRestrictionEnabled
     }
 
     /// 台帳を必要としない設定のときは、共有ファイルにも触らない。
