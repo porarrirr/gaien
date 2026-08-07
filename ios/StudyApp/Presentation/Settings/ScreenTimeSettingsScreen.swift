@@ -1014,6 +1014,7 @@ struct ScreenTimeSettingsScreen: View {
                         icon: "clock",
                         title: "1日の上限",
                         detail: "毎日0時にリセット",
+                        selectionTitle: "上限を選択",
                         value: Binding(
                             get: { settings.baseAllowanceMinutes },
                             set: { minutes in
@@ -1145,6 +1146,7 @@ struct ScreenTimeSettingsScreen: View {
                     icon: "arrow.up.to.line",
                     title: "稼げる上限",
                     detail: "1日にこれ以上は増えません",
+                    selectionTitle: "上限を選択",
                     value: Binding(
                         get: { settings.earnedAllowanceCapMinutes },
                         set: { minutes in
@@ -1173,6 +1175,7 @@ struct ScreenTimeSettingsScreen: View {
                 icon: "trophy",
                 title: "目標達成ボーナス",
                 detail: "今日の学習目標を達成したら追加",
+                selectionTitle: "ボーナスを選択",
                 value: Binding(
                     get: { settings.goalBonusAllowanceMinutes },
                     set: { minutes in
@@ -1501,6 +1504,7 @@ struct ScreenTimeSettingsScreen: View {
         icon: String,
         title: String,
         detail: String,
+        selectionTitle: String,
         value: Binding<Int>
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1550,7 +1554,7 @@ struct ScreenTimeSettingsScreen: View {
                     }
                 } label: {
                     HStack(spacing: 6) {
-                        Text("よく使う時間")
+                        Text(selectionTitle)
                         Image(systemName: "chevron.down")
                             .font(.caption.weight(.bold))
                     }
