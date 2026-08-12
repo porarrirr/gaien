@@ -253,6 +253,12 @@ Android 用の GitHub Actions は現時点ではありません。
 
 コーディングエージェントや共同開発者向けの詳細（アーキテクチャの注意点、CI の扱い、変更時のスコープ）は [AGENTS.md](AGENTS.md) を参照してください。
 
+設計・レビュー資料は用途別に整理しています。
+
+- [データ層計画](docs/architecture/DATA_LAYER_PLAN.md)
+- [同期フォーマット](docs/architecture/SYNC_FORMAT.md)
+- [2026-07-10 コードレビュー](docs/reviews/CODE_REVIEW_2026-07-10.md)
+
 ## ライセンス
 
 未定です。

@@ -10,7 +10,7 @@ Generation 3 stores one document per entity under:
 `users/<uid>/sync_entities/<kind>-<syncId>`
 
 The format is frozen for the data-layer migration described in
-`DATA_LAYER_PLAN.md`.
+[`DATA_LAYER_PLAN.md`](DATA_LAYER_PLAN.md).
 
 ## Envelope
 
