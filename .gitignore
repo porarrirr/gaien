@@ -1,11 +1,22 @@
 .idea/
+.vscode/
 .gradle/
+.kotlin/
 local.properties
 
 **/build/
 **/.DS_Store
+**/._*
 
 ios/DerivedData/
+DerivedData/
+.build/
+.swiftpm/
+*.xcarchive
+*.ipa
+*.dSYM/
+*.dSYM.zip
+*.xcresult
 *.xcworkspace/xcuserdata/
 *.xcuserdatad/
 *.xcuserstate
@@ -14,14 +25,34 @@ ios/DerivedData/
 android/app/google-services.json
 ios/StudyApp/Resources/GoogleService-Info.plist
 
+# Local credentials and signing material
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+
 # Local release artifacts
 tmp-release-*/
-*.ipa
 *.apk
 *.aab
+*.apks
+*.idsig
 
 # Gradle user home used by local builds
 .gradle-user/
 
 # Screenshots generated during development
 screenshots/
+
+# Temporary files
+.tmp/
+tmp/
+*.tmp
+*.bak
+*.orig
+*.rej
+*.swp
+*~
