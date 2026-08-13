@@ -1,264 +1,52 @@
-# StudyApp（学習記録）
+# StudyApp
 
-学習時間を記録・管理・分析するクロスプラットフォームアプリです（Android / iOS）。タイマーで学習時間を計測し、教材・科目ごとに進捗を管理。レポートやカレンダー、時間割で学習パターンを可視化し、目標設定やテスト管理も行えます。Firebase によるクラウド同期とアカウント削除に対応しています。
+English | [日本語](README.ja.md)
 
-同リポジトリには macOS 向けローカルコンパニオン（`macos/StudyAppMac`）と GitHub Pages 用サイト（`docs/`）も含まれます。
+A cross-platform study tracker for Android and iOS. StudyApp combines a timer, learning-material progress, schedules, goals, tests, and reports so students can understand not only how long they studied, but what they worked on and what needs attention next.
 
-## スクリーンショット
+## Highlights
 
-`screenshots/` に画像を置くと表示されます（開発用のため `.gitignore` 対象）。
+- Stopwatch, countdown, and manual study records
+- Subjects and learning materials with page or question progress
+- Calendar, heatmap, daily timeline, and class timetable
+- Daily, weekly, and monthly reports by subject
+- Study streaks, goals, test countdowns, and weekly plans
+- JSON and CSV export
+- Android home-screen widgets and background timer
+- iOS widgets, Live Activities, iPad layouts, and landscape focus views
+- Optional iOS Screen Time controls that connect study progress with app-use limits
+- Firebase account sync and in-app account deletion
 
-| ホーム | タイマー | レポート |
-|:---:|:---:|:---:|
-| ![ホーム画面](screenshots/home.png) | ![タイマー画面](screenshots/timer.png) | ![レポート画面](screenshots/reports.png) |
+## Platforms
 
-## 主な機能
+- Android 8.0 or later (`minSdk 26`)
+- iOS 16 or later
+- An experimental local-only macOS companion is included under `macos/StudyAppMac`; it does not share data with the mobile apps.
 
-- **学習タイマー** — ストップウォッチ / カウントダウン。問題進捗・セッション評価・手動記録に対応
-- **教材管理** — 教科書・問題集の登録、ページ進捗、問題ごとの正誤記録、ISBN バーコードスキャン（Google Books）
-- **科目管理** — カラーコーディング、複数アイコン
-- **カレンダー** — 月間カレンダーとヒートマップ、タイムライン表示
-- **時間割** — 学期・コマ・授業の登録、復習期限の管理、期限超過リマインダー
-- **レポート・分析** — 日別 / 週別 / 月別の学習時間、科目別分析、連続学習日数
-- **目標設定** — 曜日ごとの学習時間目標と進捗リング
-- **テスト管理** — テスト日の登録、カウントダウン、緊急度表示
-- **学習計画** — 週間計画、実績時間の自動集計、達成率
-- **ホームダッシュボード** — 今日のサマリー、週間目標、直近のテスト・教材
-- **Firebase クラウド同期** — メール / パスワード認証、Firestore 差分同期、アカウント削除
-- **ウィジェット** — Android 6 種（Glance）+ iOS WidgetKit
-- **ダークモード / テーマカラー** — ライト・ダーク・システム追従、複数テーマ
-- **データエクスポート** — JSON / CSV
+Some iOS Screen Time features require Apple Family Controls approval, an App Group, and a signed physical-device or distribution build. Unsigned CI artifacts do not include usable Screen Time extensions.
 
-> 初回起動のオンボーディング画面は廃止済みです（設定フラグ `onboardingCompleted` はデータ互換のため残存）。
+## Data and privacy
 
-### Android 独自
+The mobile apps can synchronize study data through Firebase Authentication and Firestore when configured. Firebase configuration files are not included in the repository. Users can delete their account from the app. The macOS companion stores its separate data locally.
 
-- **6 種のホーム画面ウィジェット** — 今日の学習、週間目標、連続日数、テストカウントダウン、週間アクティビティ、スタック学習
-- **バーコードスキャン** — CameraX + ML Kit による ISBN スキャン
-- **フォアグラウンドサービス** — バックグラウンドでもタイマー継続
+## Build
 
-### iOS 独自
-
-- **Live Activity** — ロック画面 / Dynamic Island にタイマー表示（ビルド設定で ON/OFF 可能）
-- **WidgetKit** — App Group 経由のスナップショット連携
-- **Screen Time 集中モード** — Family Controls + Device Activity による使いすぎ防止。2つの資源で構成する
-  - **持ち時間**（分）— 対象アプリの実使用時間を `DeviceActivityEvent` のしきい値到達で測り、超えたら対象アプリだけを閉じる。基本枠（毎日補充）＋勉強で稼いだ分（交換レート指定）＋目標達成ボーナスで増える。チケットでは開けられない
-  - **チケット**（枚）— 壁のルールを10分だけ開ける鍵。1日の枚数・使うほど伸びる間隔（クールダウン）を設定でき、持ち時間は消費しない
-  - **壁のルール** — 決めた時間帯（枠ごとに「チケットでも開けられない」を指定可）／勉強タイマー中／目標未達成／常に制限。すべて独立に併用でき、同時に成立したときは最も強い理由を表示する。「常に制限」は壁の基本状態で、オンの間は無料開放の時間帯とチケットだけが開ける（旧「時間帯の外も制限」はこれに統合済み）
-  - **実績** — 直近7日間の使用時間（目安）・持ち時間・チケット・制限に当たった回数・前週比を表示。おすすめ設定3種を1タップで適用でき、Screen Time の許可が外れた日も記録に残す
-- **iPad 向け UI** — `NavigationSplitView` によるサイドバー + 詳細の分割表示
-- **ランドスケープタイマー** — 問題進捗専用 / 時計のみの集中レイアウト
-
-### macOS コンパニオン（実験的）
-
-`macos/StudyAppMac` は Firebase 非連携のデスクトップ用アプリです。ダッシュボード・タイマー・科目 / 教材管理をローカル JSON（`~/Library/Application Support/StudyAppMac/study-data.json`）に保存します。本番アプリとデータは共有しません。
-
-## 技術スタック
-
-### Android
-
-| 項目 | 技術 |
-|---|---|
-| 言語 | Kotlin 1.9.22 |
-| UI | Jetpack Compose (Material3) |
-| アーキテクチャ | MVVM + Clean Architecture |
-| DI | Hilt 2.50 |
-| データベース | Room 2.6.1（スキーマ version **12**） |
-| ナビゲーション | Navigation Compose 2.7.6 |
-| 非同期 | Kotlin Coroutines + Flow |
-| シリアライズ | Kotlinx Serialization |
-| 設定保存 | DataStore |
-| チャート | MPAndroidChart 3.1.0 |
-| カレンダー | Kizitonwose Calendar Compose 2.4.1 |
-| ウィジェット | Jetpack Glance 1.0.0 |
-| カメラ | CameraX 1.3.1 + ML Kit Barcode 17.2.0 |
-| クラウド | Firebase Auth + Firestore BOM 33.6.0 |
-| 対応バージョン | minSdk 26 / targetSdk 34 |
-
-### iOS
-
-| 項目 | 技術 |
-|---|---|
-| 言語 | Swift |
-| UI | SwiftUI |
-| アーキテクチャ | MVVM + Clean Architecture（`StudyAppContainer` が composition root） |
-| データベース | Core Data（プログラムマチックモデル） |
-| 同期 | Firestore 差分同期（`Data/Sync/`） |
-| クラウド | Firebase Auth + Firestore (SPM) |
-| ウィジェット | WidgetKit（App Group: `group.com.studyapp.ios.shared`） |
-| Live Activity | ActivityKit |
-| 集中モード | Family Controls, Device Activity, Managed Settings |
-| 通知 | UserNotifications |
-| 対応バージョン | iOS **16.0** 以降（Bundle ID 例: `com.studyapp.ios`） |
-
-### リポジトリその他
-
-| 項目 | 内容 |
-|---|---|
-| CI | GitHub Actions（iOS ビルドチェック、未署名 IPA リリース） |
-| 公開サイト | `docs/`（GitHub Pages: 製品紹介・プライバシー・サポート） |
-| Firestore ルール | `firestore.rules` |
-| エージェント向けガイド | [AGENTS.md](AGENTS.md) |
-
-## ディレクトリ構成
-
-```
-gaien/
-├── android/                          # Android アプリ
-│   └── app/src/main/java/com/studyapp/
-│       ├── data/                     # Room、リポジトリ実装
-│       ├── di/                       # Hilt
-│       ├── domain/                   # モデル、リポジトリ IF、ユースケース
-│       ├── presentation/             # Compose 画面、ViewModel
-│       ├── services/                 # リマインダー（WorkManager）
-│       ├── sync/                     # Firebase 同期
-│       └── widgets/                  # Glance ウィジェット
-│   └── app/schemas/                  # Room スキーマスナップショット
-├── ios/
-│   ├── StudyApp/                     # SwiftUI 本体
-│   │   ├── Data/                     # Core Data、Firebase、Sync/
-│   │   ├── Domain/
-│   │   ├── Presentation/             # StudyAppContainer 含む
-│   │   ├── Services/                 # Live Activity、Screen Time、通知
-│   │   └── Widgets/                  # スナップショット同期
-│   ├── StudyAppWidgets/             # WidgetKit + Live Activity
-│   ├── StudyAppDeviceActivityMonitor/  # Screen Time 拡張（使用量しきい値・期限・日境界）
-│   ├── StudyAppShieldConfiguration/ # 制限理由・残券を表示する Shield 拡張
-│   ├── StudyAppShieldAction/        # Shield からチケットを使用する拡張
-│   └── StudyAppTests/                # XCTest
-├── macos/StudyAppMac/                # macOS コンパニオン（SwiftPM）
-├── docs/                             # GitHub Pages
-├── tools/                            # 開発用スクリプト
-├── .github/workflows/                # iOS CI / リリース
-├── firestore.rules
-├── firebase.json
-├── AGENTS.md
-└── README.md
-```
-
-## ビルド方法
-
-### Android
+Android:
 
 ```bash
-# 前提: JDK 17、Android SDK (API 34)
-
-cd android && ./gradlew assembleDebug    # デバッグ APK
-cd android && ./gradlew assembleRelease  # リリース（署名設定が必要）
-cd android && ./gradlew lint
+cd android
+./gradlew assembleDebug
+./gradlew test
 ```
 
-リリース署名用の環境変数:
-
-| 変数名 | 説明 |
-|---|---|
-| `KEYSTORE_FILE` | リリースキーストアのパス |
-| `KEYSTORE_PASSWORD` | キーストアのパスワード |
-| `KEY_ALIAS` | キーエイリアス |
-| `KEY_PASSWORD` | キーのパスワード |
-
-Windows では `gradlew.bat` を使用してください。
-
-### iOS
+iOS:
 
 ```bash
 open ios/StudyApp.xcodeproj
-
-# コマンドライン（Release / 実機向け）
-xcodebuild -project ios/StudyApp.xcodeproj -scheme StudyApp \
-  -sdk iphoneos -configuration Release build
-
-# 未署名 Debug（CI と同様）
-xcodebuild -project ios/StudyApp.xcodeproj -scheme StudyApp \
-  -configuration Debug -sdk iphoneos \
-  -destination 'generic/platform=iOS' \
-  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 ```
 
-Screen Time・ウィジェット・Live Activity を使うビルドでは、Apple Developer の App Group と Family Controls capability が必要です。Screen Time は署名済み実機 / TestFlight / App Store ビルド向けで、次の3拡張をホストアプリと同じ署名チーム・App Groupで署名してください。
+Firebase setup and platform-specific signing are required for cloud sync and protected Apple capabilities.
 
-| ターゲット | Bundle ID | 必要な capability |
-|---|---|---|
-| `StudyAppDeviceActivityMonitor` | `com.studyapp.ios.deviceactivitymonitor` | Family Controls、`group.com.studyapp.ios.shared` |
-| `StudyAppShieldConfiguration` | `com.studyapp.ios.shieldconfiguration` | Family Controls、`group.com.studyapp.ios.shared` |
-| `StudyAppShieldAction` | `com.studyapp.ios.shieldaction` | Family Controls、`group.com.studyapp.ios.shared` |
+## License
 
-タグ `v*` の push または GitHub Release では、既存の `.github/workflows/ios-ipa-release.yml` が未署名 IPA を生成します（Live Activity 無効ビルド）。署名を必要とするScreen Time拡張を含むすべての `PlugIns` はこの未署名IPAから除去されるため、Screen Time機能は利用できません。
-
-### macOS コンパニオン
-
-```bash
-cd macos/StudyAppMac
-swift build
-./scripts/build_and_run.sh          # 起動
-./scripts/build_and_run.sh --verify # ビルド検証のみ
-```
-
-### Firebase 設定
-
-Firebase のアプリ設定ファイルはリポジトリに含めません。ビルド前に配置してください。
-
-| ファイル | プラットフォーム | 配置先 |
-|---|---|---|
-| `google-services.json` | Android | `android/app/` |
-| `GoogleService-Info.plist` | iOS | `ios/StudyApp/Resources/` |
-
-- ローカル: Firebase コンソールからダウンロード
-- CI（iOS）: Secret `IOS_GOOGLE_SERVICE_INFO_PLIST_B64`、または workflow 内のプレースホルダ plist（未署名ビルド用）
-
-Firestore ルールのデプロイ:
-
-```bash
-firebase deploy --only firestore:rules
-```
-
-## テスト
-
-### Android
-
-```bash
-cd android && ./gradlew test
-
-# 特定クラスのみ
-cd android && ./gradlew test --tests "com.studyapp.presentation.home.HomeViewModelTest"
-
-# カバレッジ（Debug 単体テスト）
-cd android && ./gradlew testDebugUnitTestCoverage
-```
-
-### iOS
-
-Xcode で `Cmd + U`、または:
-
-```bash
-xcodebuild -project ios/StudyApp.xcodeproj -scheme StudyApp \
-  -configuration Debug \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
-  SWIFT_ENABLE_EXPLICIT_MODULES=NO \
-  test
-```
-
-`ios/StudyAppTests/` には同期マージ、復習スケジューラ、タイマー検証、ウィジェット計算などのテストがあります。
-
-## CI
-
-| Workflow | トリガー | 内容 |
-|---|---|---|
-| [ios-build-check.yml](.github/workflows/ios-build-check.yml) | `main` への PR、`refactor/**` push | 未署名 Debug ビルド + シミュレータ単体テスト |
-| [ios-ipa-release.yml](.github/workflows/ios-ipa-release.yml) | タグ `v*`、Release、手動 | 未署名 Release IPA を GitHub Release に添付 |
-
-Android 用の GitHub Actions は現時点ではありません。
-
-## 開発者向け
-
-コーディングエージェントや共同開発者向けの詳細（アーキテクチャの注意点、CI の扱い、変更時のスコープ）は [AGENTS.md](AGENTS.md) を参照してください。
-
-設計・レビュー資料は用途別に整理しています。
-
-- [データ層計画](docs/architecture/DATA_LAYER_PLAN.md)
-- [同期フォーマット](docs/architecture/SYNC_FORMAT.md)
-- [2026-07-10 コードレビュー](docs/reviews/CODE_REVIEW_2026-07-10.md)
-
-## ライセンス
-
-未定です。
+A project license has not yet been selected.
