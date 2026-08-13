@@ -278,6 +278,8 @@ final class ScreenTimeSettingsMigrationTests: XCTestCase {
         XCTAssertFalse(json.contains("dailyTicketMinutes"))
         XCTAssertFalse(json.contains("unlockRestrictionsWhenDailyGoalReached"))
         XCTAssertFalse(json.contains("restrictOutsideSchedule"))
+        XCTAssertFalse(json.contains("locationRestrictionEnabled"))
+        XCTAssertFalse(json.contains("locationZones"))
     }
 
     func testRestoredRemovedBudgetSettingsDoNotRequireSelectionConfirmation() {
@@ -334,6 +336,53 @@ final class ScreenTimeSettingsMigrationTests: XCTestCase {
 
         XCTAssertFalse(session.screenTimeUnlockExcluded)
         XCTAssertTrue(session.countsTowardScreenTimeDailyGoalUnlock)
+    }
+
+    func testLegacySettingsDecodeWithoutLocationKeys() throws {
+        let json = """
+        {
+          "isEnabled": true,
+          "scheduledRestrictionEnabled": true,
+          "scheduleSlots": []
+        }
+        """
+
+        let settings = try JSONDecoder().decode(ScreenTimeFocusSettings.self, from: Data(json.utf8))
+
+        XCTAssertFalse(settings.locationRestrictionEnabled)
+        XCTAssertTrue(settings.locationZones.isEmpty)
+    }
+
+    func testRestoredSyncSettingsPreserveLocalLocationZones() throws {
+        let localZone = FocusLocationZone(
+            id: "school",
+            title: "学校",
+            latitude: 35.6812,
+            longitude: 139.7671,
+            coordinateWasSet: true,
+            radiusMeters: 200,
+            allowsTicketBypass: false
+        )
+        let synced = ScreenTimeSyncSettings(
+            settings: ScreenTimeFocusSettings(
+                isEnabled: true,
+                alwaysRestrictEnabled: true,
+                updatedAt: 9
+            )
+        )
+        let empty = FamilyActivitySelection(includeEntireCategory: true)
+
+        let restored = synced.restoredSettings(
+            preserving: empty,
+            budgetSelection: empty,
+            locationRestrictionEnabled: true,
+            locationZones: [localZone]
+        )
+
+        XCTAssertTrue(restored.locationRestrictionEnabled)
+        XCTAssertEqual(restored.locationZones, [localZone])
+        XCTAssertTrue(restored.alwaysRestrictEnabled)
+        XCTAssertEqual(restored.updatedAt, 9)
     }
 }
 
@@ -2138,5 +2187,202 @@ final class ScreenTimeTimerExpiryTests: XCTestCase {
 
         XCTAssertEqual(reason(at: expiry.addingTimeInterval(-1)), .studyTimer)
         XCTAssertEqual(reason(at: expiry), .unrestricted)
+    }
+}
+
+// MARK: - 場所ルール
+
+final class ScreenTimeLocationPolicyTests: XCTestCase {
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private func date(hour: Int = 12, minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: hour, minute: minute))!
+    }
+
+    private func schoolZone(allowsTicketBypass: Bool) -> FocusLocationZone {
+        FocusLocationZone(
+            id: "school",
+            title: "学校",
+            latitude: 35.6812,
+            longitude: 139.7671,
+            coordinateWasSet: true,
+            radiusMeters: 150,
+            allowsTicketBypass: allowsTicketBypass
+        )
+    }
+
+    private func settings(
+        allowsTicketBypass: Bool = true,
+        scheduled: Bool = false,
+        allowWindow: Bool = false,
+        tickets: Bool = false
+    ) -> ScreenTimeFocusSettings {
+        var slots: [FocusScheduleSlot] = []
+        if scheduled || allowWindow {
+            slots.append(
+                FocusScheduleSlot(
+                    id: "lunch",
+                    title: "昼休み",
+                    behavior: .allow,
+                    startHour: 12,
+                    startMinute: 0,
+                    endHour: 13,
+                    endMinute: 0
+                )
+            )
+        }
+        return ScreenTimeFocusSettings(
+            isEnabled: true,
+            scheduledRestrictionEnabled: scheduled || allowWindow,
+            locationRestrictionEnabled: true,
+            ticketsEnabled: tickets,
+            dailyTicketCount: tickets ? 3 : 0,
+            scheduleSlots: slots,
+            locationZones: [schoolZone(allowsTicketBypass: allowsTicketBypass)]
+        )
+    }
+
+    private func evaluate(
+        settings: ScreenTimeFocusSettings,
+        inside: Bool,
+        ledger: ScreenTimeTicketLedger? = nil,
+        at referenceDate: Date? = nil
+    ) -> ScreenTimePolicyDecision {
+        ScreenTimePolicyEvaluator.evaluate(
+            settings: settings,
+            ledger: ledger,
+            dailyGoalProgress: nil,
+            runtimeState: ScreenTimeRuntimeState(),
+            locationPresence: ScreenTimeLocationPresence(
+                insideZoneIDs: inside ? ["school"] : []
+            ),
+            referenceDate: referenceDate ?? date(),
+            calendar: calendar
+        )
+    }
+
+    func testInsideZoneRestrictsAndOutsideDoesNot() {
+        let settings = settings()
+        let inside = evaluate(settings: settings, inside: true)
+        let outside = evaluate(settings: settings, inside: false)
+
+        XCTAssertTrue(inside.restrictsAllApps)
+        XCTAssertEqual(inside.reason, .blockedLocation)
+        XCTAssertTrue(inside.isTicketBypassable)
+        XCTAssertFalse(outside.isRestricted)
+        XCTAssertEqual(outside.reason, .unrestricted)
+    }
+
+    func testLockedLocationIgnoresTicketsAndAllowWindows() {
+        let now = date(hour: 12, minute: 30)
+        let settings = settings(allowsTicketBypass: false, allowWindow: true, tickets: true)
+        let ledger = ScreenTimeTicketLedger(
+            dayStart: ScreenTimeDateMath.epochMilliseconds(for: calendar.startOfDay(for: now)),
+            issuedLocalDayOrdinal: ScreenTimeDateMath.localDayOrdinal(for: now, calendar: calendar),
+            issuedTicketCount: 3,
+            usedTicketCount: 1,
+            activeTicketStartedAt: ScreenTimeDateMath.epochMilliseconds(for: now),
+            activeTicketEndsAt: ScreenTimeDateMath.epochMilliseconds(for: now.addingTimeInterval(600)),
+            updatedAt: ScreenTimeDateMath.epochMilliseconds(for: now)
+        )
+
+        let result = evaluate(settings: settings, inside: true, ledger: ledger, at: now)
+
+        XCTAssertTrue(result.restrictsAllApps)
+        XCTAssertEqual(result.reason, .lockedLocation)
+        XCTAssertFalse(result.isTicketBypassable)
+        XCTAssertFalse(result.canStartTicket)
+    }
+
+    func testNegotiableLocationIsNotLiftedByAllowWindow() {
+        let now = date(hour: 12, minute: 30)
+        let result = evaluate(
+            settings: settings(allowWindow: true, tickets: true),
+            inside: true,
+            at: now
+        )
+
+        XCTAssertTrue(result.restrictsAllApps)
+        XCTAssertEqual(result.reason, .blockedLocation)
+        XCTAssertTrue(result.canStartTicket)
+    }
+
+    func testNegotiableLocationIsLiftedByTicket() {
+        let now = date()
+        let settings = settings(tickets: true)
+        let ledger = ScreenTimeTicketLedger(
+            dayStart: ScreenTimeDateMath.epochMilliseconds(for: calendar.startOfDay(for: now)),
+            issuedLocalDayOrdinal: ScreenTimeDateMath.localDayOrdinal(for: now, calendar: calendar),
+            issuedTicketCount: 3,
+            usedTicketCount: 1,
+            activeTicketStartedAt: ScreenTimeDateMath.epochMilliseconds(for: now),
+            activeTicketEndsAt: ScreenTimeDateMath.epochMilliseconds(for: now.addingTimeInterval(600)),
+            updatedAt: ScreenTimeDateMath.epochMilliseconds(for: now)
+        )
+
+        let result = evaluate(settings: settings, inside: true, ledger: ledger, at: now)
+
+        XCTAssertFalse(result.restrictsAllApps)
+        XCTAssertEqual(result.reason, .activeTicket)
+        XCTAssertTrue(result.hasActiveTicket)
+    }
+
+    func testValidationRejectsEnabledZoneWithoutCoordinate() {
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            locationRestrictionEnabled: true,
+            locationZones: [FocusLocationZone(title: "未設定", isEnabled: true)]
+        )
+
+        XCTAssertThrowsError(try settings.validateMonitoringConfiguration()) { error in
+            XCTAssertEqual(
+                error as? ScreenTimeScheduleValidationError,
+                .locationCoordinateRequired(title: "未設定")
+            )
+        }
+    }
+
+    func testValidationRejectsTooManyEnabledLocationZones() {
+        let zones = (0...ScreenTimeFocusSettings.maximumEnabledLocationZones).map { index in
+            FocusLocationZone(
+                id: "zone-\(index)",
+                title: "場所 \(index)",
+                latitude: 35,
+                longitude: 139,
+                coordinateWasSet: true
+            )
+        }
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            locationRestrictionEnabled: true,
+            locationZones: zones
+        )
+
+        XCTAssertThrowsError(try settings.validateMonitoringConfiguration()) { error in
+            XCTAssertEqual(
+                error as? ScreenTimeScheduleValidationError,
+                .tooManyEnabledLocationZones(maximum: ScreenTimeFocusSettings.maximumEnabledLocationZones)
+            )
+        }
+    }
+
+    func testDisabledZoneWithoutCoordinateDoesNotFailValidation() throws {
+        let settings = ScreenTimeFocusSettings(
+            isEnabled: true,
+            locationRestrictionEnabled: true,
+            locationZones: [FocusLocationZone(title: "下書き", isEnabled: false)]
+        )
+
+        XCTAssertNoThrow(try settings.validateMonitoringConfiguration())
+    }
+
+    func testRegionIdentifierRoundTrip() {
+        let zone = schoolZone(allowsTicketBypass: true)
+        XCTAssertEqual(FocusLocationZone.zoneID(fromRegionIdentifier: zone.regionIdentifier), zone.id)
+        XCTAssertNil(FocusLocationZone.zoneID(fromRegionIdentifier: "other.prefix.id"))
     }
 }

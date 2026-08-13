@@ -11,6 +11,7 @@ final class ScreenTimeFocusController: ObservableObject {
     /// 制限をオンにしたまま Screen Time の許可が外れている状態。
     /// この間 OS 側のシールドは消えるため、隠さずに知らせる。
     @Published private(set) var isProtectionInterrupted: Bool
+    @Published private(set) var isLocationProtectionInterrupted: Bool
 
     private let accessEngine: ScreenTimeAccessEngine
     var settingsDidChange: (() -> Void)?
@@ -23,7 +24,10 @@ final class ScreenTimeFocusController: ObservableObject {
         self.requiresRestoredActivitySelection = ScreenTimeFocusShared.isRestoredSelectionRequired
         self.usageSummary = (try? accessEngine.usageSummary()) ?? .empty
         self.isProtectionInterrupted = false
+        self.isLocationProtectionInterrupted = false
         detectProtectionInterruption()
+        detectLocationProtectionInterruption()
+        ScreenTimeLocationMonitor.shared.sync(settings: settings)
     }
 
     var isAvailable: Bool {
@@ -109,6 +113,7 @@ final class ScreenTimeFocusController: ObservableObject {
         requiresRestoredActivitySelection = ScreenTimeFocusShared.isRestoredSelectionRequired
         usageSummary = (try? accessEngine.usageSummary(referenceDate: referenceDate)) ?? .empty
         detectProtectionInterruption(referenceDate: referenceDate)
+        detectLocationProtectionInterruption()
     }
 
     /// 制限がオンのまま許可が外れていたら、その日の記録に残してから状態を反映する。
@@ -122,6 +127,23 @@ final class ScreenTimeFocusController: ObservableObject {
             usageSummary = (try? accessEngine.usageSummary(referenceDate: referenceDate)) ?? usageSummary
         }
         isProtectionInterrupted = interrupted
+    }
+
+    private func detectLocationProtectionInterruption() {
+        isLocationProtectionInterrupted = settings.isEnabled
+            && settings.locationRestrictionEnabled
+            && !ScreenTimeLocationMonitor.shared.hasAlwaysAuthorization
+    }
+
+    func requestLocationAuthorization() async throws {
+        guard ScreenTimeLocationMonitor.shared.isMonitoringAvailable else {
+            throw ScreenTimeFocusError.locationMonitoringUnavailable
+        }
+        let status = await ScreenTimeLocationMonitor.shared.requestAlwaysAuthorization()
+        detectLocationProtectionInterruption()
+        guard status == .authorizedAlways else {
+            throw ScreenTimeFocusError.locationAuthorizationRequired
+        }
     }
 
     func requestAuthorization() async throws {
@@ -219,6 +241,12 @@ final class ScreenTimeFocusController: ObservableObject {
         }
     }
 
+    func removeLocationZone(id: String) throws {
+        try updateSettings { settings in
+            settings.locationZones.removeAll { $0.id == id }
+        }
+    }
+
     @discardableResult
     func startTicket(referenceDate: Date = Date()) throws -> ScreenTimeTicketLedger {
         guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
@@ -274,6 +302,7 @@ final class ScreenTimeFocusController: ObservableObject {
             throw ScreenTimeFocusError.authorizationRequired
         }
         try accessEngine.syncMonitoring(settings: settings, referenceDate: referenceDate)
+        ScreenTimeLocationMonitor.shared.sync(settings: settings)
         _ = try accessEngine.applyCurrentPolicy(referenceDate: referenceDate)
         refresh(referenceDate: referenceDate)
     }
@@ -288,6 +317,7 @@ final class ScreenTimeFocusController: ObservableObject {
 
     func clearAllRestrictionsAndMonitoring() {
         accessEngine.stopAllMonitoringAndClearRestrictions()
+        ScreenTimeLocationMonitor.shared.sync(settings: ScreenTimeFocusSettings())
         refresh()
     }
 
@@ -352,6 +382,7 @@ final class ScreenTimeFocusController: ObservableObject {
             guard isAuthorized else { throw ScreenTimeFocusError.authorizationRequired }
         }
         try accessEngine.syncMonitoring(settings: settings)
+        ScreenTimeLocationMonitor.shared.sync(settings: settings)
         _ = try accessEngine.applyCurrentPolicy()
         refresh()
     }

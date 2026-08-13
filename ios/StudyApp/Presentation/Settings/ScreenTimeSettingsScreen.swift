@@ -22,6 +22,7 @@ struct ScreenTimeSettingsScreen: View {
     @State private var goalProgress: ScreenTimeDailyGoalProgress?
     @State private var isShowingTicketConfirmation = false
     @State private var editingSlot: ScheduleEditorTarget?
+    @State private var editingZone: LocationEditorTarget?
     @State private var isShowingLockSheet = false
 
     init(app: StudyAppContainer) {
@@ -51,6 +52,9 @@ struct ScreenTimeSettingsScreen: View {
                 wallRulesCard
                 if settings.scheduledRestrictionEnabled {
                     scheduleSection
+                }
+                if settings.locationRestrictionEnabled {
+                    locationSection
                 }
                 ticketRuleCard
                 allowedAppsCard
@@ -86,6 +90,19 @@ struct ScreenTimeSettingsScreen: View {
                 },
                 onDelete: { id in
                     removeScheduleSlot(id: id)
+                }
+            )
+        }
+        .sheet(item: $editingZone) { target in
+            LocationZoneEditorSheet(
+                focusController: focusController,
+                zoneID: target.id,
+                canEdit: canEditSettings,
+                onUpdate: { id, update in
+                    updateLocationZone(id: id, update: update)
+                },
+                onDelete: { id in
+                    removeLocationZone(id: id)
                 }
             )
         }
@@ -336,6 +353,8 @@ struct ScreenTimeSettingsScreen: View {
             return "持ち時間を使い切りました"
         case .lockedSchedule:
             return "いま制限中（解除不可）"
+        case .lockedLocation:
+            return "いま制限中（この場所は解除不可）"
         default:
             return isCurrentlyRestricted ? "いま制限中" : "いま使えます"
         }
@@ -362,6 +381,8 @@ struct ScreenTimeSettingsScreen: View {
             return "対象のアプリは明日まで開けません。\(earnHintText)"
         case .lockedSchedule:
             return "チケットでも開けられない時間帯です。"
+        case .lockedLocation:
+            return "この場所ではチケットでも開けられません。"
         case .dailyGoalPending:
             return "今日の目標を達成するまで制限します（\(goalProgressText)）。"
         case .dailyGoalReached:
@@ -373,6 +394,8 @@ struct ScreenTimeSettingsScreen: View {
                 return "使用禁止の時間帯です。次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))。"
             }
             return "使用禁止の時間帯です。"
+        case .blockedLocation:
+            return "決めた場所にいるため制限しています。この場所を離れると解除されます。"
         case .allowedSchedule:
             return "無料開放の時間帯です。チケットは減りません。"
         case .alwaysRestricted:
@@ -454,6 +477,19 @@ struct ScreenTimeSettingsScreen: View {
                 )
             )
             return items
+        }
+
+        if focusController.isLocationProtectionInterrupted {
+            items.append(
+                ScreenTimeWarning(
+                    id: "location-authorization",
+                    icon: "location.slash.fill",
+                    message: "場所の制限には位置情報の「常に許可」が必要です。許可がないあいだ、場所ルールは動きません。",
+                    color: AppColors.danger,
+                    actionTitle: "許可する",
+                    action: { requestLocationAuthorization() }
+                )
+            )
         }
 
         // 許可アプリが空だと ManagedSettings 側は shield を解除するため、実際には何も制限されない。
@@ -554,6 +590,17 @@ struct ScreenTimeSettingsScreen: View {
                     id: "no-slot",
                     icon: "calendar.badge.exclamationmark",
                     message: "時間帯が登録されていません。",
+                    color: AppColors.warning
+                )
+            )
+        }
+
+        if settings.locationRestrictionEnabled, settings.enabledLocationZones.isEmpty {
+            items.append(
+                ScreenTimeWarning(
+                    id: "no-location-zone",
+                    icon: "mappin.slash",
+                    message: "場所が登録されていません。地図で位置を指定してください。場所は端末ごとに設定します。",
                     color: AppColors.warning
                 )
             )
@@ -943,6 +990,8 @@ struct ScreenTimeSettingsScreen: View {
             return "持ち時間の使い切りはチケットでは開けられません。\(earnHintText)"
         case .lockedSchedule:
             return "いまは「解除不可」の時間帯なので、チケットは使えません。"
+        case .lockedLocation:
+            return "いまは「解除不可」の場所なので、チケットは使えません。"
         case .dailyGoalPending:
             return "チケット1枚で、目標未達成の制限を\(ScreenTimeFocusSettings.ticketDurationMinutes)分だけ解除できます。"
         case .studyTimer:
@@ -952,6 +1001,8 @@ struct ScreenTimeSettingsScreen: View {
                 return "使用禁止の時間帯です。次の無料開放は\(Self.shortDateTimeFormatter.string(from: nextStart))。"
             }
             return "チケット1枚で、使用禁止時間帯の制限を\(ScreenTimeFocusSettings.ticketDurationMinutes)分だけ解除できます。"
+        case .blockedLocation:
+            return "チケット1枚で、この場所の制限を\(ScreenTimeFocusSettings.ticketDurationMinutes)分だけ解除できます。"
         case .allowedSchedule:
             return "無料開放の時間帯なので、チケットは消費されません。"
         case .dailyGoalReached:
@@ -1199,6 +1250,8 @@ struct ScreenTimeSettingsScreen: View {
             VStack(spacing: 0) {
                 scheduleRuleRows
                 Divider()
+                locationRuleRow
+                Divider()
                 timerRuleRow
                 Divider()
                 goalRuleRows
@@ -1246,6 +1299,20 @@ struct ScreenTimeSettingsScreen: View {
         settings.alwaysRestrictEnabled
             ? "曜日と時刻ごとに、無料開放する時間を決めます"
             : "曜日と時刻ごとに、使用禁止／無料開放を切り替えます"
+    }
+
+    private var locationRuleRow: some View {
+        ruleRow(
+            icon: "mappin.and.ellipse",
+            title: "決めた場所",
+            detail: "指定した場所にいるあいだ制限します。場所は端末ごとに設定します",
+            isOn: Binding(
+                get: { settings.locationRestrictionEnabled },
+                set: { enabled in
+                    setLocationRestrictionEnabled(enabled)
+                }
+            )
+        )
     }
 
     private var timerRuleRow: some View {
@@ -1659,6 +1726,136 @@ struct ScreenTimeSettingsScreen: View {
         }
     }
 
+    // MARK: - 場所
+
+    private var locationSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("場所")
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                Spacer()
+                Text(enabledLocationCountText)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.success)
+            }
+            .padding(.horizontal, 11)
+
+            VStack(spacing: 0) {
+                if settings.locationZones.isEmpty {
+                    Text("まだ登録されていません。学校や図書館など、制限したい場所を追加してください。場所は端末ごとに設定します。")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 12)
+                } else {
+                    ForEach(Array(settings.locationZones.enumerated()), id: \.element.id) { index, zone in
+                        if index > 0 {
+                            Divider()
+                        }
+                        locationZoneRow(zone)
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(AppColors.cardBorder, lineWidth: 1)
+            }
+
+            Button {
+                addLocationZone()
+            } label: {
+                Label("場所を追加", systemImage: "plus")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .foregroundStyle(canAddLocationZone ? AppColors.success : AppColors.textSecondary)
+                    .background(
+                        canAddLocationZone ? AppColors.greenSoft : AppColors.subtleBackground,
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(!canAddLocationZone)
+        }
+    }
+
+    private var canAddLocationZone: Bool {
+        canEditSettings &&
+            settings.locationZones.filter(\.isEnabled).count < ScreenTimeFocusSettings.maximumEnabledLocationZones
+    }
+
+    private var enabledLocationCountText: String {
+        let zones = settings.locationZones
+        guard !zones.isEmpty else { return "未登録" }
+        return "\(zones.filter(\.isEnabled).count) / \(zones.count) オン"
+    }
+
+    private func locationZoneRow(_ zone: FocusLocationZone) -> some View {
+        HStack(spacing: 11) {
+            Button {
+                editingZone = LocationEditorTarget(id: zone.id)
+            } label: {
+                HStack(spacing: 11) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppColors.success)
+                        .frame(width: 30, height: 30)
+                        .background(AppColors.success.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(zone.title)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(AppColors.textPrimary)
+                            if zone.isNonNegotiableBlock {
+                                Text("解除不可")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(AppColors.danger)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(AppColors.danger.opacity(0.14), in: Capsule())
+                            }
+                        }
+                        Text(locationZoneDetail(zone))
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(.tertiaryLabel))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Toggle("有効", isOn: Binding(
+                get: { zone.isEnabled },
+                set: { enabled in
+                    updateLocationZone(id: zone.id) { $0.isEnabled = enabled }
+                }
+            ))
+            .labelsHidden()
+            .tint(AppColors.success)
+            .disabled(!canEditSettings)
+        }
+        .padding(.vertical, 10)
+    }
+
+    private func locationZoneDetail(_ zone: FocusLocationZone) -> String {
+        if !zone.coordinateWasSet {
+            return "位置が未指定"
+        }
+        return "半径\(zone.radiusMeters)m"
+    }
+
     private var canAddScheduleSlot: Bool {
         canEditSettings &&
             settings.enabledScheduleSlots.count < settings.maximumEnabledSlotsForCurrentConfiguration
@@ -2001,6 +2198,56 @@ struct ScreenTimeSettingsScreen: View {
         }
     }
 
+    private func setLocationRestrictionEnabled(_ enabled: Bool) {
+        if enabled {
+            Task { await enableLocationRestriction() }
+            return
+        }
+        applyFocusSettings { $0.locationRestrictionEnabled = false }
+    }
+
+    @MainActor
+    private func enableLocationRestriction() async {
+        do {
+            try await focusController.requestLocationAuthorization()
+            applyFocusSettings { $0.locationRestrictionEnabled = true }
+        } catch {
+            app.present(error)
+        }
+    }
+
+    private func updateLocationZone(id: String, update: (inout FocusLocationZone) -> Void) {
+        applyFocusSettings { settings in
+            guard let index = settings.locationZones.firstIndex(where: { $0.id == id }) else { return }
+            update(&settings.locationZones[index])
+        }
+    }
+
+    private func addLocationZone() {
+        var createdID: String?
+        applyFocusSettings { settings in
+            let nextIndex = settings.locationZones.count + 1
+            let zone = FocusLocationZone(title: "場所 \(nextIndex)", isEnabled: false)
+            createdID = zone.id
+            settings.locationZones.append(zone)
+        }
+        if let createdID {
+            editingZone = LocationEditorTarget(id: createdID)
+        }
+    }
+
+    private func removeLocationZone(id: String) {
+        do {
+            if editingZone?.id == id {
+                editingZone = nil
+            }
+            try focusController.removeLocationZone(id: id)
+            Task { await refreshGoalProgress(reason: "screen-time-remove-location") }
+        } catch {
+            app.present(error)
+        }
+    }
+
     private func startTicket() {
         do {
             try focusController.startTicket()
@@ -2030,6 +2277,17 @@ struct ScreenTimeSettingsScreen: View {
         }
     }
 
+    private func requestLocationAuthorization() {
+        Task {
+            do {
+                try await focusController.requestLocationAuthorization()
+                await refreshGoalProgress(reason: "screen-time-location-authorization")
+            } catch {
+                app.present(error)
+            }
+        }
+    }
+
     @MainActor
     private func refreshGoalProgress(reason: String) async {
         if let progress = await app.refreshScreenTimeFocusState(reason: reason) {
@@ -2038,6 +2296,10 @@ struct ScreenTimeSettingsScreen: View {
     }
 
     private struct ScheduleEditorTarget: Identifiable, Equatable {
+        let id: String
+    }
+
+    private struct LocationEditorTarget: Identifiable, Equatable {
         let id: String
     }
 

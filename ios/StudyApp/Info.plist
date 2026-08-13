@@ -24,6 +24,10 @@
     <true/>
     <key>NSCameraUsageDescription</key>
     <string>教材のバーコードを読み取り、ISBNから教科書情報を取得するためにカメラを使用します。</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>学校や図書館にいるあいだ、許可したアプリ以外を制限するために位置情報を使います。位置は端末内だけで使い、サーバーには送りません。</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>学校や図書館にいるあいだ、許可したアプリ以外を制限するために位置情報を使います。バックグラウンドでも判定するため「常に許可」が必要です。位置は端末内だけで使い、サーバーには送りません。</string>
     <key>NSSupportsLiveActivities</key>
     <true/>
     <key>UIApplicationSceneManifest</key>

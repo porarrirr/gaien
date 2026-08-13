@@ -203,9 +203,11 @@
 		A70000000000000000000004 /* ScreenTimeAccessEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000095 /* ScreenTimeAccessEngine.swift */; };
 		A70000000000000000000005 /* ShieldActionExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000002 /* ShieldActionExtension.swift */; };
 		A10000000000000000000094 /* ScreenTimeUsageHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000096 /* ScreenTimeUsageHistory.swift */; };
+		A10000000000000000000097 /* ScreenTimeLocationMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000097 /* ScreenTimeLocationMonitor.swift */; };
 		A5000000000000000000000A /* ScreenTimeUsageHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000096 /* ScreenTimeUsageHistory.swift */; };
 		A70000000000000000000006 /* ScreenTimeUsageHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000096 /* ScreenTimeUsageHistory.swift */; };
 		A3000000000000000000009C /* ScreenTimeUsageReportCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3000000000000000000009C /* ScreenTimeUsageReportCard.swift */; };
+		A3000000000000000000009E /* LocationZoneEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3000000000000000000009E /* LocationZoneEditorSheet.swift */; };
 		A3000000000000000000009D /* ScreenTimeFocusPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3000000000000000000009D /* ScreenTimeFocusPolicyTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -332,6 +334,7 @@
 		B10000000000000000000094 /* ScreenTimeTicketLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeTicketLedger.swift; sourceTree = "<group>"; };
 		B10000000000000000000095 /* ScreenTimeAccessEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeAccessEngine.swift; sourceTree = "<group>"; };
 		B10000000000000000000096 /* ScreenTimeUsageHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeUsageHistory.swift; sourceTree = "<group>"; };
+		B10000000000000000000097 /* ScreenTimeLocationMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeLocationMonitor.swift; sourceTree = "<group>"; };
 		B10000000000000000000088 /* SyncDeltaCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaCursor.swift; path = Sync/SyncDeltaCursor.swift; sourceTree = "<group>"; };
 		B10000000000000000000089 /* SyncConflictModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncConflictModels.swift; path = Sync/SyncConflictModels.swift; sourceTree = "<group>"; };
 		B1000000000000000000008A /* SyncDeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeviceIdentity.swift; path = Sync/SyncDeviceIdentity.swift; sourceTree = "<group>"; };
@@ -416,6 +419,7 @@
 		B30000000000000000000097 /* SyncConflictResolutionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncConflictResolutionScreen.swift; sourceTree = "<group>"; };
 		B30000000000000000000098 /* DataLayerMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataLayerMigrationTests.swift; sourceTree = "<group>"; };
 		B3000000000000000000009C /* ScreenTimeUsageReportCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeUsageReportCard.swift; sourceTree = "<group>"; };
+		B3000000000000000000009E /* LocationZoneEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationZoneEditorSheet.swift; sourceTree = "<group>"; };
 		B3000000000000000000009D /* ScreenTimeFocusPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusPolicyTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000099 /* appdata-v2-golden.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "appdata-v2-golden.json"; sourceTree = "<group>"; };
 		B3000000000000000000009A /* appdata-v1-golden.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "appdata-v1-golden.json"; sourceTree = "<group>"; };
@@ -643,6 +647,7 @@
 				B10000000000000000000094 /* ScreenTimeTicketLedger.swift */,
 				B10000000000000000000095 /* ScreenTimeAccessEngine.swift */,
 				B10000000000000000000096 /* ScreenTimeUsageHistory.swift */,
+				B10000000000000000000097 /* ScreenTimeLocationMonitor.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -709,6 +714,7 @@
 				B30000000000000000000097 /* SyncConflictResolutionScreen.swift */,
 				B30000000000000000000096 /* ScreenTimeSettingsScreen.swift */,
 				B3000000000000000000009C /* ScreenTimeUsageReportCard.swift */,
+				B3000000000000000000009E /* LocationZoneEditorSheet.swift */,
 				B10000000000000000000040 /* DebugLogSheet.swift */,
 				B10000000000000000000041 /* AuthSheet.swift */,
 				B30000000000000000000020 /* SettingsViewModel.swift */,
@@ -1415,6 +1421,7 @@
 				A50000000000000000000006 /* ScreenTimeTicketLedger.swift in Sources */,
 				A50000000000000000000007 /* ScreenTimeAccessEngine.swift in Sources */,
 				A10000000000000000000094 /* ScreenTimeUsageHistory.swift in Sources */,
+				A10000000000000000000097 /* ScreenTimeLocationMonitor.swift in Sources */,
 				A10000000000000000000027 /* LegacySnapshotModels.swift in Sources */,
 				A10000000000000000000004 /* GoogleBooksService.swift in Sources */,
 				A10000000000000000000018 /* FirebaseBootstrap.swift in Sources */,
@@ -1495,6 +1502,7 @@
 				A10000000000000000000013 /* SettingsScreen.swift in Sources */,
 				A30000000000000000000096 /* ScreenTimeSettingsScreen.swift in Sources */,
 				A3000000000000000000009C /* ScreenTimeUsageReportCard.swift in Sources */,
+				A3000000000000000000009E /* LocationZoneEditorSheet.swift in Sources */,
 				A30000000000000000000097 /* SyncConflictResolutionScreen.swift in Sources */,
 				A10000000000000000000042 /* DebugLogSheet.swift in Sources */,
 				A10000000000000000000043 /* AuthSheet.swift in Sources */,

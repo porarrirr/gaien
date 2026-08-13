@@ -201,9 +201,127 @@ struct FocusScheduleSlot: Identifiable, Codable, Hashable {
     }
 }
 
+/// 決めた場所にいるあいだ制限する円。座標は端末ローカルで、クラウド同期しない。
+struct FocusLocationZone: Identifiable, Codable, Hashable {
+    static let minimumRadiusMeters = 100
+    static let maximumRadiusMeters = 2_000
+    static let defaultRadiusMeters = 150
+
+    var id: String
+    var title: String
+    var isEnabled: Bool
+    var latitude: Double
+    var longitude: Double
+    /// 地図または現在地で座標を確定したか。未設定のまま監視を始めない。
+    var coordinateWasSet: Bool
+    var radiusMeters: Int
+    /// `false` ならチケットでも無料開放時間帯でも開けない。
+    var allowsTicketBypass: Bool
+
+    init(
+        id: String = UUID().uuidString,
+        title: String = "場所",
+        isEnabled: Bool = true,
+        latitude: Double = 0,
+        longitude: Double = 0,
+        coordinateWasSet: Bool = false,
+        radiusMeters: Int = FocusLocationZone.defaultRadiusMeters,
+        allowsTicketBypass: Bool = true
+    ) {
+        self.id = id
+        self.title = title
+        self.isEnabled = isEnabled
+        self.latitude = latitude
+        self.longitude = longitude
+        self.coordinateWasSet = coordinateWasSet
+        self.radiusMeters = Self.clampedRadius(radiusMeters)
+        self.allowsTicketBypass = allowsTicketBypass
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case isEnabled
+        case latitude
+        case longitude
+        case coordinateWasSet
+        case radiusMeters
+        case allowsTicketBypass
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        latitude = try container.decodeIfPresent(Double.self, forKey: .latitude) ?? 0
+        longitude = try container.decodeIfPresent(Double.self, forKey: .longitude) ?? 0
+        coordinateWasSet = try container.decodeIfPresent(Bool.self, forKey: .coordinateWasSet) ?? false
+        radiusMeters = Self.clampedRadius(
+            try container.decodeIfPresent(Int.self, forKey: .radiusMeters) ?? Self.defaultRadiusMeters
+        )
+        allowsTicketBypass = try container.decodeIfPresent(Bool.self, forKey: .allowsTicketBypass) ?? true
+    }
+
+    var regionIdentifier: String {
+        "\(ScreenTimeFocusShared.locationRegionIdentifierPrefix)\(id)"
+    }
+
+    var isNonNegotiableBlock: Bool {
+        !allowsTicketBypass
+    }
+
+    var hasValidRadius: Bool {
+        (Self.minimumRadiusMeters...Self.maximumRadiusMeters).contains(radiusMeters)
+    }
+
+    var canMonitor: Bool {
+        isEnabled && coordinateWasSet && hasValidRadius
+    }
+
+    mutating func setCoordinate(latitude: Double, longitude: Double) {
+        self.latitude = latitude
+        self.longitude = longitude
+        coordinateWasSet = true
+    }
+
+    static func clampedRadius(_ meters: Int) -> Int {
+        min(max(meters, minimumRadiusMeters), maximumRadiusMeters)
+    }
+
+    static func zoneID(fromRegionIdentifier identifier: String) -> String? {
+        guard identifier.hasPrefix(ScreenTimeFocusShared.locationRegionIdentifierPrefix) else {
+            return nil
+        }
+        let zoneID = String(identifier.dropFirst(ScreenTimeFocusShared.locationRegionIdentifierPrefix.count))
+        return zoneID.isEmpty ? nil : zoneID
+    }
+}
+
+/// どの場所ゾーンの円の中にいるか。設定とは別で、端末のジオフェンス結果だけを持つ。
+struct ScreenTimeLocationPresence: Codable, Equatable {
+    var insideZoneIDs: Set<String>
+    var updatedAt: Int64
+
+    init(
+        insideZoneIDs: Set<String> = [],
+        updatedAt: Int64 = ScreenTimeDateMath.epochMilliseconds(for: Date())
+    ) {
+        self.insideZoneIDs = insideZoneIDs
+        self.updatedAt = updatedAt
+    }
+
+    func contains(zoneID: String) -> Bool {
+        insideZoneIDs.contains(zoneID)
+    }
+}
+
 enum ScreenTimeScheduleValidationError: LocalizedError, Equatable {
     case intervalTooShort(title: String)
     case tooManyEnabledSlots(maximum: Int)
+    case tooManyEnabledLocationZones(maximum: Int)
+    case invalidLocationRadius(title: String)
+    case locationCoordinateRequired(title: String)
     case invalidAllowanceMinutes
     case invalidTicketCount
     case invalidEarnRate
@@ -215,6 +333,12 @@ enum ScreenTimeScheduleValidationError: LocalizedError, Equatable {
             return "\(title)は15分以上の時間帯を指定してください"
         case .tooManyEnabledSlots(let maximum):
             return "有効にできる時間帯は最大\(maximum)件です"
+        case .tooManyEnabledLocationZones(let maximum):
+            return "有効にできる場所は最大\(maximum)件です"
+        case .invalidLocationRadius(let title):
+            return "\(title)の半径は\(FocusLocationZone.minimumRadiusMeters)〜\(FocusLocationZone.maximumRadiusMeters)mで指定してください"
+        case .locationCoordinateRequired(let title):
+            return "\(title)の位置を地図または現在地で指定してください"
         case .invalidAllowanceMinutes:
             return "持ち時間は0〜\(ScreenTimeFocusSettings.maximumAllowanceMinutes)分の5分刻みで指定してください"
         case .invalidTicketCount:
@@ -458,6 +582,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     static let usageLadderBucketMinutes = 60
     /// 持ち時間の残りがこの割合を下回ったら「そろそろ終わる」と知らせる。
     static let usageWarningRemainingRatio = 0.2
+    static let maximumEnabledLocationZones = 8
 
     var isEnabled: Bool
 
@@ -467,6 +592,8 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     var goalRestrictionEnabled: Bool
     var timerRestrictionEnabled: Bool
     var scheduledRestrictionEnabled: Bool
+    /// 決めた場所の円の中にいるあいだ制限する。
+    var locationRestrictionEnabled: Bool
     /// 壁の基本状態。オンなら常に制限し、無料開放の時間帯とチケットだけが開ける。
     ///
     /// 以前は「時間帯の外も制限（`restrictOutsideSchedule`）」という別トグルがあったが、
@@ -501,6 +628,8 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     var budgetSelectionWasConfigured: Bool
 
     var scheduleSlots: [FocusScheduleSlot]
+    /// 端末ローカル。クラウド同期では復元時に既存値を残す。
+    var locationZones: [FocusLocationZone]
     /// Last time a cloud-portable Screen Time setting changed.
     var updatedAt: Int64
     /// Epoch milliseconds. While `Date() < expiry`, all Screen Time settings are read-only in-app.
@@ -511,6 +640,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         goalRestrictionEnabled: Bool = false,
         timerRestrictionEnabled: Bool = false,
         scheduledRestrictionEnabled: Bool = false,
+        locationRestrictionEnabled: Bool = false,
         alwaysRestrictEnabled: Bool = false,
         budgetRestrictionEnabled: Bool = false,
         ticketsEnabled: Bool = false,
@@ -523,6 +653,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         ticketCooldownMinutes: Int = 0,
         ticketCooldownEscalationMinutes: Int = 0,
         scheduleSlots: [FocusScheduleSlot] = [],
+        locationZones: [FocusLocationZone] = [],
         activitySelection: FamilyActivitySelection = FamilyActivitySelection(includeEntireCategory: true),
         selectionWasConfigured: Bool? = nil,
         budgetSelection: FamilyActivitySelection = FamilyActivitySelection(includeEntireCategory: true),
@@ -534,6 +665,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         self.goalRestrictionEnabled = goalRestrictionEnabled
         self.timerRestrictionEnabled = timerRestrictionEnabled
         self.scheduledRestrictionEnabled = scheduledRestrictionEnabled
+        self.locationRestrictionEnabled = locationRestrictionEnabled
         self.alwaysRestrictEnabled = alwaysRestrictEnabled
         self.budgetRestrictionEnabled = budgetRestrictionEnabled
         self.ticketsEnabled = ticketsEnabled
@@ -546,6 +678,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         self.ticketCooldownMinutes = ticketCooldownMinutes
         self.ticketCooldownEscalationMinutes = ticketCooldownEscalationMinutes
         self.scheduleSlots = scheduleSlots
+        self.locationZones = locationZones
         self.activitySelection = Self.selectionIncludingEntireCategories(activitySelection)
         self.selectionWasConfigured = selectionWasConfigured
             ?? !activitySelection.applicationTokens.isEmpty
@@ -564,6 +697,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         case goalRestrictionEnabled
         case timerRestrictionEnabled
         case scheduledRestrictionEnabled
+        case locationRestrictionEnabled
         case alwaysRestrictEnabled
         case budgetRestrictionEnabled
         case ticketsEnabled
@@ -576,6 +710,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         case ticketCooldownMinutes
         case ticketCooldownEscalationMinutes
         case scheduleSlots
+        case locationZones
         case activitySelection
         case selectionWasConfigured
         case budgetSelection
@@ -599,6 +734,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
         timerRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .timerRestrictionEnabled) ?? false
         scheduledRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .scheduledRestrictionEnabled) ?? false
+        locationRestrictionEnabled = try container.decodeIfPresent(Bool.self, forKey: .locationRestrictionEnabled) ?? false
 
         let legacyTickets = try container.decodeIfPresent(Bool.self, forKey: .legacyTicketRestrictionEnabled)
         let legacyMinutes = try container.decodeIfPresent(Int.self, forKey: .legacyDailyTicketMinutes)
@@ -647,6 +783,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         ) ?? 0
 
         scheduleSlots = try container.decodeIfPresent([FocusScheduleSlot].self, forKey: .scheduleSlots) ?? []
+        locationZones = try container.decodeIfPresent([FocusLocationZone].self, forKey: .locationZones) ?? []
         let decodedSelection = try container.decodeIfPresent(
             FamilyActivitySelection.self,
             forKey: .activitySelection
@@ -682,6 +819,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         try container.encode(goalRestrictionEnabled, forKey: .goalRestrictionEnabled)
         try container.encode(timerRestrictionEnabled, forKey: .timerRestrictionEnabled)
         try container.encode(scheduledRestrictionEnabled, forKey: .scheduledRestrictionEnabled)
+        try container.encode(locationRestrictionEnabled, forKey: .locationRestrictionEnabled)
         try container.encode(alwaysRestrictEnabled, forKey: .alwaysRestrictEnabled)
         try container.encode(budgetRestrictionEnabled, forKey: .budgetRestrictionEnabled)
         try container.encode(ticketsEnabled, forKey: .ticketsEnabled)
@@ -694,6 +832,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         try container.encode(ticketCooldownMinutes, forKey: .ticketCooldownMinutes)
         try container.encode(ticketCooldownEscalationMinutes, forKey: .ticketCooldownEscalationMinutes)
         try container.encode(scheduleSlots, forKey: .scheduleSlots)
+        try container.encode(locationZones, forKey: .locationZones)
         try container.encode(activitySelection, forKey: .activitySelection)
         try container.encode(selectionWasConfigured, forKey: .selectionWasConfigured)
         try container.encode(budgetSelection, forKey: .budgetSelection)
@@ -771,6 +910,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
             || goalRestrictionEnabled
             || timerRestrictionEnabled
             || scheduledRestrictionEnabled
+            || locationRestrictionEnabled
             || alwaysRestrictEnabled
             || budgetRestrictionEnabled
             || ticketsEnabled
@@ -779,6 +919,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
             || goalBonusAllowanceMinutes != 0
             || dailyTicketCount != 0
             || !scheduleSlots.isEmpty
+            || !locationZones.isEmpty
             || selectionWasConfigured
             || budgetSelectionWasConfigured
             || settingsLockedUntilEpochMilliseconds != nil
@@ -787,6 +928,11 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     var enabledScheduleSlots: [FocusScheduleSlot] {
         guard isEnabled, scheduledRestrictionEnabled else { return [] }
         return scheduleSlots.filter { $0.isEnabled && $0.hasSelectedWeekday }
+    }
+
+    var enabledLocationZones: [FocusLocationZone] {
+        guard isEnabled, locationRestrictionEnabled else { return [] }
+        return locationZones.filter(\.canMonitor)
     }
 
     var maximumEnabledSlotsForCurrentConfiguration: Int {
@@ -845,6 +991,19 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
         }) {
             throw ScreenTimeScheduleValidationError.intervalTooShort(title: invalidSlot.title)
         }
+
+        let zones = locationRestrictionEnabled ? locationZones.filter(\.isEnabled) : []
+        guard zones.count <= Self.maximumEnabledLocationZones else {
+            throw ScreenTimeScheduleValidationError.tooManyEnabledLocationZones(
+                maximum: Self.maximumEnabledLocationZones
+            )
+        }
+        if let invalidZone = zones.first(where: { !$0.hasValidRadius }) {
+            throw ScreenTimeScheduleValidationError.invalidLocationRadius(title: invalidZone.title)
+        }
+        if let unsetZone = zones.first(where: { !$0.coordinateWasSet }) {
+            throw ScreenTimeScheduleValidationError.locationCoordinateRequired(title: unsetZone.title)
+        }
     }
 
     mutating func normalizeActivitySelection() {
@@ -869,7 +1028,8 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
     /// 許可リストの選択が必要かどうか。許可リストが空だと壁そのものが立たない。
     var requiresAllowedSelection: Bool {
         guard isEnabled else { return false }
-        if timerRestrictionEnabled || alwaysRestrictEnabled || goalRestrictionEnabled {
+        if timerRestrictionEnabled || alwaysRestrictEnabled || goalRestrictionEnabled
+            || locationRestrictionEnabled {
             return true
         }
         guard scheduledRestrictionEnabled else { return false }
@@ -887,6 +1047,7 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
             goalRestrictionEnabled,
             timerRestrictionEnabled,
             scheduledRestrictionEnabled,
+            locationRestrictionEnabled,
             alwaysRestrictEnabled
         ]
         .filter { $0 }
@@ -899,6 +1060,10 @@ struct ScreenTimeFocusSettings: Codable, Equatable {
 
     func hasActiveScheduleSlot(at date: Date = Date(), calendar: Calendar = .current) -> Bool {
         !activeScheduleSlots(at: date, calendar: calendar).isEmpty
+    }
+
+    func activeLocationZones(presence: ScreenTimeLocationPresence) -> [FocusLocationZone] {
+        enabledLocationZones.filter { presence.contains(zoneID: $0.id) }
     }
 
     func nextAllowedScheduleStart(
@@ -1189,19 +1354,23 @@ struct ScreenTimeSyncSettings: Codable, Hashable {
 
     func restoredSettings(
         preserving selection: FamilyActivitySelection,
-        budgetSelection: FamilyActivitySelection
+        budgetSelection: FamilyActivitySelection,
+        locationRestrictionEnabled: Bool = false,
+        locationZones: [FocusLocationZone] = []
     ) -> ScreenTimeFocusSettings {
         ScreenTimeFocusSettings(
             isEnabled: isEnabled,
             goalRestrictionEnabled: goalRestrictionEnabled,
             timerRestrictionEnabled: timerRestrictionEnabled,
             scheduledRestrictionEnabled: scheduledRestrictionEnabled,
+            locationRestrictionEnabled: locationRestrictionEnabled,
             alwaysRestrictEnabled: alwaysRestrictEnabled,
             ticketsEnabled: ticketsEnabled,
             dailyTicketCount: dailyTicketCount,
             ticketCooldownMinutes: ticketCooldownMinutes,
             ticketCooldownEscalationMinutes: ticketCooldownEscalationMinutes,
             scheduleSlots: scheduleSlots,
+            locationZones: locationZones,
             activitySelection: selection,
             selectionWasConfigured: selectionWasConfigured,
             updatedAt: updatedAt,
@@ -1227,8 +1396,12 @@ enum ScreenTimePolicyReason: String, Codable, Equatable {
     case masterDisabled
     /// チケットでも無料開放でも開けられない使用禁止時間帯。
     case lockedSchedule
+    /// チケットでも無料開放でも開けられない場所制限。
+    case lockedLocation
     case studyTimer
     case blockedSchedule
+    /// 決めた場所にいるあいだの制限。無料開放時間帯では解けない。
+    case blockedLocation
     case dailyGoalPending
     case alwaysRestricted
     /// 対象アプリの持ち時間を使い切った。対象アプリだけがブロックされる。
@@ -1266,13 +1439,15 @@ struct ScreenTimePolicyDecision: Equatable {
 ///
 /// 以前は先に成立したルールで打ち切っていたため、「目標未達成なら制限」と
 /// 「就寝時間は必ず制限」を同時に成り立たせられなかった。現在はハード制限
-/// （交渉不可）・交渉可能な制限・持ち時間の3層を別々に求めて合成する。
+/// （交渉不可）・交渉可能な時間系制限・場所制限・持ち時間を別々に求めて合成する。
+/// 場所制限は無料開放時間帯では解けない。チケットはゾーンが許せば開ける。
 enum ScreenTimePolicyEvaluator {
     static func evaluate(
         settings: ScreenTimeFocusSettings,
         ledger: ScreenTimeTicketLedger?,
         dailyGoalProgress: ScreenTimeDailyGoalProgress?,
         runtimeState: ScreenTimeRuntimeState,
+        locationPresence: ScreenTimeLocationPresence = ScreenTimeLocationPresence(),
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> ScreenTimePolicyDecision {
@@ -1289,11 +1464,14 @@ enum ScreenTimePolicyEvaluator {
             && ledger?.hasActiveTicket(at: referenceDate, calendar: calendar) == true
         let activeSlots = settings.activeScheduleSlots(at: referenceDate, calendar: calendar)
         let hasAllowWindow = activeSlots.contains { $0.behavior == .allow }
+        let activeLocationZones = settings.activeLocationZones(presence: locationPresence)
 
         // 第1層: 交渉不可のハード制限。チケットも無料開放も効かない。
-        let hasLockedBlock = activeSlots.contains { $0.isNonNegotiableBlock }
+        let hasLockedSchedule = activeSlots.contains { $0.isNonNegotiableBlock }
+        let hasLockedLocation = activeLocationZones.contains { $0.isNonNegotiableBlock }
+        let hasLockedBlock = hasLockedSchedule || hasLockedLocation
 
-        // 第2層: 交渉可能な制限。より具体的な理由を優先して1つ選ぶ。
+        // 第2層: 交渉可能な時間系制限。より具体的な理由を優先して1つ選ぶ。
         var negotiableReason: ScreenTimePolicyReason?
         if settings.timerRestrictionEnabled, runtimeState.isTimerRestrictionActive(at: referenceDate) {
             negotiableReason = .studyTimer
@@ -1310,7 +1488,7 @@ enum ScreenTimePolicyEvaluator {
             negotiableReason = .alwaysRestricted
         }
 
-        // 無料開放とチケットは、交渉可能な制限だけを解除する。
+        // 無料開放とチケットは、交渉可能な時間系制限だけを解除する。
         var negotiableSuppressedBy: ScreenTimePolicyReason?
         if negotiableReason != nil {
             if hasAllowWindow {
@@ -1321,11 +1499,22 @@ enum ScreenTimePolicyEvaluator {
         }
         let negotiableApplies = negotiableReason != nil && negotiableSuppressedBy == nil
 
-        let restrictsAllApps = hasLockedBlock || negotiableApplies
+        // 場所は無料開放では解けない。チケットはゾーンが許せば開ける。
+        let hasNegotiableLocation = activeLocationZones.contains { $0.allowsTicketBypass }
+        var locationSuppressedBy: ScreenTimePolicyReason?
+        if hasNegotiableLocation, hasActiveTicket {
+            locationSuppressedBy = .activeTicket
+        }
+        let locationApplies = hasNegotiableLocation && locationSuppressedBy == nil
+
+        let restrictsAllApps = hasLockedBlock || negotiableApplies || locationApplies
         let reason = resolveReason(
-            hasLockedBlock: hasLockedBlock,
+            hasLockedSchedule: hasLockedSchedule,
+            hasLockedLocation: hasLockedLocation,
             negotiableReason: negotiableApplies ? negotiableReason : nil,
+            locationApplies: locationApplies,
             negotiableSuppressedBy: negotiableSuppressedBy,
+            locationSuppressedBy: locationSuppressedBy,
             budgetExhausted: false,
             hasAllowWindow: hasAllowWindow,
             settings: settings,
@@ -1339,8 +1528,7 @@ enum ScreenTimePolicyEvaluator {
             restrictsBudgetTargets: false,
             reason: reason,
             ticketRestrictionEnabled: ticketsEnabled,
-            // 交渉可能な制限が立っているときだけチケットに意味がある。
-            isTicketBypassable: !hasLockedBlock && negotiableApplies,
+            isTicketBypassable: !hasLockedBlock && (negotiableApplies || locationApplies),
             hasActiveTicket: hasActiveTicket
         )
     }
@@ -1356,9 +1544,12 @@ enum ScreenTimePolicyEvaluator {
     }
 
     private static func resolveReason(
-        hasLockedBlock: Bool,
+        hasLockedSchedule: Bool,
+        hasLockedLocation: Bool,
         negotiableReason: ScreenTimePolicyReason?,
+        locationApplies: Bool,
         negotiableSuppressedBy: ScreenTimePolicyReason?,
+        locationSuppressedBy: ScreenTimePolicyReason?,
         budgetExhausted: Bool,
         hasAllowWindow: Bool,
         settings: ScreenTimeFocusSettings,
@@ -1366,17 +1557,26 @@ enum ScreenTimePolicyEvaluator {
         referenceDate: Date,
         calendar: Calendar
     ) -> ScreenTimePolicyReason {
-        if hasLockedBlock {
+        if hasLockedSchedule {
             return .lockedSchedule
+        }
+        if hasLockedLocation {
+            return .lockedLocation
         }
         if let negotiableReason {
             return negotiableReason
+        }
+        if locationApplies {
+            return .blockedLocation
         }
         if budgetExhausted {
             return .budgetExhausted
         }
         if let negotiableSuppressedBy {
             return negotiableSuppressedBy
+        }
+        if let locationSuppressedBy {
+            return locationSuppressedBy
         }
         if hasAllowWindow {
             return .allowedSchedule
@@ -1408,10 +1608,13 @@ enum ScreenTimeFocusShared {
     static let settingsKey = "screenTimeFocusSettings.v1"
     static let dailyGoalProgressKey = "screenTimeFocusDailyGoalProgress.v1"
     static let runtimeStateKey = "screenTimeRuntimeState.v1"
+    static let locationPresenceKey = "screenTimeLocationPresence.v1"
+    static let locationMonitoringArmedKey = "screenTimeLocationMonitoringArmed.v1"
     static let restoredSelectionRequiredKey = "screenTimeFocusRestoredSelectionRequired.v1"
     static let budgetFingerprintKey = "screenTimeFocusBudgetFingerprint.v1"
     static let budgetLadderCeilingKey = "screenTimeFocusBudgetLadderCeiling.v1"
     static let scheduleActivityNamePrefix = "studyapp.focus.schedule."
+    static let locationRegionIdentifierPrefix = "studyapp.focus.location."
     static let dailyBoundaryActivityName = DeviceActivityName("studyapp.focus.daily-boundary")
     static let ticketExpiryActivityName = DeviceActivityName("studyapp.focus.ticket-expiry")
     static let timerExpiryActivityName = DeviceActivityName("studyapp.focus.timer-expiry")
@@ -1476,7 +1679,9 @@ enum ScreenTimeFocusShared {
         )
         let restored = synced.restoredSettings(
             preserving: current.activitySelection,
-            budgetSelection: current.budgetSelection
+            budgetSelection: current.budgetSelection,
+            locationRestrictionEnabled: current.locationRestrictionEnabled,
+            locationZones: current.locationZones
         )
         guard saveSettings(restored),
               let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
@@ -1558,6 +1763,44 @@ enum ScreenTimeFocusShared {
         }
         defaults.set(data, forKey: runtimeStateKey)
         return true
+    }
+
+    static func loadLocationPresence() -> ScreenTimeLocationPresence {
+        guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
+              let data = defaults.data(forKey: locationPresenceKey),
+              let presence = try? JSONDecoder().decode(ScreenTimeLocationPresence.self, from: data) else {
+            return ScreenTimeLocationPresence()
+        }
+        return presence
+    }
+
+    @discardableResult
+    static func saveLocationPresence(_ presence: ScreenTimeLocationPresence) -> Bool {
+        guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
+              let data = try? JSONEncoder().encode(presence) else {
+            return false
+        }
+        defaults.set(data, forKey: locationPresenceKey)
+        return true
+    }
+
+    static func clearLocationPresence() {
+        guard var presence = Optional(loadLocationPresence()), !presence.insideZoneIDs.isEmpty else {
+            setLocationMonitoringArmed(false)
+            return
+        }
+        presence.insideZoneIDs = []
+        presence.updatedAt = ScreenTimeDateMath.epochMilliseconds(for: Date())
+        saveLocationPresence(presence)
+        setLocationMonitoringArmed(false)
+    }
+
+    static var isLocationMonitoringArmed: Bool {
+        UserDefaults(suiteName: appGroupIdentifier)?.bool(forKey: locationMonitoringArmedKey) == true
+    }
+
+    static func setLocationMonitoringArmed(_ armed: Bool) {
+        UserDefaults(suiteName: appGroupIdentifier)?.set(armed, forKey: locationMonitoringArmedKey)
     }
 
     /// 許可リスト以外すべてを止める壁。

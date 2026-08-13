@@ -7,6 +7,7 @@ final class StudyAppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        ScreenTimeLocationMonitor.shared.start()
         FirebaseBootstrap.configureIfAvailable()
         return true
     }

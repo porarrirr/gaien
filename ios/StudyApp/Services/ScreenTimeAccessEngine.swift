@@ -7,6 +7,8 @@ import UserNotifications
 enum ScreenTimeFocusError: LocalizedError {
     case unavailable
     case authorizationRequired
+    case locationAuthorizationRequired
+    case locationMonitoringUnavailable
     case missingAllowedApplications
     case missingBudgetTargets
     case settingsSaveFailed
@@ -22,6 +24,10 @@ enum ScreenTimeFocusError: LocalizedError {
             return "Screen Time APIはこの環境では利用できません"
         case .authorizationRequired:
             return "Screen Timeの許可が必要です"
+        case .locationAuthorizationRequired:
+            return "場所の制限には、位置情報の「常に許可」が必要です"
+        case .locationMonitoringUnavailable:
+            return "この端末では場所による制限を利用できません"
         case .missingAllowedApplications:
             return "許可するアプリを選択してください"
         case .missingBudgetTargets:
@@ -164,11 +170,15 @@ struct ScreenTimeAccessEngine {
             createIfMissing: Self.requiresLedger(settings)
         )
         let progress = ScreenTimeFocusShared.loadDailyGoalProgress()
+        let locationPresence = ScreenTimeFocusShared.isLocationMonitoringArmed
+            ? ScreenTimeFocusShared.loadLocationPresence()
+            : ScreenTimeLocationPresence()
         let decision = ScreenTimePolicyEvaluator.evaluate(
             settings: settings,
             ledger: ledger,
             dailyGoalProgress: progress,
             runtimeState: ScreenTimeFocusShared.loadRuntimeState(),
+            locationPresence: locationPresence,
             referenceDate: referenceDate,
             calendar: calendar
         )
@@ -618,6 +628,9 @@ struct ScreenTimeAccessEngine {
         let expiry = min(nominalExpiry, nextDayStart)
         let progress = ScreenTimeFocusShared.loadDailyGoalProgress()
         let runtime = ScreenTimeFocusShared.loadRuntimeState()
+        let locationPresence = ScreenTimeFocusShared.isLocationMonitoringArmed
+            ? ScreenTimeFocusShared.loadLocationPresence()
+            : ScreenTimeLocationPresence()
 
         let reservation: (previous: ScreenTimeTicketLedger, reserved: ScreenTimeTicketLedger) =
             try ledgerStore.update(
@@ -630,6 +643,7 @@ struct ScreenTimeAccessEngine {
                     ledger: ledger,
                     dailyGoalProgress: progress,
                     runtimeState: runtime,
+                    locationPresence: locationPresence,
                     referenceDate: referenceDate,
                     calendar: calendar
                 )

@@ -34,11 +34,15 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
     private func makeConfiguration(referenceDate: Date = Date()) -> ShieldConfiguration {
         let settings = ScreenTimeFocusShared.loadSettings()
         let ledger = loadLedger(settings: settings, referenceDate: referenceDate)
+        let locationPresence = ScreenTimeFocusShared.isLocationMonitoringArmed
+            ? ScreenTimeFocusShared.loadLocationPresence()
+            : ScreenTimeLocationPresence()
         let decision = ScreenTimePolicyEvaluator.evaluate(
             settings: settings,
             ledger: ledger,
             dailyGoalProgress: ScreenTimeFocusShared.loadDailyGoalProgress(),
             runtimeState: ScreenTimeFocusShared.loadRuntimeState(),
+            locationPresence: locationPresence,
             referenceDate: referenceDate
         )
         let isForToday = ledger?.isForDay(containing: referenceDate) == true
@@ -106,10 +110,14 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
             return "hourglass.bottomhalf.filled"
         case .lockedSchedule:
             return "moon.zzz.fill"
+        case .lockedLocation:
+            return "mappin.slash"
         case .dailyGoalPending:
             return "target"
         case .studyTimer:
             return "timer"
+        case .blockedLocation:
+            return "mappin.and.ellipse"
         default:
             return "lock.shield.fill"
         }
@@ -121,12 +129,16 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
             return "今日の持ち時間を使い切りました"
         case .lockedSchedule:
             return "いまは開けられない時間です"
+        case .lockedLocation:
+            return "この場所では開けられません"
         case .dailyGoalPending:
             return "学習目標が未達成です"
         case .studyTimer:
             return "学習タイマー中です"
         case .blockedSchedule:
             return "使用禁止時間帯です"
+        case .blockedLocation:
+            return "この場所では制限中です"
         case .alwaysRestricted:
             // チケットが無効なら「チケットが必要」は誤誘導になる。
             return ticketsEnabled ? "チケットが必要です" : "いまは使えません"
@@ -152,6 +164,9 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
         }
         if decision.reason == .lockedSchedule {
             return "この時間帯はチケットでも開けられません。\(nextFreeOpeningText(settings: settings, after: referenceDate))"
+        }
+        if decision.reason == .lockedLocation {
+            return "この場所ではチケットでも開けられません。"
         }
 
         let reasonText = reasonSubtitle(
@@ -202,6 +217,8 @@ final class StudyAppShieldConfigurationExtension: ShieldConfigurationDataSource 
             return "今日の学習目標を達成すると解除されます。"
         case .studyTimer:
             return "学習タイマーが終了すると解除されます。"
+        case .blockedLocation:
+            return "この場所を離れると解除されます。"
         case .blockedSchedule, .alwaysRestricted:
             return nextFreeOpeningText(settings: settings, after: referenceDate)
         default:
