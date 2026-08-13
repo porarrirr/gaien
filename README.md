@@ -49,4 +49,4 @@ Firebase setup and platform-specific signing are required for cloud sync and pro
 
 ## License
 
-A project license has not yet been selected.
+The original code is proprietary and all rights are reserved. See [LICENSE](LICENSE). Third-party components remain subject to their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

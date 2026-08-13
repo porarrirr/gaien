@@ -72,6 +72,7 @@
 		A10000000000000000000080 /* SyncDeltaSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000080 /* SyncDeltaSerializer.swift */; };
 		A10000000000000000000081 /* FirestoreDeltaSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */; };
 		A10000000000000000000085 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000085 /* PrivacyInfo.xcprivacy */; };
+		A90000000000000000000001 /* THIRD_PARTY_NOTICES.md in Resources */ = {isa = PBXBuildFile; fileRef = B90000000000000000000001 /* THIRD_PARTY_NOTICES.md */; };
 		A10000000000000000000088 /* SyncDeltaCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000088 /* SyncDeltaCursor.swift */; };
 		A10000000000000000000089 /* SyncConflictModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000089 /* SyncConflictModels.swift */; };
 		A1000000000000000000008A /* SyncDeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000008A /* SyncDeviceIdentity.swift */; };
@@ -325,6 +326,7 @@
 		B10000000000000000000080 /* SyncDeltaSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SyncDeltaSerializer.swift; path = Sync/SyncDeltaSerializer.swift; sourceTree = "<group>"; };
 		B10000000000000000000081 /* FirestoreDeltaSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FirestoreDeltaSyncStore.swift; path = Sync/FirestoreDeltaSyncStore.swift; sourceTree = "<group>"; };
 		B10000000000000000000085 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B90000000000000000000001 /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
 		B10000000000000000000086 /* ScreenTimeFocusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000087 /* ScreenTimeFocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeFocusController.swift; sourceTree = "<group>"; };
 		B10000000000000000000094 /* ScreenTimeTicketLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeTicketLedger.swift; sourceTree = "<group>"; };
@@ -651,6 +653,7 @@
 				B10000000000000000000019 /* Assets.xcassets */,
 				B10000000000000000000015 /* GoogleService-Info.plist */,
 				B10000000000000000000085 /* PrivacyInfo.xcprivacy */,
+				B90000000000000000000001 /* THIRD_PARTY_NOTICES.md */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -1193,6 +1196,7 @@
 				A10000000000000000000022 /* Assets.xcassets in Resources */,
 				A10000000000000000000014 /* GoogleService-Info.plist in Resources */,
 				A10000000000000000000085 /* PrivacyInfo.xcprivacy in Resources */,
+				A90000000000000000000001 /* THIRD_PARTY_NOTICES.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

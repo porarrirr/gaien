@@ -49,4 +49,4 @@ open ios/StudyApp.xcodeproj
 
 ## ライセンス
 
-プロジェクトのライセンスは未定です。
+独自コードはプロプライエタリで、すべての権利を留保します。詳細は [LICENSE](LICENSE) を参照してください。第三者コンポーネントには個別のライセンスが適用されます。詳細は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を参照してください。
