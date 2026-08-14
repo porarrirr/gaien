@@ -242,7 +242,10 @@ final class StudyAppContainer: ObservableObject {
 
     func handleSceneDidBecomeActive() {
         scheduleAutoSync(reason: "scene-active")
-        Task { await refreshScreenTimeFocusState(reason: "scene-active") }
+        Task {
+            await ScreenTimeLocationMonitor.shared.refreshPresenceFromCurrentLocation()
+            await refreshScreenTimeFocusState(reason: "scene-active")
+        }
     }
 
     func scheduleAutoSync(reason: String) {

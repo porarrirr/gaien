@@ -1305,7 +1305,7 @@ struct ScreenTimeSettingsScreen: View {
         ruleRow(
             icon: "mappin.and.ellipse",
             title: "決めた場所",
-            detail: "指定した場所にいるあいだ制限します。場所は端末ごとに設定します",
+            detail: "指定した場所にいるあいだ制限します。円の外に出たら現在地で判定し直します",
             isOn: Binding(
                 get: { settings.locationRestrictionEnabled },
                 set: { enabled in

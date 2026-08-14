@@ -2385,4 +2385,135 @@ final class ScreenTimeLocationPolicyTests: XCTestCase {
         XCTAssertEqual(FocusLocationZone.zoneID(fromRegionIdentifier: zone.regionIdentifier), zone.id)
         XCTAssertNil(FocusLocationZone.zoneID(fromRegionIdentifier: "other.prefix.id"))
     }
+
+    func testPresenceResolverTreatsClearlyOutsidePointAsOutside() {
+        let zone = schoolZone(allowsTicketBypass: true)
+        let sample = offset(from: zone, northMeters: 400)
+
+        XCTAssertEqual(
+            FocusLocationPresenceResolver.membership(
+                latitude: sample.latitude,
+                longitude: sample.longitude,
+                horizontalAccuracy: 80,
+                zone: zone
+            ),
+            .outside
+        )
+
+        let ids = FocusLocationPresenceResolver.insideZoneIDs(
+            latitude: sample.latitude,
+            longitude: sample.longitude,
+            horizontalAccuracy: 80,
+            timestamp: Date(),
+            zones: [zone],
+            previous: ["school"]
+        )
+
+        XCTAssertEqual(ids, [])
+    }
+
+    func testPresenceResolverUnlocksJustOutsideDrawnRadius() {
+        let zone = schoolZone(allowsTicketBypass: true)
+        let sample = offset(from: zone, northMeters: 180)
+        let distance = FocusLocationPresenceResolver.distanceMeters(
+            fromLatitude: zone.latitude,
+            fromLongitude: zone.longitude,
+            toLatitude: sample.latitude,
+            toLongitude: sample.longitude
+        )
+
+        XCTAssertGreaterThan(distance - 5, Double(zone.radiusMeters))
+        XCTAssertEqual(
+            FocusLocationPresenceResolver.membership(
+                latitude: sample.latitude,
+                longitude: sample.longitude,
+                horizontalAccuracy: 5,
+                zone: zone
+            ),
+            .outside
+        )
+    }
+
+    func testPresenceResolverKeepsPreviousWhenAccuracyOverlapsBoundary() {
+        let zone = schoolZone(allowsTicketBypass: true)
+        let sample = offset(from: zone, northMeters: 160)
+
+        XCTAssertEqual(
+            FocusLocationPresenceResolver.membership(
+                latitude: sample.latitude,
+                longitude: sample.longitude,
+                horizontalAccuracy: 20,
+                zone: zone
+            ),
+            .uncertain
+        )
+
+        let stillInside = FocusLocationPresenceResolver.insideZoneIDs(
+            latitude: sample.latitude,
+            longitude: sample.longitude,
+            horizontalAccuracy: 20,
+            timestamp: Date(),
+            zones: [zone],
+            previous: ["school"]
+        )
+        let stillOutside = FocusLocationPresenceResolver.insideZoneIDs(
+            latitude: sample.latitude,
+            longitude: sample.longitude,
+            horizontalAccuracy: 20,
+            timestamp: Date(),
+            zones: [zone],
+            previous: []
+        )
+
+        XCTAssertEqual(stillInside, ["school"])
+        XCTAssertEqual(stillOutside, [])
+    }
+
+    func testPresenceResolverTreatsClearlyInsidePointAsInside() {
+        let zone = schoolZone(allowsTicketBypass: true)
+        let sample = offset(from: zone, northMeters: 40)
+
+        XCTAssertEqual(
+            FocusLocationPresenceResolver.membership(
+                latitude: sample.latitude,
+                longitude: sample.longitude,
+                horizontalAccuracy: 10,
+                zone: zone
+            ),
+            .inside
+        )
+    }
+
+    func testPresenceResolverIgnoresStaleSample() {
+        let zone = schoolZone(allowsTicketBypass: true)
+        let sample = offset(from: zone, northMeters: 400)
+        let ids = FocusLocationPresenceResolver.insideZoneIDs(
+            latitude: sample.latitude,
+            longitude: sample.longitude,
+            horizontalAccuracy: 10,
+            timestamp: Date().addingTimeInterval(-120),
+            zones: [zone],
+            previous: ["school"]
+        )
+
+        XCTAssertNil(ids)
+    }
+
+    func testHaversineDistanceMatchesOneDegreeLatitude() {
+        let meters = FocusLocationPresenceResolver.distanceMeters(
+            fromLatitude: 0,
+            fromLongitude: 0,
+            toLatitude: 1,
+            toLongitude: 0
+        )
+        XCTAssertEqual(meters, 111_319.5, accuracy: 1)
+    }
+
+    private func offset(
+        from zone: FocusLocationZone,
+        northMeters: Double
+    ) -> (latitude: Double, longitude: Double) {
+        let metersPerDegree = 111_319.5
+        return (zone.latitude + northMeters / metersPerDegree, zone.longitude)
+    }
 }

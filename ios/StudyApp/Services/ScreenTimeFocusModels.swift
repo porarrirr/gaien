@@ -316,6 +316,101 @@ struct ScreenTimeLocationPresence: Codable, Equatable {
     }
 }
 
+/// 現在地と円の距離から内外を決める。iOS の領域監視は退室が遅れるため、
+/// GPS が一意に外側と分かれば円の半径どおりにすぐ解除する。
+enum FocusLocationPresenceResolver {
+    static let maximumSampleAge: TimeInterval = 45
+    static let maximumFutureSkew: TimeInterval = 5
+    static let maximumHorizontalAccuracyMeters = 2_000.0
+
+    enum Membership: Equatable {
+        case inside
+        case outside
+        case uncertain
+    }
+
+    static func distanceMeters(
+        fromLatitude: Double,
+        fromLongitude: Double,
+        toLatitude: Double,
+        toLongitude: Double
+    ) -> Double {
+        let earthRadiusMeters = 6_378_137.0
+        let deltaLat = (toLatitude - fromLatitude) * .pi / 180
+        let deltaLon = (toLongitude - fromLongitude) * .pi / 180
+        let lat1 = fromLatitude * .pi / 180
+        let lat2 = toLatitude * .pi / 180
+        let a = sin(deltaLat / 2) * sin(deltaLat / 2)
+            + cos(lat1) * cos(lat2) * sin(deltaLon / 2) * sin(deltaLon / 2)
+        let c = 2 * atan2(sqrt(a), sqrt(max(0, 1 - a)))
+        return earthRadiusMeters * c
+    }
+
+    static func membership(
+        latitude: Double,
+        longitude: Double,
+        horizontalAccuracy: Double,
+        zone: FocusLocationZone
+    ) -> Membership {
+        guard zone.coordinateWasSet, zone.hasValidRadius, horizontalAccuracy >= 0 else {
+            return .uncertain
+        }
+        let distance = distanceMeters(
+            fromLatitude: zone.latitude,
+            fromLongitude: zone.longitude,
+            toLatitude: latitude,
+            toLongitude: longitude
+        )
+        let radius = Double(zone.radiusMeters)
+        let nearest = max(0, distance - horizontalAccuracy)
+        let farthest = distance + horizontalAccuracy
+        if farthest <= radius {
+            return .inside
+        }
+        if nearest > radius {
+            return .outside
+        }
+        return .uncertain
+    }
+
+    /// 使える測位なら内外を更新した ID 集合。古すぎる・無効な点は `nil`（現状維持）。
+    static func insideZoneIDs(
+        latitude: Double,
+        longitude: Double,
+        horizontalAccuracy: Double,
+        timestamp: Date,
+        now: Date = Date(),
+        zones: [FocusLocationZone],
+        previous: Set<String>
+    ) -> Set<String>? {
+        let age = now.timeIntervalSince(timestamp)
+        guard age <= maximumSampleAge,
+              age >= -maximumFutureSkew,
+              horizontalAccuracy >= 0,
+              horizontalAccuracy <= maximumHorizontalAccuracyMeters else {
+            return nil
+        }
+
+        var result = previous
+        for zone in zones {
+            switch membership(
+                latitude: latitude,
+                longitude: longitude,
+                horizontalAccuracy: horizontalAccuracy,
+                zone: zone
+            ) {
+            case .inside:
+                result.insert(zone.id)
+            case .outside:
+                result.remove(zone.id)
+            case .uncertain:
+                break
+            }
+        }
+        return result
+    }
+}
+
 enum ScreenTimeScheduleValidationError: LocalizedError, Equatable {
     case intervalTooShort(title: String)
     case tooManyEnabledSlots(maximum: Int)
